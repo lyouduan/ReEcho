@@ -36,6 +36,7 @@ private:
 	UFUNCTION() void HandleHurt(const FReEchoDamageEvent& Event);
 	UFUNCTION() void HandleKill(const FReEchoDamageEvent& Event);
 	UFUNCTION() void HandleDeath(const FReEchoDamageEvent& Event);
+	UFUNCTION() void HandleElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
 	void PostDamageEvent(FName EventId, const FReEchoDamageEvent& Event) const;
 
 	TWeakObjectPtr<UReEchoCombatEventsComponent> BoundEvents;

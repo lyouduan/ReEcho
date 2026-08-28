@@ -103,6 +103,7 @@
     "CryptoKeys",
     "CurveEditorTools",
     "CustomMeshComponent",
+    "D3D12VideoDecodersElectra",
     "DataRegistry",
     "DataRegistryToolset",
     "DataValidation",
@@ -122,6 +123,11 @@
     "EditorTRSGizmo",
     "EditorTelemetry",
     "EditorToolset",
+    "ElectraCDM",
+    "ElectraCodecs",
+    "ElectraPlayer",
+    "ElectraSubtitles",
+    "ElectraUtil",
     "EngineAssetDefinitions",
     "EngineCameras",
     "EnhancedInput",
@@ -220,6 +226,7 @@
     "OnlineSubsystemNull",
     "OnlineSubsystemUtils",
     "OodleNetwork",
+    "OpusDecoderElectra",
     "PCG",
     "PCGToolset",
     "Paper2D",
@@ -4380,6 +4387,86 @@
       "Type": "RequiredResource"
     },
     {
+      "Path": "$(EngineDir)/Plugins/Media/D3D12VideoDecodersElectra/Binaries/Win64/UnrealEditor-D3D12VideoDecodersElectra.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/D3D12VideoDecodersElectra/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCDM/Binaries/Win64/UnrealEditor-ElectraCDM.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCDM/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/Binaries/Win64/UnrealEditor-ElectraCodecFactory.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/Binaries/Win64/UnrealEditor-ElectraDecoders.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerFactory.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerPlugin.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerPluginHandler.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraPlayerRuntime.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraProtron.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor-ElectraProtronFactory.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraSubtitles/Binaries/Win64/UnrealEditor-ElectraSubtitles.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraSubtitles/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor-ElectraBase.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor-ElectraHTTPStream.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor-ElectraSamples.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
       "Path": "$(EngineDir)/Plugins/Media/HAPMedia/Binaries/Win64/UnrealEditor-HAPMedia.dll",
       "Type": "DynamicLibrary"
     },
@@ -4461,6 +4548,14 @@
     },
     {
       "Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/OpusDecoderElectra/Binaries/Win64/UnrealEditor-OpusDecoderElectra.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/OpusDecoderElectra/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
     },
     {
@@ -5509,7 +5604,91 @@
   "Project": "../../ReEcho.uproject",
   "RuntimeDependencies": [
     {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateCardEffectOrder/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateId/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateReactionPair/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateWeaponInputSlot/weapons.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/EchoEfficiencyEnabled/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/IllegalRange/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidCardEffectBehaviorPair/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidWeaponPartEffectBehaviorPair/part_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/MissingRequired/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ReactionValueChanged/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownBehavior/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownCardEffectTarget/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownEffectKind/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownFormulaId/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownReference/runtime_smoke_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownWeaponReference/characters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCanCrit/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCardEffectTrigger/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedVersion/reecho_data_manifest.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ValidAlt/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/attack_steps.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/attributes.csv",
       "Type": "NonUFS"
     },
     {
@@ -5529,6 +5708,10 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/character_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/character_aliases.csv",
       "Type": "NonUFS"
     },
@@ -5545,11 +5728,27 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/encounter_waves.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/encounters.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/enemies.csv",
       "Type": "NonUFS"
     },
     {
       "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_combat_stats.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_shard_drops.csv",
       "Type": "NonUFS"
     },
     {
@@ -5577,11 +5776,35 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/shop_drop_levels.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_price_ranges.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_refresh_rules.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/slot_profiles.csv",
       "Type": "NonUFS"
     },
     {
       "Path": "$(ProjectDir)/Content/Data/slot_types.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/spawn_policy.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/spawn_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/stages.csv",
       "Type": "NonUFS"
     },
     {
@@ -5597,7 +5820,19 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/CardChoiceToShop.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterEndToCardChoiceV2.mov",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/Stage01To02.mov",
       "Type": "NonUFS"
     },
     {
@@ -30237,6 +30472,30 @@
       "Type": "UFS"
     },
     {
+      "Path": "$(EngineDir)/Plugins/Media/D3D12VideoDecodersElectra/D3D12VideoDecodersElectra.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCDM/ElectraCDM.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraCodecs/ElectraCodecs.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraPlayer/ElectraPlayer.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraSubtitles/ElectraSubtitles.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/ElectraUtil/ElectraUtil.uplugin",
+      "Type": "UFS"
+    },
+    {
       "Path": "$(EngineDir)/Plugins/Media/HAPMedia/HAPMedia.uplugin",
       "Type": "UFS"
     },
@@ -30258,6 +30517,10 @@
     },
     {
       "Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/MediaPlayerEditor.uplugin",
+      "Type": "UFS"
+    },
+    {
+      "Path": "$(EngineDir)/Plugins/Media/OpusDecoderElectra/OpusDecoderElectra.uplugin",
       "Type": "UFS"
     },
     {

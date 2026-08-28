@@ -77,7 +77,7 @@ void UReEchoPlayerHudWidget::InitializePlayerHud(UReEchoCombatantComponent* InCo
 
 void UReEchoPlayerHudWidget::SetTimeShards(const int32 InTimeShards)
 {
-	CurrentTimeShards = FMath::Max(0, InTimeShards);
+	CurrentTimeShards = InTimeShards;
 	if (TimeShardText)
 	{
 		TimeShardText->SetText(FText::AsNumber(CurrentTimeShards));

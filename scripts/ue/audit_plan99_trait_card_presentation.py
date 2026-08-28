@@ -183,3 +183,41 @@ for asset_path in ASSET_PATHS:
                 text_widget.get_editor_property("slot"), unreal.CanvasPanelSlot
             ):
                 raise RuntimeError(f"Trait Card choice text is not freely draggable: {text_name}")
+        expected_refresh_texture = unreal.load_asset(
+            "/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
+            "T_UI_Pause_ButtonLight"
+        )
+        for slot_index in range(3):
+            button_name = f"ShopCardRefreshButton{slot_index}"
+            text_name = f"ShopCardRefreshText{slot_index}"
+            refresh_button = widgets.get(button_name)
+            refresh_text = widgets.get(text_name)
+            if (
+                not isinstance(refresh_button, unreal.Button)
+                or refresh_button.get_parent() is not widgets["TraitCardContainer"]
+                or not isinstance(
+                    refresh_button.get_editor_property("slot"), unreal.CanvasPanelSlot
+                )
+            ):
+                raise RuntimeError(
+                    f"Trait Card refresh button is not freely draggable: {button_name}"
+                )
+            if (
+                not isinstance(refresh_text, unreal.TextBlock)
+                or refresh_text.get_parent() is not refresh_button
+                or not str(refresh_text.get_editor_property("text")).strip()
+            ):
+                raise RuntimeError(
+                    f"Trait Card refresh designer copy is missing: {text_name}"
+                )
+            refresh_style = refresh_button.get_editor_property("widget_style")
+            for brush_name in ("normal", "hovered", "pressed", "disabled"):
+                if (
+                    refresh_style.get_editor_property(brush_name).get_editor_property(
+                        "resource_object"
+                    )
+                    != expected_refresh_texture
+                ):
+                    raise RuntimeError(
+                        f"Trait Card refresh {button_name} lost {brush_name} art"
+                    )

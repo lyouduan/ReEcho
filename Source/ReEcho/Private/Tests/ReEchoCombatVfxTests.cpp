@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "Misc/AutomationTest.h"
 #include "Components/SceneComponent.h"
@@ -91,6 +91,55 @@ bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 	         HalfwayOffset.Equals(FVector(0.0f, 0.0f, 75.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Blink slam presentation finishes exactly at the gameplay landing point"),
 	         LandedOffset.IsNearlyZero());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathKnockbackPresentationTest,
+                                 "ReEcho.Presentation.VFX.EnemyDeathKnockbackPresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Parameters)
+{
+	const FVector Direction(3.0f, 4.0f, 0.0f);
+	const FVector StartOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.0f, 0.3f, 90.0f);
+	const FVector HalfwayOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.15f, 0.3f, 90.0f);
+	const FVector EndOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.3f, 0.3f, 90.0f);
+
+	TestTrue(TEXT("Fatal presentation starts without a position jump"), StartOffset.IsNearlyZero());
+	TestTrue(TEXT("Fatal presentation quickly covers most of its displacement"),
+	         HalfwayOffset.Equals(Direction.GetSafeNormal() * 78.75f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Fatal presentation reaches the stronger 90 cm displacement"),
+	         EndOffset.Equals(Direction.GetSafeNormal() * 90.0f, KINDA_SMALL_NUMBER));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFatalEnemyHurtVfxPolicyTest,
+                                 "ReEcho.Presentation.VFX.FatalEnemyHurtPolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFatalEnemyHurtVfxPolicyTest::RunTest(const FString& Parameters)
+{
+	AReEchoEnemyActor* Enemy = GetMutableDefault<AReEchoEnemyActor>();
+	AReEchoVfxScenarioTargetActor* NonEnemy = GetMutableDefault<AReEchoVfxScenarioTargetActor>();
+	FReEchoDamageEvent Event;
+	Event.AppliedDamage = 5.0f;
+	Event.DamageSource = EReEchoDamageSource::Player;
+	Event.bFatal = true;
+	Event.Target = Enemy;
+	TestTrue(TEXT("Fatal positive damage keeps enemy hurt feedback"),
+	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, Enemy));
+
+	Event.AppliedDamage = 0.0f;
+	TestFalse(TEXT("Fatal zero damage does not produce enemy hurt feedback"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, Enemy));
+
+	Event.AppliedDamage = 5.0f;
+	Event.Target = NonEnemy;
+	TestFalse(TEXT("Fatal non-enemy damage keeps the existing hurt-feedback policy"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, NonEnemy));
 	return true;
 }
 
@@ -436,8 +485,79 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(StartWorld, EndWorld, StartParameter, EndParameter);
 	TestTrue(TEXT("World-space Conduct preserves a non-zero source origin"),
 	         StartParameter.Equals(StartWorld, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("World-space Conduct preserves oblique direction and distance"),
-	         EndParameter.Equals(EndWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Conduct converts its Beam End to the source-relative target displacement"),
+	         EndParameter.Equals(EndWorld - StartWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Conduct absolute start plus relative end reconstructs the target world position"),
+	         (StartParameter + EndParameter).Equals(EndWorld, KINDA_SMALL_NUMBER));
+	const FTransform ConnectionEffectTransform(FRotator(0.0f, 35.0f, 0.0f), FVector(900.0f, -120.0f, 45.0f));
+	const float ConnectionBoundsPaddingCm = 200.0f;
+	const FBox ConnectionLocalBounds = UReEchoCombatVfxComponent::ResolveConnectionLinkLocalBounds(
+	    ConnectionEffectTransform, StartWorld, EndWorld, ConnectionBoundsPaddingCm);
+	const FVector ConnectionLocalStart = ConnectionEffectTransform.InverseTransformPosition(StartWorld);
+	const FVector ConnectionLocalEnd = ConnectionEffectTransform.InverseTransformPosition(EndWorld);
+	TestTrue(TEXT("Echo connection runtime bounds contain the source in effect-local space"),
+	         ConnectionLocalBounds.IsInsideOrOn(ConnectionLocalStart));
+	TestTrue(TEXT("Echo connection runtime bounds contain the target in effect-local space"),
+	         ConnectionLocalBounds.IsInsideOrOn(ConnectionLocalEnd));
+	TestTrue(TEXT("Echo connection runtime bounds retain a finite ribbon safety margin"),
+	         ConnectionLocalBounds.GetExtent().GetMin() >= ConnectionBoundsPaddingCm);
+	UWorld* ConductAnchorWorld = UWorld::CreateWorld(EWorldType::EditorPreview, false);
+	AReEchoVfxScenarioTargetActor* ConductSource =
+	    ConductAnchorWorld ? ConductAnchorWorld->SpawnActor<AReEchoVfxScenarioTargetActor>() : nullptr;
+	AReEchoVfxScenarioTargetActor* ConductTarget =
+	    ConductAnchorWorld ? ConductAnchorWorld->SpawnActor<AReEchoVfxScenarioTargetActor>() : nullptr;
+	FReEchoDamageEvent ConnectionHurtEvent;
+	ConnectionHurtEvent.Target = ConductTarget;
+	ConnectionHurtEvent.AppliedDamage = 5.0f;
+	ConnectionHurtEvent.DamageSource = EReEchoDamageSource::Path;
+	ConnectionHurtEvent.bFatal = true;
+	TestTrue(TEXT("Fatal connection-line damage still produces target hurt feedback"),
+	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
+	ConnectionHurtEvent.DamageSource = EReEchoDamageSource::Player;
+	TestFalse(TEXT("Fatal non-enemy damage keeps the existing hurt-feedback policy"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
+	ConnectionHurtEvent.bFatal = false;
+	ConnectionHurtEvent.AppliedDamage = 0.0f;
+	TestFalse(TEXT("Blocked connection-line damage does not produce target hurt feedback"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
+	const FVector BossHurtRootWorld(125.0f, -80.0f, 20.0f);
+	const FVector BossFlipbookCenterWorld(170.0f, -40.0f, 180.0f);
+	TestTrue(TEXT("Boss hurt effect is raised halfway from its authored root toward its rendered center"),
+	         UReEchoCombatVfxComponent::ResolveBossHurtEffectLocation(BossHurtRootWorld, BossFlipbookCenterWorld)
+	             .Equals(FVector(125.0f, -80.0f, 100.0f), KINDA_SMALL_NUMBER));
+	FVector ConductAnchorStart = FVector::ZeroVector;
+	FVector ConductAnchorEnd = FVector::ZeroVector;
+	TestFalse(TEXT("Conduct is suppressed when either explicit Hurt VFX root is missing"),
+	          UReEchoCombatVfxComponent::TryResolveConductLinkAnchors(
+	              ConductSource, ConductTarget, ConductAnchorStart, ConductAnchorEnd));
+	if (ConductSource && ConductTarget)
+	{
+		USceneComponent* SourceHurtRoot = NewObject<USceneComponent>(ConductSource);
+		USceneComponent* TargetHurtRoot = NewObject<USceneComponent>(ConductTarget);
+		SourceHurtRoot->RegisterComponent();
+		TargetHurtRoot->RegisterComponent();
+		SourceHurtRoot->SetWorldLocation(StartWorld);
+		TargetHurtRoot->SetWorldLocation(EndWorld);
+		UReEchoCombatVfxComponent* SourceVfx = NewObject<UReEchoCombatVfxComponent>(ConductSource);
+		UReEchoCombatVfxComponent* TargetVfx = NewObject<UReEchoCombatVfxComponent>(ConductTarget);
+		ConductSource->AddInstanceComponent(SourceVfx);
+		ConductTarget->AddInstanceComponent(TargetVfx);
+		SourceVfx->RegisterComponent();
+		TargetVfx->RegisterComponent();
+		SourceVfx->ConfigureAttachmentRoots(nullptr, SourceHurtRoot);
+		TargetVfx->ConfigureAttachmentRoots(nullptr, TargetHurtRoot);
+		TestTrue(TEXT("Conduct resolves only from both explicit Hurt VFX roots"),
+		         UReEchoCombatVfxComponent::TryResolveConductLinkAnchors(
+		             ConductSource, ConductTarget, ConductAnchorStart, ConductAnchorEnd));
+		TestTrue(TEXT("Conduct starts at the source Hurt VFX root"),
+		         ConductAnchorStart.Equals(StartWorld, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Conduct ends at the target Hurt VFX root"),
+		         ConductAnchorEnd.Equals(EndWorld, KINDA_SMALL_NUMBER));
+	}
+	if (ConductAnchorWorld)
+	{
+		ConductAnchorWorld->DestroyWorld(false);
+	}
 	FVector BeamStart = FVector::ZeroVector;
 	FVector BeamEnd = FVector::ZeroVector;
 	const FVector BeamWarningCenter(300.0f, -120.0f, 40.0f);
@@ -463,6 +583,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Preserved world-size VFX cancels inherited uniform owner scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector::OneVector, FVector(2.0f), true)
 	             .Equals(FVector(0.5f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Attack range scales only the configured local radial axis"),
+	         UReEchoCombatVfxComponent::ResolveAttackRangeScale(
+	             FVector(2.0f, 3.0f, 4.0f), FVector(0.0f, 1.0f, 0.0f), 1.5f, 0.5f, 2.0f)
+	             .Equals(FVector(2.0f, 4.5f, 4.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Attack range multiplier is presentation-clamped without moving unmasked axes"),
+	         UReEchoCombatVfxComponent::ResolveAttackRangeScale(
+	             FVector::OneVector, FVector(1.0f, 1.0f, 0.0f), 3.0f, 0.8f, 2.0f)
+	             .Equals(FVector(2.0f, 2.0f, 1.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement SwordRangePlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
+	TestTrue(TEXT("Sword slash opts into attack-range scaling"), SwordRangePlacement.bScaleWithAttackRange);
+	TestTrue(TEXT("Sword slash scales only its local radial direction"),
+	         SwordRangePlacement.AttackRangeScaleMask.Equals(FVector(0.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement ScytheRangePlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerScytheSlash);
+	TestTrue(TEXT("Scythe slash opts into attack-range scaling"), ScytheRangePlacement.bScaleWithAttackRange);
+	TestTrue(TEXT("Scythe slash scales in both local camera-plane axes"),
+	         ScytheRangePlacement.AttackRangeScaleMask.Equals(FVector(1.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Scythe slash keeps the authored ten-percent size margin"),
+	         ScytheRangePlacement.Scale.Equals(FVector(0.55f, 0.55f, 1.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
@@ -472,21 +612,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Forward longsword slash releases its VFX immediately"),
 	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash),
 	          0.0f);
-	TestTrue(TEXT("Scythe slash waits for its full-spin motion"),
-	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash) > 0.0f);
+	TestEqual(TEXT("Scythe slash starts on the same committed frame as its sphere damage"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash),
+	          0.0f);
+	TestEqual(TEXT("Element scythe slash also starts without presentation delay"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlashFlame),
+	          0.0f);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"),
 	          SwordPlacement.LocalRotation.ContainsNaN());
-	TestTrue(TEXT("Sword slash corrects the replacement asset's reversed authored axis"),
-	         FMath::IsNearlyEqual(FMath::Abs(SwordPlacement.LocalRotation.Yaw), 180.0f, KINDA_SMALL_NUMBER));
+	TestFalse(TEXT("Sword slash consumes a finite in-plane Roll correction"),
+	          FMath::IsNaN(SwordPlacement.LocalRotation.Roll));
 	TestTrue(
 	    TEXT("Sword slash cancels different host scales"),
 	    UReEchoCombatVfxComponent::ResolveAttachedScale(
 	        SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
 	        .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
 	const FVector SlashDirections[] = {FVector::ForwardVector, FVector::BackwardVector, FVector(0.6f, 0.8f, 0.0f)};
-	const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 	TestEqual(TEXT("Left-side sword slash plays forward"),
 	          UReEchoCombatVfxComponent::ResolveMeleePlayDirection(-FVector::RightVector, FVector::RightVector),
 	          1.0f);
@@ -496,35 +639,34 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	for (const FVector& SlashDirection : SlashDirections)
 	{
 		const FRotator DirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(SlashDirection, CameraFacingNormal);
-		const FVector ExpectedPlaneDirection =
-		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal)
-		        .GetSafeNormal();
+		    UReEchoCombatVfxComponent::ResolveGroundPlaneDirectionRotation(SlashDirection);
+		const FVector ExpectedPlaneDirection = FVector(SlashDirection.X, SlashDirection.Y, 0.0f).GetSafeNormal();
 		TestTrue(
-		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
-		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		    TEXT("Scythe VFX rotates in the ground plane toward the committed enemy"),
+		    DirectionRotation.RotateVector(FVector::RightVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Scythe mesh local X surface normal remains world-up for a floor-parallel 360 sweep"),
+		         DirectionRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
 		const FRotator SwordDirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection, CameraFacingNormal);
-		TestTrue(TEXT("Sword slash presents its authored local X surface normal to the camera"),
-		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
-		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
-		const FRotator ComposedSwordRotation =
-		    UReEchoCombatVfxComponent::ComposeAttachedRotation(SwordDirectionRotation, SwordPlacement.LocalRotation);
-		const FVector ComposedAttackAxis = ComposedSwordRotation.RotateVector(FVector::RightVector);
-		const FRotator FrontFacingSwordRotation =
-		    UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(ComposedSwordRotation, CameraFacingNormal);
-		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
-		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::ForwardVector),
-		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
+		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection);
 		TestTrue(
-		    TEXT("Sword front-face correction preserves its composed attack axis"),
-		    FrontFacingSwordRotation.RotateVector(FVector::RightVector).Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
+		    TEXT("Sword slash keeps its authored local X surface normal world-up"),
+		    SwordDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Sword slash maps its authored local Y attack axis to the committed ground direction"),
+		         SwordDirectionRotation.RotateVector(FVector::RightVector)
+		             .Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
+		    SwordDirectionRotation, FRotator(0.0f, 0.0f, SwordPlacement.LocalRotation.Roll));
+		TestTrue(
+		    TEXT("Sword in-plane Roll correction preserves its world-up surface normal"),
+		    ComposedSwordRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
 	    StartWorld, MovedEndWorld, StartParameter, EndParameter);
-	TestTrue(TEXT("Moved target is recomputed rather than retaining the event snapshot"),
-	         EndParameter.Equals(MovedEndWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Moved target recomputes its source-relative Beam End rather than retaining the event snapshot"),
+	         EndParameter.Equals(MovedEndWorld - StartWorld, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Moved target relative Beam End reconstructs the current target world position"),
+	         (StartParameter + EndParameter).Equals(MovedEndWorld, KINDA_SMALL_NUMBER));
 	const FString ConductPath =
 	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Conduct, TEXT("Enemy.Slime"));
 	UNiagaraSystem* ConductSystem = LoadObject<UNiagaraSystem>(nullptr, *ConductPath);
@@ -641,6 +783,95 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+
+	struct FLongSwordElementSlashCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FLongSwordElementSlashCase LongSwordElementSlashCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Fire.NS_People_Sword_Attack_Fire")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Thunder.NS_People_Sword_Attack_Thunder")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Grass.NS_People_Sword_Attack_Grass")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashWater,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Water.NS_People_Sword_Attack_Water")},
+	};
+	for (const FLongSwordElementSlashCase& SlashCase : LongSwordElementSlashCases)
+	{
+		EReEchoCombatVfxSemantic SlashSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+		TestTrue(TEXT("Longsword element resolves a dedicated slash semantic"),
+		         FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(SlashCase.Element, SlashSemantic));
+		TestEqual(TEXT("Longsword element selects the expected slash semantic"), SlashSemantic, SlashCase.Semantic);
+		TestTrue(TEXT("Resolved elemental slash remains in the Longsword semantic family"),
+		         FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(SlashSemantic));
+		TestEqual(TEXT("Longsword element selects the imported Niagara path"),
+		          FReEchoCombatVfxCatalog::ResolvePath(SlashSemantic),
+		          FString(SlashCase.ExpectedPath));
+	}
+	EReEchoCombatVfxSemantic NoneSlashSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+	TestFalse(TEXT("Physical Longsword keeps its configured default slash"),
+	          FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(EReEchoElement::None, NoneSlashSemantic));
+
+	struct FScytheElementSlashCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FScytheElementSlashCase ScytheElementSlashCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashFlame,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Fire.NS_People_Sickle_Attack_Fire")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashLightning,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Thunder.NS_People_Sickle_Attack_Thunder")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashGrass,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Grass.NS_People_Sickle_Attack_Grass")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashWater,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Water.NS_People_Sickle_Attack_Water")},
+	};
+	for (const FScytheElementSlashCase& SlashCase : ScytheElementSlashCases)
+	{
+		EReEchoCombatVfxSemantic SlashSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlash;
+		TestTrue(TEXT("Scythe element resolves a dedicated slash semantic"),
+		         FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(SlashCase.Element, SlashSemantic));
+		TestEqual(TEXT("Scythe element selects the expected slash semantic"), SlashSemantic, SlashCase.Semantic);
+		TestTrue(TEXT("Resolved elemental slash remains in the Scythe semantic family"),
+		         FReEchoCombatVfxCatalog::IsScytheSlashSemantic(SlashSemantic));
+		TestEqual(TEXT("Scythe element selects the imported Niagara path"),
+		          FReEchoCombatVfxCatalog::ResolvePath(SlashSemantic),
+		          FString(SlashCase.ExpectedPath));
+	}
+	EReEchoCombatVfxSemantic NoneScytheSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlash;
+	TestFalse(TEXT("Physical Scythe keeps its configured default slash"),
+	          FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(EReEchoElement::None, NoneScytheSemantic));
+	const FVector CameraRight = FVector::RightVector;
+	TestEqual(TEXT("Gun muzzle discards upward aim while retaining the right side"),
+	          UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(FVector(0.0f, 0.2f, 0.98f), CameraRight),
+	          CameraRight);
+	TestEqual(TEXT("Gun muzzle discards downward aim while retaining the left side"),
+	          UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(FVector(0.0f, -0.2f, -0.98f), CameraRight),
+	          -CameraRight);
+	EReEchoCombatVfxSemantic CommittedSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Gun shot resolves an immediate weapon-local muzzle semantic"),
+	         FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(TEXT("Pattern.GunShot"), CommittedSemantic));
+	TestEqual(TEXT("Gun shot uses the dedicated muzzle semantic"),
+	          CommittedSemantic,
+	          EReEchoCombatVfxSemantic::PlayerGunMuzzle);
+	TestFalse(TEXT("Bow shot does not reuse the gun muzzle semantic"),
+	          FReEchoCombatVfxCatalog::ResolveAttackCommittedSemantic(TEXT("Pattern.BowShot"), CommittedSemantic));
 	EReEchoCombatVfxSemantic DamageSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
 	TestTrue(TEXT("Long sword successful hit resolves its DamageApplied semantic"),
 	         FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(TEXT("W_J_01"), DamageSemantic));
@@ -707,27 +938,73 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FVector RotatedBowAuthoredAxis = BowFlightRotation.RotateVector(BowAuthoredForwardAxis).GetSafeNormal2D();
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
+
+	struct FBowElementFlightCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FBowElementFlightCase BowElementFlightCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightFlame,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Fire.NS_People_Bow_Attack_Fire")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightLightning,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Thunder.NS_People_Bow_Attack_Thunder")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightGrass,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Grass.NS_People_Bow_Attack_Grass")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightWater,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Water.NS_People_Bow_Attack_Water")},
+	};
+	TSet<FString> BowElementFlightPaths;
+	for (const FBowElementFlightCase& FlightCase : BowElementFlightCases)
+	{
+		EReEchoCombatVfxSemantic ResolvedSemantic = EReEchoCombatVfxSemantic::PlayerBowFlight;
+		TestTrue(TEXT("Combat Bow element resolves a dedicated flight semantic"),
+		         FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(FlightCase.Element, ResolvedSemantic));
+		TestEqual(
+		    TEXT("Combat Bow element selects the expected flight semantic"), ResolvedSemantic, FlightCase.Semantic);
+		const FString FlightPath = FReEchoCombatVfxCatalog::ResolvePath(ResolvedSemantic);
+		TestEqual(
+		    TEXT("Combat Bow element selects the imported Niagara path"), FlightPath, FString(FlightCase.ExpectedPath));
+		TestFalse(TEXT("Each combat Bow element uses a distinct Niagara path"),
+		          BowElementFlightPaths.Contains(FlightPath));
+		BowElementFlightPaths.Add(FlightPath);
+		TestTrue(TEXT("Element Bow uses the same authored positive Y flight axis"),
+		         FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(ResolvedSemantic)
+		             .Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	}
+	EReEchoCombatVfxSemantic NoneBowSemantic = EReEchoCombatVfxSemantic::PlayerBowFlight;
+	TestFalse(TEXT("Non-element Bow projectile keeps the configured Travel fallback"),
+	          FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(EReEchoElement::None, NoneBowSemantic));
 	const FReEchoVfxPlacement FoxDirectionPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::FoxDirection);
 	TestTrue(TEXT("Fox windup arrow keeps a visible non-degenerate component scale"),
 	         FoxDirectionPlacement.Scale.GetAbsMin() > KINDA_SMALL_NUMBER);
 	TestTrue(TEXT("Fox windup arrow uses the combat foreground sort band"),
 	         UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0) >= 1000);
-	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
-	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
-	TestEqual(TEXT("Bow and gun share the normal projectile impact"),
-	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerBowImpact),
-	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact));
+	TestFalse(TEXT("Gun muzzle production slot resolves a configured Niagara path"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle).IsEmpty());
+	TestTrue(TEXT("Gun muzzle uses the delivered bullet spark"),
+	         FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle)
+	             .Contains(TEXT("NS_People_Bullet_spark")));
+	TestEqual(TEXT("Normal Bow and Gun impacts reuse the Gun bullet spark"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileImpact),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle));
 	TestNotEqual(TEXT("Explosion impact remains distinct from the normal projectile impact"),
 	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact),
-	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact));
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileImpact));
 	EReEchoCombatVfxSemantic ProjectileImpactSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
-	TestTrue(TEXT("Normal bow resolves a ranged impact"),
+	TestTrue(TEXT("Normal Bow resolves a ranged impact"),
 	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Bow"), 0.0f, ProjectileImpactSemantic));
-	TestEqual(TEXT("Normal bow reuses the gun bullet impact"),
+	TestEqual(TEXT("Normal Bow reuses the shared projectile impact"),
 	          ProjectileImpactSemantic,
-	          EReEchoCombatVfxSemantic::PlayerGunImpact);
-	TestTrue(TEXT("Explosive gun resolves an impact"),
+	          EReEchoCombatVfxSemantic::PlayerProjectileImpact);
+	TestTrue(TEXT("Explosive Gun resolves a ranged impact"),
 	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Gun"), 200.0f, ProjectileImpactSemantic));
 	TestEqual(TEXT("A compiled explosion radius selects the shared explosion impact"),
 	          ProjectileImpactSemantic,
@@ -736,20 +1013,92 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    TEXT("Non-projectile weapon cannot resolve a ranged impact"),
 	    FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Scythe"), 300.0f, ProjectileImpactSemantic));
 
+	struct FGunElementFlightCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FGunElementFlightCase GunElementFlightCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightFlame,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fire_Fly.NS_People_Bullet_Fire_Fly")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightLightning,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Thunder_Fly.NS_People_Bullet_Thunder_Fly")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightGrass,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Grass_Fly.NS_People_Bullet_Grass_Fly")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerGunFlightWater,
+	     TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Water_Fly.NS_People_Bullet_Water_Fly")},
+	};
+	TSet<FString> GunElementFlightPaths;
+	for (const FGunElementFlightCase& FlightCase : GunElementFlightCases)
+	{
+		EReEchoCombatVfxSemantic ResolvedSemantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+		TestTrue(TEXT("Combat Gun element resolves a dedicated flight semantic"),
+		         FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(FlightCase.Element, ResolvedSemantic));
+		TestEqual(
+		    TEXT("Combat Gun element selects the expected flight semantic"), ResolvedSemantic, FlightCase.Semantic);
+		const FString FlightPath = FReEchoCombatVfxCatalog::ResolvePath(ResolvedSemantic);
+		TestEqual(
+		    TEXT("Combat Gun element selects the imported Niagara path"), FlightPath, FString(FlightCase.ExpectedPath));
+		TestFalse(TEXT("Each combat Gun element uses a distinct Niagara path"),
+		          GunElementFlightPaths.Contains(FlightPath));
+		GunElementFlightPaths.Add(FlightPath);
+	}
+	EReEchoCombatVfxSemantic NoneSemantic = EReEchoCombatVfxSemantic::PlayerGunFlight;
+	TestFalse(TEXT("Non-element Gun projectile keeps the legacy Travel fallback"),
+	          FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(EReEchoElement::None, NoneSemantic));
+
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
-	    EReEchoCombatVfxSemantic::RabbitCharging,      EReEchoCombatVfxSemantic::RabbitProjectile,
-	    EReEchoCombatVfxSemantic::PlayerHurt,          EReEchoCombatVfxSemantic::FoxCharging,
-	    EReEchoCombatVfxSemantic::FoxDirection,        EReEchoCombatVfxSemantic::FoxDash,
-	    EReEchoCombatVfxSemantic::FoxImpact,           EReEchoCombatVfxSemantic::PlayerMeleeSlash,
-	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
-	    EReEchoCombatVfxSemantic::PlayerScytheImpact,  EReEchoCombatVfxSemantic::PlayerBowFlight,
-	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
-	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact,
-	    EReEchoCombatVfxSemantic::EnemyHurt,           EReEchoCombatVfxSemantic::EchoWaterAura,
-	    EReEchoCombatVfxSemantic::EchoGrassAura,       EReEchoCombatVfxSemantic::GoatSkill02Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,   EReEchoCombatVfxSemantic::GoatSkill02Impact,
-	    EReEchoCombatVfxSemantic::GoatSkill03Charging, EReEchoCombatVfxSemantic::GoatSkill03Alarming,
-	    EReEchoCombatVfxSemantic::GoatSkill03Impact,   EReEchoCombatVfxSemantic::GoatSkill04Charging,
+	    EReEchoCombatVfxSemantic::RabbitCharging,
+	    EReEchoCombatVfxSemantic::RabbitProjectile,
+	    EReEchoCombatVfxSemantic::PlayerHurt,
+	    EReEchoCombatVfxSemantic::FoxCharging,
+	    EReEchoCombatVfxSemantic::FoxDirection,
+	    EReEchoCombatVfxSemantic::FoxDash,
+	    EReEchoCombatVfxSemantic::FoxImpact,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashWater,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashFlame,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashLightning,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashGrass,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashWater,
+	    EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
+	    EReEchoCombatVfxSemantic::PlayerScytheImpact,
+	    EReEchoCombatVfxSemantic::PlayerBowFlight,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightFlame,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightLightning,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightGrass,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightWater,
+	    EReEchoCombatVfxSemantic::PlayerBowImpact,
+	    EReEchoCombatVfxSemantic::PlayerGunFlight,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightFlame,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightLightning,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightGrass,
+	    EReEchoCombatVfxSemantic::PlayerGunFlightWater,
+	    EReEchoCombatVfxSemantic::PlayerGunMuzzle,
+	    EReEchoCombatVfxSemantic::PlayerProjectileImpact,
+	    EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact,
+	    EReEchoCombatVfxSemantic::EnemyHurt,
+	    EReEchoCombatVfxSemantic::EchoWaterAura,
+	    EReEchoCombatVfxSemantic::EchoGrassAura,
+	    EReEchoCombatVfxSemantic::EchoBorn,
+	    EReEchoCombatVfxSemantic::EchoConnectionLine,
+	    EReEchoCombatVfxSemantic::GoatSkill02Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,
+	    EReEchoCombatVfxSemantic::GoatSkill02Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill03Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill03Alarming,
+	    EReEchoCombatVfxSemantic::GoatSkill03Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill04Charging,
 	    EReEchoCombatVfxSemantic::GoatSkill04Lighting,
 	};
 	TestEqual(TEXT("Sheep projectile flight uses the authored Skill02 bullet"),
@@ -773,6 +1122,27 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fox applied hit uses the authored impact system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxImpact),
 	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked.NS_Fox_Rush_BeAttacked")));
+	TestEqual(TEXT("Connection card uses the delivered Echo chain system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoConnectionLine),
+	          FString(TEXT("/Game/VFX/Echo/Particle/NS_Echo_Chain.NS_Echo_Chain")));
+	TestEqual(TEXT("Echo initialization uses the independent birth-circle system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoBorn),
+	          FString(TEXT("/Game/VFX/Echo/Particle/NS_Echo_Born.NS_Echo_Born")));
+	const FReEchoVfxPlacement EchoBornPlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::EchoBorn);
+	TestTrue(TEXT("Echo Born keeps a stable world size"),
+	         EchoBornPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
+	TestTrue(TEXT("Echo Born renders at one quarter of the source circle size"),
+	         EchoBornPlacement.Scale.Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born owns a finite one-shot presentation lifetime"),
+	         FMath::IsNearlyEqual(EchoBornPlacement.PlaybackDurationSeconds, 0.8f));
+	TestTrue(TEXT("Echo Born scale resolves a requested world diameter from authored ground bounds"),
+	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(
+	             120.0f, FBox(FVector(-500.0f, -300.0f, -100.0f), FVector(500.0f, 300.0f, 400.0f)), FVector(0.25f))
+	             .Equals(FVector(0.12f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
+	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
+	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
@@ -786,24 +1156,113 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			TestFalse(TEXT("Replacement sword asset selects the explicit missing-parameter reverse fallback"),
 			          UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(System));
 		}
+		if (Semantic == EReEchoCombatVfxSemantic::EchoConnectionLine)
+		{
+			TArray<FNiagaraVariable> UserParameters;
+			System->GetExposedParameters().GetUserParameters(UserParameters);
+			for (const FName RequiredParameter : {FName(TEXT("StartPosition")), FName(TEXT("EndPosition"))})
+			{
+				const FNiagaraVariable* Parameter = UserParameters.FindByPredicate(
+				    [RequiredParameter](const FNiagaraVariable& Variable)
+				    {
+					    return Variable.GetName() == RequiredParameter;
+				    });
+				TestTrue(
+				    FString::Printf(TEXT("Echo chain exposes Niagara Position User.%s"), *RequiredParameter.ToString()),
+				    Parameter && Parameter->GetType() == FNiagaraTypeDefinition::GetPositionDef());
+			}
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::EchoBorn)
+		{
+			TestFalse(TEXT("Echo Born loads without deferred Niagara compilation"),
+			          System->HasOutstandingCompilationRequests(true));
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				if (EmitterHandle.GetIsEnabled())
+				{
+					const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+					TestTrue(TEXT("Echo Born enabled emitters preserve their authored component-space layout"),
+					         EmitterData && EmitterData->bLocalSpace);
+					if (EmitterData)
+					{
+						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+						{
+							const UNiagaraSpriteRendererProperties* Sprite =
+							    Cast<UNiagaraSpriteRendererProperties>(Renderer);
+							if (Sprite && Sprite->GetIsEnabled())
+							{
+								TestTrue(TEXT("Echo Born sprites face the authored ground normal"),
+								         Sprite->FacingMode == ENiagaraSpriteFacingMode::CustomFacingVector);
+								TestEqual(TEXT("Echo Born sprite facing binds User.GroundNormal"),
+								          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+								          FName(TEXT("User.GroundNormal")));
+								TestTrue(TEXT("Echo Born sprites keep a fixed tangent on the ground plane"),
+								         Sprite->Alignment == ENiagaraSpriteAlignment::CustomAlignment);
+								TestEqual(TEXT("Echo Born sprite alignment binds User.GroundTangent"),
+								          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+								          FName(TEXT("User.GroundTangent")));
+							}
+						}
+					}
+				}
+			}
+		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashWater ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashWater ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightWater ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightWater ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle ||
 		    Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::FoxDash ||
 		    Semantic == EReEchoCombatVfxSemantic::EchoWaterAura || Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		const bool bRequiresWeaponLocalSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashWater ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashWater ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
-		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight;
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightWater ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightWater ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle;
 		if (bRequiresComponentSpace)
 		{
 			int32 BowSpriteRendererCount = 0;
 			int32 SwordMeshRendererCount = 0;
+			int32 SwordSpriteRendererCount = 0;
+			int32 ScytheMeshRendererCount = 0;
+			int32 ScytheSpriteRendererCount = 0;
 			int32 FoxDirectionEnabledEmitterCount = 0;
 			int32 FoxDirectionEnabledRendererCount = 0;
 			int32 FoxDirectionEnabledSpriteRendererCount = 0;
+			int32 GunMuzzleEnabledSpriteRendererCount = 0;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (!EmitterHandle.GetIsEnabled())
@@ -867,7 +1326,25 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 						}
 					}
 				}
-				if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && EmitterData)
+				if (Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle && EmitterData)
+				{
+					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+					{
+						const UNiagaraSpriteRendererProperties* Sprite =
+						    Cast<UNiagaraSpriteRendererProperties>(Renderer);
+						if (!Sprite || !Sprite->GetIsEnabled())
+						{
+							continue;
+						}
+						++GunMuzzleEnabledSpriteRendererCount;
+						TestTrue(TEXT("Gun muzzle SpriteRotation binding exists on its source"),
+						         Sprite->SpriteRotationBinding.DoesBindingExistOnSource());
+						TestEqual(TEXT("Gun muzzle sprites share the screen-direction rotation parameter"),
+						          Sprite->SpriteRotationBinding.GetParamMapBindableVariable().GetName(),
+						          FName(TEXT("User.DirectionSpriteRotationDegrees")));
+					}
+				}
+				if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic) && EmitterData)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 					{
@@ -877,6 +1354,53 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 							TestEqual(TEXT("Sword mesh renderer preserves component-space direction"),
 							          Mesh->FacingMode,
 							          ENiagaraMeshFacingMode::Default);
+						}
+						if (const UNiagaraSpriteRendererProperties* Sprite =
+						        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+						{
+							++SwordSpriteRendererCount;
+							TestEqual(TEXT("Sword sprite faces the runtime ground normal"),
+							          Sprite->FacingMode,
+							          ENiagaraSpriteFacingMode::CustomFacingVector);
+							TestEqual(TEXT("Sword sprite uses the runtime ground tangent"),
+							          Sprite->Alignment,
+							          ENiagaraSpriteAlignment::CustomAlignment);
+							TestEqual(TEXT("Sword sprite normal binding is stable"),
+							          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundNormal")));
+							TestEqual(TEXT("Sword sprite tangent binding is stable"),
+							          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundTangent")));
+						}
+					}
+				}
+				if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic) && EmitterData)
+				{
+					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+					{
+						if (const UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer))
+						{
+							++ScytheMeshRendererCount;
+							TestEqual(TEXT("Scythe mesh renderer follows component ground-plane rotation"),
+							          Mesh->FacingMode,
+							          ENiagaraMeshFacingMode::Default);
+						}
+						if (const UNiagaraSpriteRendererProperties* Sprite =
+						        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+						{
+							++ScytheSpriteRendererCount;
+							TestEqual(TEXT("Scythe sprite faces the runtime ground normal"),
+							          Sprite->FacingMode,
+							          ENiagaraSpriteFacingMode::CustomFacingVector);
+							TestEqual(TEXT("Scythe sprite uses the runtime ground tangent"),
+							          Sprite->Alignment,
+							          ENiagaraSpriteAlignment::CustomAlignment);
+							TestEqual(TEXT("Scythe sprite normal binding is stable"),
+							          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundNormal")));
+							TestEqual(TEXT("Scythe sprite tangent binding is stable"),
+							          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundTangent")));
 						}
 					}
 				}
@@ -892,9 +1416,31 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			{
 				TestEqual(TEXT("Bow flight keeps its three authored sprite layers"), BowSpriteRendererCount, 3);
 			}
-			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+			if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
+				TestTrue(TEXT("Sword slash retains at least one authored sprite renderer"),
+				         SwordSpriteRendererCount > 0);
+			}
+			if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+			{
+				TestTrue(TEXT("Scythe slash retains at least one authored mesh renderer"), ScytheMeshRendererCount > 0);
+				TestTrue(TEXT("Scythe slash retains at least one authored sprite renderer"),
+				         ScytheSpriteRendererCount > 0);
+			}
+			if (Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle)
+			{
+				TestTrue(TEXT("Gun muzzle contains at least one enabled Sprite renderer"),
+				         GunMuzzleEnabledSpriteRendererCount > 0);
+				TArray<FNiagaraVariable> GunMuzzleUserParameters;
+				System->GetExposedParameters().GetUserParameters(GunMuzzleUserParameters);
+				const FNiagaraVariable* RotationParameter = GunMuzzleUserParameters.FindByPredicate(
+				    [](const FNiagaraVariable& Variable)
+				    {
+					    return Variable.GetName() == TEXT("DirectionSpriteRotationDegrees");
+				    });
+				TestTrue(TEXT("Gun muzzle exposes float User.DirectionSpriteRotationDegrees"),
+				         RotationParameter && RotationParameter->GetType() == FNiagaraTypeDefinition::GetFloatDef());
 			}
 			if (Semantic == EReEchoCombatVfxSemantic::FoxDirection)
 			{
@@ -933,6 +1479,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				{
 					continue;
 				}
+				TestTrue(TEXT("Scythe slash emitter positions follow the ground-aligned component transform"),
+				         EmitterData->bLocalSpace);
 				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 				{
 					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
@@ -947,6 +1495,36 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				}
 			}
 			TestTrue(TEXT("Goat ground effect contains at least one ground-facing sprite renderer"),
+			         GroundSpriteRendererCount > 0);
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+		{
+			int32 GroundSpriteRendererCount = 0;
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				const FVersionedNiagaraEmitterData* EmitterData =
+				    EmitterHandle.GetIsEnabled() ? EmitterHandle.GetEmitterData() : nullptr;
+				if (!EmitterData)
+				{
+					continue;
+				}
+				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+				{
+					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+					if (!Sprite || !Sprite->GetIsEnabled())
+					{
+						continue;
+					}
+					++GroundSpriteRendererCount;
+					TestEqual(TEXT("Scythe slash sprite uses a custom ground-facing vector"),
+					          Sprite->FacingMode,
+					          ENiagaraSpriteFacingMode::CustomFacingVector);
+					TestEqual(TEXT("Scythe slash sprite binds the authoritative ground normal"),
+					          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+					          FName(TEXT("User.GroundNormal")));
+				}
+			}
+			TestTrue(TEXT("Scythe slash contains at least one ground-facing sprite renderer"),
 			         GroundSpriteRendererCount > 0);
 		}
 		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill04Lighting)

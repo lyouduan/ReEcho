@@ -188,6 +188,8 @@ public:
 	/** Ends active rabbit volley balls intersecting the supplied melee sector and returns the number removed. */
 	int32
 	DestroyRabbitProjectilesInMeleeArc(const FVector& Origin, const FVector& Forward, float RangeCm, float ArcDegrees);
+	/** Ends active rabbit volley balls intersecting the supplied three-dimensional melee sphere. */
+	int32 DestroyRabbitProjectilesInMeleeSphere(const FVector& Origin, float RangeCm);
 
 	bool IntersectsProjectilePath(const FVector& PathStart, const FVector& PathEnd, float ProjectileRadius) const;
 	FReEchoEnemyRuntimeState CaptureRuntimeState() const;
@@ -251,6 +253,7 @@ private:
 	void UpdateStunState(bool bStunned);
 	void RefreshBornGameplayGate();
 	void EndBornGameplayGate();
+	void TraceBossPhase2TransitionState(float DeltaSeconds, const TCHAR* TickGate);
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -387,4 +390,5 @@ private:
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;
 	float CrowdBlockedSeconds = 0.0f;
+	double NextBossPhase2TracePlatformSeconds = 0.0;
 };

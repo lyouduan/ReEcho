@@ -75,6 +75,33 @@ public:
 	static FVector
 	ResolveFacingHeldOffsetForTests(const FVector& HeldOffset, float FacingSign, const FVector& CameraRight);
 	static float ResolveTripleSwingAngleForTests(float Progress, float DirectionSign);
+	static FVector2D ResolveAttackVfxAnchorRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                                     float FacingSign);
+	static FVector2D ResolveAttackVfxAnchorComponentRatioForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
+	                                                              float FacingSign,
+	                                                              bool bVisualHorizontallyMirrored);
+	static FVector ResolveGunMuzzleLocalPointForTests(const FBox& LocalBounds,
+	                                                  float FacingSign,
+	                                                  bool bVisualHorizontallyMirrored,
+	                                                  float VerticalRatio);
+	static FVector ResolveProjectileSpawnLocationForTests(const FVector& WeaponAnchorLocation,
+	                                                      const FVector& LegacyOwnerLocation,
+	                                                      const FVector& Direction,
+	                                                      bool bHasWeaponAnchor);
+	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
+	static FVector ResolveSelfCenteredSpinRootLocationForTests(const FVector& HandAnchor,
+	                                                           const FVector& VisualOffset,
+	                                                           const FQuat& SpinRotation);
+	static FVector ResolveHeldVisualAttackRangeScaleForTests(const FVector& AuthoredScale,
+	                                                         const FVector& ScaleMask,
+	                                                         float RangeMultiplier,
+	                                                         float MinMultiplier,
+	                                                         float MaxMultiplier);
+	static EReEchoElement ResolveProjectileElementForTests(bool bUsesDeterministicRandomElement,
+	                                                       EReEchoElement AttackElement,
+	                                                       int64 AttackSequence,
+	                                                       int32 ProjectileIndex,
+	                                                       EReEchoElement DebugOverride);
 
 	float GetStepLockRemaining() const
 	{
@@ -118,6 +145,13 @@ public:
 	FName GetEquippedWeaponId() const;
 	/** Stable data-authored presentation identity; never infer visuals from WeaponId. */
 	FName GetEquippedWeaponVisualKey() const;
+
+	/** Final held-weapon release point after hand anchor, weapon offset, size, facing and motion transforms. */
+	USceneComponent* GetWeaponAttackVfxRoot() const
+	{
+		return WeaponAttackVfxRoot;
+	}
+
 	FString GetEquippedWeaponLabel() const;
 	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
 	FString GetPinnedWeaponDomainRevision() const;
@@ -145,6 +179,8 @@ private:
 	                UReEchoCombatantComponent* Combatant,
 	                const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
 	void PublishAttackCommittedEvent(const FReEchoWeaponAttackCommit& Commit) const;
+	FReEchoWeaponAttackCommit BuildEffectiveAttackCommit(const FReEchoWeaponAttackCommit& Commit) const;
+	float ResolveBaseAttackRangeCm(FName AttackStepId, float FallbackRangeCm) const;
 	TSharedPtr<FReEchoWeaponRuneAttackContext> BuildRuneAttackContext(const FReEchoWeaponAttackCommit& Commit,
 	                                                                  UReEchoCombatantComponent* Combatant) const;
 	void ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
@@ -160,6 +196,7 @@ private:
 	float GetRuneParam(FName BehaviorId, FName ParamName, float DefaultValue) const;
 	float GetRuneEffectValue(FName BehaviorId, FName ParamName, float DefaultValue) const;
 	float GetTimedRangeMultiplier() const;
+	float ResolveCurrentAttackRangeMultiplier() const;
 	void BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
 	void RecallScythe();
 	void AdvanceScytheThrow(float DeltaSeconds);
@@ -174,6 +211,7 @@ private:
 	void UpdateElementIndicator();
 	void RefreshVisualState();
 	void RefreshHeldPresentation();
+	void RefreshWeaponAttackVfxRoot(const UReEchoWeaponPresentationProfile& WeaponProfile);
 	void StartMeleeAnimation(FName WeaponVisualKey);
 
 	UPROPERTY(VisibleAnywhere)
@@ -185,11 +223,13 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementIndicator;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> ScytheSprite;
+	TObjectPtr<UStaticMeshComponent> ScytheSprite;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> BowSprite;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> GunSprite;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USceneComponent> WeaponAttackVfxRoot;
 
 	TMap<FName, FReEchoCsvWeaponRow> Definitions;
 	TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot;

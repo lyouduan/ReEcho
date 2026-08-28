@@ -10,13 +10,16 @@
 class ACameraActor;
 class AReEchoArenaCameraActor;
 class AReEchoArenaSceneActor;
+class AReEchoArenaSceneSpawnAnchor;
 class AReEchoEncounterDirector;
 class AReEchoEchoActor;
 class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
+class UReEchoEncounterFlowSettings;
 class UReEchoEncounterTransitionWidget;
+class UMediaSoundComponent;
 class UReEchoInventoryShopWidget;
 class UReEchoRunSubsystem;
 enum class EReEchoInventoryShopMode : uint8;
@@ -29,10 +32,9 @@ class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
-class UReEchoEchoManagementWidget;
-class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
+class UReEchoArenaSceneCatalog;
 class UReEchoEnemyGameplayClassRegistry;
 class UReEchoAudioService;
 class UMaterialInterface;
@@ -73,15 +75,25 @@ public:
 	void GMSetShards(int32 Amount = 0);
 	UFUNCTION(Exec)
 	void GMWeather(const FString& Scene = TEXT("Clear"));
+	/** Switches only the active Arena presentation; the current Stage/Encounter authority is unchanged. */
+	UFUNCTION(Exec)
+	void GMScene(const FString& Scene = TEXT("SC01"));
+	/** Overrides the current player's movement component speed in cm/s. */
+	UFUNCTION(Exec)
+	void GMMoveSpeed(float Speed = 420.0f);
 	UFUNCTION(Exec)
 	void GMEndEncounter();
-	/** Advances the active ordinary encounter to three seconds remaining so its transition can be previewed. */
+	/** Advances the active ordinary encounter to four seconds remaining so the full countdown transition can be
+	 * previewed. */
 	UFUNCTION(Exec)
-	void GMTransition3();
+	void GMTransition4();
 	UFUNCTION(Exec)
 	void GMKillAll();
 	UFUNCTION(Exec)
 	void GMSpawnFox(float CountOrDistance = 1.0f, float Distance = -1.0f);
+	/** Ends the current debug encounter state and starts the requested configured encounter (1-based). */
+	UFUNCTION(Exec)
+	void GMGotoEncounter(int32 EncounterNumber);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
 	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
@@ -89,13 +101,26 @@ public:
 	void GMBossSkill(const FString& Skill = TEXT("Skill01"));
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
+	/** Replays the birth-circle presentation on every living Echo without changing gameplay state. */
+	UFUNCTION(Exec)
+	void GMEchoBorn();
+	/** Replays the complete birth-circle then delayed Echo reveal on every living Echo. */
+	UFUNCTION(Exec)
+	void GMEchoSummon();
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
 	UFUNCTION(Exec)
 	void GMElement(const FString& Element = TEXT("Flame"));
+	/** Sets or clears the current Grass/Water attachment on every living enemy without damage or reactions. */
+	UFUNCTION(Exec)
+	void GMEnemyElementAll(const FString& Element = TEXT("Water"));
 	/** Directly previews one reaction VFX on the nearest living enemy without changing combat state. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
-	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id.
+	/** Switches the authoritative run build and live player weapon to any enabled production WeaponId. */
+	UFUNCTION(Exec)
+	void GMWeapon(FName WeaponId);
+	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv
+	 * Id.
 	 */
 	UFUNCTION(Exec)
 	void GMEquipRune(FName PartId);
@@ -145,6 +170,7 @@ public:
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
 	static int32 ClearTimeShardPickupsInWorldForTests(UWorld* World);
+	static bool ShouldGrantPostEntryInvulnerabilityForTests(int32 EncounterIndex, float DurationSeconds);
 #endif
 
 private:
@@ -164,8 +190,14 @@ private:
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaSceneActor> ArenaScene;
 	UPROPERTY()
+	TObjectPtr<AReEchoArenaSceneActor> PendingArenaScene;
+	UPROPERTY()
+	TObjectPtr<UReEchoArenaSceneCatalog> ArenaSceneCatalog;
+	UPROPERTY()
 	TMap<FName, TSubclassOf<AReEchoArenaSceneActor>> ArenaSceneRegistry;
 	FName ActiveArenaSceneId = NAME_None;
+	FName PendingArenaSceneId = NAME_None;
+	FTransform ArenaSceneSpawnTransform = FTransform::Identity;
 	UPROPERTY()
 	TObjectPtr<AReEchoArenaCameraActor> ArenaCameraActor;
 	UPROPERTY()
@@ -174,6 +206,9 @@ private:
 	TSubclassOf<AReEchoEchoActor> EchoGameplayClass;
 	UPROPERTY(EditDefaultsOnly, Category = "World Pickups")
 	TSubclassOf<AReEchoTimeShardPickupActor> TimeShardPickupClass;
+	/** Dedicated Blueprint class whose Class Defaults own encounter-flow tuning. */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter Flow")
+	TSubclassOf<UReEchoEncounterFlowSettings> EncounterFlowSettingsClass;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()
@@ -216,6 +251,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterTransitionWidget> EncounterTransitionWidget;
 	UPROPERTY()
+	TObjectPtr<UMediaSoundComponent> EncounterTransitionMediaSound;
+	UPROPERTY()
 	TObjectPtr<UReEchoPlayerHudWidget> PlayerHudWidget;
 
 	UPROPERTY()
@@ -227,7 +264,9 @@ private:
 	bool bQuitConfirmationVisible = false;
 	bool bExitToMainMenuAfterConfirmation = false;
 	bool bContinueRunAfterShop = false;
+	bool bReturnToOpenShopAfterTraitChoice = false;
 	bool bPostTraitShopClosing = false;
+	bool bCardChoiceToShopBackgroundPrepared = false;
 	bool bPauseOpenedOverInventoryShop = false;
 
 	UPROPERTY()
@@ -240,13 +279,25 @@ private:
 		None,
 		CountdownPostProcess,
 		PlayingSequence,
-		FadingToCardChoice,
+		PlayingCardChoiceToShop,
+		FadingToShop,
+		Stage01To02FocusPlayer,
+		Stage01To02HoldPlayer,
+		PlayingStage01To02Cg,
+		Stage01To02RevealEcho,
+		Stage01To02FocusEcho,
+		Stage01To02MoveToPlayer,
 		Completed
 	};
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
+	float Stage01To02EchoRevealElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
+	bool bPreparedEncounterAwaitingActivation = false;
+	bool bEncounterTransitionPausedWorld = false;
+	bool bEncounterTransitionControllerPauseTickOverridden = false;
+	bool bEncounterTransitionPreviousControllerFullTickWhenPaused = false;
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
@@ -272,8 +323,25 @@ private:
 	void UpdateEncounterTransitionPresentation(float DeltaSeconds);
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
-	void CompleteEncounterEndSequence(bool bFadeToCards);
+	void CompleteEncounterEndSequence();
+	bool BeginCardChoiceToShopTransition();
+	void PrepareCardChoiceToShopBackground();
+	void UpdateCardChoiceToShopBackgroundBlend();
+	void UpdateCardChoiceToShopCollapseTarget();
+	void CompleteCardChoiceToShopTransition(bool bFailed);
+	void FinishCardChoiceToShopFade();
+	bool BeginStage01To02CameraSequence();
+	bool BeginStage01To02Cg();
+	void CompleteStage01To02Cg(bool bFailed, bool bSkipped = false);
+	UFUNCTION()
+	void HandleStage01To02CgSkipRequested();
+	void BeginStage01To02PostCgCameraSequence();
+	void AdvanceStage01To02CameraSequence(float DeltaSeconds);
+	bool BeginStage01To02EchoReveal();
+	void CompleteStage01To02EchoReveal();
 	void ResetEncounterTransitionPresentation();
+	void SetEncounterTransitionWorldPaused(bool bPaused);
+	void SetEncounterTransitionCameraRefreshWhilePaused(bool bEnabled);
 	UFUNCTION()
 	void HandlePlayerSkill(FVector Position, FName SkillId);
 
@@ -303,6 +371,9 @@ private:
 
 	UFUNCTION()
 	void HandleContinueGameRequested();
+
+	UFUNCTION()
+	void HandleSaveSlotRequested(int32 SlotIndex);
 
 	UFUNCTION()
 	void HandleStartSettingsRequested();
@@ -364,12 +435,6 @@ private:
 	void HandleEchoSkipRequested();
 
 	UFUNCTION()
-	void HandleEchoReplaceRequested(FGuid RecordingId);
-
-	UFUNCTION()
-	void HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds);
-
-	UFUNCTION()
 	void HandleEchoSkipAndCloseRequested();
 
 	void ShowInventoryShopMenu(EReEchoInventoryShopMode Mode);
@@ -383,7 +448,14 @@ private:
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
+	bool PrepareNextEncounter(bool bDeferActivation);
+	void ActivatePreparedEncounter();
+	void CaptureActiveSaveSlotPreview();
+	void GrantPostEntryInvulnerability(int32 EncounterIndex);
+	float ResolvePostEntryInvulnerabilitySeconds() const;
+	static bool ShouldGrantPostEntryInvulnerability(int32 EncounterIndex, float DurationSeconds);
 	bool InitializeArenaSceneRegistry(FString& OutError);
+	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	void RefreshArenaSceneConsumers();
 	void ResumeSavedEncounter();
@@ -396,16 +468,20 @@ private:
 	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
 	static void ResolveGMSpawnFoxRequest(
 	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
+	static bool TryResolveGMSceneId(const FString& Scene, FName& OutSceneId);
+	static bool IsValidGMMoveSpeed(float Speed);
+	static bool TryResolveGMEnemyAttachment(const FString& Element, EReEchoElement& OutElement);
 	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
-	                                                const FVector2D& ArenaCenter,
-	                                                const FVector2D& ArenaHalfExtents,
+	                                                const FBox2D& SpawnWorldBounds,
 	                                                float GameplayPlaneWorldZ,
 	                                                int32 Count,
 	                                                float Distance,
-	                                                bool bHasArena);
+	                                                bool bHasValidBounds);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;
+	friend class FReEchoGameModeSceneAndMoveSpeedTest;
+	friend class FReEchoGameModeEnemyElementAllTest;
 	friend class FReEchoEncounterTransitionPolicyTest;
 #endif
 	static bool ShouldStartEncounterTransition(float RemainingTime, bool bBossEncounter, bool bTransitioning);
@@ -413,6 +489,14 @@ private:
 	                                              bool bMediaFailed,
 	                                              bool bMediaFinished,
 	                                              float ElapsedSeconds);
+	static bool ShouldPlayCardChoiceToShopTransition(int32 CompletedEncounterIndex,
+	                                                 EReEchoRunPhase Phase,
+	                                                 bool bApplied,
+	                                                 bool bReturningToOpenShop);
+	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
+	static float GetStage01To02EchoRevealDelaySeconds();
+	static float GetStage01To02EchoRevealTimeoutSeconds();
+	static bool ShouldOfferStage01To02CgSkip(bool bHasViewedCg, bool bPlayingStageCg);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
@@ -434,6 +518,7 @@ private:
 	void ClearTimeShardPickups();
 	static int32 ClearTimeShardPickupsInWorld(UWorld* World);
 	void RefreshFogRevealSources();
+	AReEchoEchoActor* FindStage01To02CameraEcho() const;
 	void PlayEchoCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
 	/** 结束实时战斗输入并显示死亡、暂停或胜利结算菜单。 */
 	void ShowRestartScreen(bool bDeathScreen = true, bool bVictoryScreen = false);
@@ -466,4 +551,6 @@ private:
 	bool bAboutReturnToStartMenu = false;
 	bool bBeginSelectedRunRequested = false;
 	bool bBeginSelectedRunStarted = false;
+	/** Runtime overlap edges for 恋爱小脑; damage/healing fires only when a pair newly enters contact. */
+	TSet<uint64> ActiveEasterEchoContactPairs;
 };

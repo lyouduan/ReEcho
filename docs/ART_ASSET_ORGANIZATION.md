@@ -14,6 +14,8 @@
 - `scripts/ue/import_plan93_combat_hud.py` 默认保留已存在纹理；仅显式传入 `-Plan93ReimportExisting` 时重导。参考图始终不进入运行时资产。
 - Plan102 小地图头像源包：`Content/SourceArt/UI/CombatHud/Plan102/`。`_SourceManifest.csv` 把 8 张 `512×512` 透明 PNG 映射到四个稳定 `CharacterId` 的 Player/Echo 两套外观；运行时 Texture2D 位于 `Content/ReEcho/Textures/UI/CombatHud/Minimap/`，由对应 Character/Echo Presentation Profile 的 `MinimapIcon` 硬引用。`scripts/ue/import_plan102_minimap_icons.py` 负责幂等导入与绑定，运行时代码不得再按原始编号猜测身份。
 - 伤害跳字字体源文件与授权说明位于 `Content/SourceArt/UI/CombatHud/DamageNumbers/`；`scripts/ue/import_damage_number_font.py` 将其幂等导入到 `Content/ReEcho/Fonts/DamageNumbers/`。该字体仅获非商用使用确认，只能由 `AReEchoDamageNumberActor` 用于世界空间伤害数字，不得复用为全局 UI 字体或用于商业分发。运行时跳字调参入口为 `Content/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber` 的 Class Defaults > `Damage Number|Animation`，可改持续时间、上漂速度和起止缩放。跳字生命周期内保持不透明，只通过缩放表现变化，到期直接销毁；不得直接修改字体图集或透明材质来调动画节奏。
+- Plan110 正式商店源包：`Content/SourceArt/UI/InventoryShop/Plan110/`。`Elements/` 使用 ASCII 稳定名保存 24 张已审核切图，`References/` 的三张整屏目标只用于 1920×1080 构图、悬停说明和属性面板比对；运行时 Texture2D 统一位于 `Content/ReEcho/Textures/UI/InventoryShop/Plan110/`，整屏参考图不得导入。`scripts/ue/import_plan110_formal_shop_ui.py` 负责切图导入，`author_plan110_formal_shop_ui.py` 只建立 WBP 初始设计面，人工微调后使用 `audit_plan110_formal_shop_ui.py` 做只读验证。
+- Plan110 新增二级卡牌的历史源 ID 对照保留在 `Content/SourceArt/UI/Cards/Icon/_Plan110NewTier2IconMap.csv`；当前完整图标集及运行时纹理由 Plan128 的权威 CSV 导入流程统一维护，不允许按历史策划源 ID 覆盖稳定 Game Card ID。
 
 ## 角色资产
 

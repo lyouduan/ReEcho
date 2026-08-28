@@ -81,8 +81,7 @@ struct REECHO_API FReEchoSpawnResolveRequest
 	FVector EchoAnchor = FVector::ZeroVector;
 	TArray<FVector> ExistingLocations;
 	float EchoAnchorRatio = 0.0f;
-	float ArenaHalfX = 0.0f;
-	float ArenaHalfY = 0.0f;
+	FBox2D SpawnWorldBounds = FBox2D(ForceInit);
 	float SpawnCenterWorldZ = 0.0f;
 	int32 Seed = 0;
 	int32 Sequence = 0;

@@ -10,8 +10,11 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
+#include "ReEchoAudioEvents.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoTraitCardEntryWidget.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
@@ -39,6 +42,31 @@ CreateCenteredText(UWidgetTree* WidgetTree, const FName Name, const int32 FontSi
 	return Text;
 }
 
+void ApplyRefreshButtonArt(UButton* Button, UTexture2D* Texture)
+{
+	if (!Button || !Texture)
+	{
+		return;
+	}
+
+	FButtonStyle Style = Button->GetStyle();
+	auto ConfigureBrush = [Texture](FSlateBrush& Brush)
+	{
+		Brush.SetResourceObject(Texture);
+		Brush.DrawAs = ESlateBrushDrawType::Image;
+		Brush.ImageSize = FVector2D(210.0f, 48.0f);
+		Brush.TintColor = FSlateColor(FLinearColor::White);
+	};
+	ConfigureBrush(Style.Normal);
+	ConfigureBrush(Style.Hovered);
+	ConfigureBrush(Style.Pressed);
+	ConfigureBrush(Style.Disabled);
+	Style.NormalPadding = FMargin(0.0f);
+	Style.PressedPadding = FMargin(0.0f);
+	Button->SetStyle(Style);
+	Button->SetBackgroundColor(FLinearColor::White);
+}
+
 float EaseOutBack(const float Progress)
 {
 	const float ClampedProgress = FMath::Clamp(Progress, 0.0f, 1.0f);
@@ -54,6 +82,10 @@ UReEchoTraitCardChoiceWidget::UReEchoTraitCardChoiceWidget(const FObjectInitiali
 	static ConstructorHelpers::FClassFinder<UReEchoTraitCardEntryWidget> CardEntryClassFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry"));
 	CardEntryWidgetClass = CardEntryClassFinder.Class;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> RefreshButtonTextureFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
+	         "T_UI_Pause_ButtonLight.T_UI_Pause_ButtonLight"));
+	RefreshButtonTexture = RefreshButtonTextureFinder.Object;
 }
 
 TSharedRef<SWidget> UReEchoTraitCardChoiceWidget::RebuildWidget()
@@ -77,6 +109,15 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	for (UReEchoIndexedButton* CardButton : CardButtons)
 	{
 		CardButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardClicked);
+		if (UGameInstance* GameInstance = GetGameInstance())
+		{
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GameInstance->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				UIFlow->BindButtonAudioFeedback(
+				    CardButton, FReEchoAudioEvents::UiHover, FReEchoAudioEvents::UiCardSelect);
+			}
+		}
 	}
 	for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
 	{
@@ -221,6 +262,7 @@ void UReEchoTraitCardChoiceWidget::InitializeShopOffers(const TArray<FReEchoShop
 		FReEchoTraitCardOffer Offer;
 		Offer.CardId = Choice.CardId;
 		Offer.Tier = Choice.Tier;
+		Offer.PresentationTier = Choice.PresentationTier;
 		Offer.DisplayName = Choice.DisplayName;
 		Offer.Description = Choice.EffectText;
 		Offer.Tags = Choice.Tags;
@@ -345,6 +387,13 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 
 	const TArray<USizeBox*> DesignerCardSlots = {TraitCardSlot0, TraitCardSlot1, TraitCardSlot2};
 	const bool bUseDesignerCardSlots = TraitCardSlot0 && TraitCardSlot1 && TraitCardSlot2;
+	const TArray<UReEchoIndexedButton*> DesignerRefreshButtons = {
+	    ShopCardRefreshButton0, ShopCardRefreshButton1, ShopCardRefreshButton2};
+	const TArray<UTextBlock*> DesignerRefreshTexts = {
+	    ShopCardRefreshText0, ShopCardRefreshText1, ShopCardRefreshText2};
+	const bool bUseDesignerRefreshButtons = ShopCardRefreshButton0 && ShopCardRefreshButton1 &&
+	                                        ShopCardRefreshButton2 && ShopCardRefreshText0 &&
+	                                        ShopCardRefreshText1 && ShopCardRefreshText2;
 	for (USizeBox* CardPanel : CardPanels)
 	{
 		if (!bUseDesignerCardSlots && CardPanel && CardPanel->GetParent() == TraitCardContainer)
@@ -354,7 +403,8 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	}
 	for (UReEchoIndexedButton* RefreshButton : CardRefreshButtons)
 	{
-		if (RefreshButton && RefreshButton->GetParent() == TraitCardContainer)
+		if (RefreshButton && !DesignerRefreshButtons.Contains(RefreshButton) &&
+		    RefreshButton->GetParent() == TraitCardContainer)
 		{
 			TraitCardContainer->RemoveChild(RefreshButton);
 		}
@@ -443,21 +493,33 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	}
 	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
 	{
-		UReEchoIndexedButton* RefreshButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
-		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("ShopCardRefreshButton%d"), CardIndex));
+		UReEchoIndexedButton* RefreshButton =
+		    bUseDesignerRefreshButtons ? DesignerRefreshButtons[CardIndex] : nullptr;
+		if (!RefreshButton)
+		{
+			RefreshButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
+			    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("ShopCardRefreshButton%d"), CardIndex));
+		}
 		RefreshButton->SetEntryIndex(CardIndex);
-		RefreshButton->SetBackgroundColor(FLinearColor(0.18f, 0.35f, 0.30f, 0.96f));
-		UTextBlock* RefreshText = CreateCenteredText(WidgetTree,
-		                                             *FString::Printf(TEXT("ShopCardRefreshText%d"), CardIndex),
-		                                             17,
-		                                             FLinearColor(0.96f, 0.90f, 0.70f));
-		RefreshButton->SetContent(RefreshText);
+		ApplyRefreshButtonArt(RefreshButton, RefreshButtonTexture);
+		UTextBlock* RefreshText = bUseDesignerRefreshButtons ? DesignerRefreshTexts[CardIndex] : nullptr;
+		if (!RefreshText)
+		{
+			RefreshText = CreateCenteredText(WidgetTree,
+			                                  *FString::Printf(TEXT("ShopCardRefreshText%d"), CardIndex),
+			                                  17,
+			                                  FLinearColor(0.96f, 0.90f, 0.70f));
+			RefreshButton->SetContent(RefreshText);
+		}
 		RefreshButton->SetVisibility(ESlateVisibility::Collapsed);
-		UCanvasPanelSlot* RefreshSlot = TraitCardContainer->AddChildToCanvas(RefreshButton);
-		RefreshSlot->SetAnchors(CardAnchors[CardIndex]);
-		RefreshSlot->SetAlignment(FVector2D(0.5f, -3.65f));
-		RefreshSlot->SetSize(FVector2D(210.0f, 48.0f));
-		RefreshSlot->SetZOrder(30 + CardIndex);
+		if (!bUseDesignerRefreshButtons)
+		{
+			UCanvasPanelSlot* RefreshSlot = TraitCardContainer->AddChildToCanvas(RefreshButton);
+			RefreshSlot->SetAnchors(CardAnchors[CardIndex]);
+			RefreshSlot->SetAlignment(FVector2D(0.5f, -3.65f));
+			RefreshSlot->SetSize(FVector2D(210.0f, 48.0f));
+			RefreshSlot->SetZOrder(30 + CardIndex);
+		}
 		RefreshButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleCardRefreshClicked);
 		CardRefreshButtons.Add(RefreshButton);
 		CardRefreshTexts.Add(RefreshText);
@@ -524,7 +586,7 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			FReEchoTraitCardOffer& Offer = Offers[CardIndex];
 			if (!Offer.CardArt)
 			{
-				Offer.CardArt = LoadObject<UTexture2D>(nullptr, *ResolveCardArtTexturePath(Offer.Tier));
+				Offer.CardArt = LoadObject<UTexture2D>(nullptr, *ResolveCardArtTexturePath(Offer.PresentationTier));
 			}
 			if (!Offer.CardIcon)
 			{

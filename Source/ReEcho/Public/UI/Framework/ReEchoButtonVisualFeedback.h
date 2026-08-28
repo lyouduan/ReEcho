@@ -19,6 +19,8 @@ public:
 	          UWidget* InVisualRoot,
 	          const FString& InScreenName = TEXT("Unregistered"),
 	          const FString& InWidgetName = TEXT("Unknown"));
+	/** Bind hover scaling only. Useful when a screen has a transparent hit target over separate authored button art. */
+	void BindVisualOnly(UButton* InButton, UWidget* InVisualRoot);
 	bool IsBoundTo(const UButton* InButton) const;
 	bool HasValidButton() const;
 

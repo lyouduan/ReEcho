@@ -203,7 +203,8 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 {
 	OutSpawn = {};
 	OutError.Reset();
-	if (Request.ArenaHalfX <= 0.0f || Request.ArenaHalfY <= 0.0f ||
+	if (!Request.SpawnWorldBounds.bIsValid || Request.SpawnWorldBounds.Min.X >= Request.SpawnWorldBounds.Max.X ||
+	    Request.SpawnWorldBounds.Min.Y >= Request.SpawnWorldBounds.Max.Y ||
 	    Profile.MinAnchorDistanceCm > Profile.MaxAnchorDistanceCm || Policy.MaxCandidateAttempts <= 0)
 	{
 		OutError = TEXT("Spawn resolver received invalid arena, profile, or attempt configuration.");
@@ -220,9 +221,11 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 		const float MaxDistance = FMath::Max(MinDistance, Profile.MaxAnchorDistanceCm);
 		const float Distance = FMath::Sqrt(Random.FRandRange(FMath::Square(MinDistance), FMath::Square(MaxDistance)));
 		FVector Candidate = Anchor + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
-		Candidate.X = FMath::Clamp(Candidate.X, -Request.ArenaHalfX, Request.ArenaHalfX);
-		Candidate.Y = FMath::Clamp(Candidate.Y, -Request.ArenaHalfY, Request.ArenaHalfY);
 		Candidate.Z = Request.SpawnCenterWorldZ;
+		if (!Request.SpawnWorldBounds.IsInside(FVector2D(Candidate.X, Candidate.Y)))
+		{
+			continue;
+		}
 
 		if (Distance2D(Candidate, Request.PlayerAnchor) < Policy.MinPlayerDistanceCm ||
 		    (Request.bHasEchoAnchor && Distance2D(Candidate, Request.EchoAnchor) < Policy.MinEchoDistanceCm))
@@ -247,17 +250,40 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 		return true;
 	}
 
-	FVector Fallback = Anchor + FVector(Profile.MaxAnchorDistanceCm, 0.0f, 0.0f);
-	Fallback.X = FMath::Clamp(Fallback.X, -Request.ArenaHalfX, Request.ArenaHalfX);
-	Fallback.Y = FMath::Clamp(Fallback.Y, -Request.ArenaHalfY, Request.ArenaHalfY);
-	Fallback.Z = Request.SpawnCenterWorldZ;
-	if (Distance2D(Fallback, Request.PlayerAnchor) < Policy.MinPlayerDistanceCm)
+	constexpr int32 GridSide = 11;
+	const int32 GridCount = GridSide * GridSide;
+	const int32 StartIndex = FMath::Abs(Request.Sequence) % GridCount;
+	for (int32 Offset = 0; Offset < GridCount; ++Offset)
 	{
-		OutError = TEXT("No deterministic spawn candidate satisfies the minimum player distance.");
-		return false;
+		const int32 GridIndex = (StartIndex + Offset) % GridCount;
+		const float AlphaX = (static_cast<float>(GridIndex % GridSide) + 0.5f) / GridSide;
+		const float AlphaY = (static_cast<float>(GridIndex / GridSide) + 0.5f) / GridSide;
+		const FVector Fallback(FMath::Lerp(Request.SpawnWorldBounds.Min.X, Request.SpawnWorldBounds.Max.X, AlphaX),
+		                       FMath::Lerp(Request.SpawnWorldBounds.Min.Y, Request.SpawnWorldBounds.Max.Y, AlphaY),
+		                       Request.SpawnCenterWorldZ);
+		if (Distance2D(Fallback, Request.PlayerAnchor) < Policy.MinPlayerDistanceCm ||
+		    (Request.bHasEchoAnchor && Distance2D(Fallback, Request.EchoAnchor) < Policy.MinEchoDistanceCm))
+		{
+			continue;
+		}
+		bool bSpacingValid = true;
+		for (const FVector& Existing : Request.ExistingLocations)
+		{
+			if (Distance2D(Fallback, Existing) < Profile.MinSpacingCm)
+			{
+				bSpacingValid = false;
+				break;
+			}
+		}
+		if (!bSpacingValid)
+		{
+			continue;
+		}
+		OutSpawn.Location = Fallback;
+		OutSpawn.bUsedEchoAnchor = bUseEcho;
+		OutSpawn.bUsedDeterministicFallback = true;
+		return true;
 	}
-	OutSpawn.Location = Fallback;
-	OutSpawn.bUsedEchoAnchor = bUseEcho;
-	OutSpawn.bUsedDeterministicFallback = true;
-	return true;
+	OutError = TEXT("No deterministic spawn candidate inside the wall-derived bounds satisfies distance and spacing constraints.");
+	return false;
 }

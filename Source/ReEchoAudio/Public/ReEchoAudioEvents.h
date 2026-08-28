@@ -31,6 +31,9 @@ struct REECHOAUDIO_API FReEchoAudioEvents
 	static const FName UiError;		// "UI.Error"
 	static const FName UiPurchase;		// "UI.Purchase"
 	static const FName UiCardSelect;	// "UI.CardSelect"
+	static const FName UiCardReveal;	// "UI.CardReveal"
+	static const FName UiEquip;		// "UI.Equip"
+	static const FName UiUnequip;		// "UI.Unequip"
 
 	// ---- Combat one-shot events ----
 	static const FName CombatAttack; // "Combat.Attack"
@@ -39,6 +42,7 @@ struct REECHOAUDIO_API FReEchoAudioEvents
 	static const FName CombatHurt;		// "Combat.Hurt"
 	static const FName CombatKill;		// "Combat.Kill"
 	static const FName CombatDeath;		// "Combat.Death"
+	static const FName CombatReaction; // "Combat.Reaction" (ReactionBehaviorId is the variant)
 
 	// ---- Enemy one-shot events ----
 	static const FName EnemySpawn;		// "Enemy.Spawn"
@@ -56,4 +60,6 @@ struct REECHOAUDIO_API FReEchoAudioEvents
 	// ---- Misc ----
 	static const FName CameraMove; // "CameraMove"
 	static const FName Revive;	  // "Revive" (death-restart arrival; does not create revive gameplay)
+	static const FName ItemPickup; // "Item.Pickup"
+	static const FName FlowVictory; // "Flow.Victory" (non-boss encounter completion)
 };

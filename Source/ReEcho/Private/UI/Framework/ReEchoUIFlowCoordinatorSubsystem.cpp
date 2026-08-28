@@ -1,5 +1,6 @@
 #include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 
+#include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Overlay.h"
@@ -7,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
+#include "UI/Framework/ReEchoButtonAudioFeedback.h"
 #include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "UI/ReEchoUIManagerSubsystem.h"
@@ -45,17 +47,77 @@ void UReEchoUIFlowCoordinatorSubsystem::BindAudioFeedback(UUserWidget* Widget, c
 		return;
 	}
 
-	TArray<UWidget*> Widgets;
-	Widget->WidgetTree->GetAllWidgets(Widgets);
-	for (UWidget* Child : Widgets)
+	TArray<UUserWidget*> PendingWidgets{Widget};
+	TSet<UUserWidget*> VisitedWidgets;
+	while (!PendingWidgets.IsEmpty())
 	{
-		if (UButton* Button = Cast<UButton>(Child))
+		UUserWidget* CurrentWidget = PendingWidgets.Pop(EAllowShrinking::No);
+		if (!CurrentWidget || VisitedWidgets.Contains(CurrentWidget) || !CurrentWidget->WidgetTree)
 		{
-			Button->OnHovered.AddUniqueDynamic(this, &UReEchoUIFlowCoordinatorSubsystem::HandleButtonHovered);
-			Button->OnClicked.AddUniqueDynamic(this, &UReEchoUIFlowCoordinatorSubsystem::HandleButtonClicked);
-			BindButtonVisualFeedback(Button, Screen, Widget->GetName());
+			continue;
+		}
+		VisitedWidgets.Add(CurrentWidget);
+
+		TArray<UWidget*> Widgets;
+		CurrentWidget->WidgetTree->GetAllWidgets(Widgets);
+		for (UWidget* Child : Widgets)
+		{
+			if (UButton* Button = Cast<UButton>(Child))
+			{
+				BindDefaultButtonAudioFeedback(Button);
+				BindButtonVisualFeedback(Button, Screen, CurrentWidget->GetName());
+			}
+			if (UUserWidget* NestedWidget = Cast<UUserWidget>(Child))
+			{
+				PendingWidgets.Add(NestedWidget);
+			}
 		}
 	}
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::BindDefaultButtonAudioFeedback(UButton* Button)
+{
+	if (!Button || !GetGameInstance())
+	{
+		return;
+	}
+	for (const UReEchoButtonAudioFeedback* Binding : ButtonAudioFeedbackBindings)
+	{
+		if (Binding && Binding->IsBoundTo(Button))
+		{
+			return;
+		}
+	}
+	BindButtonAudioFeedback(Button, FReEchoAudioEvents::UiHover, FReEchoAudioEvents::UiConfirm);
+}
+
+void UReEchoUIFlowCoordinatorSubsystem::BindButtonAudioFeedback(UButton* Button,
+                                                                const FName HoverEventId,
+                                                                const FName ClickEventId)
+{
+	if (!Button || !GetGameInstance())
+	{
+		return;
+	}
+
+	ButtonAudioFeedbackBindings.RemoveAll(
+	    [](const UReEchoButtonAudioFeedback* Binding)
+	    {
+		    return !Binding || !Binding->HasValidButton();
+	    });
+
+	for (UReEchoButtonAudioFeedback* Binding : ButtonAudioFeedbackBindings)
+	{
+		if (Binding->IsBoundTo(Button))
+		{
+			Binding->Bind(Button, GetGameInstance(), HoverEventId, ClickEventId);
+			return;
+		}
+	}
+
+	UReEchoButtonAudioFeedback* Binding = NewObject<UReEchoButtonAudioFeedback>(this);
+	Binding->Bind(Button, GetGameInstance(), HoverEventId, ClickEventId);
+	ButtonAudioFeedbackBindings.Add(Binding);
 }
 
 UWidget* UReEchoUIFlowCoordinatorSubsystem::ResolveButtonVisualRoot(UButton* Button)
@@ -119,16 +181,6 @@ void UReEchoUIFlowCoordinatorSubsystem::PostUiEvent(const FName EventId) const
 			AudioService->PostEventById(GameInstance, EventId);
 		}
 	}
-}
-
-void UReEchoUIFlowCoordinatorSubsystem::HandleButtonHovered()
-{
-	PostUiEvent(FReEchoAudioEvents::UiHover);
-}
-
-void UReEchoUIFlowCoordinatorSubsystem::HandleButtonClicked()
-{
-	PostUiEvent(FReEchoAudioEvents::UiConfirm);
 }
 
 void UReEchoUIFlowCoordinatorSubsystem::CloseScreen(const EReEchoUIScreen Screen)

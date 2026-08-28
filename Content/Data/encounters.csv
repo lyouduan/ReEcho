@@ -1,9 +1,9 @@
 Id,EncounterIndex,StageId,DurationSeconds,EndCondition,EchoAnchorRatio,PlayerAnchorRatio,MeleeTargetingPolicy,RangedBurstLimit,RangedBurstWindowSeconds,EliteSkillConcurrency,ActiveUnitLimit,BossCountsTowardUnitLimit,ReplayPolicy,Enabled,SourceSheet,SourceRow,Notes
-Encounter.1,1,Stage.1,30,Duration,0,1,AllLocked,3,1.2,0,29,true,None,true,关卡配置表,2,首战无回响；玩家预测锚
-Encounter.2,2,Stage.1,30,Duration,1,0,AllLocked,3,1.2,1,32,true,LatestEncounterE1,true,关卡配置表,3,首次明确体验回响协同
-Encounter.3,3,Stage.2,30,Duration,0.9,0.1,AllLocked,3,1.2,1,37,true,SelectedOrLatest,true,关卡配置表,4,构筑验证
-Encounter.4,4,Stage.2,30,Duration,0.85,0.15,AllLocked,4,1.2,1,42,true,SelectedOrLatest,true,关卡配置表,5,构筑验证
-Encounter.5,5,Stage.2,30,Duration,0.8,0.2,AllLocked,4,1.2,1,46,true,SelectedOrLatest,true,关卡配置表,6,构筑验证
-Encounter.6,6,Stage.3,30,Duration,0.7,0.3,AllLocked,4,1.2,1,50,true,SelectedOrLatest,true,关卡配置表,7,构筑验证
-Encounter.7,7,Stage.3,30,Duration,0.6,0.4,AllLocked,4,1.2,1,52,true,SelectedOrLatest,true,关卡配置表,8,Boss前最终普通战
-Encounter.8,8,Stage.Boss,0,BossOrPlayerDeath,0.5,0.5,AllLocked,4,1.2,1,50,false,LatestEncounterE1,true,关卡配置表,9,Boss不计入24个增援上限
+Encounter.1,1,Stage.1,30,Duration,0,1,AllLocked,3,1.2,0,26,true,None,true,关卡配置表,2,首战无回响；玩家预测锚
+Encounter.2,2,Stage.1,30,Duration,1,0,AllLocked,3,1.2,1,28,true,LatestEncounterE1,true,关卡配置表,3,首次明确体验回响协同
+Encounter.3,3,Stage.2,30,Duration,0.9,0.1,AllLocked,3,1.2,1,48,true,SelectedOrLatest,true,关卡配置表,4,构筑验证
+Encounter.4,4,Stage.2,30,Duration,0.85,0.15,AllLocked,4,1.2,1,56,true,SelectedOrLatest,true,关卡配置表,5,构筑验证
+Encounter.5,5,Stage.2,30,Duration,0.8,0.2,AllLocked,4,1.2,1,62,true,SelectedOrLatest,true,关卡配置表,6,构筑验证
+Encounter.6,6,Stage.3,30,Duration,0.7,0.3,AllLocked,4,1.2,1,64,true,SelectedOrLatest,true,关卡配置表,7,构筑验证
+Encounter.7,7,Stage.3,30,Duration,0.6,0.4,AllLocked,4,1.2,1,76,true,SelectedOrLatest,true,关卡配置表,8,Boss前最终普通战
+Encounter.8,8,Stage.Boss,0,BossOrPlayerDeath,0.5,0.5,AllLocked,4,1.2,1,50,false,LatestEncounterE1,true,关卡配置表,9,Boss不计入50个增援上限

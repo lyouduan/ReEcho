@@ -5,10 +5,31 @@
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
+#include "Engine/GameInstance.h"
+#include "ReEchoAudioEvents.h"
+#include "UI/Framework/ReEchoButtonAudioFeedback.h"
 #include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoButtonAudioFeedbackBindingTest,
+                                 "ReEcho.UI.ButtonAudioFeedback.SemanticBinding",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoButtonAudioFeedbackBindingTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UButton* Button = NewObject<UButton>(GameInstance);
+	UReEchoButtonAudioFeedback* Feedback = NewObject<UReEchoButtonAudioFeedback>(GameInstance);
+	Feedback->Bind(Button, GameInstance, FReEchoAudioEvents::UiHover, FReEchoAudioEvents::UiCardSelect);
+
+	TestTrue(TEXT("Semantic audio binding retains its button"), Feedback->IsBoundTo(Button));
+	TestTrue(TEXT("Semantic audio binding remains valid"), Feedback->HasValidButton());
+	TestTrue(TEXT("Hover delegate is bound"), Button->OnHovered.IsBound());
+	TestTrue(TEXT("Click delegate is bound"), Button->OnClicked.IsBound());
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoButtonVisualFeedbackTest,
                                  "ReEcho.UI.ButtonVisualFeedback.HoverScale",

@@ -19,6 +19,7 @@
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Graybox/ReEchoEchoActor.h"
@@ -331,6 +332,12 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	}
 	const bool bBoss = Definition.Archetype == EReEchoEnemyArchetype::Boss;
 	Combatant->SetCursedImmune(bBoss);
+	const bool bSheepStunImmune = EnemyId == TEXT("M_SHEEP");
+	Combatant->SetStunImmune(bSheepStunImmune);
+	if (bSheepStunImmune)
+	{
+		CardStunnedUntilWorldTime = 0.0f;
+	}
 	CombatAudioAdapter->ConfigureRouting(bBoss ? EReEchoCombatAudioSource::Boss : EReEchoCombatAudioSource::Enemy,
 	                                     bBoss ? FReEchoAudioEvents::BossAttack : FReEchoAudioEvents::EnemyAttack,
 	                                     bBoss ? FReEchoAudioEvents::BossDeath : FReEchoAudioEvents::EnemyDeath);
@@ -356,32 +363,82 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	Combatant->SetFatalDamageInterceptDelegate(FReEchoFatalDamageIntercept::CreateLambda(
 	    [this](float& InOutHealth) -> bool
 	    {
+		    const FReEchoEnemyLogicSnapshot Snapshot =
+		        EnemyLogic ? EnemyLogic->GetSnapshot() : FReEchoEnemyLogicSnapshot{};
+		    UE_LOG(LogReEcho,
+		           Warning,
+		           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s enemyId=%s inputHealth=%.3f combatHealth=%.3f "
+		                "maxHealth=%.3f phase=%d phaseIndex=%d phase2Triggered=%d phaseRemaining=%.3f "
+		                "bornGate=%d encounterSuspended=%d worldPaused=%d actorTick=%d"),
+		           *GetNameSafe(this),
+		           *EnemyId.ToString(),
+		           InOutHealth,
+		           Combatant ? Combatant->CurrentHealth : -1.0f,
+		           Combatant ? Combatant->Stats.HpMax : -1.0f,
+		           static_cast<int32>(Snapshot.Phase),
+		           Snapshot.CurrentPhaseIndex,
+		           Snapshot.bPhase2Triggered ? 1 : 0,
+		           Snapshot.PhaseTransitionRemainingSeconds,
+		           bBornGameplayGateActive ? 1 : 0,
+		           bEncounterSimulationSuspended ? 1 : 0,
+		           UGameplayStatics::IsGamePaused(this) ? 1 : 0,
+		           IsActorTickEnabled() ? 1 : 0);
 		    if (!EnemyLogic || !EnemyLogic->GetDefinition().Phase2.bEnabled)
 		    {
+			    UE_LOG(LogReEcho,
+			           Warning,
+			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=Phase2Disabled"),
+			           *GetNameSafe(this));
 			    return false;
 		    }
 		    if (EnemyLogic->GetDefinition().Phase2.TriggerMode != EReEchoEnemyPhase2TriggerMode::HealthThreshold)
 		    {
+			    UE_LOG(LogReEcho,
+			           Warning,
+			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=TriggerMode"),
+			           *GetNameSafe(this));
 			    return false;
 		    }
 		    // Arm only while still in phase one and alive; once transformed, normal death rules apply.
-		    const FReEchoEnemyLogicSnapshot& Snapshot = EnemyLogic->GetSnapshot();
 		    if (Snapshot.bPhase2Triggered || Snapshot.CurrentPhaseIndex >= 2 || !Snapshot.bAlive)
 		    {
+			    UE_LOG(LogReEcho,
+			           Warning,
+			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=NotPhaseOne"),
+			           *GetNameSafe(this));
 			    return false;
 		    }
 		    // A lethal wound must remain lethal while Born owns presentation. This prevents Transform from starting
 		    // without delaying damage/death or making presentation completion authoritative over gameplay.
 		    if (bBornGameplayGateActive)
 		    {
+			    UE_LOG(LogReEcho,
+			           Warning,
+			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=BornGate"),
+			           *GetNameSafe(this));
 			    return false;
 		    }
 		    FReEchoEnemyActionIntent PhaseIntent;
 		    if (!EnemyLogic->TryTriggerPhase2OnFatalWound(PhaseIntent))
 		    {
+			    UE_LOG(LogReEcho,
+			           Warning,
+			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=LogicRejected"),
+			           *GetNameSafe(this));
 			    return false;
 		    }
 		    HandlePhaseTransitionIntent(PhaseIntent);
+		    const FReEchoEnemyLogicSnapshot StartedSnapshot = EnemyLogic->GetSnapshot();
+		    NextBossPhase2TracePlatformSeconds = 0.0;
+		    UE_LOG(LogReEcho,
+		           Warning,
+		           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=DeferDeath phase=%d phaseIndex=%d "
+		                "phaseRemaining=%.3f transformSeconds=%.3f"),
+		           *GetNameSafe(this),
+		           static_cast<int32>(StartedSnapshot.Phase),
+		           StartedSnapshot.CurrentPhaseIndex,
+		           StartedSnapshot.PhaseTransitionRemainingSeconds,
+		           EnemyLogic->GetDefinition().Phase2.TransformSeconds);
 		    return true;
 	    }));
 	return true;
@@ -700,7 +757,8 @@ float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent)
 		       TEXT("[EnemyDamageGate] target=%s enemyId=%s source=%s weapon=%s sequence=%lld damageSource=%d "
 		            "raw=%.3f adjusted=%.3f reason=%s health=%.3f alive=%d damageable=%d actorCollision=%d "
 		            "rootCollision=%d phase=%s phaseIndex=%d phase2Enabled=%d phase2Triggered=%d triggerMode=%s "
-		            "triggerReason=%s phaseRemaining=%.3f receivedDamageCount=%d directionalShield=%d facingDot=%.3f"),
+		            "triggerReason=%s phaseRemaining=%.3f receivedDamageCount=%d directionalShield=%d facingDot=%.3f "
+		            "worldPaused=%d encounterSuspended=%d actorTick=%d cardStunRemaining=%.3f statusStunned=%d"),
 		       *GetNameSafe(this),
 		       *EnemyId.ToString(),
 		       *GetNameSafe(Intent.Attack.Source.Get()),
@@ -724,7 +782,12 @@ float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent)
 		       Snapshot.PhaseTransitionRemainingSeconds,
 		       Snapshot.ReceivedDamageCount,
 		       EnemyLogic && EnemyLogic->GetDefinition().bUsesDirectionalShield ? 1 : 0,
-		       FacingDot);
+		       FacingDot,
+		       UGameplayStatics::IsGamePaused(this) ? 1 : 0,
+		       bEncounterSimulationSuspended ? 1 : 0,
+		       IsActorTickEnabled() ? 1 : 0,
+		       FMath::Max(0.0f, CardStunnedUntilWorldTime - (GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f)),
+		       Combatant && Combatant->IsActionDisabled(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f) ? 1 : 0);
 	}
 #endif
 
@@ -849,6 +912,25 @@ int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origi
 	return RemovedCount;
 }
 
+int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeSphere(const FVector& Origin, const float RangeCm)
+{
+	int32 RemovedCount = 0;
+	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
+	{
+		const FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
+		if (Projectile.VolleyBallIndex == INDEX_NONE ||
+		    !ReEchoWeaponGeometry::IsInsideMeleeSphere(
+		        Origin, Projectile.Snapshot.Location, RangeCm + Projectile.CollisionRadiusCm))
+		{
+			continue;
+		}
+		PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+		BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
+		++RemovedCount;
+	}
+	return RemovedCount;
+}
+
 void AReEchoEnemyActor::RefreshBornGameplayGate()
 {
 	if (bBornGameplayGateActive && (!EnemyPresentation || !EnemyPresentation->IsBornPlaying()))
@@ -867,9 +949,61 @@ void AReEchoEnemyActor::EndBornGameplayGate()
 	SetCanBeDamaged(bCanBeDamagedBeforeBornGate);
 }
 
+void AReEchoEnemyActor::TraceBossPhase2TransitionState(const float DeltaSeconds, const TCHAR* TickGate)
+{
+	if (!EnemyLogic || EnemyLogic->GetDefinition().Archetype != EReEchoEnemyArchetype::Boss)
+	{
+		return;
+	}
+	const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic->GetSnapshot();
+	if (Snapshot.Phase != EReEchoEnemyBehaviorPhase::Transforming)
+	{
+		NextBossPhase2TracePlatformSeconds = 0.0;
+		return;
+	}
+	const double PlatformSeconds = FPlatformTime::Seconds();
+	if (PlatformSeconds < NextBossPhase2TracePlatformSeconds)
+	{
+		return;
+	}
+	NextBossPhase2TracePlatformSeconds = PlatformSeconds + 1.0;
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const bool bCardStunned = WorldTime < CardStunnedUntilWorldTime;
+	const bool bStatusStunned = Combatant && Combatant->IsActionDisabled(WorldTime);
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[SheepPhase2Trace][Heartbeat] enemy=%s gate=%s delta=%.4f worldTime=%.3f platformTime=%.3f "
+	            "worldPaused=%d actorTick=%d encounterSuspended=%d bornGate=%d stunned=%d cardStunned=%d "
+	            "cardStunRemaining=%.3f statusStunned=%d phase=%d phaseIndex=%d phase2Triggered=%d "
+	            "phaseRemaining=%.3f health=%.3f maxHealth=%.3f alive=%d damageable=%d"),
+	       *GetNameSafe(this),
+	       TickGate,
+	       DeltaSeconds,
+	       WorldTime,
+	       PlatformSeconds,
+	       UGameplayStatics::IsGamePaused(this) ? 1 : 0,
+	       IsActorTickEnabled() ? 1 : 0,
+	       bEncounterSimulationSuspended ? 1 : 0,
+	       bBornGameplayGateActive ? 1 : 0,
+	       bCardStunned || bStatusStunned ? 1 : 0,
+	       bCardStunned ? 1 : 0,
+	       FMath::Max(0.0f, CardStunnedUntilWorldTime - WorldTime),
+	       bStatusStunned ? 1 : 0,
+	       static_cast<int32>(Snapshot.Phase),
+	       Snapshot.CurrentPhaseIndex,
+	       Snapshot.bPhase2Triggered ? 1 : 0,
+	       Snapshot.PhaseTransitionRemainingSeconds,
+	       Combatant ? Combatant->CurrentHealth : -1.0f,
+	       Combatant ? Combatant->Stats.HpMax : -1.0f,
+	       IsAlive() ? 1 : 0,
+	       CanBeDamaged() ? 1 : 0);
+}
+
 void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TraceBossPhase2TransitionState(DeltaSeconds,
+	                               bEncounterSimulationSuspended ? TEXT("EncounterSuspended") : TEXT("HostTick"));
 	if (bEncounterSimulationSuspended)
 	{
 		return;
@@ -1185,15 +1319,19 @@ bool AReEchoEnemyActor::IsIgnoringEnemyMovementForTests(const AActor* Other) con
 
 void AReEchoEnemyActor::ApplyCardStun(const float DurationSeconds)
 {
-	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	CardStunnedUntilWorldTime = FMath::Max(CardStunnedUntilWorldTime, WorldTime + FMath::Max(0.0f, DurationSeconds));
-	if (Combatant)
+	if (!Combatant || Combatant->IsStunImmune())
 	{
-		FReEchoTimedStatusCommand Command;
-		Command.StatusId = TEXT("Z_Vertigo");
-		Command.CurrentTimeSeconds = WorldTime;
-		Command.DurationSeconds = DurationSeconds;
-		Combatant->ApplyTimedStatus(Command);
+		return;
+	}
+	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	FReEchoTimedStatusCommand Command;
+	Command.StatusId = TEXT("Z_Vertigo");
+	Command.CurrentTimeSeconds = WorldTime;
+	Command.DurationSeconds = DurationSeconds;
+	if (Combatant->ApplyTimedStatus(Command))
+	{
+		CardStunnedUntilWorldTime =
+		    FMath::Max(CardStunnedUntilWorldTime, WorldTime + FMath::Max(0.0f, DurationSeconds));
 	}
 }
 
@@ -1904,10 +2042,16 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 		EnemyLogic->NotifyDeath();
 	}
 	SetActorEnableCollision(false);
+	FVector DeathKnockbackDirection = (Event.WorldLocation - Event.SourceWorldLocation).GetSafeNormal2D();
+	if (DeathKnockbackDirection.IsNearlyZero())
+	{
+		DeathKnockbackDirection = -GetFacingDirection().GetSafeNormal2D();
+	}
 	float ExpectedDurationSeconds = 0.0f;
 	const bool bPlayingDeath =
 	    EnemyPresentation &&
 	    EnemyPresentation->BeginTerminalDeath(
+	        DeathKnockbackDirection,
 	        FSimpleDelegate::CreateUObject(this, &AReEchoEnemyActor::CompleteDeathSequence), ExpectedDurationSeconds);
 	if (!bPlayingDeath)
 	{
@@ -1943,6 +2087,20 @@ void AReEchoEnemyActor::HandlePhaseTransitionIntent(const FReEchoEnemyActionInte
 	PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
 	PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
 	PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
+	const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic->GetSnapshot();
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[SheepPhase2Trace][TransitionEvent] enemy=%s started=%d completed=%d reason=%d phase=%d "
+	            "phaseIndex=%d phaseRemaining=%.3f health=%.3f maxHealth=%.3f"),
+	       *GetNameSafe(this),
+	       Intent.bPhaseTransitionStarted ? 1 : 0,
+	       Intent.bPhaseTransitionCompleted ? 1 : 0,
+	       static_cast<int32>(Intent.PhaseTriggerReason),
+	       static_cast<int32>(Snapshot.Phase),
+	       Snapshot.CurrentPhaseIndex,
+	       Snapshot.PhaseTransitionRemainingSeconds,
+	       Combatant ? Combatant->CurrentHealth : -1.0f,
+	       Combatant ? Combatant->Stats.HpMax : -1.0f);
 	EnemyEvents->PublishPhaseTransition(PhaseEvent);
 
 	if (Intent.bPhaseTransitionCompleted &&
@@ -1957,6 +2115,10 @@ void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()
 {
 	if (!Combatant || !EnemyLogic || EnemyLogic->GetDefinition().BossPhases.Num() == 0)
 	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[SheepPhase2Trace][Refill] enemy=%s decision=Reject reason=MissingCombatLogicOrPhases"),
+		       *GetNameSafe(this));
 		return;
 	}
 	// Locate the second-phase definition by PhaseIndex and apply its maximum health only when it requests a refill.
@@ -1972,9 +2134,27 @@ void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()
 	if (!PhaseTwo || PhaseTwo->RefillHealthPolicy != EReEchoBossRefillHealthPolicy::RefillToMaximum ||
 	    PhaseTwo->PhaseMaxHealth <= 0.0f)
 	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[SheepPhase2Trace][Refill] enemy=%s decision=Reject phaseFound=%d policy=%d maxHealth=%.3f"),
+		       *GetNameSafe(this),
+		       PhaseTwo ? 1 : 0,
+		       PhaseTwo ? static_cast<int32>(PhaseTwo->RefillHealthPolicy) : -1,
+		       PhaseTwo ? PhaseTwo->PhaseMaxHealth : -1.0f);
 		return;
 	}
 	// Resize to the new ceiling and refill to full so the second form starts as a fresh fight.
+	const float PreviousHealth = Combatant->CurrentHealth;
+	const float PreviousMaxHealth = Combatant->Stats.HpMax;
 	Combatant->Stats.HpMax = PhaseTwo->PhaseMaxHealth;
 	Combatant->InitializeFromStats(Combatant->Stats, /*bFullHealth=*/true);
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[SheepPhase2Trace][Refill] enemy=%s decision=Applied oldHealth=%.3f oldMaxHealth=%.3f "
+	            "newHealth=%.3f newMaxHealth=%.3f"),
+	       *GetNameSafe(this),
+	       PreviousHealth,
+	       PreviousMaxHealth,
+	       Combatant->CurrentHealth,
+	       Combatant->Stats.HpMax);
 }

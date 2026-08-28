@@ -65,8 +65,52 @@ SPATIAL_WAVS = {
         ROOT / "Design/Audio/Source/Formal/Variants/CombatHit/Water.wav",
         ROOT / "Design/Audio/Derived/Variants/CombatHit/Water.wav",
     ),
+    "Combat.Reaction/Reaction.Vaporize": (
+        ROOT / "Design/Audio/Source/Formal/Variants/CombatReaction/Vaporize.wav",
+        ROOT / "Design/Audio/Derived/Variants/CombatReaction/Vaporize.wav",
+    ),
+    "Combat.Reaction/Reaction.Growth": (
+        ROOT / "Design/Audio/Decoded/Variants/CombatReaction/Growth.wav",
+        ROOT / "Design/Audio/Derived/Variants/CombatReaction/Growth.wav",
+    ),
+    "Combat.Reaction/Reaction.Conduct": (
+        ROOT / "Design/Audio/Decoded/Variants/CombatReaction/Conduct.wav",
+        ROOT / "Design/Audio/Derived/Variants/CombatReaction/Conduct.wav",
+    ),
+    "Combat.Reaction/Reaction.Enhance": (
+        ROOT / "Design/Audio/Decoded/Variants/CombatReaction/Enhance.wav",
+        ROOT / "Design/Audio/Derived/Variants/CombatReaction/Enhance.wav",
+    ),
+    "Item.Pickup": (
+        ROOT / "Design/Audio/Source/Formal/Flow/Item_Pickup.wav",
+        ROOT / "Design/Audio/Derived/Flow/Item_Pickup.wav",
+    ),
 }
 
+STEREO_WAVS = {
+    "UI.Equip/UI.Unequip": (
+        ROOT / "Design/Audio/Source/Formal/UI/UI_RuneEquip.wav",
+        ROOT / "Design/Audio/Derived/UI/UI_RuneEquip.wav",
+    ),
+}
+
+MEDIA_SUFFIXES = {".mp3", ".wav"}
+
+
+def assert_exact_media_set(root: Path, expected: set[Path], label: str) -> None:
+    actual = {
+        path.resolve()
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in MEDIA_SUFFIXES
+    }
+    expected_resolved = {path.resolve() for path in expected}
+    extras = sorted(path.relative_to(ROOT).as_posix() for path in actual - expected_resolved)
+    missing = sorted(path.relative_to(ROOT).as_posix() for path in expected_resolved - actual)
+    if extras or missing:
+        raise SystemExit(
+            f"{label} media set does not match planning-table-derived outputs: "
+            f"extras={extras}, missing={missing}"
+        )
 
 def read_pcm16(source_bytes: bytes, label: str) -> tuple[int, int, array]:
     with wave.open(io.BytesIO(source_bytes), "rb") as source:
@@ -90,26 +134,27 @@ def read_pcm16(source_bytes: bytes, label: str) -> tuple[int, int, array]:
     return channels, sample_rate, samples
 
 
-def encode_mono_pcm16(samples: array, sample_rate: int) -> bytes:
+def encode_pcm16(samples: array, sample_rate: int, channels: int) -> bytes:
     if sys.byteorder != "little":
         samples.byteswap()
     output = io.BytesIO()
     with wave.open(output, "wb") as target:
-        target.setnchannels(1)
+        target.setnchannels(channels)
         target.setsampwidth(2)
         target.setframerate(sample_rate)
         target.writeframes(samples.tobytes())
     return output.getvalue()
 
 
-def downmix_to_mono(source_bytes: bytes, label: str) -> bytes:
+def transform_pcm16(source_bytes: bytes, label: str, downmix: bool) -> bytes:
     channels, sample_rate, samples = read_pcm16(source_bytes, label)
-    if channels == 2:
+    if downmix and channels == 2:
         samples = array(
             "h",
             ((samples[index] + samples[index + 1]) // 2 for index in range(0, len(samples), 2)),
         )
-    return encode_mono_pcm16(samples, sample_rate)
+        channels = 1
+    return encode_pcm16(samples, sample_rate, channels)
 
 
 def build_enemy_spawn() -> bytes:
@@ -131,13 +176,14 @@ def build_enemy_spawn() -> bytes:
         "h",
         ((second_half[index] + second_half[index + 1]) // 2 for index in range(0, len(second_half), 2)),
     )
-    return encode_mono_pcm16(mono, sample_rate)
+    return encode_pcm16(mono, sample_rate, 1)
 
 
 def describe_wav(payload: bytes) -> str:
     with wave.open(io.BytesIO(payload), "rb") as source:
         duration = source.getnframes() / source.getframerate()
-        return f"{duration:.3f}s mono PCM16 {source.getframerate() // 1000}kHz"
+        channel_label = "mono" if source.getnchannels() == 1 else "stereo"
+        return f"{duration:.3f}s {channel_label} PCM16 {source.getframerate() // 1000}kHz"
 
 
 def write_or_check(output: Path, expected: bytes, check: bool, label: str) -> None:
@@ -159,7 +205,24 @@ def main() -> None:
 
     write_or_check(ENEMY_SPAWN_OUTPUT, build_enemy_spawn(), args.check, "Enemy.Spawn")
     for label, (source, output) in SPATIAL_WAVS.items():
-        write_or_check(output, downmix_to_mono(source.read_bytes(), label), args.check, label)
+        write_or_check(output, transform_pcm16(source.read_bytes(), label, True), args.check, label)
+    for label, (source, output) in STEREO_WAVS.items():
+        write_or_check(output, transform_pcm16(source.read_bytes(), label, False), args.check, label)
+
+    decoded_root = ROOT / "Design/Audio/Decoded"
+    expected_decoded = {
+        source
+        for source, _output in SPATIAL_WAVS.values()
+        if decoded_root in source.parents
+    }
+    derived_root = ROOT / "Design/Audio/Derived"
+    expected_derived = {
+        ENEMY_SPAWN_OUTPUT,
+        *(output for _source, output in SPATIAL_WAVS.values()),
+        *(output for _source, output in STEREO_WAVS.values()),
+    }
+    assert_exact_media_set(decoded_root, expected_decoded, "Decoded")
+    assert_exact_media_set(derived_root, expected_derived, "Derived")
 
 
 if __name__ == "__main__":

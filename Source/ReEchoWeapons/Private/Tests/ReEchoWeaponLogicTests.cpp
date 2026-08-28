@@ -2,7 +2,24 @@
 
 #include "Misc/AutomationTest.h"
 #include "GameFramework/Actor.h"
+#include "Weapons/ReEchoWeaponGeometry.h"
 #include "Weapons/ReEchoWeaponLogic.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoMeleeSphereGeometryTest,
+                                 "ReEcho.Weapons.Geometry.MeleeSphere",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoMeleeSphereGeometryTest::RunTest(const FString& Parameters)
+{
+	const FVector Origin(100.0f, -50.0f, 25.0f);
+	TestTrue(TEXT("Scythe sphere includes a target directly above within radius"),
+	         ReEchoWeaponGeometry::IsInsideMeleeSphere(Origin, Origin + FVector(0.0f, 0.0f, 249.0f), 250.0f));
+	TestTrue(TEXT("Scythe sphere includes its exact three-dimensional boundary"),
+	         ReEchoWeaponGeometry::IsInsideMeleeSphere(Origin, Origin + FVector(150.0f, 0.0f, 200.0f), 250.0f));
+	TestFalse(TEXT("Scythe sphere excludes a target outside the combined XYZ radius"),
+	          ReEchoWeaponGeometry::IsInsideMeleeSphere(Origin, Origin + FVector(200.0f, 0.0f, 151.0f), 250.0f));
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponLogicCadenceTest,
                                  "ReEcho.Weapons.Logic.SingleCadence",

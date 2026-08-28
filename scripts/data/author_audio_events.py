@@ -19,7 +19,7 @@ CATALOG_CSV = ROOT / "Content" / "Data" / "audio_events.csv"
 COLUMNS = [
     "EventId", "VariantId", "AssetPath", "Bus", "EventType", "Spatial3D", "BaseVolume",
     "PitchMin", "PitchMax", "CooldownSeconds", "MaxConcurrency", "Priority",
-    "PausePolicy", "AttenuationMin", "AttenuationMax",
+    "PausePolicy", "AttenuationMin", "AttenuationMax", "StartTimeSeconds",
 ]
 
 
@@ -57,7 +57,7 @@ def main() -> int:
     with CATALOG_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
         catalog_rows = list(csv.DictReader(handle))
     if list(catalog_rows[0]) != COLUMNS:
-        raise RuntimeError(f"{CATALOG_CSV} does not match the locked Plan114 15-column schema")
+        raise RuntimeError(f"{CATALOG_CSV} does not match the locked 16-column audio schema")
     rows: list[list[object]] = [[row[column] for column in COLUMNS] for row in catalog_rows]
 
     audio = wb.create_sheet("AudioEvents")
@@ -79,7 +79,7 @@ def main() -> int:
         validation.showDropDown = False
         audio.add_data_validation(validation)
         validation.add(f"{get_column_letter(column)}2:{get_column_letter(column)}{len(rows) + 1}")
-    for column, width in enumerate([24, 16, 62, 14, 12, 10, 12, 10, 10, 18, 16, 10, 20, 16, 16], 1):
+    for column, width in enumerate([24, 16, 62, 14, 12, 10, 12, 10, 10, 18, 16, 10, 20, 16, 16, 18], 1):
         audio.column_dimensions[get_column_letter(column)].width = width
 
     WORKBOOK.parent.mkdir(parents=True, exist_ok=True)

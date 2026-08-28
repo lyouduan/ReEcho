@@ -130,6 +130,7 @@ bool FReEchoAudioPausePolicyTest::RunTest(const FString& Parameters)
 	OneShot.bSpatial3D = true;
 	OneShot.AttenuationMin = 200.0f;
 	OneShot.AttenuationMax = 2000.0f;
+	OneShot.StartTimeSeconds = 0.25f;
 	H.AddDef(OneShot);
 	FReEchoAudioEventRequest OneShotRequest = Req(FReEchoAudioEvents::UiConfirm);
 	OneShotRequest.WorldLocation = FVector(10.0f, 20.0f, 30.0f);
@@ -142,12 +143,14 @@ bool FReEchoAudioPausePolicyTest::RunTest(const FString& Parameters)
 	    TEXT("one-shot preserves location"), H.Backend->LastOneShotCommand.Location, OneShotRequest.WorldLocation);
 	TestEqual(TEXT("one-shot preserves attenuation minimum"), H.Backend->LastOneShotCommand.AttenuationMin, 200.0f);
 	TestEqual(TEXT("one-shot preserves attenuation maximum"), H.Backend->LastOneShotCommand.AttenuationMax, 2000.0f);
+	TestEqual(TEXT("one-shot preserves configured start time"), H.Backend->LastOneShotCommand.StartTimeSeconds, 0.25f);
 
 	FReEchoAudioEventDefinition Loop = H.MakeDef(FReEchoAudioEvents::MusicMenu, EReEchoAudioBus::Music, true);
 	Loop.PausePolicy = EReEchoAudioPausePolicy::ContinueOnPause;
 	Loop.bSpatial3D = true;
 	Loop.AttenuationMin = 300.0f;
 	Loop.AttenuationMax = 2400.0f;
+	Loop.StartTimeSeconds = 12.5f;
 	H.AddDef(Loop);
 	UWorld* ExpectedWorld = reinterpret_cast<UWorld*>(UPTRINT(1));
 	H.Engine->SetState(EReEchoAudioChannel::Music, FReEchoAudioEvents::MusicMenu, ExpectedWorld);
@@ -159,6 +162,7 @@ bool FReEchoAudioPausePolicyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("state preserves spatialization"), H.Backend->LastLoopCommand.bSpatial3D);
 	TestEqual(TEXT("state preserves attenuation minimum"), H.Backend->LastLoopCommand.AttenuationMin, 300.0f);
 	TestEqual(TEXT("state preserves attenuation maximum"), H.Backend->LastLoopCommand.AttenuationMax, 2400.0f);
+	TestEqual(TEXT("state preserves configured start time"), H.Backend->LastLoopCommand.StartTimeSeconds, 12.5f);
 	return true;
 }
 
@@ -509,16 +513,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCatalogAtomicLoadTest,
 bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 {
 	const FString Header = TEXT("EventId,VariantId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,"
-	                            "CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax\n");
+	                            "CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax,"
+	                            "StartTimeSeconds\n");
 	const FString ValidPath =
 	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogValid"), TEXT(".csv"));
 	const FString InvalidPath =
 	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogInvalid"), TEXT(".csv"));
 	FFileHelper::SaveStringToFile(
-	    Header + TEXT("\"Combat.Attack\",,,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+	    Header +
+	        TEXT("\"Combat.Attack\",,,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000,0.125\n"),
 	    *ValidPath);
 	FFileHelper::SaveStringToFile(
-	    Header + TEXT("Combat.Attack,,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000\n"),
+	    Header + TEXT("Combat.Attack,,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000,0\n"),
 	    *InvalidPath);
 
 	FReEchoAudioCatalog Catalog;
@@ -526,6 +532,7 @@ bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("one definition committed"), Catalog.Num(), 1);
 	const FReEchoAudioEventDefinition* Before = Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack);
 	TestNotNull(TEXT("stable event is available"), Before);
+	TestEqual(TEXT("catalog parses configured start time"), Before ? Before->StartTimeSeconds : -1.0f, 0.125f);
 	AddExpectedError(TEXT("unsupported bus; preserving previous catalog"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("invalid enum rejects reload"), Catalog.LoadCatalog(InvalidPath));
 	TestEqual(TEXT("failed reload preserves previous catalog"), Catalog.Num(), 1);
@@ -562,12 +569,18 @@ bool FReEchoAudioModuleLoadTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Music.Menu constant valid"), FReEchoAudioEvents::MusicMenu.IsNone());
 	TestFalse(TEXT("Ambience.Arena constant valid"), FReEchoAudioEvents::AmbienceArena.IsNone());
 	TestFalse(TEXT("UI.Confirm constant valid"), FReEchoAudioEvents::UiConfirm.IsNone());
+	TestFalse(TEXT("UI.CardReveal constant valid"), FReEchoAudioEvents::UiCardReveal.IsNone());
+	TestFalse(TEXT("UI.Equip constant valid"), FReEchoAudioEvents::UiEquip.IsNone());
+	TestFalse(TEXT("UI.Unequip constant valid"), FReEchoAudioEvents::UiUnequip.IsNone());
 	TestFalse(TEXT("Combat.Attack constant valid"), FReEchoAudioEvents::CombatAttack.IsNone());
+	TestFalse(TEXT("Combat.Reaction constant valid"), FReEchoAudioEvents::CombatReaction.IsNone());
 	TestFalse(TEXT("Enemy.Spawn constant valid"), FReEchoAudioEvents::EnemySpawn.IsNone());
 	TestFalse(TEXT("Boss.Death constant valid"), FReEchoAudioEvents::BossDeath.IsNone());
 	TestFalse(TEXT("Echo.End constant valid"), FReEchoAudioEvents::EchoEnd.IsNone());
 	TestFalse(TEXT("CameraMove constant valid"), FReEchoAudioEvents::CameraMove.IsNone());
 	TestFalse(TEXT("Revive constant valid"), FReEchoAudioEvents::Revive.IsNone());
+	TestFalse(TEXT("Item.Pickup constant valid"), FReEchoAudioEvents::ItemPickup.IsNone());
+	TestFalse(TEXT("Flow.Victory constant valid"), FReEchoAudioEvents::FlowVictory.IsNone());
 	return true;
 }
 

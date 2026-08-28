@@ -93,6 +93,100 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Player and Echo host scales resolve the same weapon length"), PlayerLength, EchoLength);
 		}
 	}
+	const UReEchoWeaponPresentationProfile* SwordAnchorProfile =
+	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
+	const UReEchoWeaponPresentationProfile* ScytheAnchorProfile =
+	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
+	const UReEchoWeaponPresentationProfile* BowAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"));
+	const UReEchoWeaponPresentationProfile* GunAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
+	if (SwordAnchorProfile && ScytheAnchorProfile && BowAnchorProfile && GunAnchorProfile)
+	{
+		TestTrue(TEXT("Longsword held visual scales with final attack range"),
+		         SwordAnchorProfile->bScaleHeldVisualWithAttackRange);
+		TestTrue(TEXT("Longsword held visual scales only along its configured length axis"),
+		         SwordAnchorProfile->HeldVisualAttackRangeScaleMask.Equals(
+		             SwordAnchorProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width ? FVector(1.0f, 0.0f, 0.0f)
+		                                                                                 : FVector(0.0f, 1.0f, 0.0f),
+		             KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Scythe held visual uses the approved four metre base length"),
+		         ScytheAnchorProfile->bOverrideHeldLength &&
+		             FMath::IsNearlyEqual(ScytheAnchorProfile->HeldLengthOverrideCm, 400.0f));
+		TestTrue(TEXT("Scythe held visual scales uniformly in its camera plane"),
+		         ScytheAnchorProfile->bScaleHeldVisualWithAttackRange &&
+		             ScytheAnchorProfile->HeldVisualAttackRangeScaleMask.Equals(
+		                 FVector(1.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Held visual range scaling follows the final range multiplier only on declared axes"),
+		         AReEchoWeaponActor::ResolveHeldVisualAttackRangeScaleForTests(
+		             FVector(4.0f, 2.0f, 1.0f), FVector(1.0f, 0.0f, 0.0f), 1.5f, 0.5f, 2.0f)
+		             .Equals(FVector(6.0f, 2.0f, 1.0f), KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Held visual range scaling clamps the same way as authored VFX scaling"),
+		         AReEchoWeaponActor::ResolveHeldVisualAttackRangeScaleForTests(
+		             FVector(4.0f, 2.0f, 1.0f), FVector(1.0f, 1.0f, 0.0f), 3.0f, 0.5f, 2.0f)
+		             .Equals(FVector(8.0f, 4.0f, 1.0f), KINDA_SMALL_NUMBER));
+		const FVector2D ExpectedBowRight =
+		    BowAnchorProfile->bOverrideAttackVfxAnchor ? BowAnchorProfile->AttackVfxAnchorRatio : FVector2D(0.5f, 0.0f);
+		const FVector2D ExpectedGunRight =
+		    GunAnchorProfile->bOverrideAttackVfxAnchor ? GunAnchorProfile->AttackVfxAnchorRatio : FVector2D(0.5f, 0.0f);
+		TestEqual(TEXT("Right-facing scythe releases from weapon center"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*ScytheAnchorProfile, 1.0f),
+		          FVector2D::ZeroVector);
+		TestEqual(TEXT("Right-facing longsword releases from bottom center"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*SwordAnchorProfile, 1.0f),
+		          FVector2D(0.0f, -0.5f));
+		TestEqual(TEXT("Left-facing longsword keeps its centered vertical anchor"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*SwordAnchorProfile, -1.0f),
+		          FVector2D(0.0f, -0.5f));
+		TestEqual(TEXT("Right-facing bow consumes its authored or default anchor"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*BowAnchorProfile, 1.0f),
+		          ExpectedBowRight);
+		TestEqual(TEXT("Left-facing bow mirrors the resolved horizontal anchor"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*BowAnchorProfile, -1.0f),
+		          FVector2D(-ExpectedBowRight.X, ExpectedBowRight.Y));
+		TestEqual(TEXT("Right-facing gun consumes its accepted DA anchor"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, 1.0f),
+		          ExpectedGunRight);
+		TestEqual(TEXT("Left-facing gun mirrors the accepted DA horizontal anchor"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*GunAnchorProfile, -1.0f),
+		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
+		TestEqual(TEXT("Right-facing bow keeps positive local X without texture mirroring"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*BowAnchorProfile, 1.0f, false),
+		          ExpectedBowRight);
+		TestEqual(TEXT("Left-facing bow compensates its negative visual scale"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*BowAnchorProfile, -1.0f, true),
+		          ExpectedBowRight);
+		TestEqual(TEXT("Right-facing gun compensates its negative visual scale"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*GunAnchorProfile, 1.0f, true),
+		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
+		TestEqual(TEXT("Left-facing gun keeps negative local X without texture mirroring"),
+		          AReEchoWeaponActor::ResolveAttackVfxAnchorComponentRatioForTests(*GunAnchorProfile, -1.0f, false),
+		          FVector2D(-ExpectedGunRight.X, ExpectedGunRight.Y));
+	}
+	UReEchoWeaponPresentationProfile* DefaultGunAnchorProfile = NewObject<UReEchoWeaponPresentationProfile>();
+	DefaultGunAnchorProfile->WeaponVisualKey = TEXT("Gun");
+	TestEqual(TEXT("Gun without a DA override defaults to the right midpoint"),
+	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*DefaultGunAnchorProfile, 1.0f),
+	          FVector2D(0.5f, 0.0f));
+	UReEchoWeaponPresentationProfile* OverrideAnchorProfile = NewObject<UReEchoWeaponPresentationProfile>();
+	OverrideAnchorProfile->WeaponVisualKey = TEXT("Bow");
+	OverrideAnchorProfile->bOverrideAttackVfxAnchor = true;
+	OverrideAnchorProfile->AttackVfxAnchorRatio = FVector2D(0.35f, 0.2f);
+	TestEqual(TEXT("DA override replaces the production default anchor"),
+	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*OverrideAnchorProfile, 1.0f),
+	          FVector2D(0.35f, 0.2f));
+	TestEqual(TEXT("DA override mirrors only its local horizontal component"),
+	          AReEchoWeaponActor::ResolveAttackVfxAnchorRatioForTests(*OverrideAnchorProfile, -1.0f),
+	          FVector2D(-0.35f, 0.2f));
+	const FVector WeaponAnchorLocation(17.0f, 29.0f, 41.0f);
+	const FVector LegacyOwnerLocation(100.0f, 200.0f, 300.0f);
+	const FVector ProjectileDirection = FVector(0.0f, 1.0f, 0.0f);
+	TestEqual(TEXT("Ranged projectile starts exactly at the final weapon anchor when available"),
+	          AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(
+	              WeaponAnchorLocation, LegacyOwnerLocation, ProjectileDirection, true),
+	          WeaponAnchorLocation);
+	TestEqual(TEXT("Missing weapon anchor retains the legacy safe spawn fallback"),
+	          AReEchoWeaponActor::ResolveProjectileSpawnLocationForTests(
+	              WeaponAnchorLocation, LegacyOwnerLocation, ProjectileDirection, false),
+	          LegacyOwnerLocation + FVector(0.0f, 0.0f, 35.0f) + ProjectileDirection * 45.0f);
 	const UReEchoWeaponPresentationCatalog* WeaponCatalog = FReEchoWeaponVisualCatalog::ResolveCatalog();
 	TestNotNull(TEXT("Weapon catalog owns the shared held layout"), WeaponCatalog);
 	if (WeaponCatalog)
@@ -145,6 +239,14 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Longsword third pass ends at lower sixty degrees"),
 	         FMath::IsNearlyEqual(
 	             AReEchoWeaponActor::ResolveTripleSwingAngleForTests(1.0f, 1.0f), -PI / 3.0f, KINDA_SMALL_NUMBER));
+	const FVector ScytheHandAnchor(10.0f, 20.0f, 0.0f);
+	const FVector ScytheVisualOffset(30.0f, 8.0f, 0.0f);
+	const FQuat HalfSpin(FVector::UpVector, PI);
+	const FVector CompensatedRoot =
+	    AReEchoWeaponActor::ResolveSelfCenteredSpinRootLocationForTests(ScytheHandAnchor, ScytheVisualOffset, HalfSpin);
+	TestTrue(TEXT("Scythe full spin keeps its visible center fixed instead of orbiting the hand"),
+	         (CompensatedRoot + HalfSpin.RotateVector(ScytheVisualOffset))
+	             .Equals(ScytheHandAnchor + ScytheVisualOffset, KINDA_SMALL_NUMBER));
 	TestNotNull(TEXT("Sage MoonStaff animation helper retains its presentation profile"),
 	            FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("MoonStaff")));
 	TestFalse(TEXT("Bow has held visual"),
@@ -163,6 +265,34 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	const UReEchoWeaponPresentationProfile* SwordProfile =
 	    FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("CrescentBlade"));
 	TestTrue(TEXT("Sword slash preserves its configured world size"), SwordProfile->AttackCommitted.bPreserveWorldSize);
+	const UReEchoWeaponPresentationProfile* GunProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
+	TestNotNull(TEXT("Gun presentation profile is available"), GunProfile);
+	if (GunProfile)
+	{
+		TestTrue(TEXT("Gun muzzle spark is configured on AttackCommitted"), GunProfile->AttackCommitted.IsConfigured());
+		TestEqual(TEXT("Gun muzzle attaches to the final weapon attack root"),
+		          GunProfile->AttackCommitted.SpawnMode,
+		          EReEchoWeaponVfxSpawnMode::AttachToAttackRoot);
+		TestTrue(
+		    TEXT("Gun muzzle uses the delivered bullet spark"),
+		    GunProfile->AttackCommitted.System.ToSoftObjectPath().ToString().Contains(TEXT("NS_People_Bullet_spark")));
+		TestFalse(TEXT("Gun no longer declares the muzzle spark as DamageApplied"),
+		          GunProfile->DamageApplied.IsConfigured());
+		TestTrue(TEXT("Gun muzzle anchor X is the weapon right edge"),
+		         FMath::IsNearlyEqual(GunProfile->AttackVfxAnchorRatio.X, 0.5f));
+		TestTrue(TEXT("Gun muzzle anchor uses the weapon vertical center"),
+		         FMath::IsNearlyZero(GunProfile->AttackVfxAnchorRatio.Y));
+		const FBox GunLocalBounds(FVector(-80.0f, -20.0f, -1.0f), FVector(80.0f, 20.0f, 1.0f));
+		TestEqual(TEXT("Right-facing gun uses the local right barrel endpoint"),
+		          AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(GunLocalBounds, 1.0f, false, 0.0f),
+		          FVector(80.0f, 0.0f, 0.0f));
+		TestEqual(TEXT("Mirrored right-facing gun compensates its negative parent scale"),
+		          AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(GunLocalBounds, 1.0f, true, 0.0f),
+		          FVector(-80.0f, 0.0f, 0.0f));
+		TestEqual(TEXT("Left-facing gun uses the local left barrel endpoint"),
+		          AReEchoWeaponActor::ResolveGunMuzzleLocalPointForTests(GunLocalBounds, -1.0f, false, 0.0f),
+		          FVector(-80.0f, 0.0f, 0.0f));
+	}
 	TestTrue(TEXT("Bow uses travel VFX"),
 	         FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Bow"))->Travel.IsConfigured());
 	return true;

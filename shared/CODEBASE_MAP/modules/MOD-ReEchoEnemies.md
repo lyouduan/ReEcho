@@ -20,7 +20,7 @@
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
 - 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
-- Host 负责应用外部眩晕门和移动倍率，并为当步 Sense 选择存活嘲讽 Echo；首次进入眩晕时通过窄命令取消旧目标锁定动作；
+- Host 负责应用外部眩晕门和移动倍率，并为当步 Sense 选择存活嘲讽 Echo；首次进入眩晕时通过窄命令取消旧目标锁定动作；`M_SHEEP` 在配置边界启用 Combat 眩晕免疫，并拒绝 Host 卡牌眩晕计时；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
 - Slime 表驱动接触攻击、Ranged 锁点前摇/范围判定、Elite 正面防御/锁向突进与恢复；
 - Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
@@ -73,7 +73,7 @@
 
 远程敌人提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 按能力表的 `ProjectileCount` 与 `SpreadAngleDegrees` 展开确定性直线投射物；单发沿锁定方向，有散射角的多发以中心方向对称齐射。`ProjectileCount>1`、零散射角且 `ActiveSeconds>0` 的直线多发在该 Active 窗口内等间隔进入世界：第一发随提交生成，其余已提交球保存剩余延迟并依次发布 Spawned，避免同帧同位置重叠。Host 使用每条已生成球的移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；兔子球命中玩家后立即发布 `Ended` 并从逻辑数组移除，视觉代理随事件结束。长剑还可用其提交时的 180°近战扇区结束弧内兔子球；EnemyHost 仍是移除权威，Niagara 不参与斩弹裁决。兔子能力的单球半径固定为 `RadiusCm / 3`（沿用原移动三球散射的作者基准），不因站定四连发的 `ProjectileCount` 改变；羊 Boss 等通用齐射仍把 `RadiusCm` 作为整组碰撞预算并按实际发数平分。单球半径不得从敌人本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。各逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载已生成和已提交待生成的通用敌方逻辑投射物；旧存档默认把已有条目视为已生成，重命名需要独立存档迁移。显式正数表内投射物速度优先，兼容数据才按 `MaxRangeCm / CooldownSeconds` 推导。
 
-Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。普通怪的 `AttackCountOrRange` Phase2 是纯表现转换，转换期间继续接受正常伤害；`M_SHEEP` 第一阶段最大生命 1300，第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义把最大生命与当前生命统一设为 650；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
+Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、`M_RABBIT`、`M_FOX`，Boss 为 `M_SHEEP`。普通怪的 `AttackCountOrRange` Phase2 是纯表现转换，转换期间继续接受正常伤害；`M_SHEEP` 第一阶段生命使用怪物定义，第一次致命伤由 Combatant 的窄委托交给 EnemyLogic 转为 `HealthDepleted` Phase2 过渡，Host 发布变身事件，完成后按 Phase2 定义刷新最大生命与当前生命；第二次致命伤沿正常 Combat 死亡路径。未进入仇恨范围的普通怪执行可保存的确定性 IdleWander，一旦进入战斗后不恢复游走；Host 只注入 `bInCombat`、`HateRangeCm` 和当前生命比率，Logic 不读取 GameMode 或 Combatant。
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
@@ -123,10 +123,13 @@ Combat OnHurt
 Combat OnDeath
   → EnemyLogic 立即停止所有行为
   → Host 关闭玩法碰撞并让 Roster 立即视为死亡
+  → Presentation 按伤害来源方向，在死亡动画开始的 0.3 秒内施加独立的 90 cm 缓出位移
   → Host 停止后续 AI/攻击/表现推进，但继续推进已经脱离出手阶段的逻辑投射物
   → Presentation 清除普通 Hit/Attack/VFX/阴影，只独占播放一次非循环 Death
   → Death 播放完成由 Host 销毁 Actor；没有有效 Death Clip 时在当前死亡广播栈退出后的下一安全帧销毁
 ```
+
+死亡击退只移动表现根节点，不改变 Actor 世界位置、碰撞或死亡时序。
 
 ### 当前候选接线状态
 
@@ -178,6 +181,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - `ReEcho.Enemies.Logic.RangedAndEliteBehaviors`：兔子锁点可躲避；狐狸在 0.15 秒 Active 内分步积分 650 cm、复用一次 AttackIdentity，并安全保存/恢复一次接触门。
 - `ReEcho.Enemies.Logic.RangedAbilityRotation`：普通远程多能力按 SequenceOrder 循环、活动 AbilityId 跨快照绑定，以及两种施法移动门。
 - `ReEcho.Enemies.Host.StunRetarget`：首次眩晕只取消一次旧锁定动作且保留冷却；解除后的第一步朝向当前目标，冷却结束后新动作锁定当前目标。
+- `ReEcho.Enemies.Host.SheepStunImmunity`：`M_SHEEP` 同时拒绝 Combat 状态眩晕与 Host 卡牌眩晕，且不记录 `Z_Vertigo`。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
 - `ReEcho.Enemies.Host.CompositionAndSave`、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Run.SaveSnapshot` 与 Combat ElementReaction World 测试覆盖 Host/Combat/Roster/Save 接缝；Rabbit 测试额外锁定三球方向、四球跨帧连发及恢复、逐球事件身份、单球表驱动半径、路径内/外、命中玩家立即结束、长剑弧内结束事件和当前表值下单球实际扣血 `1`。

@@ -1,0 +1,630 @@
+/* 本轮胜利 */
+
+position: relative;
+width: 1920px;
+height: 1080px;
+
+background: #FFFFFF;
+
+
+/* 0f7aba9f869bb8f8ad30fa2c1940e39c_compress 1 */
+
+position: absolute;
+width: 1948px;
+height: 1087px;
+left: 0px;
+top: 0px;
+
+background: url(0f7aba9f869bb8f8ad30fa2c1940e39c_compress.jpg);
+
+
+/* 通关后3选1 未选中 1 */
+
+position: absolute;
+width: 1920px;
+height: 1080px;
+left: 0px;
+top: 0px;
+
+background: url(通关后3选1 未选中.png);
+
+
+/* Rectangle 18 */
+
+position: absolute;
+width: 1948px;
+height: 1087px;
+left: 0px;
+top: 0px;
+
+background: #000000;
+opacity: 0.66;
+
+
+/* 底板 */
+
+position: absolute;
+width: 1312.01px;
+height: 417.39px;
+left: 199.99px;
+top: 341.65px;
+
+
+
+/* Group 94 */
+
+position: absolute;
+width: 1312.01px;
+height: 417.39px;
+left: 199.99px;
+top: 341.65px;
+
+
+
+/* Rectangle 19 */
+
+position: absolute;
+width: 1205px;
+height: 393px;
+left: 307px;
+top: 362px;
+
+background: #3A281B;
+
+
+/* image 9 */
+
+position: absolute;
+width: 125.79px;
+height: 400.7px;
+left: 199.99px;
+top: 341.65px;
+
+background: url(image.png);
+transform: matrix(0.98, 0.19, 0.19, -0.98, 0, 0);
+
+
+/* 左底板 1 */
+
+position: absolute;
+left: 10.99%;
+right: 49.06%;
+top: 23.24%;
+bottom: -48.89%;
+
+background: url(左底板.png);
+transform: rotate(-90deg);
+
+
+/* e887f3bddef20661274cd7e7c095fa7e_compress 1 */
+
+position: absolute;
+width: 2527px;
+height: 1895px;
+left: 1px;
+top: -408px;
+
+background: url(e887f3bddef20661274cd7e7c095fa7e_compress.jpg);
+mix-blend-mode: multiply;
+opacity: 0.19;
+
+
+/* Rectangle 55 */
+
+position: absolute;
+width: 1344px;
+height: 32px;
+left: 260px;
+top: 345px;
+
+background: #604B39;
+border: 6px solid #000000;
+
+
+/* Rectangle 57 */
+
+position: absolute;
+width: 1344px;
+height: 32px;
+left: 260px;
+top: 740px;
+
+background: #604B39;
+border: 6px solid #000000;
+
+
+/* Group 41 */
+
+position: absolute;
+width: 1120px;
+height: 387px;
+left: 421px;
+top: 400px;
+
+
+
+/* Rectangle 20 */
+
+position: absolute;
+width: 1120px;
+height: 220px;
+left: 421px;
+top: 567px;
+
+background: #7F6442;
+border: 12px solid #291E14;
+
+
+/* Mask group */
+
+position: absolute;
+width: 1120px;
+height: 220px;
+left: 421px;
+top: 567px;
+
+mix-blend-mode: color-burn;
+opacity: 0.18;
+
+
+/* Rectangle 22 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 1120px;
+height: 220px;
+left: 421px;
+top: 567px;
+
+background: #7F6442;
+border: 12px solid #291E14;
+
+
+/* e887f3bddef20661274cd7e7c095fa7e_compress 1 */
+
+position: absolute;
+width: 1071px;
+height: 803px;
+left: 348px;
+top: 250px;
+
+background: url(e887f3bddef20661274cd7e7c095fa7e_compress.jpg);
+
+
+/* Rectangle 21 */
+
+position: absolute;
+width: 368px;
+height: 60px;
+left: 964px;
+top: 507px;
+
+background: #291E14;
+
+
+/* Group 39 */
+
+position: absolute;
+width: 267px;
+height: 71px;
+left: 1015px;
+top: 509px;
+
+
+
+/* 本轮已选卡牌 */
+
+position: absolute;
+width: 267px;
+height: 71px;
+left: 1015px;
+top: 509px;
+
+font-family: 'HYRuiYiSong';
+font-style: normal;
+font-weight: 800;
+font-size: 36px;
+line-height: 54px;
+
+color: #FFFFFF;
+
+
+
+/* Group 35 */
+
+position: absolute;
+width: 402px;
+height: 34px;
+left: 451px;
+top: 414px;
+
+
+
+/* 到达关卡： */
+
+position: absolute;
+width: 201px;
+height: 33px;
+left: 451px;
+top: 415px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 36px;
+line-height: 40px;
+
+color: #FFFFFF;
+
+
+
+/* 第 5 关 */
+
+position: absolute;
+width: 201px;
+height: 33px;
+left: 652px;
+top: 414px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 36px;
+line-height: 40px;
+
+color: #FFFFFF;
+
+
+
+/* Group 36 */
+
+position: absolute;
+width: 402px;
+height: 34px;
+left: 451px;
+top: 482px;
+
+
+
+/* 击败数量： */
+
+position: absolute;
+width: 201px;
+height: 33px;
+left: 451px;
+top: 483px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 36px;
+line-height: 40px;
+
+color: #FFFFFF;
+
+
+
+/* 684 */
+
+position: absolute;
+width: 201px;
+height: 33px;
+left: 652px;
+top: 482px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 36px;
+line-height: 40px;
+
+color: #FFFFFF;
+
+
+
+/* Group 38 */
+
+position: absolute;
+width: 402px;
+height: 62px;
+left: 863px;
+top: 400px;
+
+
+
+/* Group 37 */
+
+position: absolute;
+width: 402px;
+height: 34px;
+left: 863px;
+top: 412px;
+
+
+
+/* 获得金币： */
+
+position: absolute;
+width: 201px;
+height: 33px;
+left: 863px;
+top: 413px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 36px;
+line-height: 40px;
+
+color: #FFFFFF;
+
+
+
+/* 126 */
+
+position: absolute;
+width: 201px;
+height: 33px;
+left: 1064px;
+top: 412px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 36px;
+line-height: 40px;
+
+color: #FFFFFF;
+
+
+
+/* 时间碎片 */
+
+position: absolute;
+width: 56px;
+height: 62px;
+left: 1139px;
+top: 400px;
+
+background: url(2bad94efdbad4e8f4d5fc83829264284_origin.png);
+
+
+/* Group 40 */
+
+position: absolute;
+width: 784px;
+height: 164px;
+left: 465px;
+top: 595px;
+
+
+
+/* Rectangle 22 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 465px;
+top: 595px;
+
+background: #D9D9D9;
+
+
+/* Rectangle 23 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 627px;
+top: 595px;
+
+background: #D9D9D9;
+
+
+/* Rectangle 24 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 789px;
+top: 595px;
+
+background: #D9D9D9;
+
+
+/* Rectangle 25 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 951px;
+top: 595px;
+
+background: #D9D9D9;
+
+
+/* Rectangle 26 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 1113px;
+top: 595px;
+
+background: #D9D9D9;
+
+
+/* Group 95 */
+
+position: absolute;
+width: 784px;
+height: 164px;
+left: 465px;
+top: 595px;
+
+
+
+/* Rectangle 50 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 465px;
+top: 595px;
+
+background: #F5E5C1;
+border: 4px solid #000000;
+
+
+/* Rectangle 51 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 627px;
+top: 595px;
+
+background: #F5E5C1;
+border: 4px solid #000000;
+
+
+/* Rectangle 52 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 789px;
+top: 595px;
+
+background: #F5E5C1;
+border: 4px solid #000000;
+
+
+/* Rectangle 53 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 951px;
+top: 595px;
+
+background: #F5E5C1;
+border: 4px solid #000000;
+
+
+/* Rectangle 54 */
+
+position: absolute;
+width: 136px;
+height: 164px;
+left: 1113px;
+top: 595px;
+
+background: #F5E5C1;
+border: 4px solid #000000;
+
+
+/* 本轮胜利 */
+
+position: absolute;
+width: 613px;
+height: 139px;
+left: 735px;
+top: 206px;
+
+font-family: 'HYRuiYiSong';
+font-style: normal;
+font-weight: 800;
+font-size: 96px;
+line-height: 143px;
+
+color: #FFF4E1;
+
+border: 3px solid #40271B;
+
+
+/* 红-原皮 */
+
+position: absolute;
+width: 552px;
+height: 695px;
+left: 1195px;
+top: 192px;
+
+background: url(图层 9.png);
+
+
+/* 重开 */
+
+position: absolute;
+width: 405px;
+height: 136px;
+left: 784px;
+top: 816px;
+
+
+
+/* 按钮深 1 */
+
+position: absolute;
+visibility: hidden;
+width: 351px;
+height: 114px;
+left: 810px;
+top: 828px;
+
+background: url(按钮深.png);
+
+
+/* 537724a283601ca3697fd08a9f2e9000_origin 1 */
+
+position: absolute;
+width: 405px;
+height: 136px;
+left: 784px;
+top: 816px;
+
+background: url(537724a283601ca3697fd08a9f2e9000_origin.png);
+
+
+/* 继续 */
+
+position: absolute;
+width: 292px;
+height: 64px;
+left: 841px;
+top: 861px;
+
+font-family: 'FZHei-B01S';
+font-style: normal;
+font-weight: 400;
+font-size: 42px;
+line-height: 47px;
+text-align: center;
+letter-spacing: 0.01em;
+
+color: #FFF7EB;
+
+
+
+/* 玫瑰1 1 */
+
+position: absolute;
+width: 216px;
+height: 160px;
+left: 1134px;
+top: 276px;
+
+background: url(玫瑰1.png);
+
+
+/* 玫瑰2 1 */
+
+position: absolute;
+width: 235px;
+height: 246px;
+left: 225px;
+top: 595px;
+
+background: url(玫瑰2.png);

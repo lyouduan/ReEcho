@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import math
@@ -53,6 +54,15 @@ REGISTERED_BEHAVIOR_IDS = {
     "Card.ConductDamageGrowth",
     "Card.OverhealCapacity",
     "Card.AlternatingSources",
+    "Card.EasterShardSwing",
+    "Card.EasterIndependentGrant",
+    "Card.EasterEchoContact",
+    "Card.EasterShardSacrifice",
+    "Card.EasterRandomStun",
+    "Card.EasterDamageCards",
+    "Card.EasterPhysicalLottery",
+    "Card.EasterShardComparison",
+    "Card.EasterAttendance",
     "Card.TrackNextKills",
     "Card.TrackNextReactions",
     "Card.EchoElementAura",
@@ -736,6 +746,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "PausePolicy": CsvColumnSpec("StableId"),
         "AttenuationMin": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
         "AttenuationMax": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "StartTimeSeconds": CsvColumnSpec("Float", min_value=0.0, max_value=86400.0),
     },
     "Attributes": {
         "Id": CsvColumnSpec("StableId"),
@@ -1032,11 +1043,30 @@ def assemble_fixture_package(fixture_dir: Path, temp_root: Path) -> Path:
 def validate_audio_events_domain(entries: dict[str, Path]) -> None:
     path = entries["AudioEvents"]
     rows = load_csv(path)
+    expected_silent_keys = {
+        ("Music.Encounter", ""),
+        ("Music.Death", ""),
+        ("Music.Victory", ""),
+        ("Ambience.Arena", ""),
+        ("Ambience.Rain", ""),
+        ("Combat.Attack", ""),
+        ("Combat.Hit", ""),
+        ("Combat.Block", ""),
+        ("Combat.Kill", ""),
+        ("Enemy.Attack", ""),
+        ("Boss.Spawn", ""),
+        ("Boss.Attack", ""),
+        ("Echo.Spawn", ""),
+        ("Echo.Attack", ""),
+        ("Echo.End", ""),
+    }
     required_ids = {
         "Music.Menu", "Music.Encounter", "Music.Boss", "Music.Shop", "Music.Death", "Music.Victory",
         "Ambience.Arena", "Ambience.Rain",
         "UI.Hover", "UI.Confirm", "UI.Cancel", "UI.Error", "UI.Purchase", "UI.CardSelect",
+        "UI.CardReveal", "UI.Equip", "UI.Unequip",
         "Combat.Attack", "Combat.Hit", "Combat.Block", "Combat.Hurt", "Combat.Kill", "Combat.Death",
+        "Combat.Reaction", "Item.Pickup", "Flow.Victory",
         "Enemy.Spawn", "Enemy.Attack", "Enemy.Death", "Boss.Spawn", "Boss.Attack", "Boss.Death",
         "Echo.Spawn", "Echo.Attack", "Echo.End", "CameraMove", "Revive",
     }
@@ -1051,7 +1081,20 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
         "Music.Encounter": {"", "Stage.1", "Stage.2", "Stage.3"},
         "Combat.Attack": {"", "W_J_01", "W_J_04", "W_J_08", "W_J_09"},
         "Combat.Hit": {"", "Flame", "Lightning", "Grass", "Water"},
+        "Combat.Reaction": {
+            "Reaction.Burn", "Reaction.Vaporize", "Reaction.Growth", "Reaction.Conduct", "Reaction.Enhance",
+        },
     }
+    actual_silent_keys = {
+        (row["EventId"], row["VariantId"])
+        for row in rows
+        if not row["AssetPath"]
+    }
+    if actual_silent_keys != expected_silent_keys:
+        fail(
+            f"{rel(path)}: silent audio rows must exactly match the planning-table whitelist: "
+            f"expected {sorted(expected_silent_keys)}, found {sorted(actual_silent_keys)}"
+        )
     for row in rows:
         line = row["__line__"]
         variant_id = row["VariantId"]
@@ -1074,6 +1117,33 @@ def validate_audio_events_domain(entries: dict[str, Path]) -> None:
             fail(f"{rel(path)}:{line}:AttenuationMax: must be >= AttenuationMin")
         if row["Spatial3D"] == "false" and (float(row["AttenuationMin"]) != 0 or float(row["AttenuationMax"]) != 0):
             fail(f"{rel(path)}:{line}: non-spatial events must use zero attenuation")
+
+    bound_packages = {
+        row["AssetPath"].partition(".")[0]
+        for row in rows
+        if row["AssetPath"]
+    }
+    audio_root = ROOT / "Content" / "ReEcho" / "Audio"
+    discovered_packages: set[str] = set()
+    unexpected_files: list[str] = []
+    package_sidecar_suffixes = {".uexp", ".ubulk", ".uptnl"}
+    for audio_file in audio_root.rglob("*"):
+        if not audio_file.is_file():
+            continue
+        relative_audio = audio_file.relative_to(ROOT / "Content").as_posix()
+        package_path = f"/Game/{audio_file.relative_to(ROOT / 'Content').with_suffix('').as_posix()}"
+        if audio_file.suffix.lower() == ".uasset":
+            discovered_packages.add(package_path)
+        elif audio_file.suffix.lower() in package_sidecar_suffixes:
+            if package_path not in bound_packages:
+                unexpected_files.append(relative_audio)
+        else:
+            unexpected_files.append(relative_audio)
+    table_external_packages = sorted(discovered_packages - bound_packages)
+    if table_external_packages:
+        fail(f"{rel(audio_root)}: table-external audio packages: {table_external_packages}")
+    if unexpected_files:
+        fail(f"{rel(audio_root)}: table-external raw/sidecar audio files: {sorted(unexpected_files)}")
 
 
 def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) -> None:
@@ -1835,6 +1905,15 @@ def validate_workflow() -> None:
     project_rules = (ROOT / "shared" / "PROJECT_RULES.md").read_text(encoding="utf-8")
     programmer_rules = (ROOT / "shared" / "PROGRAMMER_RULES.md").read_text(encoding="utf-8")
     designer_rules = (ROOT / "shared" / "DESIGNER_RULES.md").read_text(encoding="utf-8")
+    designer_experience_path = ROOT / "shared" / "DESIGNER_EXPERIENCE" / "README.md"
+    if not designer_experience_path.is_file():
+        fail("designer experience library is missing shared/DESIGNER_EXPERIENCE/README.md")
+    designer_experience = designer_experience_path.read_text(encoding="utf-8")
+    issue_template_path = ROOT / "issues" / "TEMPLATE.md"
+    if not issue_template_path.is_file():
+        fail("designer issue/request template is missing issues/TEMPLATE.md")
+    issue_template = issue_template_path.read_text(encoding="utf-8")
+    gitignore_text = (ROOT / ".gitignore").read_text(encoding="utf-8")
     artist_rules = (ROOT / "shared" / "ARTIST_RULES.md").read_text(encoding="utf-8")
     secretary_rules = (ROOT / "shared" / "SECRETARY_RULES.md").read_text(encoding="utf-8")
     git_rules = (ROOT / "shared" / "GIT_RULES.md").read_text(encoding="utf-8")
@@ -1843,6 +1922,11 @@ def validate_workflow() -> None:
     plan_template = (ROOT / "plans" / "TEMPLATE.md").read_text(encoding="utf-8")
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     docs_workflow_text = (ROOT / "docs" / "AI_WORKFLOW.md").read_text(encoding="utf-8")
+    lfs_setup_path = ROOT / "scripts" / "setup_lfs.py"
+    if not lfs_setup_path.is_file():
+        fail("Git LFS setup entry is missing: scripts/setup_lfs.py")
+    lfs_setup_text = lfs_setup_path.read_text(encoding="utf-8")
+    gitattributes_text = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     architecture_root = ROOT / "shared" / "CODEBASE_MAP"
     architecture_path = architecture_root / "ARCHITECTURE.md"
     codebase_index_path = architecture_root / "README.md"
@@ -1865,6 +1949,7 @@ def validate_workflow() -> None:
         "shared/ARTIST_RULES.md",
         "是否采用规划者-执行者模式？",
         "是否采用一任务一 worktree（每个任务一个独立文件夹）？",
+        "用于任务分支和经验文件的稳定身份标识",
     )
     missing_role_gate_markers = [marker for marker in role_gate_markers if marker not in agents]
     if missing_role_gate_markers:
@@ -1886,6 +1971,24 @@ def validate_workflow() -> None:
         )
     if "remote-rule authority and permission-escalation gate in `shared/PROJECT_RULES.md`" not in agents:
         fail("AGENTS.md must route prompt/rule conflicts to PROJECT_RULES.md")
+    lfs_checkout_markers = {
+        "AGENTS.md": ("## Git LFS checkout gate", "python scripts/setup_lfs.py --check", "Never treat a small text pointer as the real asset"),
+        "PROJECT_RULES.md": ("## Git LFS 检出与大文件边界", "git lfs migrate import", "不得为省事把整个 `Content/`"),
+        "GIT_RULES.md": ("## Git LFS 提交与发布门禁", "git lfs push --dry-run origin HEAD", "不得用跳过 hook"),
+        "setup_lfs.py": ("git-lfs.github.com/spec/v1", '"lfs", "pull"', '"lfs", "fsck"'),
+    }
+    lfs_checkout_texts = {
+        "AGENTS.md": agents,
+        "PROJECT_RULES.md": project_rules,
+        "GIT_RULES.md": git_rules,
+        "setup_lfs.py": lfs_setup_text,
+    }
+    for name, markers in lfs_checkout_markers.items():
+        missing = [marker for marker in markers if marker not in lfs_checkout_texts[name]]
+        if missing:
+            fail(f"{name} lacks Git LFS checkout/publication markers: {', '.join(missing)}")
+    if "filter=lfs diff=lfs merge=lfs -text" not in gitattributes_text:
+        fail(".gitattributes must declare at least one reviewed Git LFS path")
     risk_authority_markers = (
         "## 风险操作的人类确认与执行",
         "风险操作授权的唯一权威",
@@ -1915,13 +2018,39 @@ def validate_workflow() -> None:
             "## 本地工作区模式",
             "选择“一任务一 worktree”的唯一权威",
             "所有大程序任务都必须",
+            "## 程序接管 Issue 分支修复",
+            "推荐但可选的 Bug 修复方式",
+            "每个交给策划的程序测试候选都必须执行",
+            "策划未明确确认准确候选通过前，不得把修复发布到 main",
+            "本流程不再创建 `merge/...` 分支",
+            "严格一分支一 Bug",
+            "缺日志、未分析日志或打包多个 Bug 的分支必须退回策划拆分补证",
             "shared/GIT_RULES.md",
         ),
         "DESIGNER_RULES.md": (
             "策划用户路线",
             "ReEchoData.xlsx",
-            "策划 AI 可在本地读取、创建、修改、编译和试验仓库内任何文件",
-            "禁止策划路线直接推送、合并或发布 `origin/main`",
+            "不得修改代码、生成器、Schema、构建配置",
+            "issue/<策划身份>/<简述>",
+            "request/<策划身份>/<简述>",
+            "merge/<策划身份>/<简述>",
+            "issues/<策划身份>/bugs/<名称>-<简要描述>.md",
+            "issues/<策划身份>/requests/<名称>-<简要描述>.md",
+            "不分配 Plan 编号",
+            "源分支",
+            "准确提交号",
+            "先分析原始日志",
+            "日志再大或噪声再多也不得只交摘要、关键行或截取片段",
+            "一个 Issue 分支也只能包含这一份 Bug 报告",
+            "只有客观上无法生成日志时才可不附日志",
+            "需求没有运行日志时允许不附日志",
+            "已发布旧分支迁移",
+            "策划明确确认“效果正确并同意推送”",
+            "程序明确选择 `PROGRAMMER_RULES.md` 的推荐接管流程",
+            "策划从远端同一分支拉取程序提供的准确测试候选并测试",
+            "最终策划 Merge 候选或程序 Issue 修复候选",
+            "在哪里改什么可以使什么生效",
+            "不得直接推送、合并或发布 `origin/main`",
             "shared/GIT_RULES.md",
         ),
         "ARTIST_RULES.md": ("美术用户路线", "本地工作方式自由", "禁止手改 `.uasset`", "shared/GIT_RULES.md"),
@@ -1935,6 +2064,190 @@ def validate_workflow() -> None:
         missing = [marker for marker in markers if marker not in role_rule_texts[name]]
         if missing:
             fail(f"{name} lacks professional-route boundaries: {', '.join(missing)}")
+    designer_experience_markers = (
+        "在哪里改什么可以使什么生效",
+        "生效映射：",
+        "刷新方式：",
+        "策划确认：",
+        "限制与踩坑：",
+    )
+    missing_designer_experience_markers = [
+        marker for marker in designer_experience_markers if marker not in designer_experience
+    ]
+    if missing_designer_experience_markers:
+        fail(
+            "designer experience template lacks reusable effect evidence: "
+            + ", ".join(missing_designer_experience_markers)
+        )
+    issue_template_markers = (
+        "本文件只提供报告字段",
+        "程序接管 Issue 后的修复、构建、回交测试和 main 集成",
+        "源分支：",
+        "源提交：",
+        "当时的 `origin/main`：",
+        "运行环境与构建类型：",
+        "复现步骤：",
+        "验收标准：",
+        "已提交日志：",
+        "原始日志仓库路径：",
+        "完整覆盖的复现会话时间范围：",
+        "原始日志 SHA-256：",
+        "日志分析时间线：",
+        "日志分析结论：",
+        "无法生成日志：",
+        "无法生成日志的原因、已尝试方法与替代证据：",
+        "策划对描述的确认：",
+        "程序接管：",
+        "程序测试候选：",
+        "策划测试候选：",
+        "最终 Merge 提交：",
+        "最终程序修复提交：",
+        "最终 `origin/main` 提交：",
+    )
+    missing_issue_template_markers = [
+        marker for marker in issue_template_markers if marker not in issue_template
+    ]
+    if missing_issue_template_markers:
+        fail(
+            "issues/TEMPLATE.md lacks designer report evidence fields: "
+            + ", ".join(missing_issue_template_markers)
+        )
+    if "!/issues/**/logs/**/*.log" not in gitignore_text:
+        fail(".gitignore must allow report logs under issues/**/logs/")
+    retired_designer_issues = ROOT / "Design" / "DesignerIssues"
+    if retired_designer_issues.exists():
+        fail("Design/DesignerIssues is retired; use per-designer records under issues/")
+    report_root = ROOT / "issues"
+    report_required_markers = (
+        "源分支：",
+        "源提交：",
+        "复现步骤：",
+        "验收标准：",
+        "策划对描述的确认：",
+    )
+    for report_path in report_root.rglob("*.md"):
+        if report_path == issue_template_path:
+            continue
+        relative_parts = report_path.relative_to(report_root).parts
+        if len(relative_parts) != 3 or relative_parts[1] not in {"bugs", "requests"}:
+            fail(f"designer report must be issues/<identity>/bugs|requests/<name>-<summary>.md: {rel(report_path)}")
+            continue
+        identity, _, filename = relative_parts
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", identity):
+            fail(f"designer report identity is not branch-safe: {rel(report_path)}")
+        stem = Path(filename).stem
+        if "-" not in stem or stem.startswith("-") or stem.endswith("-"):
+            fail(f"designer report filename must be <name>-<summary>.md: {rel(report_path)}")
+        if re.match(r"(?i)^(?:plan[-_ ]*)?\d+[-_. ]", stem):
+            fail(f"designer report filename must not use a Plan/issue number: {rel(report_path)}")
+        report_text = report_path.read_text(encoding="utf-8")
+        missing = [marker for marker in report_required_markers if marker not in report_text]
+        if missing:
+            fail(f"designer report lacks required evidence fields ({', '.join(missing)}): {rel(report_path)}")
+
+    branch_result = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+    if current_branch.startswith("issue/"):
+        branch_parts = current_branch.split("/")
+        if len(branch_parts) != 3 or not re.fullmatch(r"[A-Za-z0-9._-]+", branch_parts[1]):
+            fail(f"issue branch must be issue/<identity>/<summary>: {current_branch}")
+        else:
+            identity = branch_parts[1]
+            changed_paths: set[str] = set()
+            for command in (
+                ["git", "diff", "--name-only", "--diff-filter=AMR", "origin/main...HEAD", "--"],
+                ["git", "diff", "--name-only", "--diff-filter=AMR", "HEAD", "--"],
+                ["git", "ls-files", "--others", "--exclude-standard"],
+            ):
+                changed_result = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                if changed_result.returncode != 0:
+                    fail(f"unable to inspect Issue branch changes: {' '.join(command)}")
+                    continue
+                changed_paths.update(
+                    line.strip().replace("\\", "/")
+                    for line in changed_result.stdout.splitlines()
+                    if line.strip()
+                )
+
+            changed_reports = sorted(
+                path
+                for path in changed_paths
+                if re.fullmatch(r"issues/[^/]+/(?:bugs|requests)/[^/]+\.md", path)
+            )
+            expected_prefix = f"issues/{identity}/bugs/"
+            if len(changed_reports) != 1 or not changed_reports[0].startswith(expected_prefix):
+                fail(
+                    "an Issue branch must change exactly one Bug report for its identity; found: "
+                    + (", ".join(changed_reports) if changed_reports else "none")
+                )
+            else:
+                branch_report_path = ROOT / changed_reports[0]
+                branch_report_text = branch_report_path.read_text(encoding="utf-8")
+                if f"- 登记分支：`{current_branch}`" not in branch_report_text:
+                    fail(f"Issue report must name its exact registration branch: {changed_reports[0]}")
+
+                def issue_field(label: str) -> str:
+                    match = re.search(rf"^- {re.escape(label)}：\s*(.*?)\s*$", branch_report_text, re.MULTILINE)
+                    return match.group(1).strip().strip("`") if match else ""
+
+                for label in (
+                    "原始日志仓库路径",
+                    "原始日志生成方式",
+                    "完整覆盖的复现会话时间范围",
+                    "原始日志 SHA-256",
+                    "完整性与脱敏说明",
+                    "日志分析时间线",
+                    "关键标记与摘要",
+                    "日志分析结论",
+                    "无法生成日志",
+                    "无法生成日志的原因、已尝试方法与替代证据",
+                ):
+                    if not issue_field(label):
+                        fail(f"Issue report lacks completed log field '{label}': {changed_reports[0]}")
+
+                no_log = issue_field("无法生成日志")
+                if no_log == "否":
+                    raw_log_value = issue_field("原始日志仓库路径")
+                    raw_log_path = Path(raw_log_value.replace("\\", "/"))
+                    expected_log_root = Path("issues") / identity / "bugs" / "logs"
+                    if (
+                        raw_log_path.is_absolute()
+                        or ".." in raw_log_path.parts
+                        or expected_log_root not in raw_log_path.parents
+                        or raw_log_path.suffix.lower() != ".log"
+                    ):
+                        fail(f"Issue raw log must be a .log under {expected_log_root.as_posix()}: {raw_log_value}")
+                    else:
+                        absolute_log_path = ROOT / raw_log_path
+                        if not absolute_log_path.is_file() or absolute_log_path.stat().st_size == 0:
+                            fail(f"Issue raw log is missing or empty: {raw_log_path.as_posix()}")
+                        elif raw_log_path.as_posix() not in changed_paths:
+                            fail(f"Issue raw log is not included in the Issue branch changes: {raw_log_path.as_posix()}")
+                        else:
+                            claimed_hash = issue_field("原始日志 SHA-256").lower()
+                            actual_hash = hashlib.sha256(absolute_log_path.read_bytes()).hexdigest()
+                            if not re.fullmatch(r"[0-9a-f]{64}", claimed_hash) or claimed_hash != actual_hash:
+                                fail(f"Issue raw log SHA-256 mismatch: {raw_log_path.as_posix()}")
+                    if issue_field("日志分析结论") not in {"日志已确认", "仅能推断", "未提供结论"}:
+                        fail(f"Issue report has invalid log analysis conclusion: {changed_reports[0]}")
+                elif no_log == "是":
+                    exception_detail = issue_field("无法生成日志的原因、已尝试方法与替代证据")
+                    if exception_detail in {"不适用", "无", "暂无", "N/A"} or len(exception_detail) < 12:
+                        fail(f"Issue no-log exception lacks concrete reason, attempts, and alternative evidence: {changed_reports[0]}")
+                else:
+                    fail(f"Issue report '无法生成日志' must be exactly 否 or 是: {changed_reports[0]}")
     worktree_choice_markers = {
         "AGENTS.md": (
             "After that answer is known",
@@ -2118,7 +2431,12 @@ def validate_workflow() -> None:
             "能合并就合并、能推送就推送、能删除就删除",
             "鼓励小批量、较频繁地发布 main",
         ),
-        "PROGRAMMER_RULES.md": ("两种模式使用同一套 Plan 和发布门禁", "所有大程序任务都必须"),
+        "PROGRAMMER_RULES.md": (
+            "两种模式使用同一套 Plan 和发布门禁",
+            "所有大程序任务都必须",
+            "把刚 fetch 的 `origin/main` **merge** 到本地 Issue 分支",
+            "所有推送都是对同名 Issue 分支的普通非强制 push",
+        ),
         "EXECUTOR_RULES.md": ("按 `PROGRAMMER_RULES.md` 已确认的本地工作区模式执行", "Plan 中的 `Isolated | ReadOnly | SharedContract | Exclusive` 只说明集成风险"),
         "GIT_RULES.md": ("本地 WIP 提交的名称、粒度和临时身份", "人类账号 + AI 身份"),
         "WORKFLOW.md": ("本地工作自由，远端边界严格", "不存在 Exchange"),
@@ -2149,20 +2467,36 @@ def validate_workflow() -> None:
         "PROJECT_RULES.md": (
             "`origin/main` 是唯一权威发布分支",
             "程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`",
-            "`designer/<task>`",
+            "`issue/<策划身份>/<简述>`",
+            "`request/<策划身份>/<简述>`",
+            "`merge/<策划身份>/<简述>`",
             "`artist/<task>`",
             "协作分支不是发布面",
         ),
-        "DESIGNER_RULES.md": ("`designer/<task>`", "不得直接推送或发布 `main`"),
+        "DESIGNER_RULES.md": (
+            "`issue/<策划身份>/<简述>`",
+            "`request/<策划身份>/<简述>`",
+            "`merge/<策划身份>/<简述>`",
+            "旧 `designer/<策划身份>/<任务>`",
+            "旧 `designer-issue/<策划身份>/<任务>`",
+            "不得直接推送、合并或发布 `origin/main`",
+        ),
+        "PROGRAMMER_RULES.md": (
+            "只接管已存在于远端",
+            "程序不得借本流程自行创建新 `issue/...`",
+            "所有推送都是对同名 Issue 分支的普通非强制 push",
+            "取得 `main-publish-lock`",
+        ),
         "ARTIST_RULES.md": ("`artist/<task>`", "不得直接推送或发布 `main`"),
         "PLANNER_RULES.md": ("`origin/main` 是唯一权威发布分支", "`main-publish-lock`", "Plan 编号冲突"),
         "EXECUTOR_RULES.md": ("`origin/main` 是唯一远端分支", "不自行推送任务分支"),
         "SECRETARY_RULES.md": ("临时 `main-publish-lock`", "普通非强制 push 发布 `origin/main`"),
-        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`designer/<task>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
+        "WORKFLOW.md": ("远端 `main` 是唯一权威发布分支", "`main-publish-lock`", "`issue/<策划身份>/<简述>`", "`request/<策划身份>/<简述>`", "`merge/<策划身份>/<简述>`", "`artist/<task>`", "编号 Plan 在实现开始前发布到 `main`"),
     }
     remote_branch_boundary_texts = {
         "PROJECT_RULES.md": project_rules,
         "DESIGNER_RULES.md": designer_rules,
+        "PROGRAMMER_RULES.md": programmer_rules,
         "ARTIST_RULES.md": artist_rules,
         "PLANNER_RULES.md": planner_rules,
         "EXECUTOR_RULES.md": executor_rules,
@@ -2400,32 +2734,9 @@ def validate_build_dependencies() -> None:
     ]
     if len(presentation_modules) != 1 or presentation_modules[0].get("Type") != "Runtime":
         fail("ReEcho.uproject must declare exactly one ReEchoPresentation Runtime module")
-    for file_name in (
-        "reecho_data_manifest.csv",
-        "csv_schema.csv",
-        "runtime_smoke.csv",
-        "runtime_smoke_effects.csv",
-        "characters.csv",
-        "character_aliases.csv",
-        "cards.csv",
-        "card_effects.csv",
-        "elements.csv",
-        "statuses.csv",
-        "reactions.csv",
-        "weapon_types.csv",
-        "weapons.csv",
-        "attack_steps.csv",
-        "slot_types.csv",
-        "slot_profiles.csv",
-        "parts.csv",
-        "part_effects.csv",
-        "enemies.csv",
-        "enemy_abilities.csv",
-        "boss_phases.csv",
-        "audio_events.csv",
-    ):
-        if f"Content/Data/{file_name}" not in build_cs:
-            fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
+    production_csv_stage_rule = 'Content/Data/*.csv", StagedFileType.NonUFS'
+    if production_csv_stage_rule not in build_cs:
+        fail("ReEcho.Build.cs must stage every root production CSV through Content/Data/*.csv")
 
 
 def validate_combat_module_boundaries() -> None:

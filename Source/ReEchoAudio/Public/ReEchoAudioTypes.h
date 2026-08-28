@@ -91,6 +91,10 @@ struct REECHOAUDIO_API FReEchoAudioEventDefinition
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSoftObjectPtr<USoundBase> Sound;
 
+	/** Non-negative offset into the source used when playback starts. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0"))
+	float StartTimeSeconds = 0.0f;
+
 	/** Which volume bus this event belongs to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EReEchoAudioBus Bus = EReEchoAudioBus::CombatSfx;
@@ -179,6 +183,7 @@ struct REECHOAUDIO_API FReEchoAudioPlayCommand
 	EReEchoAudioBus Bus = EReEchoAudioBus::CombatSfx;
 	bool bSpatial3D = false;
 	FVector Location = FVector::ZeroVector;
+	float StartTimeSeconds = 0.0f;
 	float Volume = 1.0f;
 	float Pitch = 1.0f;
 	EReEchoAudioPausePolicy PausePolicy = EReEchoAudioPausePolicy::PauseWithGame;

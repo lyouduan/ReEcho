@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "ReEchoArenaSceneActor.generated.h"
 
 class UBoxComponent;
@@ -9,19 +10,6 @@ class UMaterialInterface;
 class UStaticMeshComponent;
 class UTexture2D;
 class UReEchoArenaSceneProfile;
-
-USTRUCT(BlueprintType)
-
-struct FReEchoArenaSceneRegistration
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Scene Switching")
-	FName SceneId = NAME_None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Scene Switching")
-	TSubclassOf<class AReEchoArenaSceneActor> ArenaClass;
-};
 
 /** Editor-authored first-arena scene and camera contract. Gameplay consumes its bounds but never owns its layout. */
 UCLASS()
@@ -37,9 +25,15 @@ public:
 	FVector2D GetPlayerHalfExtents() const;
 	FVector2D GetCameraClampHalfExtents() const;
 	FVector2D GetEnemySpawnHalfExtents() const;
+	/** World-space spawn-safe rectangle derived from the four collision-wall inner faces. */
+	bool GetEnemySpawnWorldBounds(FBox2D& OutBounds, FString* OutReason = nullptr) const;
 	FVector2D GetArenaCenter() const;
-	/** MapRoot-local gameplay plane converted to the current world-space height. */
+	/** Actor-local gameplay plane height; scene/map visual transforms never offset gameplay height. */
+	UFUNCTION(BlueprintPure, Category = "Arena|Bounds")
 	float GetGameplayPlaneWorldZ() const;
+	/** True when the transformed Backdrop mesh footprint contains the transformed camera clamp footprint. */
+	UFUNCTION(BlueprintPure, Category = "Arena|Validation")
+	bool DoesBackdropCoverCameraBounds(float Tolerance = 1.0f) const;
 	bool HasValidConfiguration(FString* OutReason = nullptr) const;
 
 	FName GetSceneId() const
@@ -75,6 +69,15 @@ public:
 	                                            int32 BasePriority,
 	                                            const FIntPoint& PriorityRange);
 	static float CalculateGameplayPlaneWorldZ(const FTransform& MapTransform, float LocalGameplayPlaneZ);
+	static FBox2D CalculateWorldXYBounds(const FBox& LocalBounds, const FTransform& LocalToWorld);
+	/** Derives axis-aligned inner faces from wall geometry; argument order and component names are not directional. */
+	static bool CalculateWallDerivedSpawnBounds(const FBox2D& WallBoundsA,
+	                                            const FBox2D& WallBoundsB,
+	                                            const FBox2D& WallBoundsC,
+	                                            const FBox2D& WallBoundsD,
+	                                            float Padding,
+	                                            FBox2D& OutBounds,
+	                                            FString* OutReason = nullptr);
 	int32 CalculateFootpointSortPriority(const FVector& WorldFootpoint) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")
@@ -137,6 +140,9 @@ public:
 	FVector2D PlayerHalfExtents = FVector2D(1200.0f, 2190.0f);
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "100.0"))
 	FVector2D EnemySpawnHalfExtents = FVector2D(1100.0f, 2090.0f);
+	/** Includes the largest production enemy radius plus clearance from each wall inner face. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "0.0"))
+	float EnemySpawnWallPadding = 100.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	float GameplayPlaneZ = 0.0f;
 	/** 关闭后 Backdrop 的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
@@ -145,6 +151,9 @@ public:
 	/** 关闭后 Floor 与四面墙的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Layout")
 	bool bAutoLayoutCollision = true;
+	/** Migration gate. When enabled, Construction never rewrites component materials, transforms or bounds. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Arena|Layout")
+	bool bUseEditorAuthoredSceneLayout = false;
 
 	/** 表现 Actor 以脚点消费该值；场景不直接持有或驱动 Flipbook。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Visual|DepthSort")

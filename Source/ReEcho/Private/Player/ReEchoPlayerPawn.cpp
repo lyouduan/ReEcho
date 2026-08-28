@@ -234,6 +234,7 @@ bool AReEchoPlayerPawn::InitializeWeaponFromBuild(const FReEchoBuildSnapshot& Bu
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
+		CombatVfx->ConfigureWeaponAttackVfxRoot(Weapon->GetWeaponAttackVfxRoot());
 	}
 	Weapon->InitializeWeapon(&Build, Snapshot);
 	const bool bInitialized = Weapon->GetEquippedWeaponId() == Build.WeaponId;
@@ -282,6 +283,7 @@ void AReEchoPlayerPawn::BeginPlay()
 		Weapon->SetOwner(this);
 		Weapon->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		Weapon->SetActorRelativeLocation(FVector::ZeroVector);
+		CombatVfx->ConfigureWeaponAttackVfxRoot(Weapon->GetWeaponAttackVfxRoot());
 		UGameInstance* GameInstance = GetGameInstance();
 		if (UReEchoRunSubsystem* RunSubsystem =
 		        GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
@@ -1258,6 +1260,13 @@ void AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore(const FReEchoDamageEvent
 	if (Event.Target != this)
 	{
 		return;
+	}
+	if (Event.AppliedDamage > 0.0f)
+	{
+		if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+		{
+			Run->NotifyCardPlayerDamageReceived(Event.AppliedDamage);
+		}
 	}
 	if (Event.bFatal)
 	{

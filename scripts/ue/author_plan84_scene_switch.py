@@ -191,18 +191,10 @@ def author_scene_registry(blueprints):
 
 
 def main():
-    unreal.EditorAssetLibrary.make_directory(ART_ROOT)
-    unreal.EditorAssetLibrary.make_directory(MATERIAL_ROOT)
-    blueprints = {
-        scene_id: load_required(f"{PREFAB_ROOT}/BP_ArenaScene_{scene_id}", unreal.Blueprint)
-        for scene_id in SCENES
-    }
-    textures = {spec[3]: ensure_texture(spec) for spec in INSERTS}
-    master = ensure_master_material()
-    materials = {spec[3]: ensure_material(spec, master, textures[spec[3]]) for spec in INSERTS}
-    author_direct_components(blueprints["SC01"], materials)
-    author_scene_registry(blueprints)
-    unreal.log("[Plan84] Authored direct SC01 inserts and SC01-SC04 Arena registry")
+	fail(
+		"Retired by Plan134: scene inserts, materials and layout are authored directly by artists "
+		"inside BP_ArenaScene_SC01..04. Use the read-only Plan134 scene audit instead."
+	)
 
 
 if __name__ == "__main__":

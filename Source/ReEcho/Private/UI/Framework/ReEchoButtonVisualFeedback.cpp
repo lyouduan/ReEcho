@@ -32,6 +32,21 @@ void UReEchoButtonVisualFeedback::Bind(UButton* InButton,
 	InButton->OnClicked.AddUniqueDynamic(this, &UReEchoButtonVisualFeedback::HandleClicked);
 }
 
+void UReEchoButtonVisualFeedback::BindVisualOnly(UButton* InButton, UWidget* InVisualRoot)
+{
+	if (!InButton || !InVisualRoot || Button.Get() == InButton)
+	{
+		return;
+	}
+
+	Button = InButton;
+	VisualRoot = InVisualRoot;
+	RestingScale = InVisualRoot->GetRenderTransform().Scale;
+	RestingPivot = InVisualRoot->GetRenderTransformPivot();
+	InButton->OnHovered.AddUniqueDynamic(this, &UReEchoButtonVisualFeedback::HandleHovered);
+	InButton->OnUnhovered.AddUniqueDynamic(this, &UReEchoButtonVisualFeedback::HandleUnhovered);
+}
+
 bool UReEchoButtonVisualFeedback::IsBoundTo(const UButton* InButton) const
 {
 	return Button.Get() == InButton;

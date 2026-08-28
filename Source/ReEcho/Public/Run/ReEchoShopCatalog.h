@@ -28,8 +28,7 @@ enum class EReEchoShopPurchaseResult : uint8
 	DataUnavailable,
 	GrantRejected,
 	MutationRejected,
-	WeaponSelectionRejected,
-	ReplayUnlockRejected
+	WeaponSelectionRejected
 };
 
 /** Structured result returned by the unified purchase transaction interface. */
@@ -62,6 +61,12 @@ struct REECHO_API FReEchoShopOffer
 	FString IconTexturePath; // 武器 Offer 填对应配图资产路径(ResolveHeldTexturePath)，为空则回退默认卡片图标
 	/** Optional resolved runtime result for an owned card. Empty offers retain the legacy single-panel tooltip. */
 	FText OutcomeText;
+	/** Rune compatibility survives the Run-to-UI projection; Any is compatible with every weapon. */
+	FName WeaponTypeId;
+	/** Authoritative price after all run rules, including the current free-shop encounter. */
+	int32 EffectivePrice = 0;
+	/** Authoritative purchase gate. Widgets display this state and never recalculate affordability. */
+	bool bCanPurchase = false;
 };
 
 // One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
@@ -74,9 +79,12 @@ struct REECHO_API FReEchoWeaponSlotOffer
 	FName ItemId;    // purchase lookup key (== PartId or WeaponId)
 	FName ContentId; // == PartId or WeaponId
 	FName SlotTypeId;
+	FName WeaponTypeId;
 	FText DisplayName;
 	FText EffectText;
 	int32 Price = 0;
+	int32 EffectivePrice = 0;
+	bool bCanPurchase = false;
 };
 
 enum class EReEchoShopCardPackStatus : uint8
@@ -96,6 +104,8 @@ struct REECHO_API FReEchoShopCardChoiceOffer
 	FText DisplayName;
 	FText EffectText;
 	TArray<FName> Tags;
+	/** Business tier stays bound to the fixed pack; Easter cards project tier-three art independently. */
+	int32 PresentationTier = 1;
 	int32 Tier = 1;
 	int32 Price = 0;
 	int32 SlotIndex = INDEX_NONE;
@@ -114,6 +124,8 @@ struct REECHO_API FReEchoShopCardPackOffer
 	FText DisplayName;
 	FText StatusText;
 	int32 Price = 0;
+	int32 EffectivePrice = 0;
+	bool bCanPurchase = false;
 	TArray<FReEchoShopCardChoiceOffer> Choices;
 
 	bool IsAvailable() const
@@ -140,12 +152,14 @@ struct REECHO_API FReEchoWeaponSlotShopView
 struct REECHO_API FReEchoWeaponPartShopView
 {
 	FName WeaponId;
+	FName WeaponTypeId;
 	FText WeaponDisplayName;
 	FString WeaponIconTexturePath;
 	TArray<FReEchoWeaponSlotOffer> SlotOffers; // fixed 3 slots: [0]=universal rune, [1][2]=weighted (current-weapon
 	                                           // rune / other weapon / other-weapon rune)
 	TArray<FReEchoShopCardPackOffer> CardPackOffers; // always 3 fixed tier packs; candidates are opened on demand
 	TArray<FReEchoShopOffer> Offers;                 // backward-compat bridge for weapon/rune offers only
+	TArray<FReEchoShopOffer> RunItemOffers;          // legacy run-item offers with authoritative prices/gates
 	TArray<FReEchoShopOffer> OwnedParts;
 	TArray<FReEchoShopOffer> OwnedCards;
 	TArray<FName> OwnedWeapons;
@@ -154,6 +168,7 @@ struct REECHO_API FReEchoWeaponPartShopView
 	TArray<FReEchoEquippedPartSnapshot> EquippedParts;
 	int32 WeaponRuneRefreshesRemaining = 0;
 	int32 WeaponRuneRefreshCost = 0;
+	int32 TimeShardDebt = 0;
 	bool bWeaponRuneRefreshAllowed = false;
 	bool bWeaponRuneRefreshUnlimited = false;
 	bool bUnlimitedShopCredit = false;
@@ -161,26 +176,21 @@ struct REECHO_API FReEchoWeaponPartShopView
 
 inline const TArray<FReEchoShopOffer>& GetReEchoShopCatalog()
 {
-	static const TArray<FReEchoShopOffer> Offers = {
-	    {TEXT("SHOP_RUSTED_SCISSORS"),
-	     NSLOCTEXT("ReEcho", "ShopRustedScissors", "生锈剪刀"),
-	     NSLOCTEXT("ReEcho", "ShopRustedScissorsEffect", "物理攻击 +2"),
-	     15},
-	    {TEXT("SHOP_DREAM_FRUIT"),
-	     NSLOCTEXT("ReEcho", "ShopDreamFruit", "噩梦果实"),
-	     NSLOCTEXT("ReEcho", "ShopDreamFruitEffect", "最大生命 +10"),
-	     20},
-	    {TEXT("SHOP_BLACK_FEATHER"),
-	     NSLOCTEXT("ReEcho", "ShopBlackFeather", "黑羽毛"),
-	     NSLOCTEXT("ReEcho", "ShopBlackFeatherEffect", "移动速度 +10%"),
-	     20},
-	    {TEXT("SHOP_OLD_COIN"),
-	     NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
-	     NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
-	     25},
-	    {TEXT("SHOP_REPLAY_UNLOCK"),
-	     NSLOCTEXT("ReEcho", "ShopReplayUnlock", "指定回放解锁"),
-	     NSLOCTEXT("ReEcho", "ShopReplayUnlockEffect", "在收藏的回响中选择最多 3 场自动回放"),
-	     30}};
+	static const TArray<FReEchoShopOffer> Offers = {{TEXT("SHOP_RUSTED_SCISSORS"),
+	                                                 NSLOCTEXT("ReEcho", "ShopRustedScissors", "生锈剪刀"),
+	                                                 NSLOCTEXT("ReEcho", "ShopRustedScissorsEffect", "物理攻击 +2"),
+	                                                 15},
+	                                                {TEXT("SHOP_DREAM_FRUIT"),
+	                                                 NSLOCTEXT("ReEcho", "ShopDreamFruit", "噩梦果实"),
+	                                                 NSLOCTEXT("ReEcho", "ShopDreamFruitEffect", "最大生命 +10"),
+	                                                 20},
+	                                                {TEXT("SHOP_BLACK_FEATHER"),
+	                                                 NSLOCTEXT("ReEcho", "ShopBlackFeather", "黑羽毛"),
+	                                                 NSLOCTEXT("ReEcho", "ShopBlackFeatherEffect", "移动速度 +10%"),
+	                                                 20},
+	                                                {TEXT("SHOP_OLD_COIN"),
+	                                                 NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
+	                                                 NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
+	                                                 25}};
 	return Offers;
 }

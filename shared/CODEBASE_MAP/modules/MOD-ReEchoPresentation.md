@@ -107,8 +107,11 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 
 ## 不变量与常见错误
 
+- 运行时逐帧角色纹理的透明/低 Alpha 边缘 RGB 必须由相邻有效轮廓色扩边，不能残留白底或清成黑底；源图保持 RGBA 与 Alpha，Texture 使用 `NoMipmaps + Clamp + Bilinear`、支持 Alpha 的运行时压缩和 2D/UI LOD 组。UE 5.8 当前使用 BC7；不得退回 DXT5、`TEXTUREGROUP_World`、默认 mip 或 `TC_EditorIcon`。狐狸 Born/Walk 由 `fix_fox_2d_texture_alpha.py` 确定性维护，并由 `audit_fox_2d_textures.py` 读回 Texture/Sprite/Flipbook/Profile 契约。
 - Catalog 不得引用主模块 Actor 或 Gameplay Blueprint Class。
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
 - 武器挂点只使用 Profile 的稳定参考高度；不得随 Move/Attack 的单帧 Bounds 重算。
+- Player/Echo 的武器释放类特效使用 WeaponActor 持有的 `WeaponAttackVfxRoot`；该根节点是当前武器视觉组件的子节点，必须继承最终手持偏移、尺寸、朝向镜像和动作 Transform。角色通用 `AttackVfxRoot` 只作为缺少有效武器根时的安全回退，Boss 继续使用独立 `BossWeaponVfxRoot`。
+- 长剑/镰刀 `AttackCommitted` 刀光可通过 Weapon Profile 的轴遮罩把事件中已锁定的范围倍率叠加到作者 Scale；无符文倍率为 1，延迟镰刀捕获提交值。只缩放生成的 Niagara Component，不缩放武器根或重新计算符文。
 - 不允许 SpawnIndex、EnemyKind 或生成顺序替代稳定 PresentationId。
 - 移动类路径必须保留精确 Core Redirect，旧资产通过 Editor 保存后完成升级。

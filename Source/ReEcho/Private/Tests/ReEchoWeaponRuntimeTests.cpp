@@ -97,7 +97,8 @@ struct FReEchoWeaponWorldFixture
 		Stats.AttackSpeed = 1.0f;
 		Stats.ReactionEfficiency = 1.0f;
 		OutCombatant->InitializeFromStats(Stats, true);
-		UReEchoCombatEventsComponent* Events = NewObject<UReEchoCombatEventsComponent>(Owner, TEXT("WeaponOwnerEvents"));
+		UReEchoCombatEventsComponent* Events =
+		    NewObject<UReEchoCombatEventsComponent>(Owner, TEXT("WeaponOwnerEvents"));
 		Owner->AddInstanceComponent(Events);
 		Events->RegisterComponent();
 		return Owner;
@@ -494,6 +495,50 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponGemDamageCoefficientMatrixTest,
                                  "ReEcho.Weapons.Gems.DamageCoefficientMatrix",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoPrismMultishotElementTest,
+                                 "ReEcho.Weapons.Gems.PrismMultishotUsesPerProjectileElements",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoPrismMultishotElementTest::RunTest(const FString& Parameters)
+{
+	bool bObservedDifferentElementsWithinOneAttack = false;
+	for (int64 AttackSequence = 1; AttackSequence <= 32; ++AttackSequence)
+	{
+		const EReEchoElement First =
+		    ReEchoWeaponRuntime::ResolveProjectileElement(true, EReEchoElement::Water, AttackSequence, 0);
+		for (int32 ProjectileIndex = 0; ProjectileIndex < 3; ++ProjectileIndex)
+		{
+			const EReEchoElement Element = ReEchoWeaponRuntime::ResolveProjectileElement(
+			    true, EReEchoElement::Water, AttackSequence, ProjectileIndex);
+			TestTrue(TEXT("Prism projectile resolves to one of the four production elements"),
+			         Element == EReEchoElement::Water || Element == EReEchoElement::Flame ||
+			             Element == EReEchoElement::Lightning || Element == EReEchoElement::Grass);
+			TestEqual(TEXT("Prism projectile element is deterministic for replay"),
+			          ReEchoWeaponRuntime::ResolveProjectileElement(
+			              true, EReEchoElement::None, AttackSequence, ProjectileIndex),
+			          Element);
+			bObservedDifferentElementsWithinOneAttack |= Element != First;
+		}
+	}
+	TestTrue(TEXT("Multishot projectiles no longer share one attack-level prism element"),
+	         bObservedDifferentElementsWithinOneAttack);
+	TestEqual(TEXT("Non-prism projectiles keep the attack element"),
+	          ReEchoWeaponRuntime::ResolveProjectileElement(false, EReEchoElement::Flame, 1, 2),
+	          EReEchoElement::Flame);
+	for (int32 ProjectileIndex = 0; ProjectileIndex < 3; ++ProjectileIndex)
+	{
+		TestEqual(TEXT("GMElement overrides every Prism projectile before initialization"),
+		          AReEchoWeaponActor::ResolveProjectileElementForTests(
+		              true, EReEchoElement::None, 17, ProjectileIndex, EReEchoElement::Lightning),
+		          EReEchoElement::Lightning);
+	}
+	TestEqual(
+	    TEXT("No GMElement override preserves the production core element"),
+	    AReEchoWeaponActor::ResolveProjectileElementForTests(false, EReEchoElement::Water, 17, 0, EReEchoElement::None),
+	    EReEchoElement::Water);
+	return true;
+}
+
 bool FReEchoWeaponGemDamageCoefficientMatrixTest::RunTest(const FString& Parameters)
 {
 	FReEchoCsvDataRegistry::LoadAndPublishDefault();
@@ -510,7 +555,7 @@ bool FReEchoWeaponGemDamageCoefficientMatrixTest::RunTest(const FString& Paramet
 	};
 
 	const TArray<FWeaponCase> WeaponCases = {
-	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.0f}, {TEXT("W_J_09"), 0.4f}};
+	    {TEXT("W_J_01"), 1.0f}, {TEXT("W_J_04"), 0.6f}, {TEXT("W_J_08"), 1.5f}, {TEXT("W_J_09"), 0.6f}};
 
 	struct FCoreCase
 	{
@@ -1215,11 +1260,12 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	auto HasEnabledRuntimeEffect = [&](const FName PartId)
 	{
 		const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
-		return Part && Part->bEnabled && Part->Effects.ContainsByPredicate(
-		                                     [](const FReEchoCsvPartEffectRow& Effect)
-		                                     {
-			                                     return Effect.bEnabled;
-		                                     });
+		return Part && Part->bEnabled &&
+		       Part->Effects.ContainsByPredicate(
+		           [](const FReEchoCsvPartEffectRow& Effect)
+		           {
+			           return Effect.bEnabled;
+		           });
 	};
 
 	AReEchoWeaponActor* RangeWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_GROUPGROWTH_SWORDBLADE"));
@@ -1246,8 +1292,7 @@ bool FReEchoWeaponRuneGroupOuterAndScytheTest::RunTest(const FString& Parameters
 	{
 		AReEchoEnemyActor* MeteorCenter = Fixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 200, 1000.0f);
 		AReEchoEnemyActor* MeteorNeighbor = Fixture.SpawnEnemy(FVector(100.0f, 100.0f, 0.0f), 201, 1000.0f);
-		AReEchoWeaponActor* MeteorWeapon =
-		    SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_METEOR_SWORDBLADE"));
+		AReEchoWeaponActor* MeteorWeapon = SpawnRuneWeapon(TEXT("W_J_01"), TEXT("P_LONGSWORD_METEOR_SWORDBLADE"));
 		auto MeteorContext = MeteorWeapon->BuildRuneAttackContextForTests(MakeCommit(3), SourceCombatant);
 		MeteorContext->EffectiveHitTargets.Add(MeteorCenter);
 		for (int32 Index = 0; Index < 6; ++Index)
@@ -1450,6 +1495,25 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	TickProjectiles(DelayedFixture.World, 0.3f);
 	TestTrue(TEXT("Projectile retains its attack-time rune snapshot after the weapon is rebuilt"),
 	         WeaponEnemyHealth(DelayedTarget) < 1000.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoMeleeProjectileCutEligibilityTest,
+                                 "ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoMeleeProjectileCutEligibilityTest::RunTest(const FString& Parameters)
+{
+	TestTrue(TEXT("Longsword retains rabbit projectile cutting"),
+	         AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.LongSwordCombo")));
+	TestTrue(TEXT("Scythe gains rabbit projectile cutting"),
+	         AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.ScytheSweep")));
+	TestFalse(TEXT("Bow cannot cut rabbit projectiles"),
+	          AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.BowShot")));
+	TestFalse(TEXT("Gun cannot cut rabbit projectiles"),
+	          AReEchoWeaponActor::CanCutRabbitProjectilesForTests(TEXT("Pattern.GunShot")));
+	TestFalse(TEXT("Unknown patterns cannot cut rabbit projectiles"),
+	          AReEchoWeaponActor::CanCutRabbitProjectilesForTests(NAME_None));
 	return true;
 }
 

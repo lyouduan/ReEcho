@@ -26,8 +26,8 @@
 - 程序路线内 Planner-Executor 模式选择仅由 `shared/PROGRAMMER_RULES.md` 管理；该文件中的远端协作安全检查默认适用于所有模式，只有按本文件完成风险提醒和准确人工确认后才能跳过具名步骤。
 - 已确认用户角色与 AI 仓库职责彼此独立。“策划”不代表项目 Planner；“程序”也不会自动授权发布 main。
 - 项目秘书职责独立于专业角色门禁，由 `shared/SECRETARY_RULES.md` 管理。
-- 不得暗中从策划/美术范围跨入代码、Schema、玩法权限或发布。拆分工作并交给程序路线，或在切换当前任务角色前明确询问用户。
-- 策划或美术 AI 可自由组织本地分支、worktree 和提交，并按本文件“本地自治与远端边界”使用角色前缀的远端协作分支；这不授予直接发布 `main`、修改程序契约或替代程序集成的权限。
+- 不得暗中从策划/美术范围跨入代码、Schema、玩法权限或发布。策划 AI 可读取代码定位已有能力，但不得修改需要程序编译或实现验证的代码、生成器、Schema 或构建文件；需要此类变化时按 `DESIGNER_RULES.md` 建立问题交接。其他越界工作拆分给程序路线，或在切换当前任务角色前明确询问用户。
+- 策划或美术 AI 可自由组织本地分支、worktree 和提交，并按本文件“本地自治与远端边界”使用角色前缀的远端协作分支；这不授予直接发布 `main`、修改程序契约或替代程序集成的权限。策划的 Bug/需求登记、待合并修改、旧分支迁移和经验记录由 `DESIGNER_RULES.md` 定义；程序接管现有 Issue 后的修复、构建、回交测试和 main 集成只由 `PROGRAMMER_RULES.md` 的对应章节定义。
 
 ## 范围与架构
 
@@ -40,13 +40,21 @@
 - 自动攻击绝不序列化进录制。Echo 回放历史位置和成功主动技能事件；目标选择与命中结算使用当前世界。
 - 不得在 Unreal Editor 外手改 `.uasset` 或 `.umap`。优先使用可合并 C++、数据源和生成工具。
 
+## Git LFS 检出与大文件边界
+
+- `.gitattributes` 是当前 LFS 路径的唯一权威。任何角色第一次使用克隆时运行 `python scripts/setup_lfs.py`；之后在打开 `ReEcho.uproject`、构建、测试、Cook 或打包前运行 `python scripts/setup_lfs.py --check`。检查失败时不得把指针文件、缺失媒体或未还原资产当成有效项目状态；LFS 路径已有本地修改时，初始化入口必须停止而不是用 pull 覆盖。
+- fetch 后发生 checkout、merge、rebase 或 pull，且 `.gitattributes` 或 LFS 路径可能变化时，必须重新执行 `--check`；失败则先安装 Git LFS并运行默认初始化/拉取入口，再继续受影响工作。
+- 新增大二进制时先审计是否应使用 LFS，只按准确路径或经过审阅的窄模式维护 `.gitattributes`。不得为省事把整个 `Content/`、所有 `.uasset` 或其他宽泛目录静默迁入 LFS。
+- 已发布的普通 Git 对象改迁 LFS 可能重写历史、使旧克隆失效并产生远端存储影响；除非有正式迁移范围、恢复点、风险说明和准确人工确认，不得执行 `git lfs migrate import`、重写已发布引用或全量推送 LFS 历史。
+- LFS 对象的提交与远端完整性遵循 `shared/GIT_RULES.md`。本地对象存在、工作树显示真实文件，并不单独证明远端对象已上传。
+
 ## 本地自治与远端边界
 
 - 每个成员、AI 和克隆的本地工作自治：可使用直接工作、分支、worktree、stash、WIP 提交、merge 或 rebase。程序路线必须先完成 `PROGRAMMER_RULES.md` 的本地工作区模式确认；选择“一任务一 worktree”后，本任务不得在主工作区直接实现。分支和 worktree 是隔离建议，不是共享权限门禁，但用户明确选择后构成当前对话的本地执行约束；本地命名、提交粒度和并行安排不需要写入共享实时状态。
 - 本地自治不扩大产品、专业角色或破坏性操作权限。覆盖他人未提交内容、删除脏/未合并工作、重写历史等风险操作仍遵循本文件的人类确认机制。
-- `origin/main` 是唯一权威发布分支，只有进入它的内容才构成仓库正式规则、Plan、源码、数据或资产状态。程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`，不得创建或推送其他远端分支；例外按本文件风险确认机制处理。
-- 已确认走策划或美术专业路线的 AI 可分别创建、非强制推送和更新 `designer/<task>` 或 `artist/<task>` 远端协作分支，用于跨机器保存、评审和向程序集成路线交接本专业提交。协作分支不是发布面，不分配 Plan 编号、不覆盖 `origin/main` 权威、不绕过人工验收或程序集成门禁，也不得直接推送或合并 `main`。
-- 策划/美术推送协作分支前必须先 fetch `origin/main` 及目标远端分支，审计同路径物理冲突、逻辑冲突和耦合；提交身份遵循 `GIT_RULES.md`。协作分支可保存完成本专业任务所需的跨文件本地试验，不因文件类型拒绝交接；这不改变专业决策所有权，也不使协作分支成为发布面。禁止强推、覆盖他人远端历史或删除他人分支；这些操作仍按本文件风险确认机制处理。
+- `origin/main` 是唯一权威发布分支，只有进入它的内容才构成仓库正式规则、Plan、源码、数据或资产状态。程序路线与项目秘书除 `GIT_RULES.md` 定义的临时 `main-publish-lock` 外仍只推送 `origin/main`；唯一具名常规例外是程序按 `PROGRAMMER_RULES.md` 接管并普通推送已经存在的准确 `issue/<策划身份>/<简述>` 修复分支。该例外不允许程序创建其他远端分支、强推、改写 Issue 历史或绕过策划验收与 main 发布锁；其他例外按本文件风险确认机制处理。
+- 已确认走策划路线的 AI 可按 `DESIGNER_RULES.md` 创建和普通推送 `issue/<策划身份>/<简述>`、`request/<策划身份>/<简述>` 与 `merge/<策划身份>/<简述>`；同一策划可并行拥有多个事项，但不得混合无关事项。美术路线仍可使用 `artist/<task>` 远端协作分支。协作分支不是发布面，不分配 Plan 编号、不覆盖 `origin/main` 权威、不绕过人工验收或程序集成门禁，也不得直接推送或合并 `main`。
+- 策划/美术推送协作分支前必须先 fetch `origin/main` 及目标远端分支，审计同路径物理冲突、逻辑冲突和耦合；提交身份遵循 `GIT_RULES.md`。已发布的策划协作分支通过 merge 同步主线，不得 rebase 或强推。程序接管现有 Issue 分支时执行 `PROGRAMMER_RULES.md` 的同名分支修复与验收流程。禁止覆盖或删除他人远端历史；身份已提供且事项精确匹配时的旧格式分支迁移，以及程序或项目秘书在候选完整集成并核验后的准确删除，是 `DESIGNER_RULES.md` 定义的正常生命周期操作。
 - **所有大任务都必须先有正式 Plan**：无论是否采用 Planner-Executor 模式、是否存在独立执行者，均须按 `PLANNER_RULES.md` 创建、编号并发布 Plan 到 `origin/main`，再开始实质实现。小型、边界清晰的修复、只读审计或用户明确豁免的工作可不建 Plan，但仍须记录结果和执行适用验证。
 - Plan 的 `Writes`、`Stable Reads` 和影响模式用于说明影响面、契约和集成风险，不是跨机器写锁。不同克隆可以本地并行；真正取舍发生在 pull/push 的远端边界审计。
 - `Design/Data/ReEchoData.xlsx` 与其生成的生产 CSV 必须作为一个完整发布单元。允许多个本地尝试；进入 main 前以当前权威 XLSX 为准审计语义差异，禁止整块静默覆盖他人表格修改。
@@ -87,6 +95,7 @@
 | 仅 Markdown/工作流 | `python scripts/validate_project.py`、`git diff --check` |
 | Python 数据工具/XLSX 契约 | 聚焦 Python 测试、权威 `--check`、项目校验、`git diff --check` |
 | 仅 JSON/配置/CSV | 项目校验和 `git diff --check` |
+| Git LFS / 大二进制 | `python scripts/setup_lfs.py --check`、`git lfs status`、`git lfs fsck`，以及 `GIT_RULES.md` 的远端对象核验 |
 | C++ | `.clang-format`、`Build-Editor.cmd`（刷新跟踪的预构建包）、`python scripts/validate_project.py`、`git diff --check` |
 | 纹理/导入脚本 | 导入/加载和资产存在性检查 |
 | 打包/cook | 适用检查加干净包和 manifest/烟测证据 |

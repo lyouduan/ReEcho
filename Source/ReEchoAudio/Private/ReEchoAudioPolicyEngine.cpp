@@ -125,6 +125,7 @@ void FReEchoAudioPolicyEngine::PostEvent(const FReEchoAudioEventRequest& Request
 	Command.Bus = Def->Bus;
 	Command.bSpatial3D = Def->bSpatial3D;
 	Command.Location = Request.WorldLocation;
+	Command.StartTimeSeconds = Def->StartTimeSeconds;
 	Command.Volume = ComputeOneShotVolume(Def->Bus, Def->BaseVolume);
 	Command.Pitch = AudioRandom.FRandRange(Def->PitchMin, Def->PitchMax);
 	Command.PausePolicy = Def->PausePolicy;
@@ -195,6 +196,7 @@ void FReEchoAudioPolicyEngine::SetState(EReEchoAudioChannel Channel, FName State
 	Command.Bus = Def->Bus;
 	Command.bSpatial3D = Def->bSpatial3D;
 	Command.Location = FVector::ZeroVector;
+	Command.StartTimeSeconds = Def->StartTimeSeconds;
 	Command.Volume = ComputeOneShotVolume(Def->Bus, Def->BaseVolume);
 	Command.Pitch = 1.0f;
 	Command.PausePolicy = Def->PausePolicy;

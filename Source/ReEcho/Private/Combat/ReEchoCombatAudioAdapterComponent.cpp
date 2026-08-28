@@ -54,6 +54,8 @@ void UReEchoCombatAudioAdapterComponent::BeginPlay()
 	Events->OnHurt.AddDynamic(this, &UReEchoCombatAudioAdapterComponent::HandleHurt);
 	Events->OnKill.AddDynamic(this, &UReEchoCombatAudioAdapterComponent::HandleKill);
 	Events->OnDeath.AddDynamic(this, &UReEchoCombatAudioAdapterComponent::HandleDeath);
+	Events->OnElementReactionResolved.AddDynamic(
+	    this, &UReEchoCombatAudioAdapterComponent::HandleElementReactionResolved);
 }
 
 void UReEchoCombatAudioAdapterComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -65,6 +67,7 @@ void UReEchoCombatAudioAdapterComponent::EndPlay(const EEndPlayReason::Type EndP
 		Events->OnHurt.RemoveAll(this);
 		Events->OnKill.RemoveAll(this);
 		Events->OnDeath.RemoveAll(this);
+		Events->OnElementReactionResolved.RemoveAll(this);
 	}
 	BoundEvents.Reset();
 	Super::EndPlay(EndPlayReason);
@@ -153,4 +156,15 @@ void UReEchoCombatAudioAdapterComponent::HandleKill(const FReEchoDamageEvent& Ev
 void UReEchoCombatAudioAdapterComponent::HandleDeath(const FReEchoDamageEvent& Event)
 {
 	PostDamageEvent(DeathEventId, Event);
+}
+
+void UReEchoCombatAudioAdapterComponent::HandleElementReactionResolved(
+    const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (Event.ReactionBehaviorId.IsNone() || !Event.PrimaryTarget)
+	{
+		return;
+	}
+	PostConfiguredEvent(
+	    FReEchoAudioEvents::CombatReaction, Event.PrimaryTarget->GetActorLocation(), Event.ReactionBehaviorId);
 }

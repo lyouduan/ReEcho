@@ -739,3 +739,34 @@ EReEchoElement ReEchoWeaponRuntime::ElementFromDamageChannel(const FName DamageC
 	}
 	return EReEchoElement::None;
 }
+
+EReEchoElement ReEchoWeaponRuntime::ResolveProjectileElement(const bool bUsesDeterministicRandomElement,
+                                                             const EReEchoElement AttackElement,
+                                                             const int64 AttackSequence,
+                                                             const int32 ProjectileIndex)
+{
+	if (!bUsesDeterministicRandomElement)
+	{
+		return AttackElement;
+	}
+
+	// Each projectile receives its own stable random draw. Keeping the seed derived from the attack identity and
+	// projectile slot preserves replay determinism without making all projectiles in one attack share an element.
+	uint32 Seed = GetTypeHash(AttackSequence) ^ (0x9E3779B9u * static_cast<uint32>(FMath::Max(0, ProjectileIndex) + 1));
+	Seed ^= Seed >> 16;
+	Seed *= 0x7FEB352Du;
+	Seed ^= Seed >> 15;
+	Seed *= 0x846CA68Bu;
+	Seed ^= Seed >> 16;
+	switch (Seed % 4u)
+	{
+		case 0:
+			return EReEchoElement::Water;
+		case 1:
+			return EReEchoElement::Flame;
+		case 2:
+			return EReEchoElement::Lightning;
+		default:
+			return EReEchoElement::Grass;
+	}
+}

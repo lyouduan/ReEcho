@@ -38,6 +38,7 @@
 # Temporary files and logs
 *.tmp
 *.log
+!/issues/**/logs/**/*.log
 *.bak
 *.swp
 ~$*.xlsx

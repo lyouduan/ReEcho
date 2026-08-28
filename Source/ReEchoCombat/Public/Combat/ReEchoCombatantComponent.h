@@ -106,9 +106,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat|Element")
 	FReEchoElementCleanseResult ExecuteElementCleanse(const FReEchoElementCleanseCommand& Command);
 	bool ApplyTimedStatus(const FReEchoTimedStatusCommand& Command);
-	/** Bosses reject Z_Cursed at the Combat authority boundary. Reused enemy actors must set this on every configure.
-	 */
+	/** Bosses reject Z_Cursed at the Combat boundary; reused enemy actors set this on every configure. */
 	void SetCursedImmune(bool bImmune);
+	/** Rejects Z_Vertigo at the Combat authority boundary and clears any active stun when immunity is enabled. */
+	void SetStunImmune(bool bImmune);
+
+	bool IsStunImmune() const
+	{
+		return bStunImmune;
+	}
+
 	bool IsActionDisabled(float CurrentTimeSeconds) const;
 	void GrantTimedInvulnerability(float CurrentTimeSeconds, float DurationSeconds);
 	bool IsTimedInvulnerable(float CurrentTimeSeconds) const;
@@ -166,6 +173,7 @@ private:
 	bool bDeathBroadcast = false;
 	bool bDebugInvulnerable = false;
 	bool bCursedImmune = false;
+	bool bStunImmune = false;
 	bool bHasLastPlayerEchoDamageSource = false;
 	EReEchoDamageSource LastPlayerEchoDamageSource = EReEchoDamageSource::Player;
 	bool bDeferHealthNotifications = false;

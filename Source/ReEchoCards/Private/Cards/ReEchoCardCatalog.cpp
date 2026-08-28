@@ -78,7 +78,16 @@ const TSet<FName>& SupportedBehaviors()
 	                                   TEXT("Card.VaporizeWaterSplash"),
 	                                   TEXT("Card.ConductDamageGrowth"),
 	                                   TEXT("Card.OverhealCapacity"),
-	                                   TEXT("Card.AlternatingSources")};
+	                                   TEXT("Card.AlternatingSources"),
+	                                   TEXT("Card.EasterShardSwing"),
+	                                   TEXT("Card.EasterIndependentGrant"),
+	                                   TEXT("Card.EasterEchoContact"),
+	                                   TEXT("Card.EasterShardSacrifice"),
+	                                   TEXT("Card.EasterRandomStun"),
+	                                   TEXT("Card.EasterDamageCards"),
+	                                   TEXT("Card.EasterPhysicalLottery"),
+	                                   TEXT("Card.EasterShardComparison"),
+	                                   TEXT("Card.EasterAttendance")};
 
 	return Values;
 }

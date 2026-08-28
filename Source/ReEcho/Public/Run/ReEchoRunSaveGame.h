@@ -13,14 +13,26 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v22 persists per-card-group offer history so refreshed cards cannot reappear in the same group. */
-	static constexpr int32 CurrentSaveVersion = 22;
+	/** v25 adds persistent Easter-card runtime state and page-compatible Easter offers. */
+	static constexpr int32 CurrentSaveVersion = 25;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
 
 	UPROPERTY(SaveGame)
 	int32 SaveVersion = CurrentSaveVersion;
+
+	/** Added in v23. Zero-based stable logical slot used by the three-slot archive UI. */
+	UPROPERTY(SaveGame)
+	int32 LogicalSlotIndex = 0;
+
+	/** Added in v23. UTC ticks at the most recent successful save. */
+	UPROPERTY(SaveGame)
+	int64 SavedAtUtcTicks = 0;
+
+	/** Added in v23. Project-Saved-relative PNG path; missing files fall back to authored placeholder art. */
+	UPROPERTY(SaveGame)
+	FString PreviewScreenshotFileName;
 
 	UPROPERTY(SaveGame)
 	EReEchoRunPhase SavedPhase = EReEchoRunPhase::Planning;
@@ -31,7 +43,11 @@ public:
 	UPROPERTY(SaveGame)
 	int32 TimeShards = 0;
 
-	/** Added in v12. Makes each run's card offers random while keeping save/load reproducible. */
+	/** Added in v24. Generated once at run start and persisted so all content rolls remain reproducible. */
+	UPROPERTY(SaveGame)
+	int32 RunSeed = 0;
+
+	/** Added in v12. Run-scoped card-offer stream; v24+ derives it from RunSeed. */
 	UPROPERTY(SaveGame)
 	int32 TraitOfferSeed = 0;
 
@@ -49,7 +65,7 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<int32> PendingTraitCardRefreshUses;
 
-	/** Added in v13. Independent seed for per-enemy time-shard ranges. */
+	/** Added in v13. Per-enemy reward stream; v24+ derives it from RunSeed. */
 	UPROPERTY(SaveGame)
 	int32 EnemyShardDropSeed = 0;
 
@@ -105,8 +121,7 @@ public:
 	TArray<FReEchoRecording> RecordingHistory;
 
 	/**
-	 * Legacy v4 migration input only. v5 never writes this and it is no longer a live authority;
-	 * SelectedReplayIds carries the "which echo replays next" decision instead.
+	 * Legacy v4 migration input only. Modern saves use CurrentBuild.CardState.Runtime.AnchorRecordingId.
 	 */
 	UPROPERTY(SaveGame)
 	FGuid AnchorId;
@@ -133,20 +148,21 @@ public:
 	UPROPERTY(SaveGame)
 	FReEchoRecording PreviousCompletedRecording;
 
-	/** Only echoes the player explicitly chose to store; identity is FReEchoRecording::Id, not index. */
+	/** Compatibility container for the single time anchor. Modern saves contain at most one recording. */
 	UPROPERTY(SaveGame)
 	TArray<FReEchoRecording> StoredEchoes;
 
-	/** Stable ids selected for the next encounter's specific replay; subset of StoredEchoes. */
+	/** Deprecated v5 compatibility field. Deserialized from old saves, ignored, and written empty. */
 	UPROPERTY(SaveGame)
 	TArray<FGuid> SelectedReplayIds;
 
+	/** Deprecated multi-slot capacity retained only so old archives deserialize. New saves write zero. */
 	UPROPERTY(SaveGame)
-	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
+	int32 StorageCapacity = 0;
 
-	/** Zero means specific replay is not unlocked yet. */
+	/** Deprecated v5 compatibility field. Deserialized from old saves, ignored, and written as zero. */
 	UPROPERTY(SaveGame)
-	int32 SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
+	int32 SpecificReplayLimit = 0;
 
 	/** Present only for an explicit in-encounter save-and-quit. */
 	UPROPERTY(SaveGame)

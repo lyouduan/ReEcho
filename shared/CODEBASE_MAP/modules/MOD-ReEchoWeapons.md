@@ -91,6 +91,8 @@ CSV Row 和资源 key 不能进入逻辑模块，避免数据加载器或表现�
 
 武器 Definition 和每个 AttackStep 只暴露一个有效倍率 `DamageCoefficient`。`FReEchoWeaponLogic` 先由 `DamageChannelId` 解析伤害类型：物理通道使用 `PhysicalAttack × DamageCoefficient`，任一元素通道（含确定性随机元素）使用 `ElementalAttack × DamageCoefficient`。不得恢复物理/元素双倍率，也不得用两者最大值做兼容选择；宝石只负责属性来源和伤害类型。
 
+`RandomElement` 仍按攻击身份保持确定性，但投射物载体会再以 `Attack.Sequence + ProjectileIndex` 为每颗弹丸独立取样。棱镜与三发散射/多重箭组合时，同一攻击内的各弹不再复制 Commit 的单一元素；相同攻击身份和弹丸槽号在玩家与 Echo 回放中仍得到相同结果。非随机元素通道继续直接使用 Commit 元素。
+
 ### 唯一普通攻击节拍
 
 ```text
@@ -117,7 +119,7 @@ Commit
 
 可见 Projectile/Wave Actor 不是飞行真相源；即使没有美术资源，逻辑载体也必须完成移动、命中和过期。
 
-长剑的 `Pattern.LongSwordCombo` 在提交近战命中时复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询兔子 Host 持有的逻辑球；弧内球由 EnemyHost 发布 `Ended` 并移除，VFX 只消费结束事件。镰刀、弓、枪及非兔子敌方投射物不进入该斩弹路径，禁止只删除视觉代理或用刀光 Bounds 充当玩法碰撞。
+长剑的 `Pattern.LongSwordCombo` 与镰刀的 `Pattern.ScytheSweep` 共用 RangeCm，但显式选择不同几何与 Origin：长剑使用 WeaponOwner 和 `Dist2D + AimDirection + ArcDegrees=180` 的地面前向扇形；镰刀使用 Plan126 最终武器中心 `WeaponAttackVfxRoot` 与 `FVector::DistSquared` 的真三维球，挂点不可用时才回退 WeaponOwner。镰刀敌人命中、外环距离和兔子 Host 逻辑弹丸必须消费同一攻击提交瞬间的 Origin，球内弹丸由 EnemyHost 发布 `Ended` 并移除；VFX 只消费结束事件。弓、枪及非兔子敌方投射物不进入该斩弹路径，禁止只删除视觉代理或用刀光 Bounds 充当玩法碰撞。
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。生产武器清单固定为长剑、镰刀、弓和枪；`MoonStaff` 与 `StaffLightWave` 只服务贤者独立动画辅助，不是可选、可装备或可入商店的生产武器。
 
@@ -129,6 +131,8 @@ Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec:
 同一出口也是主模块构筑诊断的唯一武器关联点：成功 Commit 输出 `[BuildCommitTrace]`，记录 `source + weapon + sequence + fingerprint` 及轻量伤害参数；回滚或仅召回不输出。指纹由主模块已经钉住的 `FReEchoBuildSnapshot` 只读计算，`ReEchoWeapons` 与 `ReEchoCombat` 的公共 AttackIdentity/Commit 不增加 Card/Run 字段，也不反向依赖主模块。
 镰刀的 FullSpin 表现按 `MotionDurationSeconds` 保持 WeaponActor 手部挂点位置不动，并让武器子表现围绕该手部根节点的相机朝向法线旋转完整一周，结束后恢复根旋转并触发 AttackCommitted VFX；不得绕角色身体中心公转。长剑使用 `TripleSwing60`：同样以手部挂点为圆心，在 `+60°` / `-60°` 之间完成上到下、下到上、上到下三次单程挥舞，总时长仍由武器 DA 的 `MotionDurationSeconds` 控制；其前方 180 度玩法查询和刀光在提交时立即发生。两种轨迹都只改变表现 Transform 和 VFX 时序，不改变 `ReEchoWeapons` 的近战查询、伤害次数、伤害时机或范围。
 Player/Echo 的 `VisualFacingSign` 是武器左右换手的唯一朝向输入；唯一 Weapon Presentation Catalog 通过 `RightHandAnchorRatio` / `LeftHandAnchorRatio` 提供所有人物、所有武器共用的左右挂点，WeaponActor 按朝向直接选择并乘角色稳定 `WorldHeight`，不读取当前 Flipbook Bounds，也不从人物中心或宽度推算挂点。各 Weapon Profile 的手部相对 `HeldOffsetRatio` 只负责单武器修正并按朝向镜像：右向保持 authored 水平偏移，左向取其水平分量的负数，高度和其他非水平分量保持不变；朝向改变时同步刷新长剑、镰刀、弓和枪的子表现位置。偏移始终保留在武器子表现上，根节点仍是手部旋转中心，避免增加艺术偏移后左右位置不对称或镰刀绕错误中心旋转。同时对带反向作者轴的剑贴图镜像平面角度，不假设固定世界 X/Y，也不通过负 Scale 翻转武器纹理。长剑攻击事件优先锁定提交瞬间的敌人方向；交付的 `0811_01` 刀光网格位于本地 YZ 平面，因此刀光以本地 X 法线朝向摄像机、本地 Y 对齐投影后的攻击方向，再叠加 DA Roll 作为屏幕内斩击角度修正；若 DA 修正把最终法线翻到背面，程序只绕最终本地 Y 攻击轴翻正法线，避免单面材质被剔除且不改变刀光指向。单一 Niagara 资源优先通过 `User.PlayDirection` 控制左正播/右逆播；替换资源缺少该参数时，程序仅对右侧使用从最后非空帧开始的 DesiredAge 倒放兼容路径并记录警告，资源恢复参数后自动停用回退。镰刀沿用自身现有相机平面约定。
+
+Plan126 为每个 Weapon Profile 增加中心化局部 `AttackVfxAnchorRatio` 覆盖，并由 WeaponActor 的 `WeaponAttackVfxRoot` 绑定最终武器视觉组件：默认朝右时镰刀为中心、长剑为下方中心、弓/枪为右侧中点，朝左只镜像最终视觉空间的水平分量。弓左与枪右会按各自 DA 规则对武器 Plane 使用负 X Scale；挂点换算到组件局部空间时必须抵消该负缩放，避免最终世界位置二次镜像。该组件继承最终 `HeldOffsetRatio`、尺寸、旋转以及长剑三挥/镰刀动作，弓/枪逻辑投射物也从其世界位置生成；释放类 VFX 不再从人物中心、宽度或通用角色 `AttackVfxRoot` 重算位置。这仍属于主模块表现适配，不进入 `ReEchoWeapons` 的资源无关 Commit、几何或伤害契约。
 
 羊 Boss 的 MoonStaff 不消费 Player/Echo 的共享 Catalog 挂点或通用 `HeldOffsetRatio`：Gameplay Blueprint 的 `BossWeaponRoot` 是稳定基准挂点，Enemy Presentation 根据屏幕朝向直接选择 MoonStaff Profile 的 `HeldRightFacingOffsetRatio` / `HeldLeftFacingOffsetRatio` 并乘 Boss `WorldHeight`，两侧可在 Staff DA 中独立调节。该适配不使用相机前移，也不改变 Boss 技能、攻击/VFX 时机或已有法杖摆动旋转。
 
