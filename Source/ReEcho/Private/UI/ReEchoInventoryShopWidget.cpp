@@ -37,6 +37,14 @@ constexpr int32 BackpackPopupLayerZOrder = 100;
 constexpr int32 OwnedCardPageCount = 2;
 const FVector2D WeaponBackpackPopupSize(340.0f, 430.0f);
 const FVector2D RuneBackpackPopupSize(320.0f, 390.0f);
+const FLinearColor TooltipFrameColor = FLinearColor::White;
+const FLinearColor TooltipSurfaceColor(0.02f, 0.02f, 0.02f, 0.97f);
+
+struct FDarkFramedPanel
+{
+	UBorder* Frame = nullptr;
+	UBorder* Surface = nullptr;
+};
 
 FString ResolveFormalCharacterName(const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot, const FName CharacterId)
 {
@@ -176,6 +184,60 @@ void ApplyPersistentSlotFrame(UButton* Button, UTexture2D* SlotTexture)
 	Style.PressedPadding = FMargin(0.0f);
 	Button->SetStyle(Style);
 	Button->SetBackgroundColor(FLinearColor::White);
+}
+
+void ConfigureTransparentButton(UButton* Button)
+{
+	if (!Button)
+	{
+		return;
+	}
+
+	FButtonStyle Style = Button->GetStyle();
+	Style.Normal.DrawAs = ESlateBrushDrawType::NoDrawType;
+	Style.Hovered.DrawAs = ESlateBrushDrawType::NoDrawType;
+	Style.Pressed.DrawAs = ESlateBrushDrawType::NoDrawType;
+	Style.Disabled.DrawAs = ESlateBrushDrawType::NoDrawType;
+	Style.NormalPadding = FMargin(0.0f);
+	Style.PressedPadding = FMargin(0.0f);
+	Button->SetStyle(Style);
+	Button->SetBackgroundColor(FLinearColor::Transparent);
+}
+
+FDarkFramedPanel CreateDarkFramedPanel(UWidgetTree* WidgetTree,
+                                       const FName FrameName,
+                                       const FName SurfaceName,
+                                       const FMargin SurfacePadding,
+                                       const float FrameThickness = 3.0f)
+{
+	FDarkFramedPanel Result;
+	Result.Frame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), FrameName);
+	Result.Frame->SetBrushColor(TooltipFrameColor);
+	Result.Frame->SetPadding(FMargin(FrameThickness));
+	Result.Surface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), SurfaceName);
+	Result.Surface->SetBrushColor(TooltipSurfaceColor);
+	Result.Surface->SetPadding(SurfacePadding);
+	Result.Frame->SetContent(Result.Surface);
+	return Result;
+}
+
+UScaleBox* CreateAspectFitIcon(
+    UWidgetTree* WidgetTree, const FName ScaleName, const FName ImageName, UTexture2D* Texture, const FVector2D Size)
+{
+	UScaleBox* Scale = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), ScaleName);
+	Scale->SetStretch(EStretch::ScaleToFit);
+	Scale->SetStretchDirection(EStretchDirection::Both);
+	UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), ImageName);
+	Icon->SetBrushFromTexture(Texture, false);
+	Icon->SetBrushTintColor(FLinearColor::White);
+	Icon->SetDesiredSizeOverride(Size);
+	Scale->SetContent(Icon);
+	if (UScaleBoxSlot* IconSlot = Cast<UScaleBoxSlot>(Icon->Slot))
+	{
+		IconSlot->SetHorizontalAlignment(HAlign_Center);
+		IconSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	return Scale;
 }
 }
 
@@ -2378,12 +2440,11 @@ void UReEchoInventoryShopWidget::BuildWeaponBackpackPopup()
 	WeaponBackpackPopupPanel->ClearChildren();
 	CachedWeaponBackpackIds.Reset();
 
-	UBorder* Surface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("WeaponBackpackSurface"));
-	Surface->SetBrushColor(FLinearColor(0.04f, 0.04f, 0.04f, 0.96f));
-	Surface->SetPadding(FMargin(14.0f));
-	UCanvasPanelSlot* SurfaceSlot = WeaponBackpackPopupPanel->AddChildToCanvas(Surface);
-	SurfaceSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-	SurfaceSlot->SetOffsets(FMargin(0.0f));
+	const FDarkFramedPanel PopupChrome =
+	    CreateDarkFramedPanel(WidgetTree, TEXT("WeaponBackpackFrame"), TEXT("WeaponBackpackSurface"), FMargin(14.0f));
+	UCanvasPanelSlot* FrameSlot = WeaponBackpackPopupPanel->AddChildToCanvas(PopupChrome.Frame);
+	FrameSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	FrameSlot->SetOffsets(FMargin(0.0f));
 
 	UScrollBox* Scroll =
 	    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("WeaponBackpackScroll"));
@@ -2391,7 +2452,7 @@ void UReEchoInventoryShopWidget::BuildWeaponBackpackPopup()
 	UVerticalBox* List =
 	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WeaponBackpackList"));
 	Scroll->AddChild(List);
-	Surface->SetContent(Scroll);
+	PopupChrome.Surface->SetContent(Scroll);
 
 	UTextBlock* Title = CreateText(WidgetTree, TEXT("WeaponBackpackTitle"), 20, FLinearColor::White);
 	Title->SetText(NSLOCTEXT("ReEcho", "WeaponBackpackTitle", "武器背包"));
@@ -2407,15 +2468,17 @@ void UReEchoInventoryShopWidget::BuildWeaponBackpackPopup()
 		Button->SetIsEnabled(Weapon.ContentId != CurrentPartShopView.WeaponId);
 		Button->SetToolTip(BuildSlotTooltip(Weapon));
 		Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponBackpackItemClicked);
+		ConfigureTransparentButton(Button);
 
 		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(
 		    UHorizontalBox::StaticClass(), *FString::Printf(TEXT("WeaponBackpackRow%d"), EntryIndex));
-		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
-		                                                   *FString::Printf(TEXT("WeaponBackpackIcon%d"), EntryIndex));
 		UTexture2D* Texture =
 		    Weapon.IconTexturePath.IsEmpty() ? nullptr : LoadObject<UTexture2D>(nullptr, *Weapon.IconTexturePath);
-		Icon->SetBrushFromTexture(Texture ? Texture : ShopCardIconTexture.Get(), false);
-		Icon->SetDesiredSizeOverride(FVector2D(72.0f, 72.0f));
+		UScaleBox* Icon = CreateAspectFitIcon(WidgetTree,
+		                                      *FString::Printf(TEXT("WeaponBackpackIconScale%d"), EntryIndex),
+		                                      *FString::Printf(TEXT("WeaponBackpackIcon%d"), EntryIndex),
+		                                      Texture ? Texture : ShopCardIconTexture.Get(),
+		                                      FVector2D(72.0f, 72.0f));
 		UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(Icon);
 		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
 		IconSlot->SetVerticalAlignment(VAlign_Center);
@@ -2427,7 +2490,14 @@ void UReEchoInventoryShopWidget::BuildWeaponBackpackPopup()
 		        : Weapon.DisplayName);
 		UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label);
 		LabelSlot->SetVerticalAlignment(VAlign_Center);
-		Button->SetContent(Row);
+		const FDarkFramedPanel EntryChrome =
+		    CreateDarkFramedPanel(WidgetTree,
+		                          *FString::Printf(TEXT("WeaponBackpackItemFrame%d"), EntryIndex),
+		                          *FString::Printf(TEXT("WeaponBackpackItemSurface%d"), EntryIndex),
+		                          FMargin(8.0f),
+		                          2.0f);
+		EntryChrome.Surface->SetContent(Row);
+		Button->SetContent(EntryChrome.Frame);
 		UVerticalBoxSlot* ButtonSlot = List->AddChildToVerticalBox(Button);
 		ButtonSlot->SetPadding(FMargin(0.0f, 3.0f));
 	}
@@ -2474,12 +2544,11 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 	}
 	BackpackPopupPanel->ClearChildren();
 
-	UBorder* Surface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("BackpackPopupSurface"));
-	Surface->SetBrushColor(FLinearColor(0.04f, 0.04f, 0.04f, 0.96f));
-	Surface->SetPadding(FMargin(14.0f));
-	UCanvasPanelSlot* SurfaceSlot = BackpackPopupPanel->AddChildToCanvas(Surface);
-	SurfaceSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-	SurfaceSlot->SetOffsets(FMargin(0.0f));
+	const FDarkFramedPanel PopupChrome =
+	    CreateDarkFramedPanel(WidgetTree, TEXT("BackpackPopupFrame"), TEXT("BackpackPopupSurface"), FMargin(14.0f));
+	UCanvasPanelSlot* FrameSlot = BackpackPopupPanel->AddChildToCanvas(PopupChrome.Frame);
+	FrameSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	FrameSlot->SetOffsets(FMargin(0.0f));
 
 	UScrollBox* Scroll =
 	    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BackpackPopupScroll"));
@@ -2487,7 +2556,7 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 	UVerticalBox* PopupList =
 	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("BackpackPopupList"));
 	Scroll->AddChild(PopupList);
-	Surface->SetContent(Scroll);
+	PopupChrome.Surface->SetContent(Scroll);
 
 	UTextBlock* Title = CreateText(WidgetTree, TEXT("BackpackPopupTitle"), 20, FLinearColor::White);
 	Title->SetText(NSLOCTEXT("ReEcho", "RuneBackpackTitle", "符文背包"));
@@ -2510,13 +2579,14 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("BackpackItem%d"), ThisIndex));
 		ItemButton->SetEntryIndex(ThisIndex);
 		ItemButton->SetToolTip(BuildSlotTooltip(Candidate));
+		ConfigureTransparentButton(ItemButton);
 		UHorizontalBox* ItemRow = WidgetTree->ConstructWidget<UHorizontalBox>(
 		    UHorizontalBox::StaticClass(), *FString::Printf(TEXT("BackpackItemRow%d"), ThisIndex));
-		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
-		                                                   *FString::Printf(TEXT("BackpackItemIcon%d"), ThisIndex));
-		Icon->SetBrushFromTexture(ResolveWeaponPartIcon(Candidate.ContentId), false);
-		Icon->SetBrushTintColor(FLinearColor::White);
-		Icon->SetDesiredSizeOverride(FVector2D(72.0f, 72.0f));
+		UScaleBox* Icon = CreateAspectFitIcon(WidgetTree,
+		                                      *FString::Printf(TEXT("BackpackItemIconScale%d"), ThisIndex),
+		                                      *FString::Printf(TEXT("BackpackItemIcon%d"), ThisIndex),
+		                                      ResolveWeaponPartIcon(Candidate.ContentId),
+		                                      FVector2D(72.0f, 72.0f));
 		UHorizontalBoxSlot* IconSlot = ItemRow->AddChildToHorizontalBox(Icon);
 		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
 		IconSlot->SetVerticalAlignment(VAlign_Center);
@@ -2526,7 +2596,14 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 		NameText->SetAutoWrapText(false);
 		UHorizontalBoxSlot* NameSlot = ItemRow->AddChildToHorizontalBox(NameText);
 		NameSlot->SetVerticalAlignment(VAlign_Center);
-		ItemButton->SetContent(ItemRow);
+		const FDarkFramedPanel EntryChrome =
+		    CreateDarkFramedPanel(WidgetTree,
+		                          *FString::Printf(TEXT("BackpackItemFrame%d"), ThisIndex),
+		                          *FString::Printf(TEXT("BackpackItemSurface%d"), ThisIndex),
+		                          FMargin(8.0f),
+		                          2.0f);
+		EntryChrome.Surface->SetContent(ItemRow);
+		ItemButton->SetContent(EntryChrome.Frame);
 		UVerticalBoxSlot* ButtonSlot = PopupList->AddChildToVerticalBox(ItemButton);
 		ButtonSlot->SetPadding(FMargin(0.0f, 3.0f));
 		ItemButton->OnIndexedClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
@@ -2676,10 +2753,10 @@ UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Of
 		USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
 		TooltipSize->SetWidthOverride(280.0f);
 		UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-		TooltipFrame->SetBrushColor(bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f, 1.0f) : FLinearColor::White);
+		TooltipFrame->SetBrushColor(bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f, 1.0f) : TooltipFrameColor);
 		TooltipFrame->SetPadding(FMargin(3.0f));
 		UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-		TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
+		TooltipSurface->SetBrushColor(TooltipSurfaceColor);
 		TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
 		UVerticalBox* TooltipContent =
 		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
