@@ -114,6 +114,8 @@ public:
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
 	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
 	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
+	/** Read-only owned-card presentation shared by the shop and terminal result screens. */
+	TArray<FReEchoShopOffer> GetOwnedBuildCardView() const;
 	FReEchoWeaponPartShopView GetWeaponPartShopView();
 	/** Cash minus Curse Bank debt; presentation-only and never used for purchase authority. */
 	int32 GetDisplayedTimeShardBalance() const;

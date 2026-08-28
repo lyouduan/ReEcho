@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132、Plan145。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132、Plan145、Plan150。
 
 ## 存在原因
 
@@ -26,7 +26,7 @@
 - `WBP_ReEchoSettings` 的三个分类内容容器、文字字体/颜色与 Slot 布局均由 WBP 作者ing；C++ 只切换容器并绑定设置值/交互。运行时生成的下拉选项从 WBP `GraphicsValue0` 读取字体、颜色和渲染位移，不另设一套程序样式。
 - `WBP_ReEchoRestart` 复用既有 Pause 层承载普通暂停、退出到主菜单确认、退出游戏确认和 Death/Victory 结算状态，不新增独立 Pause WBP；交付切图只负责表现，透明真实按钮继续发出继续、设置、保存/不保存退出、返回等类型化 Delegate，目标关卡切换和程序退出由 `AReEchoGameMode` 执行。正式结算页的透明按钮与可见底图/文字是 Canvas 兄弟节点，因此 `UReEchoRestartWidget` 以 visual-only 绑定把统一 `1.05` 倍中心悬停缩放同步到对应底图和标签；该绑定不接管 WBP 几何，也不重复点击审计或音效。正式 `VictoryCanvas` / `DefeatCanvas` 是结算表现的唯一权威；被其替代的旧结果标题、摘要、角色、卡牌底板和按钮素材已经删除，不得重新导入。保存失败仍使用 `ArtRestartDialogPanel`，普通暂停与退出确认层保持不变。
 - 正式 Victory 由同一 `WBP_ReEchoRestart` 内的可选 `VictoryCanvas` 作者ing；其全部视觉与文字保持可独立编辑，C++ 只投影真实关卡总数、时间碎片和构筑数量，并把 `VictoryContinueButton` 转发到既有 `OnRestartRequested`，不新增结算或推进逻辑。`ArtVictoryCharacterFormal` 继续拥有位置和尺寸，运行时只按 `CurrentBuild.CharacterId` 把 Brush 替换为选角页对应的 `Selected` 角色纹理；其 Canvas ZOrder 固定高于同 Canvas 其他兄弟，避免角色局部被装饰或文字遮住。
-- 正式 Death 由同一 `WBP_ReEchoRestart` 内的可选 `DefeatCanvas` 作者ing；视觉、文字和五个样例卡槽均保持可独立编辑，C++ 只投影真实到达关卡、时间碎片和构筑数量。`DefeatRestartButton` 转发既有重开请求，`DefeatMainMenuButton` 转发既有返回主菜单请求，不伪造击败数、金币或修改结算状态所有权。`ArtDefeatCharacterFormal` 同样只在运行时替换 Brush且保持 Canvas 最前层；四个已知角色复用 LoadoutSelection `Selected` 纹理，未知 ID 或缺图回退 J_HEART，WBP 作者几何不被 C++ 覆盖。
+- 正式 Death 由同一 `WBP_ReEchoRestart` 内的可选 `DefeatCanvas` 作者ing；视觉、文字和五个空槽底板均保持可独立编辑，C++ 只投影真实到达关卡、时间碎片、构筑数量和只读卡牌展示。`DesignerDefeatCardIcon0..4` 是对应空槽上方的正方形作者化覆盖层：按权威 `Tier` 降序展示当前构筑最多五张卡牌，同 Tier 保持获得顺序；图标路径和缺图时的通用卡图回退与商店一致，未占用覆盖层隐藏而不改变空槽 Brush、作者几何、Tooltip 或交互。`DefeatRestartButton` 转发既有重开请求，`DefeatMainMenuButton` 转发既有返回主菜单请求，不伪造击败数、金币或修改结算状态所有权。`ArtDefeatCharacterFormal` 同样只在运行时替换 Brush 且保持 Canvas 最前层；四个已知角色复用 LoadoutSelection `Selected` 纹理，未知 ID 或缺图回退 J_HEART，WBP 作者几何不被 C++ 覆盖。
 - 商店/背包页允许 `WBP_ReEchoRestart` 以更高 Pause 层覆盖：按 `P` 不关闭商店，不触发战后推进或回响存储门禁；关闭 Pause 后必须重新聚焦商店并继续保持世界暂停与菜单能力阻挡。
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。

@@ -6,11 +6,11 @@
 - Executor 负责人：Codex（程序路线，规划执行者合一）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@9f5fc380aa55a22f189c51ca7873b237a096617c`。
 - 本地实现方式（可选，仅作交接说明）：独立分支 `codex/plan150-defeat-top-card-icons` 与独立 worktree `ReEcho-plan150-defeat-top-card-icons`。
-- 依赖 / 阻塞：正式 Plan 提交前需确认人类 GitHub 账号；最终视觉需要在持有少于五张、恰好五张和多于五张卡牌的失败结算状态下人工验收。
+- 依赖 / 阻塞：GitHub 人类账号已确认为 `JosephLE910`；最终视觉仍需要在持有少于五张、恰好五张和多于五张卡牌的失败结算状态下人工验收。
 - Writes: `plans/150-defeat-top-card-icons.md`；`Source/ReEcho/Public/Run/ReEchoRunSubsystem.h`；`Source/ReEcho/Private/Run/ReEchoRunSubsystem.cpp`；`Source/ReEcho/Public/UI/ReEchoRestartWidget.h`；`Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`；`Source/ReEcho/Private/ReEchoGameMode.cpp`；相关 `Source/ReEcho/Private/Tests/*.cpp`；`Content/ReEcho/UI/WBP_ReEchoRestart.uasset`；Plan150 的 WBP 作者ing/审计脚本；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；`shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`；构建门禁允许的精选 Editor 预构建产物。
 - Stable Reads: `Source/ReEchoCards/Public/Cards/ReEchoCardTypes.h`；`Source/ReEcho/Private/UI/ReEchoInventoryShopWidget.cpp`；`Source/ReEcho/Public/Run/ReEchoShopCatalog.h`；`Content/ReEcho/UI/WBP_ReEchoRestart.uasset`；`Content/ReEcho/Textures/UI/Cards/Icon/**`；`shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md`；`Design/UI/ReEcho_UI修改指导.md`。
 - 影响模式：`SharedContract`（扩展既有 Death 结算只读投影和 `SetDeathScreen` 输入，但不改变 Cards/Run 状态所有权、存档 Schema 或卡牌授予规则）。
@@ -34,24 +34,24 @@
   4. 结算统计的构筑数量同步读取 `CardState.OwnedCardIds.Num()`，不继续读取仅供旧存档迁移的 `CurrentBuild.Cards`。
 - 相关文档同步范围：维护 `MOD-ReEcho.md` 的 Run→结算真实卡牌投影；维护 `MOD-ReEchoUI.md` 的 Death 五槽运行时 Brush 契约；审阅 `CODEBASE_MAP/ARCHITECTURE.md`、索引 `README.md` 和 `MOD-ReEchoCards.md`，无拓扑、路由或 Cards 状态事实变化时只在执行记录说明无需修改。
 - 关闭前逐项填写审阅结果：
-  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 待更新：记录死亡结算消费最高等级卡牌只读投影；
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md` 待更新：记录既有五槽 Brush 填充、排序和空槽回退；
-  - `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md` 待审阅：预计无需修改，因 `Tier` 与 `OwnedCardIds` 契约不变；
-  - `shared/CODEBASE_MAP/ARCHITECTURE.md` 待审阅：预计无需修改，因模块拓扑和依赖方向不变；
-  - `shared/CODEBASE_MAP/README.md` 待审阅：预计无需修改，因无稳定标识或阅读路由变化。
+  - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录 `GetOwnedBuildCardView()` 的获得顺序、图标契约和失败结算只读消费边界；
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md` 已更新：记录五个正方形覆盖层、等级排序、商店同款回退和空槽保留；
+  - `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md` 已审阅，无需修改：`Tier` 与 `OwnedCardIds` 的权威和语义未变；
+  - `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅，无需修改：模块拓扑和依赖方向未变；
+  - `shared/CODEBASE_MAP/README.md` 已审阅，无需修改：无稳定标识或阅读路由变化。
 
 ## 锁定验收
 
-- [ ] 失败结算按 `Tier` 从高到低展示最多五张当前拥有卡牌；同 `Tier` 保持获得顺序。
-- [ ] 结算图标与商店已拥有卡牌使用同一 `IconTexturePath` 和通用缺图回退，不显示伪造卡面。
-- [ ] 少于五张时剩余 Icon 覆盖层隐藏、原有空槽美术完整保留；零张时五个空槽均不被通用卡图覆盖。
-- [ ] 五个 `DesignerDefeatCardIcon0..4` 是 WBP 中可独立调整的正方形 Image，位于对应空槽上方且不拦截输入，不拉伸正方形卡图。
-- [ ] `DefeatTraitCountValue` 显示 `CardState.OwnedCardIds.Num()` 的真实构筑数量。
-- [ ] Victory、Pause、失败重开、返回主菜单、按钮悬停和既有 WBP 几何无回归。
-- [ ] 功能结果有聚焦自动化和运行时/资产可观察证据。
+- [x] 失败结算按 `Tier` 从高到低展示最多五张当前拥有卡牌；同 `Tier` 保持获得顺序。
+- [x] 结算图标与商店已拥有卡牌使用同一 `IconTexturePath` 和通用缺图回退，不显示伪造卡面。
+- [x] 少于五张时剩余 Icon 覆盖层隐藏、原有空槽美术完整保留；零张时五个空槽均不被通用卡图覆盖。
+- [x] 五个 `DesignerDefeatCardIcon0..4` 是 WBP 中可独立调整的正方形 Image，位于对应空槽上方且不拦截输入，不拉伸正方形卡图。
+- [x] `DefeatTraitCountValue` 显示 `CardState.OwnedCardIds.Num()` 的真实构筑数量。
+- [x] Victory、Pause、失败重开、返回主菜单、按钮悬停和既有 WBP 几何无回归。
+- [x] 功能结果有聚焦自动化和运行时/资产可观察证据。
 - [ ] 必需构建、项目校验、格式与差异检查通过。
 - [ ] 失败结算卡图填充、裁切与可读性经人工 PIE 验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -88,11 +88,19 @@
 - 已确认现状：正式失败页存在五个 `DesignerDefeatCardSlot0..4` 静态空槽；C++ 当前只投影构筑数量，不填充真实卡图。
 - 已确认商店路径：`UReEchoInventoryShopWidget::RebuildOwnedCardSlots` 消费 `FReEchoShopOffer::IconTexturePath`，缺图回退通用卡牌图标；Run 的 `MakeOwnedBuildCardOffer` 统一生成 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_{CardId}`。
 - 已确认权威等级与所有权：`FReEchoCardDefinition::Tier` 和 `FReEchoCardBuildState::OwnedCardIds`；旧 `CurrentBuild.Cards` 仅用于旧存档迁移。
+- `UReEchoRunSubsystem::GetOwnedBuildCardView()` 已成为商店与失败结算共用的已拥有卡牌只读投影；GameMode 的结算数量改读 `OwnedCardIds.Num()`，仅死亡模式传入卡牌展示数据。
+- Restart Widget 以稳定 Tier 降序选取最多五项，只修改 `DesignerDefeatCardIcon0..4` 的 Brush 与显隐；WBP 新增五个 `136×136`、ZOrder 50、默认 Hidden 的作者化 Image，原 `136×164` 空槽与 ZOrder 45 保持不变。
+- 聚焦自动化已覆盖六张混合 Tier 的 Top 5、同 Tier 稳定顺序、缺图回退、少卡/零卡隐藏、原空槽 Brush 和 Victory/Pause 状态回归。
 
 ### 证据
 
 - `python scripts/setup_lfs.py --check`：通过，当前独立 worktree LFS hydrated。
 - `origin/main@9f5fc380` 的 Plan129、Restart 自动化、正式失败作者ing/审计脚本共同证明五个可独立编辑槽位存在。
+- Development Editor 增量构建通过并刷新精选预构建包：`modules=7 build_id=55116800 source=78c3ad030f03`；该结果只作为实现期反馈，最终发布仍执行 `-FullRebuild`。
+- `ReEcho.UI.RestartWidgetPresentation`：`Result={Success}`；覆盖正式失败 Top 5、空槽与缺图回退，并继续覆盖 Pause/Victory/按钮绑定。
+- `ReEcho.Shop`：16 项全部通过，确认抽取共用投影后商店行为无回归。
+- `audit_plan150_defeat_card_icons.py`：输出 `[Plan150DefeatCardsAudit] five square card-icon overlays are valid`，并在审计末尾成功编译目标 WBP。
+- `python scripts/validate_project.py` 与 `git diff --check`：通过。
 
 ### 剩余风险
 
@@ -101,8 +109,8 @@
 
 ### 人工验收结果/请求
 
-- 待实现后请求用户验证混合 Tier 的失败结算排序、图标裁切和少卡留空。
+- 技术候选完成后请求用户在 PIE 验证混合 Tier 的失败结算排序、图标裁切和少卡留空；人工结果未记录前保持 `Review`，不关闭 Plan。
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `MOD-ReEcho.md` 与 `MOD-ReEchoUI.md` 已按上方范围更新；`MOD-ReEchoCards.md`、`ARCHITECTURE.md` 和 CODEBASE_MAP 索引均已审阅且无需修改。

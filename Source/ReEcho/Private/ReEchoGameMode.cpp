@@ -3544,21 +3544,24 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 		SetMusicState(bVictoryScreen ? FReEchoAudioEvents::MusicVictory : FReEchoAudioEvents::MusicDeath);
 		StopAmbienceState();
 	}
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	const int32 OwnedCardCount = RunSubsystem ? RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num() : 0;
 	if (bVictoryScreen)
 	{
-		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 		RestartWidget->SetVictoryScreen(RunSubsystem ? RunSubsystem->TimeShards : 0,
-		                                RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0,
+		                                OwnedCardCount,
 		                                RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None);
 	}
 	else
 	{
-		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+		const TArray<FReEchoShopOffer> OwnedCards =
+		    bDeathScreen && RunSubsystem ? RunSubsystem->GetOwnedBuildCardView() : TArray<FReEchoShopOffer>();
 		RestartWidget->SetDeathScreen(bDeathScreen,
 		                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 		                              RunSubsystem ? RunSubsystem->TimeShards : 0,
-		                              RunSubsystem ? RunSubsystem->CurrentBuild.Cards.Num() : 0,
-		                              RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None);
+		                              OwnedCardCount,
+		                              RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None,
+		                              OwnedCards);
 	}
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
@@ -3569,7 +3572,6 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	RestartWidget->OnSettingsRequested.AddDynamic(this, &AReEchoGameMode::HandlePauseSettingsRequested);
 	if (!bDeathScreen && !bVictoryScreen)
 	{
-		const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 		RestartWidget->SetAutomaticAttackMode(RunSubsystem ? RunSubsystem->IsAutomaticAttackMode() : true);
 		RestartWidget->OnAutomaticAttackRequested.AddDynamic(this, &AReEchoGameMode::HandleAutomaticAttackRequested);
 		RestartWidget->OnManualAttackRequested.AddDynamic(this, &AReEchoGameMode::HandleManualAttackRequested);

@@ -1563,6 +1563,26 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 	return true;
 }
 
+TArray<FReEchoShopOffer> UReEchoRunSubsystem::GetOwnedBuildCardView() const
+{
+	TArray<FReEchoShopOffer> OwnedCards;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return OwnedCards;
+	}
+
+	OwnedCards.Reserve(CurrentBuild.CardState.OwnedCardIds.Num());
+	for (const FName CardId : CurrentBuild.CardState.OwnedCardIds)
+	{
+		if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
+		{
+			OwnedCards.Add(MakeOwnedBuildCardOffer(*Card, CurrentBuild.CardState, *Snapshot->CardCatalog));
+		}
+	}
+	return OwnedCards;
+}
+
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 {
 	FReEchoWeaponPartShopView View;
@@ -2122,15 +2142,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 			}
 		}
 
-		for (const FName CardId : CurrentBuild.CardState.OwnedCardIds)
-		{
-			if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
-			{
-				FReEchoShopOffer OwnedCard =
-				    MakeOwnedBuildCardOffer(*Card, CurrentBuild.CardState, *Snapshot->CardCatalog);
-				View.OwnedCards.Add(MoveTemp(OwnedCard));
-			}
-		}
+		View.OwnedCards = GetOwnedBuildCardView();
 	}
 
 	// Backward-compatibility bridge for weapon/rune UI consumers. Card packs are deliberately not flattened:
