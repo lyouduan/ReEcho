@@ -715,6 +715,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         UReEchoCombatVfxComponent::ResolveCombatEffectSortPriority(0) >= 1000);
 	TestFalse(TEXT("Gun impact production slot resolves a configured Niagara path"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact).IsEmpty());
+	TestEqual(TEXT("Bow and gun share the normal projectile impact"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerBowImpact),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact));
+	TestNotEqual(TEXT("Explosion impact remains distinct from the normal projectile impact"),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunImpact));
+	EReEchoCombatVfxSemantic ProjectileImpactSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Normal bow resolves a ranged impact"),
+	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Bow"), 0.0f, ProjectileImpactSemantic));
+	TestEqual(TEXT("Normal bow reuses the gun bullet impact"),
+	          ProjectileImpactSemantic,
+	          EReEchoCombatVfxSemantic::PlayerGunImpact);
+	TestTrue(TEXT("Explosive gun resolves an impact"),
+	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Gun"), 200.0f, ProjectileImpactSemantic));
+	TestEqual(TEXT("A compiled explosion radius selects the shared explosion impact"),
+	          ProjectileImpactSemantic,
+	          EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact);
+	TestFalse(
+	    TEXT("Non-projectile weapon cannot resolve a ranged impact"),
+	    FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Scythe"), 300.0f, ProjectileImpactSemantic));
 
 	const EReEchoCombatVfxSemantic RequiredSystems[] = {
 	    EReEchoCombatVfxSemantic::RabbitCharging,      EReEchoCombatVfxSemantic::RabbitProjectile,
@@ -724,12 +744,13 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,   EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
 	    EReEchoCombatVfxSemantic::PlayerScytheImpact,  EReEchoCombatVfxSemantic::PlayerBowFlight,
 	    EReEchoCombatVfxSemantic::PlayerBowImpact,     EReEchoCombatVfxSemantic::PlayerGunFlight,
-	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::EnemyHurt,
-	    EReEchoCombatVfxSemantic::EchoWaterAura,       EReEchoCombatVfxSemantic::EchoGrassAura,
-	    EReEchoCombatVfxSemantic::GoatSkill02Charging, EReEchoCombatVfxSemantic::GoatSkill02Bullet,
-	    EReEchoCombatVfxSemantic::GoatSkill02Impact,   EReEchoCombatVfxSemantic::GoatSkill03Charging,
-	    EReEchoCombatVfxSemantic::GoatSkill03Alarming, EReEchoCombatVfxSemantic::GoatSkill03Impact,
-	    EReEchoCombatVfxSemantic::GoatSkill04Charging, EReEchoCombatVfxSemantic::GoatSkill04Lighting,
+	    EReEchoCombatVfxSemantic::PlayerGunImpact,     EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact,
+	    EReEchoCombatVfxSemantic::EnemyHurt,           EReEchoCombatVfxSemantic::EchoWaterAura,
+	    EReEchoCombatVfxSemantic::EchoGrassAura,       EReEchoCombatVfxSemantic::GoatSkill02Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,   EReEchoCombatVfxSemantic::GoatSkill02Impact,
+	    EReEchoCombatVfxSemantic::GoatSkill03Charging, EReEchoCombatVfxSemantic::GoatSkill03Alarming,
+	    EReEchoCombatVfxSemantic::GoatSkill03Impact,   EReEchoCombatVfxSemantic::GoatSkill04Charging,
+	    EReEchoCombatVfxSemantic::GoatSkill04Lighting,
 	};
 	TestEqual(TEXT("Sheep projectile flight uses the authored Skill02 bullet"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::GoatSkill02Bullet),

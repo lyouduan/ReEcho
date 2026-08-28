@@ -177,15 +177,7 @@ void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnaps
 void AReEchoProjectileActor::SpawnWeaponImpactNiagara(const FVector& Location, const FVector& Direction)
 {
 	EReEchoCombatVfxSemantic Semantic;
-	if (WeaponVisualKey == TEXT("Bow"))
-	{
-		Semantic = EReEchoCombatVfxSemantic::PlayerBowImpact;
-	}
-	else if (WeaponVisualKey == TEXT("Gun"))
-	{
-		Semantic = EReEchoCombatVfxSemantic::PlayerGunImpact;
-	}
-	else
+	if (!FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(WeaponVisualKey, ExplosionRadiusCm, Semantic))
 	{
 		return;
 	}

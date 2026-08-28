@@ -19,6 +19,7 @@ enum class EReEchoCombatVfxSemantic : uint8
 	PlayerBowImpact,
 	PlayerGunFlight,
 	PlayerGunImpact,
+	PlayerProjectileExplosionImpact,
 	EnemyHurt,
 	EchoWaterAura,
 	EchoGrassAura,
@@ -66,6 +67,10 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Resolves a successful source-side weapon hit to its configured DamageApplied semantic. */
 	static bool ResolveWeaponDamageSemantic(FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Selects the shared ranged impact, or the explosion impact when the compiled projectile has an area radius. */
+	static bool ResolveProjectileImpactSemantic(FName WeaponVisualKey,
+	                                            float ExplosionRadiusCm,
+	                                            EReEchoCombatVfxSemantic& OutSemantic);
 	/** Visual-only delay used to release a melee slash after its weapon completes the authored motion. */
 	static float ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic Semantic);
 	/** Returns the measured authored center axis for a semantic asset. */

@@ -34,7 +34,8 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 			SlotMember = &UReEchoWeaponPresentationProfile::Travel;
 			break;
 		case EReEchoCombatVfxSemantic::PlayerBowImpact:
-			VisualKey = TEXT("Bow");
+			// Bow and Gun intentionally share the normal bullet-hit effect.
+			VisualKey = TEXT("Gun");
 			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
 			break;
 		case EReEchoCombatVfxSemantic::PlayerGunFlight:
@@ -43,6 +44,11 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 			break;
 		case EReEchoCombatVfxSemantic::PlayerGunImpact:
 			VisualKey = TEXT("Gun");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact:
+			// The delivered Bow boom is the shared ranged explosion impact asset.
+			VisualKey = TEXT("Bow");
 			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
 			break;
 		default:
@@ -93,11 +99,13 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 		case EReEchoCombatVfxSemantic::PlayerBowFlight:
 			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::Travel);
 		case EReEchoCombatVfxSemantic::PlayerBowImpact:
-			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerGunFlight:
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::Travel);
 		case EReEchoCombatVfxSemantic::PlayerGunImpact:
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::DamageApplied);
+		case EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact:
+			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		case EReEchoCombatVfxSemantic::EchoWaterAura:
@@ -170,8 +178,7 @@ bool FReEchoCombatVfxCatalog::ResolveMeleeAttackSemantic(const FName AttackPatte
 	return false;
 }
 
-bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId,
-                                                          EReEchoCombatVfxSemantic& OutSemantic)
+bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(WeaponId) : nullptr;
@@ -190,6 +197,19 @@ bool FReEchoCombatVfxCatalog::ResolveWeaponDamageSemantic(const FName WeaponId,
 		return true;
 	}
 	return false;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(const FName WeaponVisualKey,
+                                                              const float ExplosionRadiusCm,
+                                                              EReEchoCombatVfxSemantic& OutSemantic)
+{
+	if (WeaponVisualKey != TEXT("Bow") && WeaponVisualKey != TEXT("Gun"))
+	{
+		return false;
+	}
+	OutSemantic = ExplosionRadiusCm > 0.0f ? EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact
+	                                       : EReEchoCombatVfxSemantic::PlayerGunImpact;
+	return true;
 }
 
 float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)
