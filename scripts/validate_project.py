@@ -2725,32 +2725,9 @@ def validate_build_dependencies() -> None:
     ]
     if len(presentation_modules) != 1 or presentation_modules[0].get("Type") != "Runtime":
         fail("ReEcho.uproject must declare exactly one ReEchoPresentation Runtime module")
-    for file_name in (
-        "reecho_data_manifest.csv",
-        "csv_schema.csv",
-        "runtime_smoke.csv",
-        "runtime_smoke_effects.csv",
-        "characters.csv",
-        "character_aliases.csv",
-        "cards.csv",
-        "card_effects.csv",
-        "elements.csv",
-        "statuses.csv",
-        "reactions.csv",
-        "weapon_types.csv",
-        "weapons.csv",
-        "attack_steps.csv",
-        "slot_types.csv",
-        "slot_profiles.csv",
-        "parts.csv",
-        "part_effects.csv",
-        "enemies.csv",
-        "enemy_abilities.csv",
-        "boss_phases.csv",
-        "audio_events.csv",
-    ):
-        if f"Content/Data/{file_name}" not in build_cs:
-            fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
+    production_csv_stage_rule = 'Content/Data/*.csv", StagedFileType.NonUFS'
+    if production_csv_stage_rule not in build_cs:
+        fail("ReEcho.Build.cs must stage every root production CSV through Content/Data/*.csv")
 
 
 def validate_combat_module_boundaries() -> None:
