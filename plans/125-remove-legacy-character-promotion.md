@@ -7,7 +7,7 @@
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 人工验收：`Passed`（2026-08-28，勇者推进至原高频复现区间后身份与表现未再漂移）。
 - 本地规划 / 实现基线：`origin/main@ac9bb58dafdc8129e4bcaf5e65fb1d87caa9e422`。
 - 2026-08-28 恢复基线：`origin/main@409910aa89eaf55beaec57b0cfca2fe41db7187b`；旧候选未进入 main，本轮只前向移植运行时删除、存档迁移和回归测试，不覆盖后来更新的策划 XLSX/CSV。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `ReEcho-plan125-remove-promotion`，分支 `plan/125-remove-legacy-character-promotion`。
@@ -56,12 +56,12 @@
 
 ## 锁定验收
 
-- [ ] 新 Run 选择任一角色后，连续获得至少 8 张不同职业分类卡牌并跨越 Stage，`CharacterId`、外观和固定角色能力始终不变。
+- [x] 新 Run 选择任一角色后，连续获得至少 8 张不同职业分类卡牌并跨越 Stage，`CharacterId`、外观和固定角色能力始终不变。
 - [x] 正常授卡、付费卡组领取和 `DebugGrantCard` 都不调用或间接重建晋升规则；代码库不再存在 `TryPromote`/`EvaluateRole` 生产入口。
 - [ ] `cards.csv`/Card 类型不再含 `PromotionRoleId`；角色排序使用 `SelectionOrder` 或等价的非晋升字段；XLSX、CSV、Schema、生成器、fixture 与静态校验一致。本轮为保护后续策划数据，保留这些无运行时消费者的兼容列，后续另行迁移。
 - [x] 旧晋升存档迁移恢复可靠的原始角色，移除遗留 RuleFlags，正确修正当前/装备基线属性；无可靠原始 ID 时采用锁定回退且往返稳定。
 - [x] 角色固定能力、卡牌授予、保存恢复聚焦自动化通过；Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。本轮不修改装载 UI，已审阅无需重跑其聚焦测试。
-- [ ] 用户 PIE 验收：复现原路径，在第 4 张及后续卡牌、跨第 5→6 场时角色不再突然变化。
+- [x] 用户 PIE 验收：复现原路径，在第 4 张及后续卡牌、跨第 5→6 场时角色不再突然变化。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -121,7 +121,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现完成后由用户按原构筑路径推进到 Encounter 6，确认角色不再变化。
+- 2026-08-28 `Passed`：用户按原高频复现路径手测后确认“没问题了”，批准将运行时身份稳定修复合入 main。兼容数据列的结构化清理由本 Plan 未完成项继续保留，不能用旧 XLSX 覆盖后续策划数据。
 
 ### 架构文档审阅结果
 
