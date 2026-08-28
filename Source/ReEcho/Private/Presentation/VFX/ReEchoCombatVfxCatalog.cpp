@@ -113,6 +113,10 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Water.NS_Echo_Water");
 		case EReEchoCombatVfxSemantic::EchoGrassAura:
 			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Grass.NS_Echo_Grass");
+		case EReEchoCombatVfxSemantic::EchoBorn:
+			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Born.NS_Echo_Born");
+		case EReEchoCombatVfxSemantic::EchoConnectionLine:
+			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Chain.NS_Echo_Chain");
 		case EReEchoCombatVfxSemantic::GoatSkill02Charging:
 			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill02_Charging.NS_Goat_Skill02_Charging");
 		case EReEchoCombatVfxSemantic::GoatSkill02Bullet:
@@ -315,6 +319,12 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		// These systems describe a world-sized body charge. Their anchor follows the Boss, but its authored size
 		// must not be multiplied a second time by DA/Actor presentation scale.
 		Placement.ScalePolicy = EReEchoVfxScalePolicy::PreserveWorldSize;
+	}
+	else if (Semantic == EReEchoCombatVfxSemantic::EchoBorn)
+	{
+		Placement.ScalePolicy = EReEchoVfxScalePolicy::PreserveWorldSize;
+		Placement.Scale = FVector(0.25f);
+		Placement.PlaybackDurationSeconds = 0.8f;
 	}
 	return Placement;
 }

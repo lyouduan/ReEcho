@@ -58,6 +58,32 @@ struct FSpatialParityWorldFixture
 };
 } // namespace
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDeferredBornRevealTest,
+                                 "ReEcho.Presentation.EchoAppearance.DeferredBornReveal",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoDeferredBornRevealTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FSpatialParityWorldFixture Fixture;
+	AReEchoEchoActor* Echo = Fixture.World->SpawnActor<AReEchoEchoActor>();
+	if (!TestNotNull(TEXT("Echo spawns for deferred reveal"), Echo))
+	{
+		return false;
+	}
+	Echo->QueueBornVfxForTests();
+	Echo->PrepareDeferredBornReveal(0.0f);
+	TestTrue(TEXT("Deferred reveal state is prepared"), Echo->IsDeferredBornRevealPreparedForTests());
+	TestTrue(TEXT("Deferred reveal hides the Echo actor"), Echo->IsHidden());
+	TestTrue(TEXT("Position priming preserves the pending birth VFX"), Echo->IsBornVfxPendingForTests());
+	Echo->CompleteDeferredBornReveal();
+	TestFalse(TEXT("Fail-open completion clears deferred reveal state"),
+	          Echo->IsDeferredBornRevealPreparedForTests());
+	TestFalse(TEXT("Fail-open completion restores Echo visibility"), Echo->IsHidden());
+	TestFalse(TEXT("Fail-open completion prevents duplicate birth VFX"), Echo->IsBornVfxPendingForTests());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEchoAppearanceMappingTest,
                                  "ReEcho.Presentation.EchoAppearance.CharacterMappings",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

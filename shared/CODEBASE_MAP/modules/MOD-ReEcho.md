@@ -25,6 +25,8 @@
 - 本局阶段、构筑、存档、Echo 存储与回放选择。
 - 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
+- 将卡牌 `G_2_30` 的只读规则与当前存活 Echo 集合投影给玩家 VFX 组件；连接线伤害仍由现有卡牌/Combat 路径结算，GameMode 不从 Niagara 状态反推玩法。
+- Echo 完整初始化后只登记一次出生表现；普通路径首次 Playback 推进先应用录制位置，再从 Echo `GroundShadow` 世界中心播放独立 `EchoBorn` 一次性法阵。第一关转第二关的专用预加载路径先定位并隐藏 Echo/武器，镜头锁定 Echo 后保持静止，暂停 Tick 完整播放 `0.8` 秒法阵，再统一显形并启动后续镜头；资源或镜头失败时立即恢复可见性并继续。`GMEchoBorn` 只重播当前存活 Echo 的法阵，`GMEchoSummon` 在当前位置复播完整隐藏、法阵与延迟显形流程；二者均不生成 Echo 或修改回放/战斗状态。
 
 ### 不负责
 
@@ -392,11 +394,11 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ## 运行时 CSV 松散文件与 Shipping 打包契约
 
-`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的 28 张运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
+`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的全部生产运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
 
 - **cook 只枚举被资产引用的文件**。`Content/Data/*.csv` 没有任何 `.uasset`/`.umap` 引用（已用全量二进制扫描确认，连已进包的 `characters.csv`/`weapons.csv` 也不被任何资产内嵌），因此 cook 不会把它们作为资产依赖暂存进包。
 - 历史打包中出现了"部分 csv 进包、部分不进"的偶发结果（22 进、6 缺），这是 cook 内部行为的非确定性副作用，**不能作为数据齐备的保证**；缺表会在启动期触发 `ReEcho.cpp` 的 `LowLevelFatalError`（`...: File could not be read`，退出码 3）。
-- **确定化投递**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 拷贝进最终包 `ReEcho/Content/Data/`（见其 `stage_runtime_csvs`）。该函数排除 `Engine` 目录下的 `Content`，只写入游戏模块目录，保证 manifest 列示的 28 张 csv 全部就位，与已进包的 22 张走同一松散文件机制。
+- **确定化投递与验证**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 全部拷贝进最终包 `ReEcho/Content/Data/`，排除 `Engine` 目录下的 `Content`，再按 `reecho_data_manifest.csv` 逐项验证生产表及 manifest 存在；缺失任一生产源文件、目标文件或游戏 `Content` 目录都会使打包失败。
 - 修改 csv 集合时：保持 `reecho_data_manifest.csv` 为真源；`package_windows.py` 不写死表名，按目录通配拷贝，因此新增/删除运行时 csv 无需改脚本。
 - 此契约仅影响打包投递，不改变 Development/PIE 既有的松散文件读取路径，也不改变 CSV schema、稳定 ID 或 `ReEcho.cpp` 的启动校验逻辑。
 # Plan73 元素表现装配

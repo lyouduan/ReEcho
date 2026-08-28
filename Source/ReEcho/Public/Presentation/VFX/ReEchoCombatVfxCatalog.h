@@ -28,6 +28,8 @@ enum class EReEchoCombatVfxSemantic : uint8
 	EnemyHurt,
 	EchoWaterAura,
 	EchoGrassAura,
+	EchoBorn,
+	EchoConnectionLine,
 	GoatSkill02Charging,
 	GoatSkill02Bullet,
 	GoatSkill02Impact,

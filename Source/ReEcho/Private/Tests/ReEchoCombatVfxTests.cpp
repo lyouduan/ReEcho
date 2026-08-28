@@ -440,11 +440,42 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         EndParameter.Equals(EndWorld - StartWorld, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Conduct absolute start plus relative end reconstructs the target world position"),
 	         (StartParameter + EndParameter).Equals(EndWorld, KINDA_SMALL_NUMBER));
+	const FTransform ConnectionEffectTransform(FRotator(0.0f, 35.0f, 0.0f), FVector(900.0f, -120.0f, 45.0f));
+	const float ConnectionBoundsPaddingCm = 200.0f;
+	const FBox ConnectionLocalBounds = UReEchoCombatVfxComponent::ResolveConnectionLinkLocalBounds(
+	    ConnectionEffectTransform, StartWorld, EndWorld, ConnectionBoundsPaddingCm);
+	const FVector ConnectionLocalStart = ConnectionEffectTransform.InverseTransformPosition(StartWorld);
+	const FVector ConnectionLocalEnd = ConnectionEffectTransform.InverseTransformPosition(EndWorld);
+	TestTrue(TEXT("Echo connection runtime bounds contain the source in effect-local space"),
+	         ConnectionLocalBounds.IsInsideOrOn(ConnectionLocalStart));
+	TestTrue(TEXT("Echo connection runtime bounds contain the target in effect-local space"),
+	         ConnectionLocalBounds.IsInsideOrOn(ConnectionLocalEnd));
+	TestTrue(TEXT("Echo connection runtime bounds retain a finite ribbon safety margin"),
+	         ConnectionLocalBounds.GetExtent().GetMin() >= ConnectionBoundsPaddingCm);
 	UWorld* ConductAnchorWorld = UWorld::CreateWorld(EWorldType::EditorPreview, false);
 	AReEchoVfxScenarioTargetActor* ConductSource =
 	    ConductAnchorWorld ? ConductAnchorWorld->SpawnActor<AReEchoVfxScenarioTargetActor>() : nullptr;
 	AReEchoVfxScenarioTargetActor* ConductTarget =
 	    ConductAnchorWorld ? ConductAnchorWorld->SpawnActor<AReEchoVfxScenarioTargetActor>() : nullptr;
+	FReEchoDamageEvent ConnectionHurtEvent;
+	ConnectionHurtEvent.Target = ConductTarget;
+	ConnectionHurtEvent.AppliedDamage = 5.0f;
+	ConnectionHurtEvent.DamageSource = EReEchoDamageSource::Path;
+	ConnectionHurtEvent.bFatal = true;
+	TestTrue(TEXT("Fatal connection-line damage still produces target hurt feedback"),
+	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
+	ConnectionHurtEvent.DamageSource = EReEchoDamageSource::Player;
+	TestFalse(TEXT("Existing fatal non-connection damage keeps its prior hurt-feedback policy"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
+	ConnectionHurtEvent.bFatal = false;
+	ConnectionHurtEvent.AppliedDamage = 0.0f;
+	TestFalse(TEXT("Blocked connection-line damage does not produce target hurt feedback"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
+	const FVector BossHurtRootWorld(125.0f, -80.0f, 20.0f);
+	const FVector BossFlipbookCenterWorld(170.0f, -40.0f, 180.0f);
+	TestTrue(TEXT("Boss hurt effect is raised halfway from its authored root toward its rendered center"),
+	         UReEchoCombatVfxComponent::ResolveBossHurtEffectLocation(BossHurtRootWorld, BossFlipbookCenterWorld)
+	             .Equals(FVector(125.0f, -80.0f, 100.0f), KINDA_SMALL_NUMBER));
 	FVector ConductAnchorStart = FVector::ZeroVector;
 	FVector ConductAnchorEnd = FVector::ZeroVector;
 	TestFalse(TEXT("Conduct is suppressed when either explicit Hurt VFX root is missing"),
@@ -839,6 +870,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,
 	    EReEchoCombatVfxSemantic::EchoGrassAura,
+	    EReEchoCombatVfxSemantic::EchoBorn,
+	    EReEchoCombatVfxSemantic::EchoConnectionLine,
 	    EReEchoCombatVfxSemantic::GoatSkill02Charging,
 	    EReEchoCombatVfxSemantic::GoatSkill02Bullet,
 	    EReEchoCombatVfxSemantic::GoatSkill02Impact,
@@ -869,6 +902,27 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fox applied hit uses the authored impact system"),
 	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::FoxImpact),
 	          FString(TEXT("/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked.NS_Fox_Rush_BeAttacked")));
+	TestEqual(TEXT("Connection card uses the delivered Echo chain system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoConnectionLine),
+	          FString(TEXT("/Game/VFX/Echo/Particle/NS_Echo_Chain.NS_Echo_Chain")));
+	TestEqual(TEXT("Echo initialization uses the independent birth-circle system"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::EchoBorn),
+	          FString(TEXT("/Game/VFX/Echo/Particle/NS_Echo_Born.NS_Echo_Born")));
+	const FReEchoVfxPlacement EchoBornPlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::EchoBorn);
+	TestTrue(TEXT("Echo Born keeps a stable world size"),
+	         EchoBornPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
+	TestTrue(TEXT("Echo Born renders at one quarter of the source circle size"),
+	         EchoBornPlacement.Scale.Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born owns a finite one-shot presentation lifetime"),
+	         FMath::IsNearlyEqual(EchoBornPlacement.PlaybackDurationSeconds, 0.8f));
+	TestTrue(TEXT("Echo Born scale resolves a requested world diameter from authored ground bounds"),
+	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(
+	             120.0f, FBox(FVector(-500.0f, -300.0f, -100.0f), FVector(500.0f, 300.0f, 400.0f)), FVector(0.25f))
+	             .Equals(FVector(0.12f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
+	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
+	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
@@ -881,6 +935,57 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			TestFalse(TEXT("Replacement sword asset selects the explicit missing-parameter reverse fallback"),
 			          UReEchoCombatVfxComponent::HasMeleePlayDirectionParameter(System));
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::EchoConnectionLine)
+		{
+			TArray<FNiagaraVariable> UserParameters;
+			System->GetExposedParameters().GetUserParameters(UserParameters);
+			for (const FName RequiredParameter : {FName(TEXT("StartPosition")), FName(TEXT("EndPosition"))})
+			{
+				const FNiagaraVariable* Parameter = UserParameters.FindByPredicate(
+				    [RequiredParameter](const FNiagaraVariable& Variable)
+				    {
+					    return Variable.GetName() == RequiredParameter;
+				    });
+				TestTrue(
+				    FString::Printf(TEXT("Echo chain exposes Niagara Position User.%s"), *RequiredParameter.ToString()),
+				    Parameter && Parameter->GetType() == FNiagaraTypeDefinition::GetPositionDef());
+			}
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::EchoBorn)
+		{
+			TestFalse(TEXT("Echo Born loads without deferred Niagara compilation"),
+			          System->HasOutstandingCompilationRequests(true));
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				if (EmitterHandle.GetIsEnabled())
+				{
+					const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+					TestTrue(TEXT("Echo Born enabled emitters preserve their authored component-space layout"),
+					         EmitterData && EmitterData->bLocalSpace);
+					if (EmitterData)
+					{
+						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+						{
+							const UNiagaraSpriteRendererProperties* Sprite =
+							    Cast<UNiagaraSpriteRendererProperties>(Renderer);
+							if (Sprite && Sprite->GetIsEnabled())
+							{
+								TestTrue(TEXT("Echo Born sprites face the authored ground normal"),
+								         Sprite->FacingMode == ENiagaraSpriteFacingMode::CustomFacingVector);
+								TestEqual(TEXT("Echo Born sprite facing binds User.GroundNormal"),
+								          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+								          FName(TEXT("User.GroundNormal")));
+								TestTrue(TEXT("Echo Born sprites keep a fixed tangent on the ground plane"),
+								         Sprite->Alignment == ENiagaraSpriteAlignment::CustomAlignment);
+								TestEqual(TEXT("Echo Born sprite alignment binds User.GroundTangent"),
+								          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+								          FName(TEXT("User.GroundTangent")));
+							}
+						}
+					}
+				}
+			}
 		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||

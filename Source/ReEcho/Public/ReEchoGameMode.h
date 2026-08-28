@@ -103,6 +103,12 @@ public:
 	void GMBossSkill(const FString& Skill = TEXT("Skill01"));
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
+	/** Replays the birth-circle presentation on every living Echo without changing gameplay state. */
+	UFUNCTION(Exec)
+	void GMEchoBorn();
+	/** Replays the complete birth-circle then delayed Echo reveal on every living Echo. */
+	UFUNCTION(Exec)
+	void GMEchoSummon();
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
 	UFUNCTION(Exec)
 	void GMElement(const FString& Element = TEXT("Flame"));
@@ -275,6 +281,7 @@ private:
 		Stage01To02FocusPlayer,
 		Stage01To02HoldPlayer,
 		PlayingStage01To02Cg,
+		Stage01To02RevealEcho,
 		Stage01To02FocusEcho,
 		Stage01To02MoveToPlayer,
 		Completed
@@ -282,6 +289,7 @@ private:
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
+	float Stage01To02EchoRevealElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
 	bool bPreparedEncounterAwaitingActivation = false;
 	bool bEncounterTransitionPausedWorld = false;
@@ -320,7 +328,9 @@ private:
 	bool BeginStage01To02Cg();
 	void CompleteStage01To02Cg(bool bFailed);
 	void BeginStage01To02PostCgCameraSequence();
-	void AdvanceStage01To02CameraSequence();
+	void AdvanceStage01To02CameraSequence(float DeltaSeconds);
+	bool BeginStage01To02EchoReveal();
+	void CompleteStage01To02EchoReveal();
 	void ResetEncounterTransitionPresentation();
 	void SetEncounterTransitionWorldPaused(bool bPaused);
 	void SetEncounterTransitionCameraRefreshWhilePaused(bool bEnabled);
@@ -482,6 +492,8 @@ private:
 	                                                 bool bApplied,
 	                                                 bool bReturningToOpenShop);
 	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
+	static float GetStage01To02EchoRevealDelaySeconds();
+	static float GetStage01To02EchoRevealTimeoutSeconds();
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
