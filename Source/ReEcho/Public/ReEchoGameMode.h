@@ -355,6 +355,9 @@ private:
 	void HandleContinueGameRequested();
 
 	UFUNCTION()
+	void HandleSaveSlotRequested(int32 SlotIndex);
+
+	UFUNCTION()
 	void HandleStartSettingsRequested();
 
 	UFUNCTION()
@@ -435,6 +438,7 @@ private:
 	void BeginNextEncounter();
 	bool PrepareNextEncounter(bool bDeferActivation);
 	void ActivatePreparedEncounter();
+	void CaptureActiveSaveSlotPreview();
 	void GrantPostEntryInvulnerability(int32 EncounterIndex);
 	float ResolvePostEntryInvulnerabilitySeconds() const;
 	static bool ShouldGrantPostEntryInvulnerability(int32 EncounterIndex, float DurationSeconds);

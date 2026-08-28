@@ -13,14 +13,26 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v23 removes legacy card-driven character promotion and normalizes old promotion flags. */
-	static constexpr int32 CurrentSaveVersion = 23;
+	/** v24 adds the unified per-run seed; restore also removes legacy card-driven character promotion. */
+	static constexpr int32 CurrentSaveVersion = 24;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
 
 	UPROPERTY(SaveGame)
 	int32 SaveVersion = CurrentSaveVersion;
+
+	/** Added in v23. Zero-based stable logical slot used by the three-slot archive UI. */
+	UPROPERTY(SaveGame)
+	int32 LogicalSlotIndex = 0;
+
+	/** Added in v23. UTC ticks at the most recent successful save. */
+	UPROPERTY(SaveGame)
+	int64 SavedAtUtcTicks = 0;
+
+	/** Added in v23. Project-Saved-relative PNG path; missing files fall back to authored placeholder art. */
+	UPROPERTY(SaveGame)
+	FString PreviewScreenshotFileName;
 
 	UPROPERTY(SaveGame)
 	EReEchoRunPhase SavedPhase = EReEchoRunPhase::Planning;
@@ -31,7 +43,11 @@ public:
 	UPROPERTY(SaveGame)
 	int32 TimeShards = 0;
 
-	/** Added in v12. Captures the run-start real-time seed while keeping save/load reproducible. */
+	/** Added in v24. Generated once at run start and persisted so all content rolls remain reproducible. */
+	UPROPERTY(SaveGame)
+	int32 RunSeed = 0;
+
+	/** Added in v12. Run-scoped card-offer stream; v24+ derives it from RunSeed. */
 	UPROPERTY(SaveGame)
 	int32 TraitOfferSeed = 0;
 
@@ -49,7 +65,7 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<int32> PendingTraitCardRefreshUses;
 
-	/** Added in v13. Independent seed for per-enemy time-shard ranges. */
+	/** Added in v13. Per-enemy reward stream; v24+ derives it from RunSeed. */
 	UPROPERTY(SaveGame)
 	int32 EnemyShardDropSeed = 0;
 
