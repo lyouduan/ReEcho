@@ -1003,12 +1003,19 @@ FVector UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(const float Desired
 		return FallbackScale;
 	}
 	const FVector AuthoredSize = AuthoredSystemBounds.GetSize();
-	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.X, AuthoredSize.Y);
+	// NS_Echo_Born is authored in local YZ. Local X is its plane normal, so X thickness must not
+	// participate in the requested ground diameter.
+	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.Y, AuthoredSize.Z);
 	if (AuthoredGroundDiameter <= UE_SMALL_NUMBER)
 	{
 		return FallbackScale;
 	}
 	return FVector(DesiredWorldDiameterCm / AuthoredGroundDiameter);
+}
+
+FQuat UReEchoCombatVfxComponent::ResolveEchoBornWorldRotation()
+{
+	return FQuat::FindBetweenNormals(FVector::ForwardVector, FVector::UpVector);
 }
 
 bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation,
@@ -1026,8 +1033,11 @@ bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& Groun
 	// hidden Echo actor's visibility or its camera-dependent presentation offset.
 	Effect->PrimaryComponentTick.bTickEvenWhenPaused = true;
 	Effect->SetTranslucentSortPriority(ResolveOwnerAuraSortPriority());
-	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
-	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::ForwardVector);
+	Effect->SetWorldRotation(ResolveEchoBornWorldRotation());
+	// Enabled emitters simulate in component-local space. The resource plane is local YZ, so its
+	// renderer normal/tangent must stay local as well; the component rotation maps local X to world up.
+	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::ForwardVector);
+	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::RightVector);
 	const UNiagaraSystem* System = Effect->GetAsset();
 	const FBox AuthoredBounds = System ? System->GetFixedBounds() : FBox(EForceInit::ForceInit);
 	Effect->SetWorldScale3D(ResolveEchoBornWorldScale(

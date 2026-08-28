@@ -1048,10 +1048,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Echo Born scale resolves a requested world diameter from authored ground bounds"),
 	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(
 	             120.0f, FBox(FVector(-500.0f, -300.0f, -100.0f), FVector(500.0f, 300.0f, 400.0f)), FVector(0.25f))
-	             .Equals(FVector(0.12f), KINDA_SMALL_NUMBER));
+	             .Equals(FVector(0.2f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
 	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
 	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
+	const FQuat EchoBornRotation = UReEchoCombatVfxComponent::ResolveEchoBornWorldRotation();
+	TestTrue(TEXT("Echo Born maps its local X normal to world up"),
+	         EchoBornRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born keeps local Y inside the horizontal world plane"),
+	         FMath::IsNearlyZero(
+	             FVector::DotProduct(EchoBornRotation.RotateVector(FVector::RightVector), FVector::UpVector),
+	             KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
