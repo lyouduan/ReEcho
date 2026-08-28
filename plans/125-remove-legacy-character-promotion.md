@@ -113,6 +113,7 @@
 - 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，精选 7 模块预构建包刷新为 `source=662cf04d78a9`；随后 XLSX 漂移、项目静态校验、预构建核验和 `git diff --check` 均通过。本机未发现 `clang-format` 可执行文件，未伪造格式化证据；编译和 diff 审阅无格式阻塞。
 - 2026-08-28 恢复候选：最新 `origin/main@409910aa` 上 FullRebuild 97/97 成功，精选 7 模块预构建包刷新为 `source=86da1bf61d1b`；`ReEcho.Characters` 4/4 和 `ReEcho.Run.Save` 6/6 通过，其中四名角色各连续获得 8 张混合卡均保持身份，v22 晋升存档迁移与 v23 往返通过。
 - 2026-08-28 恢复候选：`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check`、`git lfs fsck` 全部通过。系统和 UE 5.8 安装目录未找到 `clang-format`，未伪造格式化证据；FullRebuild 与差异审阅无格式阻塞。
+- 2026-08-28 最终组合：获 `main-publish-lock` 后合入 `origin/main@3ecade50` 的 Plan145 三槽存档和统一 RunSeed，合并提交 `e3bf5fa5` 保留 SaveVersion 24，并把旧角色晋升清理作为独立 BuildSnapshot 迁移组合进去。最终 FullRebuild 95/95 成功，精选 7 模块预构建包刷新为 `source=40dec16236a4`；组合后的 `ReEcho.Characters` 4/4 与 `ReEcho.Run.Save` 6/6 全部通过。
 
 ### 剩余风险
 
