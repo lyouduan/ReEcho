@@ -193,6 +193,7 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		CombatAudioAdapter->PostConfiguredEvent(FReEchoAudioEvents::EchoSpawn, GetActorLocation());
 		bAudioLifecycleStarted = true;
 	}
+	bBornVfxPending = Weapon != nullptr;
 	return Weapon != nullptr;
 }
 
@@ -526,6 +527,71 @@ FVector AReEchoEchoActor::EvaluateRecordedPosition(const float EncounterTime) co
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
 	Playback->AdvancePlayback(EncounterTime);
+	if (bBornVfxPending && !bDeferredBornReveal)
+	{
+		bBornVfxPending = false;
+		PlayBornVfx();
+	}
+}
+
+void AReEchoEchoActor::PrepareDeferredBornReveal(const float EncounterTime)
+{
+	Playback->AdvancePlayback(EncounterTime);
+	PrepareBornRevealAtCurrentLocation();
+}
+
+void AReEchoEchoActor::PrepareBornRevealAtCurrentLocation()
+{
+	bBornVfxPending = true;
+	bDeferredBornReveal = true;
+	SetActorHiddenInGame(true);
+	if (Weapon)
+	{
+		Weapon->SetActorHiddenInGame(true);
+	}
+}
+
+bool AReEchoEchoActor::BeginDeferredBornReveal()
+{
+	if (!bDeferredBornReveal || !bBornVfxPending)
+	{
+		return false;
+	}
+	bBornVfxPending = false;
+	return PlayBornVfx();
+}
+
+void AReEchoEchoActor::CompleteDeferredBornReveal()
+{
+	if (!bDeferredBornReveal)
+	{
+		return;
+	}
+	bDeferredBornReveal = false;
+	bBornVfxPending = false;
+	SetActorHiddenInGame(false);
+	if (Weapon)
+	{
+		Weapon->SetActorHiddenInGame(false);
+	}
+}
+
+bool AReEchoEchoActor::PlayBornVfx()
+{
+	if (!CombatVfx || !GroundShadow || !IsCombatTargetAlive())
+	{
+		return false;
+	}
+	constexpr float BornCircleToEchoWidthRatio = 1.2f;
+	const float EchoWorldWidth = CalculateSpatialShadowWidth() * GetActorScale3D().GetAbsMax();
+	FVector BornCircleCenter = GetActorLocation();
+	BornCircleCenter.Z = GroundShadow->GetComponentLocation().Z;
+	return CombatVfx->PlayEchoBornAtWorldLocation(BornCircleCenter, EchoWorldWidth * BornCircleToEchoWidthRatio);
+}
+
+bool AReEchoEchoActor::IsBornVfxPlaying() const
+{
+	return CombatVfx && CombatVfx->IsEchoBornEffectActive();
 }
 
 void AReEchoEchoActor::UpdatePresentationState()

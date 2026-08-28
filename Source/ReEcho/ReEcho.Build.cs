@@ -60,5 +60,9 @@ public class ReEcho : ModuleRules
             "ReEchoAudio",
             "Niagara"
         });
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("NiagaraEditor");
+		}
     }
 }

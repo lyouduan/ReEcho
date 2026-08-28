@@ -79,6 +79,17 @@ public:
 	float GetCurrentHealth() const;
 	void ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats);
 	void PlayCardAuraPulse(const FReEchoCardRuleSnapshot& Rules);
+	/** Replays only the one-shot birth presentation at this Echo's current GroundRoot. */
+	bool PlayBornVfx();
+	bool IsBornVfxPlaying() const;
+	/** Positions this Echo for a paused transition while withholding its actor/weapon presentation and birth VFX. */
+	void PrepareDeferredBornReveal(float EncounterTime);
+	/** Hides this Echo at its current playback position and arms a fresh birth reveal. */
+	void PrepareBornRevealAtCurrentLocation();
+	/** Consumes the pending birth VFX while the Echo remains hidden. */
+	bool BeginDeferredBornReveal();
+	/** Makes the prepared Echo and weapon visible; safe to call as transition fail-open cleanup. */
+	void CompleteDeferredBornReveal();
 	virtual bool IsCombatTargetAlive() const override;
 
 	virtual FVector GetCombatTargetLocation() const override
@@ -115,6 +126,21 @@ public:
 	void RefreshSpatialPresentationForTests();
 	FReEchoEchoSpatialPresentationSnapshot CaptureSpatialPresentationForTests() const;
 	const UReEcho2DCharacterPresentationProfile* GetSpatialProfileForTests() const;
+
+	bool IsDeferredBornRevealPreparedForTests() const
+	{
+		return bDeferredBornReveal;
+	}
+
+	bool IsBornVfxPendingForTests() const
+	{
+		return bBornVfxPending;
+	}
+
+	void QueueBornVfxForTests()
+	{
+		bBornVfxPending = true;
+	}
 #endif
 
 	FVector GetAttackAimDirection() const
@@ -139,6 +165,8 @@ public:
 	}
 
 private:
+	bool bBornVfxPending = false;
+	bool bDeferredBornReveal = false;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere)
