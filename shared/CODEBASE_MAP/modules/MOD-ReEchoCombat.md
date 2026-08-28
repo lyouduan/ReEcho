@@ -54,7 +54,7 @@ Combatant。它更新 GAS 基础属性（无 ASC 时更新兼容状态），在�
 `OnHealthChanged` 与 `HealthChanged`；不会调用 `InitializeFromStats`，因此不会清除流血、眩晕、元素或临时属性层。
 UI 和属性面板只订阅最终通知或读取快照，不得在回调中反向写生命。
 
-`FReEchoStatBlock` 还包含 `RoleId`、暴击率/暴击效果、反应效率、投射物数量和武器尺寸等没有映射到 AttributeSet 的语义字段。`InitializeFromStats` 必须先保存完整 StatBlock，再用 ASC 同步其中的 GAS 属性；禁止用一次属性同步把这些非 GAS 字段重置为默认值。武器提交、角色能力和快照都从 Combatant 读取同一份完整语义，不能分别从 Build 与 AttributeSet 推断角色身份。
+`FReEchoStatBlock` 还包含 `RoleId`、暴击率/暴击效果、反应效率、投射物数量和武器尺寸等没有映射到 AttributeSet 的语义字段。`InitializeFromStats` 必须先保存完整 StatBlock，再用 ASC 同步其中的 GAS 属性；禁止用一次属性同步把这些非 GAS 字段重置为默认值。武器提交、角色能力和快照都从 Combatant 读取同一份完整语义，不能分别从 Build 与 AttributeSet 推断角色身份。`bFillHealth=false` 也是击杀/反应后局内属性刷新的正式路径，因此不得清除仍生效的限时无敌；只有 `bFillHealth=true` 的完整初始化才清除旧无敌窗口。
 
 `SetAdditiveAttackModifier(SourceId, Physical, Elemental)` 是通用、按来源替换的临时攻击修正入口：同一来源的新值覆盖旧值而非累加历史差值，最终写回 AttributeSet/兼容 StatBlock。Combat 不读取 CharacterId、能力表或缺血阈值；当前勇者能力由主模块 Player Host 在最终 `HealthChanged` 后计算，再发送这一窄命令。
 

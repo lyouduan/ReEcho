@@ -15,6 +15,12 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 {
 	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	TestFalse(TEXT("Save slot selection rejects a negative index"), Source->SelectSaveSlot(-1));
+	TestFalse(TEXT("Save slot selection rejects an out-of-range index"), Source->SelectSaveSlot(3));
+	TestTrue(TEXT("The third save slot can be selected independently"), Source->SelectSaveSlot(2));
+	TestEqual(TEXT("The selected save slot is authoritative"), Source->GetActiveSaveSlotIndex(), 2);
+	TestTrue(TEXT("The selected slot owns a stable screenshot path"),
+	         Source->GetActiveSaveSlotPreviewPath().EndsWith(TEXT("SaveScreenshots/ReEchoRunSlot3.png")));
 	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	Source->TimeShards = 45;
 	Source->InventoryItems.Add(TEXT("SHOP_OLD_COIN"));
@@ -43,6 +49,12 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 
 	UReEchoRunSaveGame* Snapshot = Source->CreateSaveSnapshot();
 	TestNotNull(TEXT("A save snapshot is created"), Snapshot);
+	TestEqual(TEXT("A save snapshot persists its logical slot"), Snapshot->LogicalSlotIndex, 2);
+	TestTrue(TEXT("A save snapshot persists an actual UTC save time"), Snapshot->SavedAtUtcTicks > 0);
+	TestEqual(TEXT("A save snapshot persists its screenshot file name"),
+	          Snapshot->PreviewScreenshotFileName,
+	          FString(TEXT("SaveScreenshots/ReEchoRunSlot3.png")));
+	TestTrue(TEXT("A save snapshot persists a non-zero unified run seed"), Snapshot->RunSeed != 0);
 	TestTrue(TEXT("A save snapshot persists a non-zero card-offer seed"), Snapshot->TraitOfferSeed != 0);
 	TestTrue(TEXT("A save snapshot persists a non-zero enemy-reward seed"), Snapshot->EnemyShardDropSeed != 0);
 	TestEqual(
@@ -56,6 +68,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(
 	    TEXT("Card-offer seed restores"), Restored->CreateSaveSnapshot()->TraitOfferSeed, Snapshot->TraitOfferSeed);
 	const UReEchoRunSaveGame* RestoredSnapshot = Restored->CreateSaveSnapshot();
+	TestEqual(TEXT("Unified run seed restores"), RestoredSnapshot->RunSeed, Snapshot->RunSeed);
 	TestEqual(TEXT("Enemy-reward seed restores"), RestoredSnapshot->EnemyShardDropSeed, Snapshot->EnemyShardDropSeed);
 	TestEqual(TEXT("Processed enemy reward keys restore"), RestoredSnapshot->RewardedEnemyShardDropKeys.Num(), 1);
 	TestEqual(TEXT("Time Shards restore without an uncollected drop"), Restored->TimeShards, 45);
@@ -99,6 +112,22 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* RetiredRecordingRun = NewObject<UReEchoRunSubsystem>(RetiredRecordingGameInstance);
 	TestFalse(TEXT("A stored recording using retired W_J_02 is explicitly incompatible"),
 	          RetiredRecordingRun->RestoreSaveSnapshot(*RetiredRecordingWeapon));
+
+	UReEchoRunSaveGame* PreUnifiedSeedSave = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
+	PreUnifiedSeedSave->SaveVersion = 23;
+	PreUnifiedSeedSave->RunSeed = 0;
+	UGameInstance* FirstSeedMigrationGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* FirstSeedMigrationRun = NewObject<UReEchoRunSubsystem>(FirstSeedMigrationGameInstance);
+	UGameInstance* SecondSeedMigrationGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* SecondSeedMigrationRun = NewObject<UReEchoRunSubsystem>(SecondSeedMigrationGameInstance);
+	TestTrue(TEXT("A v23 save without the unified seed remains loadable"),
+	         FirstSeedMigrationRun->RestoreSaveSnapshot(*PreUnifiedSeedSave));
+	TestTrue(TEXT("The same v23 save can be migrated repeatedly"),
+	         SecondSeedMigrationRun->RestoreSaveSnapshot(*PreUnifiedSeedSave));
+	const int32 FirstMigratedRunSeed = FirstSeedMigrationRun->CreateSaveSnapshot()->RunSeed;
+	const int32 SecondMigratedRunSeed = SecondSeedMigrationRun->CreateSaveSnapshot()->RunSeed;
+	TestTrue(TEXT("A legacy save receives a non-zero unified run seed"), FirstMigratedRunSeed != 0);
+	TestEqual(TEXT("Legacy unified seed migration is deterministic"), FirstMigratedRunSeed, SecondMigratedRunSeed);
 
 	Snapshot->SaveVersion = 12;
 	Snapshot->OwnedWeaponIds.Reset();
@@ -172,6 +201,10 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Suspended encounter deserializes through SaveGame archive"), DeserializedSnapshot);
 	if (DeserializedSnapshot)
 	{
+		TestEqual(TEXT("Logical slot metadata survives serialization"), DeserializedSnapshot->LogicalSlotIndex, 2);
+		TestEqual(TEXT("Screenshot metadata survives serialization"),
+		          DeserializedSnapshot->PreviewScreenshotFileName,
+		          FString(TEXT("SaveScreenshots/ReEchoRunSlot3.png")));
 		TestEqual(TEXT("Serialized encounter time survives round trip"),
 		          DeserializedSnapshot->EncounterRuntimeState.EncounterTime,
 		          12.5f);
@@ -370,9 +403,90 @@ bool FReEchoV10CharacterIdentityMigrationTest::RunTest(const FString& Parameters
 	         Restored->RestoreSaveSnapshot(*LegacySave));
 	TestEqual(
 	    TEXT("Current build migrates J_CAT to J_SPADE"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
-	TestEqual(TEXT("Base character rule flag migrates to J_SPADE"),
-	          Restored->CurrentBuild.RuleFlags.FindRef(TEXT("BaseCharacterId")),
-	          FString(TEXT("J_SPADE")));
+	TestFalse(TEXT("Legacy base-character flag is consumed during migration"),
+	          Restored->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoV22PromotionRemovalMigrationTest,
+                                 "ReEcho.Run.SaveV22PromotionRemovalMigration",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* SourceGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	Source->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
+	const FReEchoStatBlock OriginalStats = Source->CurrentBuild.Stats;
+	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
+	LegacySave->SaveVersion = 22;
+	LegacySave->CurrentBuild.CharacterId = TEXT("J_HEART");
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("BaseCharacterId"), TEXT("J_DIAMOND"));
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	LegacySave->CurrentBuild.RuleFlags.Add(TEXT("Role"), TEXT("Brave"));
+	LegacySave->CurrentBuild.EquipmentBaseRuleFlags = LegacySave->CurrentBuild.RuleFlags;
+	LegacySave->CurrentBuild.Stats.HpMax = 20.0f;
+	LegacySave->CurrentBuild.Stats.ElementalAttack = 5.0f;
+	LegacySave->CurrentBuild.Stats.MovementSpeed = 1.0f;
+	LegacySave->CurrentBuild.Stats.CriticalRate = 0.2f;
+	LegacySave->CurrentBuild.Stats.CriticalEffect = 0.5f;
+	LegacySave->CurrentBuild.Stats.RoleId = TEXT("Brave");
+	LegacySave->CurrentBuild.EquipmentBaseStats = LegacySave->CurrentBuild.Stats;
+
+	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
+	TestTrue(TEXT("v22 promoted save restores"), Restored->RestoreSaveSnapshot(*LegacySave));
+	TestEqual(TEXT("Migration restores the selected Hunter identity"),
+	          Restored->CurrentBuild.CharacterId,
+	          FName(TEXT("J_DIAMOND")));
+	TestEqual(TEXT("Migration restores the selected Hunter role"),
+	          Restored->CurrentBuild.Stats.RoleId,
+	          FName(TEXT("Hunter")));
+	TestEqual(TEXT("Migration reverses promoted maximum health"),
+	          Restored->CurrentBuild.Stats.HpMax,
+	          OriginalStats.HpMax);
+	TestEqual(TEXT("Migration reverses promoted elemental attack"),
+	          Restored->CurrentBuild.Stats.ElementalAttack,
+	          OriginalStats.ElementalAttack);
+	TestEqual(TEXT("Migration restores the Hunter movement ability"),
+	          Restored->CurrentBuild.Stats.MovementSpeed,
+	          OriginalStats.MovementSpeed);
+	TestEqual(TEXT("Migration restores the Hunter critical-rate ability"),
+	          Restored->CurrentBuild.Stats.CriticalRate,
+	          OriginalStats.CriticalRate);
+	TestFalse(TEXT("Migration consumes BaseCharacterId"),
+	          Restored->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
+	TestFalse(TEXT("Migration consumes Promoted"), Restored->CurrentBuild.RuleFlags.Contains(TEXT("Promoted")));
+	TestFalse(TEXT("Migration consumes Role"), Restored->CurrentBuild.RuleFlags.Contains(TEXT("Role")));
+
+	UReEchoRunSaveGame* RoundTripSave = Restored->CreateSaveSnapshot();
+	UGameInstance* RoundTripGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* RoundTrip = NewObject<UReEchoRunSubsystem>(RoundTripGameInstance);
+	TestTrue(TEXT("Migrated save round-trips"), RoundTrip->RestoreSaveSnapshot(*RoundTripSave));
+	TestEqual(TEXT("Round-trip keeps the selected character"),
+	          RoundTrip->CurrentBuild.CharacterId,
+	          FName(TEXT("J_DIAMOND")));
+
+	UReEchoRunSaveGame* MissingOriginalSave = Source->CreateSaveSnapshot();
+	MissingOriginalSave->SaveVersion = 22;
+	MissingOriginalSave->CurrentBuild.CharacterId = TEXT("J_HEART");
+	MissingOriginalSave->CurrentBuild.RuleFlags.Add(TEXT("BaseCharacterId"), TEXT("RETIRED_CHARACTER"));
+	MissingOriginalSave->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+	MissingOriginalSave->CurrentBuild.Stats.RoleId = TEXT("Hunter");
+	MissingOriginalSave->CurrentBuild.EquipmentBaseRuleFlags = MissingOriginalSave->CurrentBuild.RuleFlags;
+	MissingOriginalSave->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Hunter");
+	UGameInstance* FallbackGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Fallback = NewObject<UReEchoRunSubsystem>(FallbackGameInstance);
+	TestTrue(TEXT("v22 save without a reliable original character restores"),
+	         Fallback->RestoreSaveSnapshot(*MissingOriginalSave));
+	TestEqual(TEXT("Missing original id keeps the current character instead of guessing"),
+	          Fallback->CurrentBuild.CharacterId,
+	          FName(TEXT("J_HEART")));
+	TestEqual(TEXT("Missing original id normalizes role from the kept character"),
+	          Fallback->CurrentBuild.Stats.RoleId,
+	          FName(TEXT("Brave")));
+	TestFalse(TEXT("Fallback migration also consumes legacy flags"),
+	          Fallback->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
 	return true;
 }
 

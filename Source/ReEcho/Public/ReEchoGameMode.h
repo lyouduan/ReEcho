@@ -17,6 +17,7 @@ class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
+class UReEchoEncounterFlowSettings;
 class UReEchoEncounterTransitionWidget;
 class UMediaSoundComponent;
 class UReEchoInventoryShopWidget;
@@ -161,6 +162,7 @@ public:
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
 	static int32 ClearTimeShardPickupsInWorldForTests(UWorld* World);
+	static bool ShouldGrantPostEntryInvulnerabilityForTests(int32 EncounterIndex, float DurationSeconds);
 #endif
 
 private:
@@ -196,6 +198,9 @@ private:
 	TSubclassOf<AReEchoEchoActor> EchoGameplayClass;
 	UPROPERTY(EditDefaultsOnly, Category = "World Pickups")
 	TSubclassOf<AReEchoTimeShardPickupActor> TimeShardPickupClass;
+	/** Dedicated Blueprint class whose Class Defaults own encounter-flow tuning. */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter Flow")
+	TSubclassOf<UReEchoEncounterFlowSettings> EncounterFlowSettingsClass;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()
@@ -350,6 +355,9 @@ private:
 	void HandleContinueGameRequested();
 
 	UFUNCTION()
+	void HandleSaveSlotRequested(int32 SlotIndex);
+
+	UFUNCTION()
 	void HandleStartSettingsRequested();
 
 	UFUNCTION()
@@ -430,6 +438,10 @@ private:
 	void BeginNextEncounter();
 	bool PrepareNextEncounter(bool bDeferActivation);
 	void ActivatePreparedEncounter();
+	void CaptureActiveSaveSlotPreview();
+	void GrantPostEntryInvulnerability(int32 EncounterIndex);
+	float ResolvePostEntryInvulnerabilitySeconds() const;
+	static bool ShouldGrantPostEntryInvulnerability(int32 EncounterIndex, float DurationSeconds);
 	bool InitializeArenaSceneRegistry(FString& OutError);
 	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);

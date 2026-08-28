@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132、Plan145。
 
 ## 存在原因
 
@@ -20,6 +20,7 @@
 - 交付版 Settings 保持“总音量 / 背景音乐 / 音效音量”三滑条；第三条是非音乐聚合控制，同时预览并保存 `Ambience`、`CombatSfx`、`UiSfx`，因此 `Ambience_Rain` 等环境循环不需要额外第四条滑条。
 - 通关后商店的回响存储控件由 `UReEchoInventoryShopWidget` 动态生成，使用底部紧凑缩放托盘承载，避免遮挡商店/装配室主体；存储、跳过、替换与指定回放事件语义保持不变。
 - `WBP_ReEchoSettings` 与 `WBP_ReEchoRestart` 的作者ing Root 是正常表现权威；原生 `BuildWidgetTree()` 只在完全没有 Root 时建立最低可用 fallback，不得因单一可选绑定缺失而覆盖整页。Settings 的运行时 ComboBox/Slider 按稳定名称幂等复用。
+- `WBP_ReEchoStartMenu` 的 `SaveRollbackPanel` 是正式三槽存档页的布局权威；标题、关闭按钮、三行深/浅底板、截图、便签、名称、摘要和时间文本都由 WBP Canvas 直接拥有并可在 Designer 中调整。`UReEchoStartMenuWidget` 只消费 Run 提供的三条只读摘要，切换占用/空槽美术、载入真实截图并广播稳定槽号；它不选择物理 SaveGame 名、不写存档，也不在 C++ 中重建几何。占用槽点击立即读取，空槽意图由 GameMode 解析为第一个空槽，新旧存档兼容和全槽策略归 Run。
 - 三选一卡牌页的三个单槽刷新按钮与样例文案由 `WBP_ReEchoTraitCardChoice` 的 `ShopCardRefreshButton0..2` / `ShopCardRefreshText0..2` 持有，Designer 中可直接预览、拖动与缩放；`UReEchoTraitCardChoiceWidget` 运行时复用这些控件并只更新索引、次数、费用、显隐、启用状态和点击广播。按钮四态统一复用 `T_UI_Pause_ButtonLight`；无 WBP 的原生兜底仍动态创建同款按钮。
 - 商店装配树的卡牌槽框由 `DesignerCardSlot0..11` 的 Button 四态持有，子图层 `DesignerCardSlotArt0..11` 只承载已拥有卡牌内容；`T_UI_Shop110_EmptyCardSlotIcon` 锁图用于左侧 `DesignerPackOfferIcon0..2` 卡组商品位，不进入右侧装配树。
 - `WBP_ReEchoSettings` 的三个分类内容容器、文字字体/颜色与 Slot 布局均由 WBP 作者ing；C++ 只切换容器并绑定设置值/交互。运行时生成的下拉选项从 WBP `GraphicsValue0` 读取字体、颜色和渲染位移，不另设一套程序样式。
@@ -70,6 +71,7 @@
 | 修改页面创建、层级和实例 | `ReEchoUIManagerSubsystem.*` | `UI/Framework/ReEchoUIScreenTypes.h` |
 | 修改焦点、输入或暂停流程 | `UI/Framework/ReEchoUIFlowCoordinatorSubsystem.*` | `ReEchoGameMode` 类型化端点 |
 | 修改暂停/退出确认表现 | `WBP_ReEchoRestart`、`ReEchoRestartWidget.*` | `ReEchoGameMode` 的暂停退出端点 |
+| 修改正式存档回溯页 | `WBP_ReEchoStartMenu` 的 `SaveRollbackPanel` | `ReEchoStartMenuWidget.*`、`ReEchoRunSubsystem` 三槽摘要、`scripts/ue/audit_plan145_start_menu_tree.py` |
 | 修改音频设置页 | `WBP_ReEchoSettings` 的绑定契约 | `ReEchoSettingsWidget.*`、`MOD-ReEchoAudio.md` |
 | 修改通用按钮反馈 | `UI/Framework/ReEchoButtonVisualFeedback.*` | `ReEchoUIFlowCoordinatorSubsystem.*`、`FReEchoAudioEvents`、具体结果宿主 |
 

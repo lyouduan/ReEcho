@@ -2,6 +2,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "Engine/GameInstance.h"
+#include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Cards/ReEchoCardRuntime.h"
@@ -409,6 +410,43 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 			          InitialPage.SlotOffers[SlotIndex].Price);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFreshRunShopSeedTest,
+                                 "ReEcho.Shop.FreshRunsUseDistinctOfferSeeds",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFreshRunShopSeedTest::RunTest(const FString& Parameters)
+{
+	TSet<int32> RunSeeds;
+	TSet<FString> ShopSignatures;
+	constexpr int32 SampleRunCount = 16;
+	for (int32 RunIndex = 0; RunIndex < SampleRunCount; ++RunIndex)
+	{
+		UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+		RunSubsystem->StartRun(TEXT("J_SPADE"), TEXT("W_J_09"));
+
+		const UReEchoRunSaveGame* Snapshot = RunSubsystem->CreateSaveSnapshot();
+		if (!TestNotNull(TEXT("Fresh run produces a save snapshot"), Snapshot))
+		{
+			return false;
+		}
+		RunSeeds.Add(Snapshot->RunSeed);
+
+		FString Signature;
+		for (const FReEchoWeaponSlotOffer& Offer : RunSubsystem->GetWeaponPartShopView().SlotOffers)
+		{
+			Signature += Offer.ItemId.ToString();
+			Signature += TEXT("|");
+		}
+		ShopSignatures.Add(MoveTemp(Signature));
+	}
+
+	TestTrue(TEXT("Fresh runs do not reuse one deterministic random root"), RunSeeds.Num() > 1);
+	TestTrue(TEXT("Identical run inputs can produce more than one initial weapon/rune shop page"),
+	         ShopSignatures.Num() > 1);
 	return true;
 }
 
