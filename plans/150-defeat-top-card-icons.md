@@ -49,7 +49,7 @@
 - [x] `DefeatTraitCountValue` 显示 `CardState.OwnedCardIds.Num()` 的真实构筑数量。
 - [x] Victory、Pause、失败重开、返回主菜单、按钮悬停和既有 WBP 几何无回归。
 - [x] 功能结果有聚焦自动化和运行时/资产可观察证据。
-- [ ] 必需构建、项目校验、格式与差异检查通过。
+- [x] 必需构建、项目校验、格式与差异检查通过。
 - [ ] 失败结算卡图填充、裁切与可读性经人工 PIE 验收。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -101,6 +101,10 @@
 - `ReEcho.Shop`：16 项全部通过，确认抽取共用投影后商店行为无回归。
 - `audit_plan150_defeat_card_icons.py`：输出 `[Plan150DefeatCardsAudit] five square card-icon overlays are valid`，并在审计末尾成功编译目标 WBP。
 - `python scripts/validate_project.py` 与 `git diff --check`：通过。
+- 持有 `main-publish-lock` 的最终组合候选执行 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：`Result: Succeeded`，精选包为 `modules=7 build_id=55116800 source=78c3ad030f03`；仅有既存 `FImageUtils::CompressImageArray` 弃用警告。
+- 最终 `CompileAllBlueprints`：`0 errors / 0 warnings / 0 blueprints that failed to load`；命令汇总另列 4 条既有引擎/Legacy 提示。
+- 最终 `ReEcho.UI.RestartWidgetPresentation`：1/1 `Result={Success}`；最终 `ReEcho.Shop`：16/16 `Result={Success}`。
+- 最终 `python scripts/ue/prebuilt_editor.py check`、`python scripts/validate_project.py`、`python scripts/setup_lfs.py --check`、`git lfs status`、`git lfs fsck` 与 `git diff --check` 均通过。
 
 ### 剩余风险
 
