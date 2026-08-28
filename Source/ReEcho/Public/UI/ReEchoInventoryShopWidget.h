@@ -134,6 +134,8 @@ private:
 	void RebuildTargetOfferRows();
 	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
+	void BindOwnedCardPagination();
+	void UpdateOwnedCardPaginationControls();
 	void RebuildAttachmentHoverSlots();
 	void RebuildAttachmentSlotMapping();
 	void RebuildEquippedWeaponDisplay();
@@ -194,6 +196,10 @@ private:
 
 	UFUNCTION()
 	void HandleEchoStorageCardSlotClicked();
+	UFUNCTION()
+	void HandleOwnedCardPageLeftClicked();
+	UFUNCTION()
+	void HandleOwnedCardPageRightClicked();
 
 	UFUNCTION()
 	void HandleEchoPopupCloseClicked();
@@ -415,8 +421,19 @@ private:
 	TArray<TObjectPtr<UButton>> DesignerCardSlotButtons;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerCardSlotArts;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> DesignerCardPageCounter;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> DesignerCardPageLeftButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> DesignerCardPageRightButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UReEchoButtonVisualFeedback> DesignerCardPageLeftVisualFeedback;
+	UPROPERTY(Transient)
+	TObjectPtr<UReEchoButtonVisualFeedback> DesignerCardPageRightVisualFeedback;
 
 	TArray<FReEchoShopOffer> DisplayedOwnedCards;
+	int32 ActiveOwnedCardPage = 0;
 
 	// ---- inline echo panel (origin/main layout) ----
 	UPROPERTY(Transient)

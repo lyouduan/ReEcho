@@ -530,11 +530,12 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	{
 		UReEchoIndexedButton* RefreshButton = Cast<UReEchoIndexedButton>(
 		    Choice->GetWidgetFromName(*FString::Printf(TEXT("ShopCardRefreshButton%d"), SlotIndex)));
-		UTextBlock* RefreshText = Cast<UTextBlock>(
-		    Choice->GetWidgetFromName(*FString::Printf(TEXT("ShopCardRefreshText%d"), SlotIndex)));
+		UTextBlock* RefreshText =
+		    Cast<UTextBlock>(Choice->GetWidgetFromName(*FString::Printf(TEXT("ShopCardRefreshText%d"), SlotIndex)));
 		TestTrue(*FString::Printf(TEXT("Designer refresh button %d is visible and freely draggable"), SlotIndex),
 		         RefreshButton && RefreshButton->GetVisibility() == ESlateVisibility::Visible &&
-		             RefreshButton->GetParent() && RefreshButton->GetParent()->GetName() == TEXT("TraitCardContainer") &&
+		             RefreshButton->GetParent() &&
+		             RefreshButton->GetParent()->GetName() == TEXT("TraitCardContainer") &&
 		             Cast<UCanvasPanelSlot>(RefreshButton->Slot));
 		TestTrue(*FString::Printf(TEXT("Designer refresh button %d has representative copy"), SlotIndex),
 		         RefreshText && RefreshText->GetParent() == RefreshButton && !RefreshText->GetText().IsEmpty());
@@ -544,8 +545,8 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	for (int32 SlotIndex = 0; SlotIndex < AuthoredRefreshButtons.Num(); ++SlotIndex)
 	{
 		TestTrue(*FString::Printf(TEXT("Runtime reuses Designer refresh button %d"), SlotIndex),
-		         AuthoredRefreshButtons[SlotIndex] == Choice->GetWidgetFromName(
-		                                                   *FString::Printf(TEXT("ShopCardRefreshButton%d"), SlotIndex)));
+		         AuthoredRefreshButtons[SlotIndex] ==
+		             Choice->GetWidgetFromName(*FString::Printf(TEXT("ShopCardRefreshButton%d"), SlotIndex)));
 	}
 	for (const FName ObsoleteWidgetName :
 	     {FName(TEXT("SubtitleText")), FName(TEXT("CurrencyText")), FName(TEXT("NeedleWidget"))})
@@ -718,32 +719,29 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UTexture2D* ExpectedPartIcon = LoadObject<UTexture2D>(
 	    nullptr, TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_TIDE.T_UI_Part_P_CORE_TIDE"));
 	UImage* OfferPartIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferIcon0")));
-	UTextBlock* OfferPartName =
-	    Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferDescription0")));
+	UTextBlock* OfferPartName = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferDescription0")));
 	TestNotNull(TEXT("Mapped weapon-part icon asset loads"), ExpectedPartIcon);
 	TestTrue(TEXT("Weapon-part offer uses its PartId icon instead of the attachment placeholder"),
 	         OfferPartIcon && OfferPartIcon->GetBrush().GetResourceObject() == ExpectedPartIcon);
 	TestTrue(TEXT("Weapon-part offer surface shows only the rune name; its tooltip owns the effect"),
 	         OfferPartName && OfferPartName->GetText().EqualTo(WeaponPart.DisplayName));
-	UTextBlock* PackTierLabel =
-	    Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferDescription0")));
+	UTextBlock* PackTierLabel = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferDescription0")));
 	TestEqual(TEXT("Card-pack offer surface shows only its tier label"),
 	          PackTierLabel ? PackTierLabel->GetText().ToString() : FString(),
 	          FString(TEXT("一级卡组")));
 	UButton* AuthoredRefreshButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("ShopRefreshButton")));
 	const UImage* AuthoredRefreshArt =
 	    AuthoredRefreshButton ? Cast<UImage>(AuthoredRefreshButton->GetContent()) : nullptr;
-	UTexture2D* ExpectedRefreshTexture = LoadObject<UTexture2D>(
-	    nullptr,
-	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
-	         "T_UI_Shop110_RefreshButton.T_UI_Shop110_RefreshButton"));
+	UTexture2D* ExpectedRefreshTexture =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	                                "T_UI_Shop110_RefreshButton.T_UI_Shop110_RefreshButton"));
 	TestTrue(TEXT("Legacy refresh status text cannot replace the authored refresh button art"),
 	         AuthoredRefreshArt && ExpectedRefreshTexture &&
 	             AuthoredRefreshArt->GetBrush().GetResourceObject() == ExpectedRefreshTexture);
 	UReEchoIndexedButton* OwnedWeaponBuy =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy1")));
-	UTextBlock* OwnedWeaponBuyText =
-	    Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy1Label")));
+	UTextBlock* OwnedWeaponBuyText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy1Label")));
 	TestTrue(TEXT("An owned weapon retained on the stable page is projected as unavailable"),
 	         OwnedWeaponBuy && !OwnedWeaponBuy->GetIsEnabled());
 	TestTrue(TEXT("An owned weapon retained on the stable page is labelled as already obtained"),
@@ -758,8 +756,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UImage* DesignerWeaponPanel = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponPanel")));
 	TestNotNull(TEXT("Weapon panel is authored as a direct Canvas child"),
 	            DesignerWeaponPanel ? Cast<UCanvasPanelSlot>(DesignerWeaponPanel->Slot) : nullptr);
-	UButton* EquippedWeaponButton =
-	    Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerWeaponInteractionButton")));
+	UButton* EquippedWeaponButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerWeaponInteractionButton")));
 	UImage* EquippedWeaponArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerWeaponInteractionArt")));
 	UTexture2D* ExpectedWeaponTexture = LoadObject<UTexture2D>(nullptr, *PartShopView.WeaponIconTexturePath);
 	TestNotNull(TEXT("Current weapon has a clickable overlay in the authored weapon panel"), EquippedWeaponButton);
@@ -888,10 +885,10 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	             EchoPanelScale->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
 	UButton* PurchasedCardSlot = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardSlot1")));
 	UImage* PurchasedCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt1")));
-	UTexture2D* ExpectedCardSlotFrame = LoadObject<UTexture2D>(
-	    nullptr,
-	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
-	         "T_UI_Shop110_LoadoutCardSlot.T_UI_Shop110_LoadoutCardSlot"));
+	UTexture2D* ExpectedCardSlotFrame =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	                                "T_UI_Shop110_LoadoutCardSlot.T_UI_Shop110_LoadoutCardSlot"));
 	TestNotNull(TEXT("The next authored card slot exists"), PurchasedCardSlot);
 	TestNull(TEXT("An unowned card is absent from the loadout before purchase"),
 	         PurchasedCardSlot ? PurchasedCardSlot->GetToolTip() : nullptr);
@@ -944,10 +941,10 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		}
 		if (Index == 0)
 		{
-			UTexture2D* ExpectedSlotFrame = LoadObject<UTexture2D>(
-			    nullptr,
-			    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
-			         "T_UI_Shop110_WeaponLoadoutSlot.T_UI_Shop110_WeaponLoadoutSlot"));
+			UTexture2D* ExpectedSlotFrame =
+			    LoadObject<UTexture2D>(nullptr,
+			                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+			                                "T_UI_Shop110_WeaponLoadoutSlot.T_UI_Shop110_WeaponLoadoutSlot"));
 			TestTrue(TEXT("Equipped attachment keeps the formal slot frame in the button background"),
 			         AttachmentSlotButton && ExpectedSlotFrame &&
 			             AttachmentSlotButton->GetStyle().Normal.GetResourceObject() == ExpectedSlotFrame);
@@ -958,6 +955,64 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 			          ESlateVisibility::HitTestInvisible);
 		}
 	}
+
+	FReEchoWeaponPartShopView PaginatedCardView = PartShopView;
+	PaginatedCardView.OwnedCards.Reset();
+	for (int32 CardIndex = 0; CardIndex < 13; ++CardIndex)
+	{
+		FReEchoShopOffer Card = StorageCard;
+		Card.ItemId = FName(*FString::Printf(TEXT("TEST_PAGINATED_CARD_ITEM_%d"), CardIndex));
+		Card.ContentId = FName(*FString::Printf(TEXT("TEST_PAGINATED_CARD_%d"), CardIndex));
+		Card.DisplayName = FText::FromString(FString::Printf(TEXT("Paginated card %d"), CardIndex));
+		Card.IconTexturePath = CardIndex < 12 ? StorageCard.IconTexturePath : PurchasedCard.IconTexturePath;
+		PaginatedCardView.OwnedCards.Add(Card);
+	}
+	Widget->SetWeaponPartShopView(PaginatedCardView);
+	UTextBlock* CardPageCounter = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPageCounter")));
+	UButton* CardPageLeftButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardPageLeftButton")));
+	UButton* CardPageRightButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardPageRightButton")));
+	UImage* CardPageRightArrow = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtFormalPageRight")));
+	UImage* FirstVisibleCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt0")));
+	UTexture2D* ExpectedFirstPageCardIcon = LoadObject<UTexture2D>(nullptr, *StorageCard.IconTexturePath);
+	UTexture2D* ExpectedSecondPageCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
+	TestEqual(TEXT("Owned-card loadout starts on page one"),
+	          CardPageCounter ? CardPageCounter->GetText().ToString() : FString(),
+	          FString(TEXT("1/2")));
+	TestTrue(TEXT("Page one displays the first twelve owned cards in the authored slot geometry"),
+	         FirstVisibleCardArt && ExpectedFirstPageCardIcon &&
+	             FirstVisibleCardArt->GetBrush().GetResourceObject() == ExpectedFirstPageCardIcon);
+	TestTrue(TEXT("Owned-card loadout binds both authored page arrows"), CardPageLeftButton && CardPageRightButton);
+	TestFalse(TEXT("Page-one left arrow is disabled"), CardPageLeftButton && CardPageLeftButton->GetIsEnabled());
+	TestTrue(TEXT("Page-one right arrow is enabled"), CardPageRightButton && CardPageRightButton->GetIsEnabled());
+	if (CardPageRightButton && CardPageRightArrow)
+	{
+		const FVector2D RestingArrowScale = CardPageRightArrow->GetRenderTransform().Scale;
+		CardPageRightButton->OnHovered.Broadcast();
+		TestTrue(TEXT("Page arrow scales from its authored size on hover"),
+		         CardPageRightArrow->GetRenderTransform().Scale.Equals(RestingArrowScale * 1.05f));
+		CardPageRightButton->OnUnhovered.Broadcast();
+		TestTrue(TEXT("Page arrow restores its authored size after hover"),
+		         CardPageRightArrow->GetRenderTransform().Scale.Equals(RestingArrowScale));
+	}
+	if (CardPageRightButton)
+	{
+		CardPageRightButton->OnClicked.Broadcast();
+	}
+	TestEqual(TEXT("Right arrow switches the owned-card loadout to page two"),
+	          CardPageCounter ? CardPageCounter->GetText().ToString() : FString(),
+	          FString(TEXT("2/2")));
+	TestTrue(TEXT("The thirteenth owned card reuses page one's first authored slot on page two"),
+	         FirstVisibleCardArt && ExpectedSecondPageCardIcon &&
+	             FirstVisibleCardArt->GetBrush().GetResourceObject() == ExpectedSecondPageCardIcon);
+	TestTrue(TEXT("Page-two left arrow is enabled"), CardPageLeftButton && CardPageLeftButton->GetIsEnabled());
+	TestFalse(TEXT("Page-two right arrow is disabled"), CardPageRightButton && CardPageRightButton->GetIsEnabled());
+	if (CardPageLeftButton)
+	{
+		CardPageLeftButton->OnClicked.Broadcast();
+	}
+	TestEqual(TEXT("Left arrow returns the owned-card loadout to page one"),
+	          CardPageCounter ? CardPageCounter->GetText().ToString() : FString(),
+	          FString(TEXT("1/2")));
 
 	FReEchoWeaponPartShopView DualSlotView = PartShopView;
 	DualSlotView.Slots.Reset();
@@ -991,14 +1046,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		DualSlotView.EquippedParts.Add(EquippedSnapshot);
 	}
 	Widget->SetWeaponPartShopView(DualSlotView);
-	UCanvasPanel* DualLayout =
-	    Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerDualAttachmentLayout")));
+	UCanvasPanel* DualLayout = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerDualAttachmentLayout")));
 	TestTrue(TEXT("G_3_22 capacity projection activates the authored five-slot layout"),
 	         DualLayout && DualLayout->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
 	for (int32 Index = 0; Index < 5; ++Index)
 	{
-		UButton* DualSlotButton = Cast<UButton>(
-		    Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlot%d"), Index)));
+		UButton* DualSlotButton =
+		    Cast<UButton>(Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlot%d"), Index)));
 		const UCanvasPanelSlot* DualCanvasSlot =
 		    DualSlotButton ? Cast<UCanvasPanelSlot>(DualSlotButton->Slot) : nullptr;
 		TestNotNull(*FString::Printf(TEXT("Dual attachment slot %d is authored"), Index), DualSlotButton);
