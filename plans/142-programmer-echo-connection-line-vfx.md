@@ -1,4 +1,4 @@
-# Plan 142 - 程序 - 回响连接线卡牌特效
+# Plan 142 - 程序 - 回响连接线与出生法阵特效
 
 ## 协调
 
@@ -10,10 +10,11 @@
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@73030025dc262fe82fc4f530c5b1f9154c946a7d`。
 - 本地实现方式：独立 worktree `C:\tmp\ReEcho-plan142-echo-connection-vfx`，分支 `codex/plan142-echo-connection-vfx`。
-- 依赖 / 阻塞：卡牌 `G_2_30` 已通过 `FReEchoCardRuleSnapshot::bConnectionLineDamage` 驱动正式穿线伤害；外部交付资产为 `F:\Content\VFX\Echo\Particle\NS_Echo_Chain.uasset`。
+- 依赖 / 阻塞：卡牌 `G_2_30` 已通过 `FReEchoCardRuleSnapshot::bConnectionLineDamage` 驱动正式穿线伤害；外部交付资产为 `F:\Content\VFX\Echo\Particle\NS_Echo_Chain.uasset`。出生法阵复用仓库已有 Goat 地面法阵结构与 Echo 材质/纹理依赖，不修改共享 Boss 原资源。
 - Writes:
   - `plans/142-programmer-echo-connection-line-vfx.md`
   - `Content/VFX/Echo/Particle/NS_Echo_Chain.uasset`
+  - `Content/VFX/Echo/Particle/NS_Echo_Born.uasset`
   - `Content/VFX/Echo/MI/BaseVFX003_Inst25.uasset`
   - `Content/01_Textures/02_Turbulence/Tur_C080.uasset`
   - `Content/01_Textures/02_Turbulence/Tur_C090.uasset`
@@ -21,10 +22,14 @@
   - `Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxCatalog.cpp`
   - `Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxComponent.h`
   - `Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`
+  - `Source/ReEcho/Public/Graybox/ReEchoEchoActor.h`
+  - `Source/ReEcho/Private/Graybox/ReEchoEchoActor.cpp`
+  - `Source/ReEcho/Public/ReEchoGameMode.h`
   - `Source/ReEcho/Private/ReEchoGameMode.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoGameModeTests.cpp`（仅在现有测试夹具可稳定覆盖同步入口时）
   - `scripts/ue/audit_plan142_echo_chain_vfx.py`
+  - `scripts/ue/create_plan142_echo_born_vfx.py`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - FullRebuild 刷新的 `Binaries/Win64/ReEchoEditor.prebuilt.json` 及其准确允许列表产物
@@ -40,25 +45,29 @@
   - `Source/ReEcho/Public/Combat/ReEchoCombatTarget.h`
   - `Source/ReEcho/Private/ReEchoGameMode.cpp`
   - 已存在的 `/Game/VFX/Element/Elctricity/MI/BaseVFX003_Inst1`、`Inst27`、`Inst28` 与 `/Game/Mat/BaseVFX003`
-- 影响模式：`SharedContract`；新增 Cards 规则到 VFX adapter 的持续连接表现，但不改变 Cards 或 Combat 公共状态所有权。
+- 影响模式：`SharedContract`；新增 Cards 规则到 VFX adapter 的持续连接表现，并新增 Echo 初始化成功后的单次出生表现，但不改变 Cards、Combat、Recording 或 Echo 生命周期公共状态所有权。
 - 兼容承诺 / 下游操作：`G_2_30` 的伤害公式、穿越判定、敌人命中频率、玩家/回响位置和多回响循环保持现状；缺失或失效 VFX 只能少表现，不能阻止卡牌伤害。
-- 明确排除：不修改 XLSX/CSV、卡牌数值、伤害公式、穿线算法、Echo 数量、回放、武器、导电特效或外部 Echo Water/Grass/LevelSequence 资产；不导入 `NS_Echo_Chain` 实际引用闭包之外的资源。
+- 明确排除：不修改 XLSX/CSV、卡牌数值、伤害公式、穿线算法、Echo 数量、回放、武器、导电特效或外部 Echo Water/Grass/LevelSequence 资产；不导入 `NS_Echo_Chain` 实际引用闭包之外的资源；出生法阵不增加无敌、移动/攻击门禁、角色淡入或录制延迟，不修改 `NS_Goat_Skill03_Alarming` 及其共享材质。
 
 ## 锁定目标
 
 持有 `G_2_30「连接，连接！」` 时，角色本体与每个存活回响之间各维持一条 `NS_Echo_Chain` 链接；双方移动时端点连续跟随。双回响必须显示两条并与现有两条玩法伤害线一致。卡牌未生效、任一端死亡/失效、回响移除、遭遇结束或宿主 EndPlay 时，准确清理对应链接且无残留。资源缺失时玩法继续。
+
+每个回响仅在外观、录制、武器和战斗属性全部初始化成功后，于其 `GroundRoot` 当前世界位置播放一次独立 `NS_Echo_Born`。法阵平行并贴合地面、使用世界尺寸、生成后留在出生点且不跟随回响移动；双回响各播放一次。资源缺失时回响仍正常初始化和回放。Development `GMEchoBorn` 只在当前存活回响的地面位置重播表现，不生成回响或修改玩法状态。
 
 ## 架构影响与设计决策
 
 - 受影响架构标识：`MOD-ReEcho`、`AREA-Cards`、`AREA-Presentation`、`AREA-Tests`；`MOD-ReEchoCards` 仅稳定读取，不改变其契约。
 - 对应模块文档：维护 `shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md` 的卡牌持续链接生命周期和资产契约；维护 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 的 GameMode Cards→Presentation 接线；两者已加入 Writes。审阅 `MOD-ReEchoCards.md`，规则快照所有权不变则不制造正文 diff。
 - 设计意图：Cards 继续只声明 `bConnectionLineDamage`，GameMode 在既有 Encounter tick 读取同一规则和存活 Echo 集合，VFX Component 只维护 Niagara 组件与端点；不得把表现 Actor 或 Niagara 状态写回 Cards/Combat。
+- 出生表现设计：Echo Actor 在 `InitializeEcho` 成功路径调用 VFX adapter；`GroundRoot` 是落点高度和位置权威，Niagara 是一次性世界特效，不成为 Echo 初始化、回放、攻击或存活状态的权威。GM 入口复用同一播放函数。
 - 权威状态与依赖：现有 Player/Echo Actor XY 仍是穿线伤害线段权威。视觉端点使用相同 XY，并只从双方 `HurtVfxRoot` 取得各自 Z 高度，避免表现偏移改变玩法几何。每个 Echo 的 Link 由 Player 的 VFX Component 以 weak Echo key 独立拥有。
 - 决策记录：
   1. 外部包字符串闭包显示 Chain 直接引用 Echo `BaseVFX003_Inst25` 和仓库已有 Electricity `Inst1/27/28`；`Inst25` 再引用缺失 `Tur_C080/Tur_C090` 及仓库已有 `Hor_C062/Mas_C010/BaseVFX003`。仅导入 Chain、Inst25、Tur_C080、Tur_C090。
   2. 不把 Niagara Component 附着到 Player 或 Echo；以世界原点、identity rotation、World Space 参数更新两个端点，避免双重 Local/World Transform。资源导入后必须用 UE 读回确认真实参数类型和 End 语义；若不是可无损适配的双端点系统则停止接入并报告。
   3. 多回响一对一映射，新增/保留/移除均按存活集合差量同步；不每帧重新 Spawn。
   4. GameMode 只传规则开关与 Echo Actor 集合，不直接持有 Niagara Component；VFX 缺失 fail-open。
+  5. `NS_Echo_Born` 从 `NS_Goat_Skill03_Alarming` 复制为独立资产，再只在副本内调整一次性时长、地面朝向和 Echo 配色可用参数；不得修改 Boss 原 System 或共享材质。无法安全改色时保留独立候选并交由 PIE/美术调色，不扩大共享资产范围。
 - 相关文档同步范围：更新 `MOD-ReEchoVFX.md` 与 `MOD-ReEcho.md`；审阅 `ARCHITECTURE.md`、`README.md`、`MOD-ReEchoCards.md`，模块拓扑、稳定标识和 Cards 规则所有权不变时记录无需修改。
 - 关闭前逐项填写审阅结果：待实现、自动化及 PIE 验收后补充。
 
@@ -70,6 +79,9 @@
 - [ ] 卡牌关闭、对象死亡/失效、Echo 集合变化、遭遇结束和 EndPlay 均准确清理；资源失败不影响现有物理伤害。
 - [ ] Development FullRebuild、VFX/GameMode 聚焦自动化、`python scripts/validate_project.py`、预构建检查和 `git diff --check` 通过。
 - [ ] 用户在 PIE 验收端点高度、遮挡、亮度、宽度、移动稳定性及双回响画面。
+- [ ] `NS_Echo_Born` 独立加载且不覆盖 Goat 原资源；法阵以 `GroundRoot` 世界位置生成、平行贴地、一次性结束并留在出生点。
+- [ ] Echo 初始化失败不播放法阵；单/双 Echo 成功初始化分别播放一/两次；资源缺失 fail-open；`GMEchoBorn` 只重播表现。
+- [ ] 用户在 PIE 验收出生法阵颜色、大小、贴地、透明排序、亮度、结束残留和双回响画面。
 
 ## Step 0 门禁
 
@@ -85,7 +97,8 @@
 2. 在 VFX Catalog 注册卡牌链接语义；在 Player VFX Component 中维护 `Echo -> NiagaraComponent` 映射，按规则与存活集合差量同步，并每帧更新双方世界端点。
 3. 在 GameMode 既有 Cards Encounter tick 中调用同步入口，复用其同一份 RuleSnapshot 和 Echo 集合；所有停止路径调用清理。
 4. 扩充资产契约和生命周期自动化，更新模块文档与 Plan 执行记录。
-5. 冻结候选后执行完整门禁，最后请求 PIE 视觉验收。
+5. 复制 Goat 地面法阵为独立 Echo Born System，审计依赖与 Renderer 后，在 Catalog 注册 `EchoBorn`；Echo 初始化成功路径和 Development GM 入口均调用 VFX adapter 的同一世界落点播放函数。
+6. 冻结候选后执行完整门禁，最后请求 PIE 视觉验收。
 
 ## 验证矩阵
 
@@ -96,6 +109,9 @@
 | 自动化 | `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.VFX.Catalog` 及具名 GameMode/VFX 链接测试 | Catalog、端点更新、多 Echo 差量生命周期、清理和 fail-open 通过 |
 | 静态 | `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check` | 数据无漂移、预构建指纹和差异格式通过 |
 | 人工 PIE | 授予 `G_2_30`，单/双 Echo 移动并让敌人穿线 | 视觉与伤害线一致、无抖动残留、亮度宽度可接受 |
+| 出生法阵资源 | UE 加载/依赖/Emitter/Renderer/朝向审计 | 独立 `NS_Echo_Born` 可加载，Goat 原资源未修改，全部硬依赖存在 |
+| 出生法阵自动化 | VFX Catalog + Echo 初始化/GM 聚焦测试 | 成功初始化播放、失败不播放、世界 GroundRoot 落点、双 Echo 独立和 GM 纯表现契约通过 |
+| 出生法阵 PIE | 单/双 Echo 自然出生与 `GMEchoBorn` 重播 | 贴地平行、留在出生点、一次性结束、颜色/尺寸/排序可接受，无玩法时序变化 |
 
 ## 执行记录
 
