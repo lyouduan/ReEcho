@@ -2368,7 +2368,7 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 bool AReEchoGameMode::ShouldGrantPostEntryInvulnerability(const int32 EncounterIndex,
                                                            const float DurationSeconds)
 {
-	return EncounterIndex > 1 && DurationSeconds > 0.0f;
+	return EncounterIndex > 0 && DurationSeconds > 0.0f;
 }
 
 float AReEchoGameMode::ResolvePostEntryInvulnerabilitySeconds() const

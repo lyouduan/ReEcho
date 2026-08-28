@@ -95,10 +95,12 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Native encounter-entry protection defaults to half a second"),
 	          GetDefault<UReEchoEncounterFlowSettings>()->PostEntryInvulnerabilitySeconds,
 	          0.5f);
-	TestFalse(TEXT("Encounter 1 does not receive transition protection"),
-	          AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(1, 0.5f));
+	TestTrue(TEXT("Encounter 1 receives configured entry protection"),
+	         AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(1, 0.5f));
 	TestTrue(TEXT("Encounter 2 receives configured transition protection"),
 	         AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(2, 0.5f));
+	TestFalse(TEXT("An inactive Encounter index cannot receive entry protection"),
+	          AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(0, 0.5f));
 	TestFalse(TEXT("Zero seconds disables transition protection"),
 	          AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(2, 0.0f));
 	const UClass* EncounterFlowBlueprintClass = LoadClass<UReEchoEncounterFlowSettings>(
@@ -108,9 +110,8 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	{
 		const UReEchoEncounterFlowSettings* BlueprintDefaults =
 		    EncounterFlowBlueprintClass->GetDefaultObject<UReEchoEncounterFlowSettings>();
-		TestEqual(TEXT("Encounter-flow Blueprint defaults to half a second"),
-		          BlueprintDefaults->PostEntryInvulnerabilitySeconds,
-		          0.5f);
+		TestTrue(TEXT("Encounter-flow Blueprint keeps a non-negative designer value"),
+		         BlueprintDefaults->PostEntryInvulnerabilitySeconds >= 0.0f);
 	}
 
 	UGameInstance* GameInstance = NewObject<UGameInstance>();

@@ -16,7 +16,7 @@ class REECHO_API UReEchoEncounterFlowSettings : public UObject
 	GENERATED_BODY()
 
 public:
-	/** Invulnerability granted when the player regains control in Encounter 2 and later. Zero disables it. */
+	/** Invulnerability granted whenever the player regains control at the start of an Encounter. Zero disables it. */
 	UPROPERTY(EditDefaultsOnly,
 	          BlueprintReadOnly,
 	          Category = "Encounter|Player Protection",
