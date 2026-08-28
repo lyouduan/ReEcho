@@ -797,6 +797,10 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	}
 	UCanvasPanel* WeaponBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("WeaponBackpackPopupPanel")));
 	UCanvasPanel* BackpackPopupLayer = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupLayer")));
+	UBorder* WeaponBackpackFrame = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("WeaponBackpackFrame")));
+	UBorder* WeaponBackpackSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("WeaponBackpackSurface")));
+	UBorder* WeaponBackpackItemFrame = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItemFrame0")));
+	UBorder* WeaponBackpackItemSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItemSurface0")));
 	UReEchoIndexedButton* CurrentWeaponButton =
 	    Cast<UReEchoIndexedButton>(Widget->GetWidgetFromName(TEXT("WeaponBackpackItem0")));
 	UReEchoIndexedButton* AlternateWeaponButton =
@@ -809,6 +813,14 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	         WeaponBackpack && WeaponBackpack->GetParent() == BackpackPopupLayer);
 	TestTrue(TEXT("Backpack popup layer renders above the shop and echo presentation"),
 	         BackpackLayerSlot && BackpackLayerSlot->GetZOrder() == 100);
+	TestTrue(TEXT("Weapon backpack matches the white-frame black-surface card tooltip style"),
+	         WeaponBackpackFrame && WeaponBackpackSurface &&
+	             WeaponBackpackFrame->GetBrushColor().Equals(FLinearColor::White) &&
+	             WeaponBackpackSurface->GetBrushColor().Equals(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f)));
+	TestTrue(TEXT("Weapon backpack entries use the same framed dark style"),
+	         WeaponBackpackItemFrame && WeaponBackpackItemSurface &&
+	             WeaponBackpackItemFrame->GetBrushColor().Equals(FLinearColor::White) &&
+	             WeaponBackpackItemSurface->GetBrushColor().Equals(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f)));
 	TestTrue(TEXT("Current weapon is listed and cannot be equipped twice"),
 	         CurrentWeaponButton && !CurrentWeaponButton->GetIsEnabled());
 	TestTrue(TEXT("Another owned weapon is selectable"),
@@ -848,6 +860,9 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	UCanvasPanel* RuneBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupPanel")));
 	UScrollBox* RuneBackpackScroll = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("BackpackPopupScroll")));
 	UBorder* RuneBackpackSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackPopupSurface")));
+	UBorder* RuneBackpackFrame = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackPopupFrame")));
+	UBorder* RuneBackpackItemFrame = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackItemFrame0")));
+	UBorder* RuneBackpackItemSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackItemSurface0")));
 	UTextBlock* RuneBackpackTitle = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackPopupTitle")));
 	UTextBlock* RuneBackpackItemName = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackItemName0")));
 	TestTrue(TEXT("Rune backpack is parented to the same root-level popup layer"),
@@ -855,6 +870,12 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Rune backpack uses the same framed scroll layout as the weapon backpack"),
 	         RuneBackpackSurface && RuneBackpackScroll && RuneBackpackTitle && RuneBackpackItemName &&
 	             RuneBackpackTitle->GetFont().Size == 20 && RuneBackpackItemName->GetFont().Size == 17);
+	TestTrue(TEXT("Rune backpack and its entries match the card tooltip chrome"),
+	         RuneBackpackFrame && RuneBackpackSurface && RuneBackpackItemFrame && RuneBackpackItemSurface &&
+	             RuneBackpackFrame->GetBrushColor().Equals(FLinearColor::White) &&
+	             RuneBackpackSurface->GetBrushColor().Equals(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f)) &&
+	             RuneBackpackItemFrame->GetBrushColor().Equals(FLinearColor::White) &&
+	             RuneBackpackItemSurface->GetBrushColor().Equals(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f)));
 	TestNull(TEXT("Hover detail does not add another fixed panel over the authored board"),
 	         Widget->GetWidgetFromName(TEXT("SlotDetailPanel")));
 	TestNull(TEXT("Retired black loadout stats board is removed from the authored hierarchy"),
