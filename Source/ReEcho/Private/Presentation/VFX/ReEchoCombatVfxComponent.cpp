@@ -756,6 +756,21 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
+FVector UReEchoCombatVfxComponent::ResolveAttackRangeScale(const FVector& AuthoredScale,
+                                                           const FVector& ScaleMask,
+                                                           const float RangeMultiplier,
+                                                           const float MinMultiplier,
+                                                           const float MaxMultiplier)
+{
+	const float SafeMin = FMath::Max(0.01f, FMath::Min(MinMultiplier, MaxMultiplier));
+	const float SafeMax = FMath::Max(SafeMin, FMath::Max(MinMultiplier, MaxMultiplier));
+	const float ClampedMultiplier = FMath::Clamp(RangeMultiplier, SafeMin, SafeMax);
+	const FVector SafeMask(FMath::Clamp(ScaleMask.X, 0.0f, 1.0f),
+	                       FMath::Clamp(ScaleMask.Y, 0.0f, 1.0f),
+	                       FMath::Clamp(ScaleMask.Z, 0.0f, 1.0f));
+	return AuthoredScale * (FVector::OneVector + SafeMask * (ClampedMultiplier - 1.0f));
+}
+
 FVector UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection,
                                                                        const FVector& CameraRight)
 {
@@ -1117,7 +1132,8 @@ FVector UReEchoCombatVfxComponent::ResolveBossTargetGroundLocation(const FReEcho
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue,
                                                             const FVector& Direction,
                                                             USceneComponent* AttachmentRoot,
-                                                            const bool bAutoDestroy) const
+                                                            const bool bAutoDestroy,
+                                                            const float AttackRangeMultiplier) const
 {
 	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
@@ -1151,8 +1167,15 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	{
 		RelativeRotation = EnsureSwordFrontFacesCamera(RelativeRotation, SwordCameraFacingNormal);
 	}
+	const FVector DesiredScale = Placement.bScaleWithAttackRange
+	                                 ? ResolveAttackRangeScale(Placement.Scale,
+	                                                           Placement.AttackRangeScaleMask,
+	                                                           AttackRangeMultiplier,
+	                                                           Placement.MinAttackRangeMultiplier,
+	                                                           Placement.MaxAttackRangeMultiplier)
+	                                 : Placement.Scale;
 	const FVector RelativeScale =
-	    ResolveAttachedScale(Placement.Scale,
+	    ResolveAttachedScale(DesiredScale,
 	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
 	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
 	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
@@ -1694,19 +1717,29 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 		FTimerHandle MeleeSlashTimer;
 		World->GetTimerManager().SetTimer(
 		    MeleeSlashTimer,
-		    [WeakThis, Semantic, LockedDirection = Event.Direction]()
+		    [WeakThis,
+		     Semantic,
+		     LockedDirection = Event.Direction,
+		     LockedRangeMultiplier = Event.RangeMultiplierFromBase]()
 		    {
 			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
 			    {
-				    Component->SpawnAttached(
-				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveWeaponAttackVfxRoot());
+				    Component->SpawnAttached(static_cast<uint8>(Semantic),
+				                             LockedDirection,
+				                             Component->ResolveWeaponAttackVfxRoot(),
+				                             true,
+				                             LockedRangeMultiplier);
 			    }
 		    },
 		    DelaySeconds,
 		    false);
 		return;
 	}
-	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveWeaponAttackVfxRoot());
+	SpawnAttached(static_cast<uint8>(Semantic),
+	              Event.Direction,
+	              ResolveWeaponAttackVfxRoot(),
+	              true,
+	              Event.RangeMultiplierFromBase);
 }
 
 void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)

@@ -503,6 +503,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Preserved world-size VFX cancels inherited uniform owner scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector::OneVector, FVector(2.0f), true)
 	             .Equals(FVector(0.5f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Attack range scales only the configured local radial axis"),
+	         UReEchoCombatVfxComponent::ResolveAttackRangeScale(
+	             FVector(2.0f, 3.0f, 4.0f), FVector(0.0f, 1.0f, 0.0f), 1.5f, 0.5f, 2.0f)
+	             .Equals(FVector(2.0f, 4.5f, 4.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Attack range multiplier is presentation-clamped without moving unmasked axes"),
+	         UReEchoCombatVfxComponent::ResolveAttackRangeScale(
+	             FVector::OneVector, FVector(1.0f, 1.0f, 0.0f), 3.0f, 0.8f, 2.0f)
+	             .Equals(FVector(2.0f, 2.0f, 1.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement SwordRangePlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
+	TestTrue(TEXT("Sword slash opts into attack-range scaling"), SwordRangePlacement.bScaleWithAttackRange);
+	TestTrue(TEXT("Sword slash scales only its local radial direction"),
+	         SwordRangePlacement.AttackRangeScaleMask.Equals(FVector(0.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement ScytheRangePlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerScytheSlash);
+	TestTrue(TEXT("Scythe slash opts into attack-range scaling"), ScytheRangePlacement.bScaleWithAttackRange);
+	TestTrue(TEXT("Scythe slash scales in both local camera-plane axes"),
+	         ScytheRangePlacement.AttackRangeScaleMask.Equals(FVector(1.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));

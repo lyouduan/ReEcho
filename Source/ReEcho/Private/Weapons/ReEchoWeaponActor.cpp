@@ -115,10 +115,10 @@ FVector ResolveProjectileSpawnLocation(const FVector& WeaponAnchorLocation,
 }
 
 EReEchoElement ResolveProjectileElement(const bool bUsesDeterministicRandomElement,
-	                                    const EReEchoElement AttackElement,
-	                                    const int64 AttackSequence,
-	                                    const int32 ProjectileIndex,
-	                                    const EReEchoElement DebugOverride)
+                                        const EReEchoElement AttackElement,
+                                        const int64 AttackSequence,
+                                        const int32 ProjectileIndex,
+                                        const EReEchoElement DebugOverride)
 {
 	const EReEchoElement ResolvedElement = ReEchoWeaponRuntime::ResolveProjectileElement(
 	    bUsesDeterministicRandomElement, AttackElement, AttackSequence, ProjectileIndex);
@@ -655,7 +655,8 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 		       LastAttackCommit.RawDamage);
 	}
 #endif
-	if (!ExecuteAttack(Combatant, LastAttackCommit))
+	const FReEchoWeaponAttackCommit EffectiveCommit = BuildEffectiveAttackCommit(LastAttackCommit);
+	if (!ExecuteAttack(Combatant, EffectiveCommit))
 	{
 		WeaponLogic.RollbackLastCommit();
 		LastCommittedAttackStepId = NAME_None;
@@ -665,7 +666,7 @@ bool AReEchoWeaponActor::TryBasicAttack(UReEchoCombatantComponent* Combatant)
 	WeaponLogic.ConfirmLastCommit();
 	ProcessOnAttackRuneEffects(LastRuneAttackContext);
 	UpdateElementIndicator();
-	PublishAttackCommittedEvent(LastAttackCommit);
+	PublishAttackCommittedEvent(EffectiveCommit);
 	return true;
 }
 
@@ -705,7 +706,31 @@ void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCo
 	Event.StepIndex = Commit.StepIndex;
 	Event.Origin = Origin;
 	Event.Direction = Direction;
+	Event.EffectiveRangeCm = Commit.RangeCm;
+	Event.BaseRangeCm = ResolveBaseAttackRangeCm(Commit.AttackStepId, Commit.RangeCm);
+	Event.RangeMultiplierFromBase =
+	    Event.BaseRangeCm > UE_SMALL_NUMBER ? FMath::Max(0.01f, Event.EffectiveRangeCm / Event.BaseRangeCm) : 1.0f;
+	Event.EffectiveArcDegrees = Commit.ArcDegrees;
 	Events->PublishAttackCommitted(Event);
+}
+
+FReEchoWeaponAttackCommit AReEchoWeaponActor::BuildEffectiveAttackCommit(const FReEchoWeaponAttackCommit& Commit) const
+{
+	FReEchoWeaponAttackCommit EffectiveCommit = Commit;
+	EffectiveCommit.RangeCm *= GetTimedRangeMultiplier();
+	return EffectiveCommit;
+}
+
+float AReEchoWeaponActor::ResolveBaseAttackRangeCm(const FName AttackStepId, const float FallbackRangeCm) const
+{
+	if (DataSnapshot.IsValid())
+	{
+		if (const FReEchoCsvAttackStepRow* Step = DataSnapshot->AttackSteps.Find(AttackStepId))
+		{
+			return Step->RangeCm > UE_SMALL_NUMBER ? Step->RangeCm : FallbackRangeCm;
+		}
+	}
+	return FallbackRangeCm;
 }
 
 bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
@@ -719,14 +744,13 @@ bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
 	{
 		return false;
 	}
+	const FReEchoWeaponAttackCommit EffectiveCommit = BuildEffectiveAttackCommit(LastAttackCommit);
 	if (HasRuneBehavior(TEXT("Part.ScytheThrowRecall")))
 	{
-		FReEchoWeaponAttackCommit EffectiveCommit = LastAttackCommit;
-		EffectiveCommit.RangeCm *= GetTimedRangeMultiplier();
 		LastRuneAttackContext = BuildRuneAttackContext(EffectiveCommit, Combatant);
 		BeginScytheThrow(LastRuneAttackContext);
 	}
-	else if (!ExecuteAttack(Combatant, LastAttackCommit))
+	else if (!ExecuteAttack(Combatant, EffectiveCommit))
 	{
 		WeaponLogic.RollbackLastCommit();
 		return false;
@@ -734,7 +758,7 @@ bool AReEchoWeaponActor::TryActiveAttack(UReEchoCombatantComponent* Combatant)
 	WeaponLogic.ConfirmLastCommit();
 	ProcessOnAttackRuneEffects(LastRuneAttackContext);
 	UpdateElementIndicator();
-	PublishAttackCommittedEvent(LastAttackCommit);
+	PublishAttackCommittedEvent(EffectiveCommit);
 	return true;
 }
 
@@ -793,17 +817,15 @@ bool AReEchoWeaponActor::ExecuteAttack(UReEchoCombatantComponent* Combatant, con
 		}
 	}
 	LastRuneAttackContext = BuildRuneAttackContext(Commit, Combatant);
-	FReEchoWeaponAttackCommit EffectiveCommit = Commit;
-	EffectiveCommit.RangeCm *= GetTimedRangeMultiplier();
-	LastRuneAttackContext->Commit = EffectiveCommit;
-	switch (EffectiveCommit.Carrier)
+	LastRuneAttackContext->Commit = Commit;
+	switch (Commit.Carrier)
 	{
 		case EReEchoWeaponAttackCarrier::Wave:
-			return FireStaffLightWave(EffectiveCommit, Combatant);
+			return FireStaffLightWave(Commit, Combatant);
 		case EReEchoWeaponAttackCarrier::Projectile:
-			return FireProjectile(EffectiveCommit, Combatant, LastRuneAttackContext);
+			return FireProjectile(Commit, Combatant, LastRuneAttackContext);
 		default:
-			return SwingMelee(EffectiveCommit, Combatant, LastRuneAttackContext);
+			return SwingMelee(Commit, Combatant, LastRuneAttackContext);
 	}
 }
 
@@ -1466,12 +1488,12 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 			DebugElementOverride = PlayerOwner->GetDebugOutgoingElementOverride();
 		}
 #endif
-		const EReEchoElement ProjectileElement = ReEchoWeaponVisual::ResolveProjectileElement(
-		    EffectiveDefinition.bUsesDeterministicRandomElement,
-		    Commit.Element,
-		    Commit.Attack.Sequence,
-		    ProjectileIndex,
-		    DebugElementOverride);
+		const EReEchoElement ProjectileElement =
+		    ReEchoWeaponVisual::ResolveProjectileElement(EffectiveDefinition.bUsesDeterministicRandomElement,
+		                                                 Commit.Element,
+		                                                 Commit.Attack.Sequence,
+		                                                 ProjectileIndex,
+		                                                 DebugElementOverride);
 		const bool bHasWeaponAnchor = IsValid(WeaponAttackVfxRoot);
 		const FVector WeaponAnchorLocation =
 		    bHasWeaponAnchor ? WeaponAttackVfxRoot->GetComponentLocation() : FVector::ZeroVector;
@@ -1914,12 +1936,11 @@ bool AReEchoWeaponActor::CanCutRabbitProjectilesForTests(const FName AttackPatte
 	return ReEchoWeaponVisual::CanCutRabbitProjectiles(AttackPatternId);
 }
 
-EReEchoElement AReEchoWeaponActor::ResolveProjectileElementForTests(
-	const bool bUsesDeterministicRandomElement,
-	const EReEchoElement AttackElement,
-	const int64 AttackSequence,
-	const int32 ProjectileIndex,
-	const EReEchoElement DebugOverride)
+EReEchoElement AReEchoWeaponActor::ResolveProjectileElementForTests(const bool bUsesDeterministicRandomElement,
+                                                                    const EReEchoElement AttackElement,
+                                                                    const int64 AttackSequence,
+                                                                    const int32 ProjectileIndex,
+                                                                    const EReEchoElement DebugOverride)
 {
 	return ReEchoWeaponVisual::ResolveProjectileElement(
 	    bUsesDeterministicRandomElement, AttackElement, AttackSequence, ProjectileIndex, DebugOverride);

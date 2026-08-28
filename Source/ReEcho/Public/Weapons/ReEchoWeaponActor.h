@@ -90,10 +90,10 @@ public:
 	                                                      bool bHasWeaponAnchor);
 	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
 	static EReEchoElement ResolveProjectileElementForTests(bool bUsesDeterministicRandomElement,
-	                                                     EReEchoElement AttackElement,
-	                                                     int64 AttackSequence,
-	                                                     int32 ProjectileIndex,
-	                                                     EReEchoElement DebugOverride);
+	                                                       EReEchoElement AttackElement,
+	                                                       int64 AttackSequence,
+	                                                       int32 ProjectileIndex,
+	                                                       EReEchoElement DebugOverride);
 
 	float GetStepLockRemaining() const
 	{
@@ -171,6 +171,8 @@ private:
 	                UReEchoCombatantComponent* Combatant,
 	                const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
 	void PublishAttackCommittedEvent(const FReEchoWeaponAttackCommit& Commit) const;
+	FReEchoWeaponAttackCommit BuildEffectiveAttackCommit(const FReEchoWeaponAttackCommit& Commit) const;
+	float ResolveBaseAttackRangeCm(FName AttackStepId, float FallbackRangeCm) const;
 	TSharedPtr<FReEchoWeaponRuneAttackContext> BuildRuneAttackContext(const FReEchoWeaponAttackCommit& Commit,
 	                                                                  UReEchoCombatantComponent* Combatant) const;
 	void ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,

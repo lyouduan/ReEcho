@@ -91,6 +91,11 @@ public:
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
+	static FVector ResolveAttackRangeScale(const FVector& AuthoredScale,
+	                                       const FVector& ScaleMask,
+	                                       float RangeMultiplier,
+	                                       float MinMultiplier,
+	                                       float MaxMultiplier);
 	/** Gun presentation is horizontally authored: discard aim elevation and retain only its screen-side sign. */
 	static FVector ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection, const FVector& CameraRight);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
@@ -188,7 +193,8 @@ private:
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
-	                                 bool bAutoDestroy = true) const;
+	                                 bool bAutoDestroy = true,
+	                                 float AttackRangeMultiplier = 1.0f) const;
 	USceneComponent* ResolveBossWeaponVfxRoot() const;
 	USceneComponent* ResolveWeaponAttackVfxRoot() const;
 	USceneComponent* ResolveAttackVfxRoot() const;

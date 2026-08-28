@@ -304,6 +304,22 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		Placement.Scale = Slot->Offset.GetScale3D();
 		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
 		                                                 : EReEchoVfxScalePolicy::InheritAttachment;
+		Placement.bScaleWithAttackRange = Slot->bScaleWithAttackRange;
+		Placement.AttackRangeScaleMask = Slot->AttackRangeScaleMask;
+		Placement.MinAttackRangeMultiplier = Slot->MinAttackRangeMultiplier;
+		Placement.MaxAttackRangeMultiplier = Slot->MaxAttackRangeMultiplier;
+		// Existing profiles predate the editable range fields. Keep a resource-axis migration fallback until those
+		// binary assets can be resaved; an explicit DA configuration takes precedence.
+		if (!Placement.bScaleWithAttackRange && Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		{
+			Placement.bScaleWithAttackRange = true;
+			Placement.AttackRangeScaleMask = FVector(0.0f, 1.0f, 0.0f);
+		}
+		else if (!Placement.bScaleWithAttackRange && Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+		{
+			Placement.bScaleWithAttackRange = true;
+			Placement.AttackRangeScaleMask = FVector(1.0f, 1.0f, 0.0f);
+		}
 		Placement.bUseWorldDirectionRotation = true;
 		Placement.PlaybackDurationSeconds = FMath::Max(Slot->PlaybackDurationSeconds, 0.01f);
 		return Placement;

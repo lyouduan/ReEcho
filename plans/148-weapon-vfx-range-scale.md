@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@409910aa08e544722910639e557ff15c6ef5af22`。
 - 本地实现方式（可选，仅作交接说明）：规划 worktree `C:\tmp\ReEcho-plan148-weapon-vfx-range-scale-plan`；发布后从准确 `origin/main` 创建独立执行 worktree。
@@ -33,12 +33,12 @@
 
 ## 锁定验收
 
-- [ ] 无范围修正时长剑、镰刀刀光保持 DA 当前作者尺寸与 Plan126 最终挂点，不改变位置、厚度、左右朝向或播放方向。
-- [ ] 长剑静态 `AttackRange ×1.5` 时，实际伤害与刀光最远端共享 `1.5` 范围倍率；只缩放 DA 声明的径向轴。
-- [ ] 镰刀/长剑群攻成长的临时范围层在下一次攻击提交时被锁定；镰刀延迟播放仍使用提交时倍率，不读取延迟触发时的可变状态。
-- [ ] 缩放只作用于本次生成的 Niagara Component，不缩放或移动 `WeaponAttackVfxRoot`、武器 Actor、武器贴图或 Slot Offset。
-- [ ] 枪、弓、DamageApplied、Travel、Boss VFX、近战斩弹和手动/自动事件出口保持回归通过。
-- [ ] 修改源码完成格式化；聚焦自动化、Development `-FullRebuild`、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 无范围修正时长剑、镰刀刀光保持 DA 当前作者尺寸与 Plan126 最终挂点，不改变位置、厚度、左右朝向或播放方向。
+- [x] 长剑静态 `AttackRange ×1.5` 时，实际伤害与刀光最远端共享 `1.5` 范围倍率；只缩放 DA 声明的径向轴。
+- [x] 镰刀/长剑群攻成长的临时范围层在下一次攻击提交时被锁定；镰刀延迟播放仍使用提交时倍率，不读取延迟触发时的可变状态。
+- [x] 缩放只作用于本次生成的 Niagara Component，不缩放或移动 `WeaponAttackVfxRoot`、武器 Actor、武器贴图或 Slot Offset。
+- [x] 枪、弓、DamageApplied、Travel、Boss VFX、近战斩弹和手动/自动事件出口保持回归通过。
+- [x] 修改源码完成格式化；聚焦自动化、Development `-FullRebuild`、项目校验、预构建检查和 `git diff --check` 通过。
 - [ ] 用户在 PIE 中确认无符文、长剑广域符文及镰刀群攻成长情况下，刀光外缘与实际攻击范围观感匹配且中心不漂移。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -79,6 +79,9 @@
 ### 证据
 
 - 规划静态审计确认：静态符文在 AttackStep 编译期修改 `RangeCm`，群攻成长在 WeaponActor 执行前叠加临时倍率；当前 `AttackCommitted` 不携带范围，且镰刀延迟刀光只锁定方向，因此表现无法匹配最终范围。
+- Development 增量构建通过。Editor Python 完成两份 DA 保存：长剑 `AttackCommitted` 使用局部 Y 遮罩，镰刀使用局部 XY 遮罩，均配置 `0.5..2.0` 表现钳制；SDK `MainVersion` 警告后 Win64 Editor 仍继续执行，证据来自完整 session 日志中的两条 `PLAN148_MELEE_RANGE_SCALE`。
+- `ReEcho.Presentation.VFX.Catalog`、`ReEcho.Presentation.Combat.Capabilities`、`ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility` 各发现 1 项且 `Result={Success}`；分别覆盖范围轴/钳制、现有武器挂点与枪弓能力、长剑镰刀斩弹回归。
+- 最终 Development `-FullRebuild` 100/100 成功，精选包 Build ID `55116800`、source fingerprint `e0ef7b5141d7`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
 
 ### 剩余风险
 
@@ -91,4 +94,9 @@
 
 ### 架构文档审阅结果
 
-- 待实现后补充。
+- `MOD-ReEcho.md` 已更新：记录最终 Commit 范围快照与只缩放刀光组件的主模块适配。
+- `MOD-ReEchoCombat.md` 已更新：记录资源无关 AttackCommitted 几何快照契约。
+- `MOD-ReEchoPresentation.md`、`MOD-ReEchoVFX.md` 已更新：记录 DA 轴遮罩、延迟快照和迁移默认值。
+- `MOD-ReEchoWeapons.md` 已审阅、无需修改：基础/有效范围和 AttackStep 编译权威未改变，改动位于主模块宿主与 Combat 事件。
+- `ARCHITECTURE.md` 已审阅、无需修改：模块拓扑和依赖方向不变。
+- `README.md` 已审阅、无需修改：稳定模块及 AREA 路由不变。

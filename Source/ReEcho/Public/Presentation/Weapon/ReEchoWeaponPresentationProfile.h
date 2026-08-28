@@ -59,6 +59,23 @@ struct REECHO_API FReEchoWeaponVfxSlot
 	/** Cancel attachment-root scale while retaining Offset.Scale as the authored world-size multiplier. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	bool bPreserveWorldSize = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX|Range", meta = (EditCondition = "bEnabled"))
+	bool bScaleWithAttackRange = false;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "VFX|Range",
+	          meta = (EditCondition = "bEnabled && bScaleWithAttackRange"))
+	FVector AttackRangeScaleMask = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "VFX|Range",
+	          meta = (ClampMin = "0.01", EditCondition = "bEnabled && bScaleWithAttackRange"))
+	float MinAttackRangeMultiplier = 0.5f;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "VFX|Range",
+	          meta = (ClampMin = "0.01", EditCondition = "bEnabled && bScaleWithAttackRange"))
+	float MaxAttackRangeMultiplier = 2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	int32 SortPriorityOffset = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
