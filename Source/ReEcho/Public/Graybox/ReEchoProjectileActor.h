@@ -64,7 +64,7 @@ public:
 
 private:
 	void HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot, const FReEchoHitResolved& Result);
-	/** Returns true only when the dedicated element-specific Gun flight Niagara was spawned. */
+	/** Returns true only when a dedicated element-specific weapon flight Niagara was spawned. */
 	bool ConfigureWeaponNiagara(FName WeaponVisualKey, const FVector& Direction);
 	void SpawnWeaponImpactNiagara(const FVector& Location, const FVector& Direction);
 

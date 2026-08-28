@@ -22,11 +22,11 @@
 - 启动/继续、装载选择、竞技场、八场表驱动遭遇、局间构筑、商店、Echo 选择和结束流程编排。
 - 玩家、敌人、Echo、武器、投射物、世界 UI 与表现 Actor 的创建和生命周期装配。
 - 将 XLSX 生成的 CSV 编译为类型化运行时快照。
-- 本局阶段、构筑、存档、Echo 存储与回放选择。
+- 本局阶段、构筑、存档与 G_3_02 单一时间锚点记录。
 - 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
 - 将卡牌 `G_2_30` 的只读规则与当前存活 Echo 集合投影给玩家 VFX 组件；连接线伤害仍由现有卡牌/Combat 路径结算，GameMode 不从 Niagara 状态反推玩法。
-- Echo 完整初始化后只登记一次出生表现；普通路径首次 Playback 推进先应用录制位置，再从 Echo `GroundShadow` 世界中心播放独立 `EchoBorn` 一次性法阵。第一关转第二关的专用预加载路径先定位并隐藏 Echo/武器，镜头锁定 Echo 后保持静止，暂停 Tick 完整播放 `0.8` 秒法阵，再统一显形并启动后续镜头；资源或镜头失败时立即恢复可见性并继续。`GMEchoBorn` 只重播当前存活 Echo 的法阵，`GMEchoSummon` 在当前位置复播完整隐藏、法阵与延迟显形流程；二者均不生成 Echo 或修改回放/战斗状态。
+- Echo 出生表现只由第一关转第二关的专用预加载路径自动触发：先定位并隐藏 Echo/武器，镜头锁定 Echo 后保持静止，播放 `0.8` 秒独立 `EchoBorn` 法阵，再统一显形并启动后续镜头；普通关卡进入、读档及跳关生成 Echo 时不登记或播放该表现，资源或镜头失败时立即恢复可见性并继续。`GMEchoBorn` 只重播当前存活 Echo 的法阵，`GMEchoSummon` 在当前位置复播完整隐藏、法阵与延迟显形流程；二者均不生成 Echo 或修改回放/战斗状态。
 
 ### 不负责
 
@@ -42,6 +42,7 @@
 |---|---|---|---|
 | 主流程当前屏幕/阶段编排 | `AReEchoGameMode` + `UReEchoUIFlowCoordinatorSubsystem` | World/屏幕切换 | 类型化流程命令与屏幕 ID |
 | 本局阶段、构筑、背包、货币、Echo 存储/回放 | `UReEchoRunSubsystem` | GameInstance/整局 | 窄命令、只读摘要、SaveGame |
+| 已完整观看 `Stage01To02` CG | `UReEchoRunSubsystem` + 独立 `ReEchoPlayerProgress` SaveGame | 账号安装进度，跨 Run 槽 | `HasViewedStage01To02Cg` / `MarkStage01To02CgViewed`；删除 Run 槽不清除 |
 | 卡牌目录、拥有/叠层、随机游标和事件状态 | `MOD-ReEchoCards` 的 Catalog/BuildState/RuntimeState | 整局并嵌入 Build/Recording | 主模块只调用纯命令并执行类型化结果 |
 | 玩家/敌人生命与战斗属性 | GAS/`UReEchoCombatantComponent` | Actor/遭遇 | GameplayEffect、战斗命令、快照与委托 |
 | 当前武器、攻击步骤与攻击载体 | `AReEchoWeaponActor` 及 Weapons 运行逻辑 | Actor/整局武器锁定 | 攻击请求、稳定 WeaponId、只读查询 |
@@ -81,7 +82,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
+- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先占用空槽，三槽均满时删除并复用 `SavedAtUtc` 最早的槽位。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -123,7 +124,7 @@ DefaultEngine.ini
           → 普通战按 30 秒完成；ReEchoStageTransition 统一解析下一场策略；Boss 按胜负
           → 完成录制与 RunSubsystem::CompleteEncounter
           → 局间停止玩家并冻结保留 Enemy Host，清理旧 Echo/瞬时攻击
-          → 特质选择 → 商店 → Echo 管理
+          → 特质选择 → 第二段媒体收拢时在覆盖层下准备禁用态商店 → 媒体完成后启用商店 → Echo 管理
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
           → `ActivatePreparedEncounter` 恢复输入 → `BP_EncounterFlowSettings.PostEntryInvulnerabilitySeconds`（默认 0.5 秒）→ Combatant 最终伤害无敌门
 ```
@@ -132,7 +133,7 @@ Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBo
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
-Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMGotoEncounter <1-based index>` 仅在存活玩家的活动 Encounter 中生效，清理当前敌人和回响后把 Run 索引设为目标前一关并复用正式 `BeginNextEncounter`，因此目标关的场景、刷怪、计时、录制和音乐都从标准入口启动且不经过结算 UI。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMWeapon <WeaponId>` 允许测试任意已启用生产武器：有活动 Run 时通过 WeaponRuntime 生成候选构筑、只保留兼容插件，实时初始化成功后才提交 `CurrentBuild`，失败恢复原构筑；该入口不修改商店武器所有权。`GMGotoEncounter <1-based index>` 仅在存活玩家的活动 Encounter 中生效，清理当前敌人和回响后把 Run 索引设为目标前一关并复用正式 `BeginNextEncounter`，因此目标关的场景、刷怪、计时、录制和音乐都从标准入口启动且不经过结算 UI。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
 
@@ -243,18 +244,19 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。
 - 结算表现：每个普通限时 Encounter 在 Director 剩余时间进入 3 秒阈值后，GameMode 只把权威时间投影为规范化强度；`AReEchoArenaCameraActor` 用 Post Process Material 对场景颜色执行非对称多点采样，使 03→01 的空间重影/模糊平滑增强、01→00 保持峰值，UMG HUD 不参与后处理。第一关是窄例外：结算后直接清除该关 CardChoice，使用局间门停止玩家、Echo、敌人模拟和关卡推进；停止当前Music State后进入全局暂停，玩家与怪物停止，相机用1秒锁定玩家并推进至标准正交宽度的 `0.325`，再保持玩家近景0.5秒。随后解除全局暂停，通过 WmfMedia/HAP 播放无音轨 `Stage01To02.mov`，首个有效视频帧出现后独立播放对应 SoundWave，保证媒体时钟不被冻结。CG完整结束后 GameMode 在全屏媒体仍覆盖视口时静默准备 Encounter 2 的场景、玩家和 Echo，并先按同一 `0.325` 比例把后台相机瞬时定位到 Echo，再进入全局暂停并关闭媒体层；玩家、怪物与Echo均停止，且不启动录制、Director、敌人模拟、输入或关卡音乐。相机先用1秒保持焦点锁定Echo并把正交宽度拉回标准值，再用独立1秒保持标准宽度并把焦点平移到玩家，完成后解除暂停并正式激活 Encounter 2。GameMode显式使用 `AReEchoPlayerController`；GameMode与ArenaCamera在每次序列开始时运行时强制启用暂停Tick，不依赖关卡Actor已序列化的旧默认值；统一暂停边界还临时启用 PlayerController 的完整暂停Tick，使 PlayerCameraManager 持续刷新实际视口，解除暂停或重置时恢复原配置。相机或目标缺失、媒体打开/首帧/时钟停滞失败时按阶段 fail-open，不得卡死。第二关及以后在权威倒计时到 0 后清零相机效果、冻结局间状态并从第 0 帧播放 40 FPS Hap Alpha MOV，媒体完成后才进入 Run 指定的 TraitChoice 或 Shop。Boss、死亡和非计时结束保持原流程。`GMTransition4` 通过 Director 权威时钟从剩余 4 秒开始提供完整预览。
+- Stage01To02 已观看资格是独立账号进度，不属于任一 Run 槽。只有媒体自然完整结束且 `ReEchoPlayerProgress` 保存成功才授予；播放失败或中途退出不授予。后续播放时 GameMode 允许右上角跳过，主动跳过立即停止视频和 CG 音乐，并继续使用同一个回响近景、回到主角、解除暂停的 CG 后流程。
 - 测试：`Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp` 的 `ReEcho.StageTransition.*` 覆盖生产矩阵、非法边界与原 Host 局间连续性。
 - 禁止：持有构筑、货币、存档或 Widget 状态。
 
 ### `AREA-Run`：`Run`本局状态与存档
 
-**设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、Echo 存储/回放选择和安全保存集中在 GameInstance Subsystem；卡牌内部状态与规则计算委托给 `MOD-ReEchoCards`。
+**设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、G_3_02 单一时间锚点和安全保存集中在 GameInstance Subsystem；卡牌内部状态与规则计算委托给 `MOD-ReEchoCards`。
 
 - 代码：`Source/ReEcho/Public/Run/`、`Source/ReEcho/Private/Run/`。
 - 角色身份与能力：`CurrentBuild.CharacterId` 是选角后整局唯一身份，免费选卡、调试授卡、付费卡组领取及跨 Encounter/Stage 都不得改写；`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是固定角色能力的统一类型化入口。猎手静态能力在新 Run 时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通卡牌组成功领取计数达到配置间隔时追加选择。免费卡牌组与商店已付款卡牌组的最终领取都调用 Run 的同一计数入口；预付、取消、失败、刷新和额外选择自身不计数。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
 - 勇者缺血阶梯不写入 Run Save：Player Host 订阅 Combat 最终 `HealthChanged`，用当前/最大生命和能力表重算物攻/元攻加值，再通过 Combat 通用来源修正入口替换旧值。治疗、恢复和重生自然回退，不累计历史损血。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous/Stored Echo、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。三槽摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous Echo、单条时间锚点记录与 `CardState.Runtime.AnchorRecordingId`、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。不存在运行时回响存储容量或可购买的扩容/“指定回放解锁”商品；旧 SaveGame 的 `StoredEchoes` 恢复时仅折叠到当前锚点，`StorageCapacity` / `SelectedReplayIds` / `SpecificReplayLimit` 只为反序列化兼容，新存档写零/空。三槽运行存档摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。`GetOwnedBuildCardView()` 从 `CardState.OwnedCardIds` 与卡牌目录生成保持获得顺序的已拥有卡牌只读投影，并与商店复用同一 `FReEchoShopOffer` 图标路径和通用卡图回退契约；失败结算只在该投影上按 `Tier` 选取最多五张，不反向修改构筑。
 - 三槽存档：新游戏先选择第一个空槽，此后所有既有 `SaveRun` 调用只写回该活动槽；点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。三槽全满时不覆盖、不删除、不伪造新建入口。

@@ -21,7 +21,6 @@ class UTextBlock;
 class UTexture2D;
 class UVerticalBox;
 class UWidget;
-class UReEchoRunSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
@@ -29,8 +28,6 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopCardPackRequested, int32);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
-DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoGuidCommandRequested, FGuid);
-DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoSelectionCommandRequested, const TArray<FGuid>&);
 
 UENUM(BlueprintType)
 enum class EReEchoInventoryShopMode : uint8
@@ -38,15 +35,6 @@ enum class EReEchoInventoryShopMode : uint8
 	Inventory,
 	ManualShop,
 	PostTraitIntermission
-};
-
-UENUM()
-enum class EReEchoShopEchoPendingDecision : uint8
-{
-	Undecided,
-	Stored,
-	Skipped,
-	Replacing
 };
 
 /** 复用同一覆盖层展示背包或商店，并将购买请求交给运行系统处理。 */
@@ -58,6 +46,7 @@ class REECHO_API UReEchoInventoryShopWidget : public UUserWidget
 
 public:
 	UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer);
+	bool GetCardChoiceToShopCollapseTargetAbsolute(FVector2D& OutAbsoluteCenter) const;
 
 	FReEchoInventoryShopClosed OnClosed;
 
@@ -68,8 +57,6 @@ public:
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
 	FReEchoEchoCommandRequested OnEchoSkipRequested;
-	FReEchoEchoGuidCommandRequested OnEchoReplaceRequested;
-	FReEchoEchoSelectionCommandRequested OnEchoSelectionRequested;
 	FReEchoEchoCommandRequested OnEchoSkipAndCloseRequested;
 
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
@@ -96,7 +83,6 @@ public:
 	                               int32 RefreshSequence = 0);
 	void SetEchoSummary(const FReEchoEchoStorageSummary& EchoSummary);
 	void ShowEchoStatus(const FText& Status);
-	void EnterEchoReplacementMode();
 	void CompletePostTraitClose();
 	void RequestClose();
 
@@ -119,6 +105,8 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	/** Resolves the authored echo-storage modal by stable Designer names and binds its interactions. */
+	void BindEchoPresentation();
 	void EnsureResponsiveLayout();
 	UCanvasPanel* GetLayoutCanvas() const;
 	void BuildShopLogicHost();
@@ -134,6 +122,7 @@ private:
 	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
+	void RebuildAttachmentSlotMapping();
 	void RebuildEquippedWeaponDisplay();
 	void UpdateWeaponLoadoutText();
 	int32 GetDisplayedTimeShardBalance() const;
@@ -150,6 +139,10 @@ private:
 	void HandleAttachmentSlot1Clicked();
 	UFUNCTION()
 	void HandleAttachmentSlot2Clicked();
+	UFUNCTION()
+	void HandleAttachmentSlot3Clicked();
+	UFUNCTION()
+	void HandleAttachmentSlot4Clicked();
 	void BuildBackpackPopup(int32 SlotIndex);
 	void HideBackpackPopup();
 	UFUNCTION()
@@ -192,41 +185,13 @@ private:
 	UFUNCTION()
 	void HandleEchoPopupCloseClicked();
 
-	// ---- echo management (inline, mirroring origin/main left-panel layout) ----
-	void RefreshEchoState(UReEchoRunSubsystem* RunSubsystem);
-	void RequestStoreEcho(UReEchoRunSubsystem* RunSubsystem);
-	void RequestSkipEcho(UReEchoRunSubsystem* RunSubsystem);
-	void RequestReplaceEcho(UReEchoRunSubsystem* RunSubsystem, FGuid TargetId);
-	void RequestCancelReplaceEcho();
-	void ToggleReplaySelection(UReEchoRunSubsystem* RunSubsystem, FGuid Id);
+	// ---- single time-anchor management ----
 	void BuildEchoPanel();
-
-	void HandleEchoStoreRequested();
-	void HandleEchoSkipRequested();
-	void HandleEchoReplaceRequested(FGuid RecordingId);
-	void HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds);
-	void HandleEchoSkipAndCloseRequested();
 
 	UFUNCTION()
 	void HandleStoreClicked();
 	UFUNCTION()
 	void HandleSkipClicked();
-	UFUNCTION()
-	void HandleCancelReplaceClicked();
-	UFUNCTION()
-	void HandleReplaceSlot0Clicked();
-	UFUNCTION()
-	void HandleReplaceSlot1Clicked();
-	UFUNCTION()
-	void HandleReplaceSlot2Clicked();
-	UFUNCTION()
-	void HandleSelectSlot0Clicked();
-	UFUNCTION()
-	void HandleSelectSlot1Clicked();
-	UFUNCTION()
-	void HandleSelectSlot2Clicked();
-	void HandleReplaceSlotClicked(int32 SlotIndex);
-	void HandleSelectSlotClicked(int32 SlotIndex);
 	UFUNCTION()
 	void HandleConfirmSkipContinueClicked();
 	UFUNCTION()
@@ -236,6 +201,8 @@ private:
 	TObjectPtr<UTexture2D> ShopItemCardTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopAttachmentSlotTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopCoreAttachmentSlotTexture;
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> WeaponPartIconTextures;
 	UPROPERTY()
@@ -382,6 +349,19 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerAttachmentSlotArts;
 	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> DesignerStandardAttachmentSlotButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerStandardAttachmentSlotArts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> DesignerDualAttachmentSlotButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerDualAttachmentSlotArts;
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> DualAttachmentLayoutWidget;
+	TArray<FName> DesignerAttachmentSlotTypeIds;
+	TArray<int32> DesignerAttachmentSlotOccurrenceIndices;
+	bool bUsingDualAttachmentLayout = false;
+	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> BackpackPopupLayer;
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> BackpackPopupPanel;
@@ -397,40 +377,35 @@ private:
 
 	TArray<FReEchoShopOffer> DisplayedOwnedCards;
 
-	// ---- inline echo panel (origin/main layout) ----
-	UPROPERTY(Transient)
+	// ---- echo storage popup (authored WBP presentation with C++ fallback) ----
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UUserWidget> EchoStoragePopupWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UScaleBox> EchoPanelScale;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> EchoPanel;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> EchoPopupCloseButton;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoCapacityText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoReplayModeText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoPendingInfoText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> EchoStoreButton;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> EchoStoreLabel;
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> EchoSkipButton;
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EchoReplaceInstructionText;
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> EchoCancelReplaceButton;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTextBlock>> EchoSlotTexts;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> EchoReplaceButtons;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> EchoSelectButtons;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTextBlock>> EchoSelectLabels;
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EchoSelectionText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> CloseConfirmWidget;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> EchoConfirmSkipContinue;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> EchoConfirmReturn;
 
 	EReEchoInventoryShopMode Mode = EReEchoInventoryShopMode::Inventory;
 	bool bCloseBroadcasted = false;
@@ -450,12 +425,7 @@ private:
 	TSet<FName> PurchasedItemIds;
 
 	// echo state mirrors
-	UPROPERTY(Transient)
-	TObjectPtr<UReEchoRunSubsystem> CachedRunSubsystem;
 	FReEchoStatBlock CachedPlayerStats;
 	FReEchoEchoStorageSummary EchoSummary;
-	TArray<FGuid> EchoSelection;
-	TArray<FGuid> EchoSlotGuids;
-	EReEchoShopEchoPendingDecision EchoPendingDecision = EReEchoShopEchoPendingDecision::Undecided;
 	bool bEchoStoragePopupOpen = false;
 };

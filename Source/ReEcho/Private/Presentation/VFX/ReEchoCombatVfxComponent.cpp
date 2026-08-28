@@ -1690,18 +1690,18 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                    : Direction;
 	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, VisualDirection);
 	FVector SwordCameraFacingNormal = FVector::UpVector;
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 	{
 		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
 		DirectionRotation = ResolveSwordMeshDirectionRotation(VisualDirection, SwordCameraFacingNormal);
 	}
-	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
 	{
 		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
 		DirectionRotation = ResolveCameraPlaneDirectionRotation(VisualDirection, CameraFacingNormal);
 	}
 	FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 	{
 		RelativeRotation = EnsureSwordFrontFacesCamera(RelativeRotation, SwordCameraFacingNormal);
 	}
@@ -1709,10 +1709,10 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	    ResolveAttachedScale(Placement.Scale,
 	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
 	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
+	const float PlayDirection = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic)
 	                                ? ResolveMeleePlayDirection(VisualDirection, CameraRight)
 	                                : 1.0f;
-	const bool bReverseMelee = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && PlayDirection < 0.0f;
+	const bool bReverseMelee = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic) && PlayDirection < 0.0f;
 	const bool bHasPlayDirectionParameter = HasMeleePlayDirectionParameter(System);
 	UNiagaraComponent* Effect =
 	    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
@@ -1750,7 +1750,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 			Effect->SetAbsolute(false, true, false);
 			Effect->SetWorldRotation(RelativeRotation);
 		}
-		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 		{
 			if (bHasPlayDirectionParameter)
 			{
@@ -2338,6 +2338,15 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	{
 		return;
 	}
+	const EReEchoCombatVfxSemantic DefaultSemantic = Semantic;
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
+	{
+		FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(Event.Element, Semantic);
+	}
+	else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+	{
+		FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(Event.Element, Semantic);
+	}
 	const float DelaySeconds = FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(Semantic);
 	if (UWorld* World = GetWorld(); World && DelaySeconds > 0.0f)
 	{
@@ -2347,19 +2356,29 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 		FTimerHandle MeleeSlashTimer;
 		World->GetTimerManager().SetTimer(
 		    MeleeSlashTimer,
-		    [WeakThis, Semantic, LockedDirection = Event.Direction]()
+		    [WeakThis, Semantic, DefaultSemantic, LockedDirection = Event.Direction]()
 		    {
 			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
 			    {
-				    Component->SpawnAttached(
-				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveWeaponAttackVfxRoot());
+				    if (!Component->SpawnAttached(
+				            static_cast<uint8>(Semantic), LockedDirection, Component->ResolveWeaponAttackVfxRoot()) &&
+				        Semantic != DefaultSemantic)
+				    {
+					    Component->SpawnAttached(static_cast<uint8>(DefaultSemantic),
+					                             LockedDirection,
+					                             Component->ResolveWeaponAttackVfxRoot());
+				    }
 			    }
 		    },
 		    DelaySeconds,
 		    false);
 		return;
 	}
-	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveWeaponAttackVfxRoot());
+	if (!SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveWeaponAttackVfxRoot()) &&
+	    Semantic != DefaultSemantic)
+	{
+		SpawnAttached(static_cast<uint8>(DefaultSemantic), Event.Direction, ResolveWeaponAttackVfxRoot());
+	}
 }
 
 void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)

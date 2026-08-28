@@ -40,6 +40,7 @@
 #include "Player/ReEchoPlayerController.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Weapons/ReEchoWeaponActor.h"
+#include "Weapons/ReEchoWeaponRuntime.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
@@ -279,6 +280,7 @@ void AReEchoGameMode::GMHelp()
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMEnemyElementAll <None|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
+	                   "GMWeapon <WeaponId> | GMEquipRune <PartId> | GMUnequipRune <SlotTypeId> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
 	                   "GMShowEnemyRange <On|Off|Toggle> | "
 	                   "GMBossDamageRange <On|Off|Toggle>"));
@@ -604,6 +606,78 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 	{
 		PrintGMResult(FString::Printf(TEXT("GMEquipRune %s failed: %s"), *PartId.ToString(), *OutError), false);
 	}
+}
+
+void AReEchoGameMode::GMWeapon(const FName WeaponId)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (WeaponId.IsNone())
+	{
+		PrintGMResult(TEXT("Usage: GMWeapon <WeaponId>  (e.g. W_J_01 / W_J_08 / W_J_09)"), false);
+		return;
+	}
+
+	AReEchoPlayerPawn* PlayerPawn = Player;
+	if (!PlayerPawn)
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PlayerPawn = Cast<AReEchoPlayerPawn>(PC->GetPawn());
+		}
+	}
+	AReEchoWeaponActor* LiveWeapon = PlayerPawn ? PlayerPawn->GetWeapon() : nullptr;
+	if (!PlayerPawn || !LiveWeapon)
+	{
+		PrintGMResult(TEXT("GMWeapon requires a live player weapon (start an encounter first)."), false);
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(WeaponId) : nullptr;
+	if (!Weapon)
+	{
+		PrintGMResult(
+		    FString::Printf(TEXT("GMWeapon failed: WeaponId '%s' is unknown or disabled."), *WeaponId.ToString()),
+		    false);
+		return;
+	}
+
+	if (RunSubsystem && !RunSubsystem->CurrentBuild.WeaponDomainRevision.IsEmpty())
+	{
+		const FReEchoBuildSnapshot PreviousBuild = RunSubsystem->CurrentBuild;
+		FReEchoBuildSnapshot CandidateBuild;
+		FString SelectError;
+		if (!ReEchoWeaponRuntime::TrySelectWeapon(*Snapshot, PreviousBuild, WeaponId, CandidateBuild, SelectError))
+		{
+			PrintGMResult(FString::Printf(TEXT("GMWeapon %s failed: %s"), *WeaponId.ToString(), *SelectError), false);
+			return;
+		}
+		if (!PlayerPawn->InitializeWeaponFromBuild(CandidateBuild, Snapshot))
+		{
+			PlayerPawn->InitializeWeaponFromBuild(PreviousBuild, Snapshot);
+			PrintGMResult(FString::Printf(TEXT("GMWeapon %s failed: live weapon rejected the candidate build."),
+			                              *WeaponId.ToString()),
+			              false);
+			return;
+		}
+		RunSubsystem->CurrentBuild = MoveTemp(CandidateBuild);
+	}
+	else if (!LiveWeapon->SelectWeaponById(WeaponId))
+	{
+		PrintGMResult(
+		    FString::Printf(TEXT("GMWeapon %s failed: live weapon could not select it."), *WeaponId.ToString()), false);
+		return;
+	}
+
+	PostUiEvent(FReEchoAudioEvents::UiEquip);
+	PrintGMResult(FString::Printf(TEXT("Switched weapon to %s (%s)."), *WeaponId.ToString(), *Weapon->DisplayName),
+	              true);
 }
 
 void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
@@ -1508,7 +1582,10 @@ void AReEchoGameMode::ShowStartMenu()
 	StopAmbienceState();
 	const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
 	const bool bHasSavedRun = SaveSlots.ContainsByPredicate(
-	    [](const FReEchoSaveSlotSummary& Slot) { return Slot.bOccupied; });
+	    [](const FReEchoSaveSlotSummary& Slot)
+	    {
+		    return Slot.bOccupied;
+	    });
 	StartMenuWidget->InitializeMenu(SaveSlots);
 	UE_LOG(LogTemp,
 	       Display,
@@ -1534,9 +1611,34 @@ void AReEchoGameMode::HandleNewGameRequested()
 	}
 	if (!RunSubsystem->SelectFirstEmptySaveSlot())
 	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game rejected: all save slots are occupied."));
-		return;
+		const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
+		const FReEchoSaveSlotSummary* OldestSaveSlot = nullptr;
+		for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
+		{
+			if (!SaveSlot.bOccupied)
+			{
+				continue;
+			}
+
+			if (!OldestSaveSlot || SaveSlot.SavedAtUtc < OldestSaveSlot->SavedAtUtc)
+			{
+				OldestSaveSlot = &SaveSlot;
+			}
+		}
+
+		if (!OldestSaveSlot || !RunSubsystem->SelectSaveSlot(OldestSaveSlot->SlotIndex))
+		{
+			PostUiEvent(FReEchoAudioEvents::UiError);
+			UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no replaceable save slot found."));
+			return;
+		}
+
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[ReEchoStartFlow] Replacing oldest save slot. Slot=%d SavedAtUtc=%s"),
+		       OldestSaveSlot->SlotIndex + 1,
+		       *OldestSaveSlot->SavedAtUtc.ToIso8601());
+		RunSubsystem->DeleteSavedRun();
 	}
 	ShowLoadoutSelection();
 }
@@ -1551,7 +1653,7 @@ void AReEchoGameMode::HandleContinueGameRequested()
 		if (StartMenuWidget)
 		{
 			StartMenuWidget->InitializeMenu(RunSubsystem ? RunSubsystem->GetSaveSlotSummaries()
-			                                               : TArray<FReEchoSaveSlotSummary>());
+			                                             : TArray<FReEchoSaveSlotSummary>());
 		}
 		return;
 	}
@@ -1567,7 +1669,10 @@ void AReEchoGameMode::HandleSaveSlotRequested(const int32 SlotIndex)
 	}
 	const TArray<FReEchoSaveSlotSummary> Summaries = RunSubsystem->GetSaveSlotSummaries();
 	const FReEchoSaveSlotSummary* Summary = Summaries.FindByPredicate(
-	    [SlotIndex](const FReEchoSaveSlotSummary& Candidate) { return Candidate.SlotIndex == SlotIndex; });
+	    [SlotIndex](const FReEchoSaveSlotSummary& Candidate)
+	    {
+		    return Candidate.SlotIndex == SlotIndex;
+	    });
 	if (!Summary)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
@@ -2465,7 +2570,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 	// Echo actor per recording. Each Echo owns its immutable recording and build snapshot, so its
 	// playback, position, weapon and run state stay independent of the others.
 	const TArray<FReEchoRecording> Recordings =
-	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	    RunSubsystem->ResolveReplayRecordings(ReEchoTimeAnchor::MaximumResolvedEchoes);
 	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = SpawnEchoActor();
@@ -2540,8 +2645,8 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 void AReEchoGameMode::CaptureActiveSaveSlotPreview()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || RunSubsystem->GetActiveSaveSlotIndex() == INDEX_NONE || !GEngine ||
-	    !GEngine->GameViewport || !GEngine->GameViewport->Viewport)
+	if (!RunSubsystem || RunSubsystem->GetActiveSaveSlotIndex() == INDEX_NONE || !GEngine || !GEngine->GameViewport ||
+	    !GEngine->GameViewport->Viewport)
 	{
 		return;
 	}
@@ -2560,18 +2665,16 @@ void AReEchoGameMode::CaptureActiveSaveSlotPreview()
 	}
 }
 
-bool AReEchoGameMode::ShouldGrantPostEntryInvulnerability(const int32 EncounterIndex,
-                                                           const float DurationSeconds)
+bool AReEchoGameMode::ShouldGrantPostEntryInvulnerability(const int32 EncounterIndex, const float DurationSeconds)
 {
 	return EncounterIndex > 0 && DurationSeconds > 0.0f;
 }
 
 float AReEchoGameMode::ResolvePostEntryInvulnerabilitySeconds() const
 {
-	const UReEchoEncounterFlowSettings* Settings = EncounterFlowSettingsClass
-	                                                     ? EncounterFlowSettingsClass->GetDefaultObject<
-	                                                           UReEchoEncounterFlowSettings>()
-	                                                     : GetDefault<UReEchoEncounterFlowSettings>();
+	const UReEchoEncounterFlowSettings* Settings =
+	    EncounterFlowSettingsClass ? EncounterFlowSettingsClass->GetDefaultObject<UReEchoEncounterFlowSettings>()
+	                               : GetDefault<UReEchoEncounterFlowSettings>();
 	return Settings ? FMath::Max(0.0f, Settings->PostEntryInvulnerabilitySeconds) : 0.0f;
 }
 
@@ -2727,7 +2830,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	if (!bBossPostEchoPhaseTriggered)
 	{
 		const TArray<FReEchoRecording> Recordings =
-		    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+		    RunSubsystem->ResolveReplayRecordings(ReEchoTimeAnchor::MaximumResolvedEchoes);
 		for (const FReEchoRecording& Recording : Recordings)
 		{
 			AReEchoEchoActor* Echo = SpawnEchoActor();
@@ -3862,8 +3965,6 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		bPostTraitShopClosing = false;
 		InventoryShopWidget->OnEchoStoreRequested.AddUObject(this, &AReEchoGameMode::HandleEchoStoreRequested);
 		InventoryShopWidget->OnEchoSkipRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSkipRequested);
-		InventoryShopWidget->OnEchoReplaceRequested.AddUObject(this, &AReEchoGameMode::HandleEchoReplaceRequested);
-		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
 		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(this,
 		                                                            &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
 		RefreshShopPresentation(RunSubsystem, Mode);
@@ -4329,14 +4430,7 @@ FText GetEchoCommandFailureText(const EReEchoEchoStorageResult Result)
 	{
 		case EReEchoEchoStorageResult::NoPendingRecording:
 			return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
-		case EReEchoEchoStorageResult::StorageFull:
-			return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
-		case EReEchoEchoStorageResult::InvalidReplacementTarget:
-			return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
-		case EReEchoEchoStorageResult::ReplayLimitExceeded:
-			return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
 		case EReEchoEchoStorageResult::InvalidRecordingId:
-		case EReEchoEchoStorageResult::DuplicateRecordingId:
 			return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
 		default:
 			return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
@@ -4351,26 +4445,21 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoTimeAnchor::CardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
 		    NSLOCTEXT("ReEcho", "EchoStorageCardRequired", "需要先获得“时空锚点”才能存储回响。"));
 		return;
 	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecording();
+	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingAsTimeAnchor();
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
 		const bool bSaved = RunSubsystem->SaveRun();
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "Echo stored.")
-		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "Echo stored in this session, but saving failed."));
-	}
-	else if (Result == EReEchoEchoStorageResult::StorageFull)
-	{
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->EnterEchoReplacementMode();
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "本场回响已设为时间锚点。")
+		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "本场回响已设为时间锚点，但存档失败。"));
 	}
 	else
 	{
@@ -4395,80 +4484,6 @@ void AReEchoGameMode::HandleEchoSkipRequested()
 		InventoryShopWidget->ShowEchoStatus(
 		    bSaved ? NSLOCTEXT("ReEcho", "EchoSkipped", "Echo skipped.")
 		           : NSLOCTEXT("ReEcho", "EchoSkipSaveFailed", "Echo skipped in this session, but saving failed."));
-	}
-	else
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
-	}
-}
-
-void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
-{
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
-	{
-		return;
-	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoReplaceCardRequired", "需要先获得“时空锚点”才能替换回响。"));
-		return;
-	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingReplacing(RecordingId);
-	if (Result == EReEchoEchoStorageResult::Success)
-	{
-		const bool bSaved = RunSubsystem->SaveRun();
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoReplaced", "Stored echo replaced.")
-		           : NSLOCTEXT("ReEcho", "EchoReplaceSaveFailed", "Echo replaced in this session, but saving failed."));
-	}
-	else
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
-	}
-}
-
-void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds)
-{
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
-	{
-		return;
-	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoSelectionCardRequired", "需要先获得“时空锚点”才能选择存储回响。"));
-		return;
-	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);
-	if (Result == EReEchoEchoStorageResult::Success)
-	{
-		if (RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_3_02")))
-		{
-			if (RecordingIds.Num() == 1)
-			{
-				RunSubsystem->SetCardAnchorRecording(RecordingIds[0]);
-			}
-			else
-			{
-				RunSubsystem->ClearCardAnchorRecording();
-			}
-		}
-		const bool bSaved = RunSubsystem->SaveRun();
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoSelectionSaved", "Replay selection saved.")
-		           : NSLOCTEXT(
-		                 "ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
 	}
 	else
 	{
@@ -4858,6 +4873,11 @@ float AReEchoGameMode::GetStage01To02EchoRevealTimeoutSeconds()
 	return 1.2f;
 }
 
+bool AReEchoGameMode::ShouldOfferStage01To02CgSkip(const bool bHasViewedCg, const bool bPlayingStageCg)
+{
+	return bHasViewedCg && bPlayingStageCg;
+}
+
 bool AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(const int32 CompletedEncounterIndex,
                                                            const EReEchoRunPhase Phase,
                                                            const bool bApplied,
@@ -4932,6 +4952,8 @@ void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSec
 	{
 		const bool bFailed = !EncounterTransitionWidget || EncounterTransitionWidget->HasSequenceFailed();
 		const bool bFinished = EncounterTransitionWidget && EncounterTransitionWidget->IsSequenceFinished();
+		UpdateCardChoiceToShopBackgroundBlend();
+		UpdateCardChoiceToShopCollapseTarget();
 		if (bFailed || bFinished)
 		{
 			CompleteCardChoiceToShopTransition(bFailed);
@@ -5021,19 +5043,26 @@ bool AReEchoGameMode::BeginCardChoiceToShopTransition()
 	}
 	if (TraitCardChoiceWidget)
 	{
-		TraitCardChoiceWidget->SetIsEnabled(false);
+		TraitCardChoiceWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+		TraitCardChoiceWidget->SetRenderOpacity(1.0f);
 	}
+	// TraitChoice pauses the world. Wmf/HAP can expose its first decoded surface while paused, but its media clock
+	// does not advance reliably in PIE. Keep menu abilities blocked and let the transition own the visible frame.
+	ResumeWorldForMenuTransition();
+	bCardChoiceToShopBackgroundPrepared = false;
+	PrepareCardChoiceToShopBackground();
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingCardChoiceToShop;
 	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] final free-card choice committed; transition started."));
 	return true;
 }
 
-void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
+void AReEchoGameMode::PrepareCardChoiceToShopBackground()
 {
-	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingCardChoiceToShop)
+	if (bCardChoiceToShopBackgroundPrepared)
 	{
 		return;
 	}
+	bCardChoiceToShopBackgroundPrepared = true;
 	if (TraitCardChoiceWidget)
 	{
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
@@ -5046,7 +5075,48 @@ void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
 	ShowPostTraitShop();
 	if (InventoryShopWidget)
 	{
-		InventoryShopWidget->SetIsEnabled(false);
+		InventoryShopWidget->SetIsEnabled(true);
+		InventoryShopWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+		InventoryShopWidget->SetRenderOpacity(0.0f);
+		// Opening the shop reapplies menu pause; the still-playing media must remain on a live world clock.
+		ResumeWorldForMenuTransition();
+	}
+	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] transparent shop created after TraitChoice closed."));
+}
+
+void AReEchoGameMode::UpdateCardChoiceToShopBackgroundBlend()
+{
+	if (!bCardChoiceToShopBackgroundPrepared || !InventoryShopWidget || !EncounterTransitionWidget)
+	{
+		return;
+	}
+	InventoryShopWidget->SetRenderOpacity(EncounterTransitionWidget->GetCardChoiceToShopBackgroundBlendAlpha());
+}
+
+void AReEchoGameMode::UpdateCardChoiceToShopCollapseTarget()
+{
+	if (!bCardChoiceToShopBackgroundPrepared || !InventoryShopWidget || !EncounterTransitionWidget)
+	{
+		return;
+	}
+
+	FVector2D TargetAbsoluteCenter;
+	if (InventoryShopWidget->GetCardChoiceToShopCollapseTargetAbsolute(TargetAbsoluteCenter))
+	{
+		EncounterTransitionWidget->SetCardChoiceToShopCollapseTargetAbsolute(TargetAbsoluteCenter);
+	}
+}
+
+void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
+{
+	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingCardChoiceToShop)
+	{
+		return;
+	}
+	PrepareCardChoiceToShopBackground();
+	if (InventoryShopWidget)
+	{
+		InventoryShopWidget->SetRenderOpacity(1.0f);
 	}
 	if (!bFailed && EncounterTransitionWidget)
 	{
@@ -5072,9 +5142,13 @@ void AReEchoGameMode::FinishCardChoiceToShopFade()
 		}
 	}
 	EncounterTransitionWidget = nullptr;
+	bCardChoiceToShopBackgroundPrepared = false;
 	if (InventoryShopWidget)
 	{
 		InventoryShopWidget->SetIsEnabled(true);
+		InventoryShopWidget->SetRenderOpacity(1.0f);
+		InventoryShopWidget->SetVisibility(ESlateVisibility::Visible);
+		UGameplayStatics::SetGamePaused(this, true);
 	}
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
 	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] shop revealed and interaction enabled."));
@@ -5105,6 +5179,7 @@ void AReEchoGameMode::ResetEncounterTransitionPresentation()
 		}
 	}
 	EncounterTransitionWidget = nullptr;
+	bCardChoiceToShopBackgroundPrepared = false;
 	EncounterSequenceElapsedSeconds = 0.0f;
 	Stage01To02EchoRevealElapsedSeconds = 0.0f;
 	CompleteStage01To02EchoReveal();
@@ -5263,6 +5338,11 @@ bool AReEchoGameMode::BeginStage01To02Cg()
 		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] media source could not start; fail-open."));
 		return false;
 	}
+	TransitionWidget->OnStageCgSkipRequested.RemoveAll(this);
+	TransitionWidget->OnStageCgSkipRequested.AddDynamic(this, &AReEchoGameMode::HandleStage01To02CgSkipRequested);
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	TransitionWidget->SetStage01To02SkipAvailable(
+	    ShouldOfferStage01To02CgSkip(RunSubsystem && RunSubsystem->HasViewedStage01To02Cg(), true));
 	SetPlayerMenuAbilityBlocked(true);
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingStage01To02Cg;
 	if (UReEchoAudioService* AudioService = GetGameInstance()->GetSubsystem<UReEchoAudioService>())
@@ -5273,7 +5353,21 @@ bool AReEchoGameMode::BeginStage01To02Cg()
 	return true;
 }
 
-void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed)
+void AReEchoGameMode::HandleStage01To02CgSkipRequested()
+{
+	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingStage01To02Cg)
+	{
+		return;
+	}
+	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] previously viewed CG skipped by player."));
+	if (EncounterTransitionWidget)
+	{
+		EncounterTransitionWidget->ResetPresentation();
+	}
+	CompleteStage01To02Cg(false, true);
+}
+
+void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed, const bool bSkipped)
 {
 	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingStage01To02Cg)
 	{
@@ -5283,9 +5377,17 @@ void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed)
 	{
 		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] playback failed; continuing to the post-CG camera gate."));
 	}
+	else if (bSkipped)
+	{
+		UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] skip accepted; preparing Encounter 2 presentation."));
+	}
 	else
 	{
 		UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] playback completed; preparing Encounter 2 presentation."));
+		if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
+		{
+			RunSubsystem->MarkStage01To02CgViewed();
+		}
 	}
 	if (EncounterTransitionMediaSound)
 	{

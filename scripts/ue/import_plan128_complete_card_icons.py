@@ -90,6 +90,20 @@ def import_icons():
             missing_active_icons.append(card_id)
             continue
 
+        texture.set_editor_property("srgb", True)
+        texture.set_editor_property("filter", unreal.TextureFilter.TF_BILINEAR)
+        texture.set_editor_property(
+            "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
+        )
+        texture.set_editor_property(
+            "compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON
+        )
+        texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+        if not unreal.EditorAssetLibrary.save_loaded_asset(
+            texture, only_if_is_dirty=False
+        ):
+            raise RuntimeError(f"Failed to save normalized card icon: {expected_path}")
+
         expected_width, expected_height = source_sizes[card_id]
         actual_width = texture.blueprint_get_size_x()
         actual_height = texture.blueprint_get_size_y()

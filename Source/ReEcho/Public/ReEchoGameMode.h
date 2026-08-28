@@ -32,8 +32,6 @@ class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
-class UReEchoEchoManagementWidget;
-class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
 class UReEchoArenaSceneCatalog;
@@ -118,7 +116,11 @@ public:
 	/** Directly previews one reaction VFX on the nearest living enemy without changing combat state. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
-	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id.
+	/** Switches the authoritative run build and live player weapon to any enabled production WeaponId. */
+	UFUNCTION(Exec)
+	void GMWeapon(FName WeaponId);
+	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv
+	 * Id.
 	 */
 	UFUNCTION(Exec)
 	void GMEquipRune(FName PartId);
@@ -264,6 +266,7 @@ private:
 	bool bContinueRunAfterShop = false;
 	bool bReturnToOpenShopAfterTraitChoice = false;
 	bool bPostTraitShopClosing = false;
+	bool bCardChoiceToShopBackgroundPrepared = false;
 	bool bPauseOpenedOverInventoryShop = false;
 
 	UPROPERTY()
@@ -322,11 +325,16 @@ private:
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence();
 	bool BeginCardChoiceToShopTransition();
+	void PrepareCardChoiceToShopBackground();
+	void UpdateCardChoiceToShopBackgroundBlend();
+	void UpdateCardChoiceToShopCollapseTarget();
 	void CompleteCardChoiceToShopTransition(bool bFailed);
 	void FinishCardChoiceToShopFade();
 	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
-	void CompleteStage01To02Cg(bool bFailed);
+	void CompleteStage01To02Cg(bool bFailed, bool bSkipped = false);
+	UFUNCTION()
+	void HandleStage01To02CgSkipRequested();
 	void BeginStage01To02PostCgCameraSequence();
 	void AdvanceStage01To02CameraSequence(float DeltaSeconds);
 	bool BeginStage01To02EchoReveal();
@@ -427,12 +435,6 @@ private:
 	void HandleEchoSkipRequested();
 
 	UFUNCTION()
-	void HandleEchoReplaceRequested(FGuid RecordingId);
-
-	UFUNCTION()
-	void HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds);
-
-	UFUNCTION()
 	void HandleEchoSkipAndCloseRequested();
 
 	void ShowInventoryShopMenu(EReEchoInventoryShopMode Mode);
@@ -494,6 +496,7 @@ private:
 	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
 	static float GetStage01To02EchoRevealDelaySeconds();
 	static float GetStage01To02EchoRevealTimeoutSeconds();
+	static bool ShouldOfferStage01To02CgSkip(bool bHasViewedCg, bool bPlayingStageCg);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

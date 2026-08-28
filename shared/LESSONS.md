@@ -1083,6 +1083,8 @@ file-static `AddBoxGeometry`。Unity build 或 adaptive non-unity 下两个同�
 
 **教训**：UMG 中“外框是方的、贴图也是方的、画面却是窄的”通常是父按钮内容边距或子图片 Brush 的历史值，而不是纹理导入问题。修复应落在持有显示约束的内层控件；不要通过放大外层 Canvas Slot 抵消内部 Padding，否则点击区、悬停表现和视觉尺寸会继续不一致。
 
+**异形槽内容边界**：槽框比例和内容贴图比例不一致时（例如 `89×175` 核心槽承载方形晶体），不能让 `Image` 直接 Fill 父 Button。外框继续由 Button Style 按作者尺寸呈现，内容层改为 `Button > ScaleBox(ScaleToFit, Center) > Image`，运行时用 `SetBrushFromTexture(Texture, true)` 让原生纹理尺寸参与适配。只改纹理导入尺寸或外层 Canvas Slot，无法解决这种父子比例不同导致的拉伸。
+
 **Designer 样例边界**：所见即所得样例应表达页面的默认结构，而不是伪造运行时状态。Plan110 曾在 `prepare_plan110_shop_designer_preview.py` 中把 `DesignerAttachmentSlotArt0..2` 写成火/雷/草配件图标，导致三个空槽在 Designer 中看起来像三颗裸露宝石。正确做法是设计期使用正式 `89×89` 空槽框；真实配件图标只由运行时投影在已装备时替换。预览脚本与当前 WBP 必须同步修改，否则下次重跑脚本会重新引入错误样例。
 
 ---

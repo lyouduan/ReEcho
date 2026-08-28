@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@aef4811f`。
 - 本地实现方式：`C:\tmp\ReEcho-plan151-stage01to02-cg-skip`，分支 `codex/plan151-stage01to02-cg-skip`。
@@ -88,20 +88,31 @@
 
 ### 变化
 
-- 待实现。
+- 新增独立 `ReEchoPlayerProgress` SaveGame，由 RunSubsystem 在 GameInstance 初始化时加载，并仅在 Stage01To02 CG 自然完成且保存成功后缓存已观看状态。
+- 过渡 Widget 新增右上角“跳过”按钮；媒体层不接收点击，按钮资格由 GameMode 从 RunSubsystem 注入，点击后立即禁用并广播。
+- 跳过按钮底图使用 `0.5` 透明度，按钮文字保持完全不透明。
+- GameMode 区分自然完成、失败与主动跳过；跳过关闭媒体和 CG 音频后复用原 CG 后镜头流程，自然结束与按钮请求仍由播放状态门保证只处理一次。
 
 ### 证据
 
-- 待执行。
+- `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过；UE 5.8 Development Editor 完整重建并刷新 7 个模块预构建包，源码指纹 `82e644406d2e`。
+- `ReEcho.UI.EncounterTransition.Policy`：通过；验证首次/非播放隐藏与已观看播放中显示策略。
+- `ReEcho.Run.PlayerProgress.Stage01To02Cg`：通过；验证默认未观看及独立 SaveGame 内存序列化往返。
+- `python scripts/validate_project.py`：通过。
+- `python scripts/ue/prebuilt_editor.py check`：通过，`build_id=55116800`。
+- `git diff --check`：通过。
 
 ### 剩余风险
 
-- 按钮视觉位置、手柄焦点与媒体结束边界需要 PIE 人工确认。
+- 自动化不能替代真实媒体播放与 Slate 命中测试；按钮视觉位置、首次无按钮、第二次可跳过、视频/CG音乐立即停止以及 CG 后镜头衔接需要 PIE 人工确认。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`。
+- `PendingBeforeClose`：请使用本任务工作树进行首次自然完整播放，再重启并再次进入第一关转场验证跳过按钮。
 
 ### 架构文档审阅结果
 
-- 待实现后补充。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录账号级观看状态权威、独立存档槽和自然完成/跳过流程。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md` 已更新：记录按钮命中、显隐和委托边界。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：没有新增 Runtime Module 或改变模块依赖拓扑。
+- `shared/CODEBASE_MAP/README.md` 已审阅、无需修改：现有 `AREA-Run` / `AREA-UI` 路由仍准确。
