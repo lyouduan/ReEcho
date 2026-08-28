@@ -998,6 +998,64 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	FReEchoWeaponPartShopView PaginatedCardView = PartShopView;
+	PaginatedCardView.OwnedCards.Reset();
+	for (int32 CardIndex = 0; CardIndex < 13; ++CardIndex)
+	{
+		FReEchoShopOffer Card = StorageCard;
+		Card.ItemId = FName(*FString::Printf(TEXT("TEST_PAGINATED_CARD_ITEM_%d"), CardIndex));
+		Card.ContentId = FName(*FString::Printf(TEXT("TEST_PAGINATED_CARD_%d"), CardIndex));
+		Card.DisplayName = FText::FromString(FString::Printf(TEXT("Paginated card %d"), CardIndex));
+		Card.IconTexturePath = CardIndex < 12 ? StorageCard.IconTexturePath : PurchasedCard.IconTexturePath;
+		PaginatedCardView.OwnedCards.Add(Card);
+	}
+	Widget->SetWeaponPartShopView(PaginatedCardView);
+	UTextBlock* CardPageCounter = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPageCounter")));
+	UButton* CardPageLeftButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardPageLeftButton")));
+	UButton* CardPageRightButton = Cast<UButton>(Widget->GetWidgetFromName(TEXT("DesignerCardPageRightButton")));
+	UImage* CardPageRightArrow = Cast<UImage>(Widget->GetWidgetFromName(TEXT("ArtFormalPageRight")));
+	UImage* FirstVisibleCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt0")));
+	UTexture2D* ExpectedFirstPageCardIcon = LoadObject<UTexture2D>(nullptr, *StorageCard.IconTexturePath);
+	UTexture2D* ExpectedSecondPageCardIcon = LoadObject<UTexture2D>(nullptr, *PurchasedCard.IconTexturePath);
+	TestEqual(TEXT("Owned-card loadout starts on page one"),
+	          CardPageCounter ? CardPageCounter->GetText().ToString() : FString(),
+	          FString(TEXT("1/2")));
+	TestTrue(TEXT("Page one displays the first twelve owned cards in the authored slot geometry"),
+	         FirstVisibleCardArt && ExpectedFirstPageCardIcon &&
+	             FirstVisibleCardArt->GetBrush().GetResourceObject() == ExpectedFirstPageCardIcon);
+	TestTrue(TEXT("Owned-card loadout binds both authored page arrows"), CardPageLeftButton && CardPageRightButton);
+	TestFalse(TEXT("Page-one left arrow is disabled"), CardPageLeftButton && CardPageLeftButton->GetIsEnabled());
+	TestTrue(TEXT("Page-one right arrow is enabled"), CardPageRightButton && CardPageRightButton->GetIsEnabled());
+	if (CardPageRightButton && CardPageRightArrow)
+	{
+		const FVector2D RestingArrowScale = CardPageRightArrow->GetRenderTransform().Scale;
+		CardPageRightButton->OnHovered.Broadcast();
+		TestTrue(TEXT("Page arrow scales from its authored size on hover"),
+		         CardPageRightArrow->GetRenderTransform().Scale.Equals(RestingArrowScale * 1.05f));
+		CardPageRightButton->OnUnhovered.Broadcast();
+		TestTrue(TEXT("Page arrow restores its authored size after hover"),
+		         CardPageRightArrow->GetRenderTransform().Scale.Equals(RestingArrowScale));
+	}
+	if (CardPageRightButton)
+	{
+		CardPageRightButton->OnClicked.Broadcast();
+	}
+	TestEqual(TEXT("Right arrow switches the owned-card loadout to page two"),
+	          CardPageCounter ? CardPageCounter->GetText().ToString() : FString(),
+	          FString(TEXT("2/2")));
+	TestTrue(TEXT("The thirteenth owned card reuses page one's first authored slot on page two"),
+	         FirstVisibleCardArt && ExpectedSecondPageCardIcon &&
+	             FirstVisibleCardArt->GetBrush().GetResourceObject() == ExpectedSecondPageCardIcon);
+	TestTrue(TEXT("Page-two left arrow is enabled"), CardPageLeftButton && CardPageLeftButton->GetIsEnabled());
+	TestFalse(TEXT("Page-two right arrow is disabled"), CardPageRightButton && CardPageRightButton->GetIsEnabled());
+	if (CardPageLeftButton)
+	{
+		CardPageLeftButton->OnClicked.Broadcast();
+	}
+	TestEqual(TEXT("Left arrow returns the owned-card loadout to page one"),
+	          CardPageCounter ? CardPageCounter->GetText().ToString() : FString(),
+	          FString(TEXT("1/2")));
+
 	FReEchoWeaponPartShopView DualSlotView = PartShopView;
 	DualSlotView.Slots.Reset();
 	DualSlotView.OwnedParts.Reset();
@@ -1030,14 +1088,13 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		DualSlotView.EquippedParts.Add(EquippedSnapshot);
 	}
 	Widget->SetWeaponPartShopView(DualSlotView);
-	UCanvasPanel* DualLayout =
-	    Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerDualAttachmentLayout")));
+	UCanvasPanel* DualLayout = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerDualAttachmentLayout")));
 	TestTrue(TEXT("G_3_22 capacity projection activates the authored five-slot layout"),
 	         DualLayout && DualLayout->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
 	for (int32 Index = 0; Index < 5; ++Index)
 	{
-		UButton* DualSlotButton = Cast<UButton>(
-		    Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlot%d"), Index)));
+		UButton* DualSlotButton =
+		    Cast<UButton>(Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlot%d"), Index)));
 		const UCanvasPanelSlot* DualCanvasSlot =
 		    DualSlotButton ? Cast<UCanvasPanelSlot>(DualSlotButton->Slot) : nullptr;
 		TestNotNull(*FString::Printf(TEXT("Dual attachment slot %d is authored"), Index), DualSlotButton);

@@ -34,6 +34,7 @@ namespace
 constexpr float ShopDesignWidth = 1920.0f;
 constexpr float ShopDesignHeight = 1080.0f;
 constexpr int32 BackpackPopupLayerZOrder = 100;
+constexpr int32 OwnedCardPageCount = 2;
 const FVector2D WeaponBackpackPopupSize(340.0f, 430.0f);
 const FVector2D RuneBackpackPopupSize(320.0f, 390.0f);
 
@@ -429,6 +430,7 @@ void UReEchoInventoryShopWidget::ShowInventory(const int32 TimeShards, const TAr
 {
 	Mode = EReEchoInventoryShopMode::Inventory;
 	bShowingShop = false;
+	ActiveOwnedCardPage = 0;
 	PurchasedItemIds.Reset();
 	bEchoStoragePopupOpen = false;
 	CurrentTimeShards = TimeShards;
@@ -462,6 +464,7 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
 {
 	Mode = EReEchoInventoryShopMode::ManualShop;
 	bShowingShop = true;
+	ActiveOwnedCardPage = 0;
 	PurchasedItemIds.Reset();
 	bEchoStoragePopupOpen = false;
 	CurrentTimeShards = TimeShards;
@@ -1192,8 +1195,8 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 		DesignerPartOfferIcons.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferIcon%d"), Index))));
 		ConfigureAspectFitImage(DesignerPartOfferIcons.Last());
-		DesignerPartOfferDescriptions.Add(Cast<UTextBlock>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferDescription%d"), Index))));
+		DesignerPartOfferDescriptions.Add(
+		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferDescription%d"), Index))));
 		DesignerPartOfferCosts.Add(
 		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferCost%d"), Index))));
 		UReEchoIndexedButton* PartBuy =
@@ -1215,8 +1218,8 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 		DesignerPackOfferIcons.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferIcon%d"), Index))));
 		ConfigureAspectFitImage(DesignerPackOfferIcons.Last());
-		DesignerPackOfferDescriptions.Add(Cast<UTextBlock>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferDescription%d"), Index))));
+		DesignerPackOfferDescriptions.Add(
+		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferDescription%d"), Index))));
 		DesignerPackOfferCosts.Add(
 		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferCost%d"), Index))));
 		UReEchoIndexedButton* PackBuy =
@@ -1319,9 +1322,8 @@ void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 		DesignerDualAttachmentSlotArts.Add(AttachmentArt);
 		ConfigureAspectFitImage(AttachmentArt);
 		ApplyPersistentSlotFrame(AttachmentButton,
-		                         Index == 0 && ShopCoreAttachmentSlotTexture
-		                             ? ShopCoreAttachmentSlotTexture.Get()
-		                             : ShopAttachmentSlotTexture.Get());
+		                         Index == 0 && ShopCoreAttachmentSlotTexture ? ShopCoreAttachmentSlotTexture.Get()
+		                                                                     : ShopAttachmentSlotTexture.Get());
 		if (AttachmentArt)
 		{
 			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(AttachmentArt->Slot))
@@ -1352,6 +1354,100 @@ void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 				ContentSlot->SetVerticalAlignment(VAlign_Fill);
 			}
 		}
+	}
+	BindOwnedCardPagination();
+}
+
+void UReEchoInventoryShopWidget::BindOwnedCardPagination()
+{
+	DesignerCardPageCounter = Cast<UTextBlock>(GetWidgetFromName(TEXT("DesignerPageCounter")));
+
+	auto BindPageButton = [this](const FName ButtonName, const FName ArrowName) -> UButton*
+	{
+		if (UButton* ExistingButton = Cast<UButton>(GetWidgetFromName(ButtonName)))
+		{
+			return ExistingButton;
+		}
+
+		UImage* ArrowImage = Cast<UImage>(GetWidgetFromName(ArrowName));
+		UCanvasPanel* ArrowCanvas = ArrowImage ? Cast<UCanvasPanel>(ArrowImage->GetParent()) : nullptr;
+		UCanvasPanelSlot* ArrowSlot = ArrowImage ? Cast<UCanvasPanelSlot>(ArrowImage->Slot) : nullptr;
+		if (!WidgetTree || !ArrowCanvas || !ArrowSlot)
+		{
+			return nullptr;
+		}
+
+		UButton* HitTarget = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), ButtonName);
+		FButtonStyle HitTargetStyle = HitTarget->GetStyle();
+		HitTargetStyle.Normal.DrawAs = ESlateBrushDrawType::NoDrawType;
+		HitTargetStyle.Hovered.DrawAs = ESlateBrushDrawType::NoDrawType;
+		HitTargetStyle.Pressed.DrawAs = ESlateBrushDrawType::NoDrawType;
+		HitTargetStyle.Disabled.DrawAs = ESlateBrushDrawType::NoDrawType;
+		HitTargetStyle.NormalPadding = FMargin(0.0f);
+		HitTargetStyle.PressedPadding = FMargin(0.0f);
+		HitTarget->SetStyle(HitTargetStyle);
+
+		constexpr float HitPadding = 8.0f;
+		UCanvasPanelSlot* HitTargetSlot = ArrowCanvas->AddChildToCanvas(HitTarget);
+		HitTargetSlot->SetPosition(ArrowSlot->GetPosition() - FVector2D(HitPadding, HitPadding));
+		HitTargetSlot->SetSize(ArrowSlot->GetSize() + FVector2D(HitPadding * 2.0f, HitPadding * 2.0f));
+		HitTargetSlot->SetZOrder(ArrowSlot->GetZOrder() + 1);
+		return HitTarget;
+	};
+
+	DesignerCardPageLeftButton = BindPageButton(TEXT("DesignerCardPageLeftButton"), TEXT("ArtFormalPageLeft"));
+	DesignerCardPageRightButton = BindPageButton(TEXT("DesignerCardPageRightButton"), TEXT("ArtFormalPageRight"));
+	UImage* LeftArrowImage = Cast<UImage>(GetWidgetFromName(TEXT("ArtFormalPageLeft")));
+	UImage* RightArrowImage = Cast<UImage>(GetWidgetFromName(TEXT("ArtFormalPageRight")));
+	if (DesignerCardPageLeftButton)
+	{
+		DesignerCardPageLeftButton->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleOwnedCardPageLeftClicked);
+		DesignerCardPageLeftButton->OnClicked.AddDynamic(this,
+		                                                 &UReEchoInventoryShopWidget::HandleOwnedCardPageLeftClicked);
+		if (LeftArrowImage)
+		{
+			if (!DesignerCardPageLeftVisualFeedback)
+			{
+				DesignerCardPageLeftVisualFeedback = NewObject<UReEchoButtonVisualFeedback>(this);
+			}
+			DesignerCardPageLeftVisualFeedback->BindVisualOnly(DesignerCardPageLeftButton, LeftArrowImage);
+		}
+	}
+	if (DesignerCardPageRightButton)
+	{
+		DesignerCardPageRightButton->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleOwnedCardPageRightClicked);
+		DesignerCardPageRightButton->OnClicked.AddDynamic(this,
+		                                                  &UReEchoInventoryShopWidget::HandleOwnedCardPageRightClicked);
+		if (RightArrowImage)
+		{
+			if (!DesignerCardPageRightVisualFeedback)
+			{
+				DesignerCardPageRightVisualFeedback = NewObject<UReEchoButtonVisualFeedback>(this);
+			}
+			DesignerCardPageRightVisualFeedback->BindVisualOnly(DesignerCardPageRightButton, RightArrowImage);
+		}
+	}
+	UpdateOwnedCardPaginationControls();
+}
+
+void UReEchoInventoryShopWidget::UpdateOwnedCardPaginationControls()
+{
+	ActiveOwnedCardPage = FMath::Clamp(ActiveOwnedCardPage, 0, OwnedCardPageCount - 1);
+	if (DesignerCardPageCounter)
+	{
+		DesignerCardPageCounter->SetText(FText::Format(NSLOCTEXT("ReEcho", "OwnedCardPageCounter", "{0}/{1}"),
+		                                               FText::AsNumber(ActiveOwnedCardPage + 1),
+		                                               FText::AsNumber(OwnedCardPageCount)));
+	}
+	if (DesignerCardPageLeftButton)
+	{
+		DesignerCardPageLeftButton->SetIsEnabled(ActiveOwnedCardPage > 0);
+	}
+	if (DesignerCardPageRightButton)
+	{
+		DesignerCardPageRightButton->SetIsEnabled(ActiveOwnedCardPage + 1 < OwnedCardPageCount);
 	}
 }
 
@@ -1759,9 +1855,11 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		return;
 	}
 	DisplayedOwnedCards.Reset();
+	const int32 SlotCount = FMath::Min(DesignerCardSlotButtons.Num(), DesignerCardSlotArts.Num());
+	const int32 MaxDisplayedCardCount = SlotCount * OwnedCardPageCount;
 	for (const FReEchoShopOffer& Card : CurrentPartShopView.OwnedCards)
 	{
-		if (DisplayedOwnedCards.Num() >= DesignerCardSlotButtons.Num())
+		if (DisplayedOwnedCards.Num() >= MaxDisplayedCardCount)
 		{
 			break;
 		}
@@ -1787,10 +1885,11 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 			DisplayedOwnedCards.Last() = *StorageCard;
 		}
 	}
-	const int32 VisibleCount = DisplayedOwnedCards.Num();
-	const int32 SlotCount = FMath::Min(DesignerCardSlotButtons.Num(), DesignerCardSlotArts.Num());
+	const int32 PageStartIndex = ActiveOwnedCardPage * SlotCount;
+	const int32 VisibleCount = FMath::Clamp(DisplayedOwnedCards.Num() - PageStartIndex, 0, SlotCount);
 	for (int32 Index = 0; Index < SlotCount; ++Index)
 	{
+		const int32 CardIndex = PageStartIndex + Index;
 		UButton* CardSlotButton = DesignerCardSlotButtons[Index];
 		UImage* SlotImage = DesignerCardSlotArts[Index];
 		if (!CardSlotButton || !SlotImage)
@@ -1801,10 +1900,10 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		CardSlotButton->SetToolTip(nullptr);
 		CardSlotButton->SetVisibility(ESlateVisibility::Visible);
 		UTexture2D* CardTexture = Index < VisibleCount ? ShopCardIconTexture.Get() : nullptr;
-		if (Index < VisibleCount && !DisplayedOwnedCards[Index].IconTexturePath.IsEmpty())
+		if (Index < VisibleCount && !DisplayedOwnedCards[CardIndex].IconTexturePath.IsEmpty())
 		{
 			if (UTexture2D* LoadedCardTexture =
-			        LoadObject<UTexture2D>(nullptr, *DisplayedOwnedCards[Index].IconTexturePath))
+			        LoadObject<UTexture2D>(nullptr, *DisplayedOwnedCards[CardIndex].IconTexturePath))
 			{
 				CardTexture = LoadedCardTexture;
 			}
@@ -1814,8 +1913,8 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		SlotImage->SetVisibility(Index < VisibleCount ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		if (Index < VisibleCount)
 		{
-			const bool bStorageCard = DisplayedOwnedCards[Index].ContentId == FName(ReEchoTimeAnchor::CardId);
-			CardSlotButton->SetToolTip(BuildSlotTooltip(DisplayedOwnedCards[Index]));
+			const bool bStorageCard = DisplayedOwnedCards[CardIndex].ContentId == FName(ReEchoTimeAnchor::CardId);
+			CardSlotButton->SetToolTip(BuildSlotTooltip(DisplayedOwnedCards[CardIndex]));
 			if (bStorageCard)
 			{
 				CardSlotButton->OnClicked.AddUniqueDynamic(
@@ -1823,6 +1922,27 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 			}
 		}
 	}
+	UpdateOwnedCardPaginationControls();
+}
+
+void UReEchoInventoryShopWidget::HandleOwnedCardPageLeftClicked()
+{
+	if (ActiveOwnedCardPage <= 0)
+	{
+		return;
+	}
+	--ActiveOwnedCardPage;
+	RebuildOwnedCardSlots();
+}
+
+void UReEchoInventoryShopWidget::HandleOwnedCardPageRightClicked()
+{
+	if (ActiveOwnedCardPage + 1 >= OwnedCardPageCount)
+	{
+		return;
+	}
+	++ActiveOwnedCardPage;
+	RebuildOwnedCardSlots();
 }
 
 void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
@@ -1969,28 +2089,26 @@ void UReEchoInventoryShopWidget::RebuildAttachmentSlotMapping()
 	{
 		if (Button)
 		{
-			Button->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::Collapsed
-			                                                       : ESlateVisibility::Visible);
+			Button->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 		}
 	}
 	if (DualAttachmentLayoutWidget)
 	{
 		DualAttachmentLayoutWidget->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::SelfHitTestInvisible
-		                                                                    : ESlateVisibility::Collapsed);
+		                                                                     : ESlateVisibility::Collapsed);
 	}
 	for (UButton* Button : DesignerDualAttachmentSlotButtons)
 	{
 		if (Button)
 		{
-			Button->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::Visible
-			                                                       : ESlateVisibility::Collapsed);
+			Button->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		}
 	}
 
-	DesignerAttachmentSlotButtons = bUsingDualAttachmentLayout ? DesignerDualAttachmentSlotButtons
-	                                                           : DesignerStandardAttachmentSlotButtons;
-	DesignerAttachmentSlotArts = bUsingDualAttachmentLayout ? DesignerDualAttachmentSlotArts
-	                                                        : DesignerStandardAttachmentSlotArts;
+	DesignerAttachmentSlotButtons =
+	    bUsingDualAttachmentLayout ? DesignerDualAttachmentSlotButtons : DesignerStandardAttachmentSlotButtons;
+	DesignerAttachmentSlotArts =
+	    bUsingDualAttachmentLayout ? DesignerDualAttachmentSlotArts : DesignerStandardAttachmentSlotArts;
 	DesignerAttachmentSlotTypeIds.Reset();
 	DesignerAttachmentSlotOccurrenceIndices.Reset();
 	if (!bUsingDualAttachmentLayout)
