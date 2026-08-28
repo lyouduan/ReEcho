@@ -216,7 +216,16 @@ bool FReEchoRuneTimedStatusRuntimeTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Vertigo expires exactly at its boundary"), Combatant->IsActionDisabled(1.0f));
 	Combatant->GrantTimedInvulnerability(0.0f, 0.5f);
 	TestTrue(TEXT("Group-hit invulnerability is active before its boundary"), Combatant->IsTimedInvulnerable(0.499f));
+	FReEchoStatBlock RefreshedStats = Stats;
+	RefreshedStats.PhysicalAttack = 25.0f;
+	Combatant->InitializeFromStats(RefreshedStats, false);
+	TestTrue(TEXT("In-encounter stat refresh preserves active invulnerability"),
+	         Combatant->IsTimedInvulnerable(0.499f));
 	TestFalse(TEXT("Group-hit invulnerability expires exactly at its boundary"), Combatant->IsTimedInvulnerable(0.5f));
+	Combatant->GrantTimedInvulnerability(1.0f, 0.5f);
+	Combatant->InitializeFromStats(RefreshedStats, true);
+	TestFalse(TEXT("Full-health initialization clears prior encounter invulnerability"),
+	          Combatant->IsTimedInvulnerable(1.1f));
 
 	FReEchoTimedStatusCommand Bleed;
 	Bleed.StatusId = TEXT("Z_Bleeding");

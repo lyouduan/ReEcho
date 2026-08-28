@@ -78,7 +78,12 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	AdditiveAttackModifiers.Reset();
 	BleedingStacks.Reset();
 	StunnedUntilWorldTime = 0.0f;
-	InvulnerableUntilWorldTime = 0.0f;
+	// bFillHealth=false is also the production path for in-encounter stat refreshes after card reactions and kills.
+	// Those refreshes must not silently cancel an already granted timed-invulnerability window.
+	if (bFillHealth)
+	{
+		InvulnerableUntilWorldTime = 0.0f;
+	}
 	HealthChangeReason = TEXT("Initialize");
 	HealthChangeAttack = {};
 	if (BoundAbilitySystem)
@@ -116,6 +121,13 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	}
 	if (IsTimedInvulnerable(WorldTime))
 	{
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[CombatInvulnerability] blocked damage=%.3f owner=%s world=%.3f until=%.3f"),
+		       Damage,
+		       *GetNameSafe(GetOwner()),
+		       WorldTime,
+		       InvulnerableUntilWorldTime);
 		return 0.f;
 	}
 	const FName CursedStatusId(TEXT("Z_Cursed"));
