@@ -46,7 +46,7 @@
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
-| Encounter 结算表现状态 | `AReEchoGameMode` | 单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入现有抽卡或商店页 |
+| Encounter 结算与入场保护编排 | `AReEchoGameMode` + `BP_EncounterFlowSettings` | 单场结束到下一场恢复控制 | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入现有抽卡或商店页；第 2 场及以后在恢复玩家输入的同一时刻按 Blueprint 配置向 Player Combatant 授予短暂无敌，不复制伤害门 |
 | Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建 Enemy Host；Host 完成 Definition/Profile 装配后只尝试一次可选 Born，成功播放时进入临时不可伤害/不可移动/不可攻击 Gate，缺失或失败不进入 Gate，碰撞、AI 计时和目标不暂停；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前 Arena 场景与 SceneId 注册 | `UReEchoArenaSceneCatalog` 唯一注册表；Stage CSV `SceneId` 为选择权威；`AReEchoGameMode` 只持有 Active/Pending Arena | World/Stage | GameMode 先生成并验证隐藏候选，再提交消费者重绑；同 SceneId 不重建，准备失败保留旧 Arena 与局内对象 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
@@ -123,6 +123,7 @@ DefaultEngine.ini
           → 局间停止玩家并冻结保留 Enemy Host，清理旧 Echo/瞬时攻击
           → 特质选择 → 商店 → Echo 管理
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
+          → `ActivatePreparedEncounter` 恢复输入 → `BP_EncounterFlowSettings.PostEntryInvulnerabilitySeconds`（默认 0.5 秒）→ Combatant 最终伤害无敌门
 ```
 
 Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBounds`、`PlayerBounds` 的实际缩放后 Extent；怪物出生安全区枚举四个墙体世界 AABB 的三种对边拆分及两种轴向分配，以墙中心分离方向过滤错误配对，选择能形成的最大内接世界矩形，再按中心排序取得左右/上下内侧面。算法不依赖 `WallEast/West/North/South` 名称固定对应世界轴正负，兼容非零中心、镜像和轴向旋转。安全区统一内缩 `EnemySpawnWallPadding`（默认 100 cm，覆盖当前最大 65 cm 普通怪碰撞半径并保留余量）；所有配对均无法围合或内缩后退化时输出四墙实际 AABB 与六个候选计算结果并失败关闭。`EnemySpawnBounds` 只保留序列化和 Editor 可视兼容，不再决定正式波次或 GM 出生。`Backdrop` Material Slot 0 是唯一地图材质入口。SC01-SC04 已把旧 HalfExtents 烘入 BoxComponent 并启用 `bUseEditorAuthoredSceneLayout`，Construction 不再重写层级、材质、Transform 或 Bounds；旧 SceneProfile、Actor MapMaterial 和每 BP 重复 Registry 均已清空，仅保留序列化兼容字段。SC01 边缘插片是 Arena Blueprint 的美术直接组件，程序作者ing入口已停用，不再生成、补齐、删除或重排插片。

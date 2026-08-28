@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Engine/GameInstance.h"
+#include "Encounter/ReEchoEncounterFlowSettings.h"
 #include "Misc/AutomationTest.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "ReEchoGameMode.h"
@@ -91,6 +92,26 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	          AReEchoGameMode::ShouldCompleteEncounterTransition(true, false, false, 30.0f));
 	TestTrue(TEXT("Encounter 1 proceeds directly to its CG"), AReEchoGameMode::ShouldPlayStage01To02Cg(1));
 	TestFalse(TEXT("Encounter 2 retains the normal post-card shop"), AReEchoGameMode::ShouldPlayStage01To02Cg(2));
+	TestEqual(TEXT("Native encounter-entry protection defaults to half a second"),
+	          GetDefault<UReEchoEncounterFlowSettings>()->PostEntryInvulnerabilitySeconds,
+	          0.5f);
+	TestFalse(TEXT("Encounter 1 does not receive transition protection"),
+	          AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(1, 0.5f));
+	TestTrue(TEXT("Encounter 2 receives configured transition protection"),
+	         AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(2, 0.5f));
+	TestFalse(TEXT("Zero seconds disables transition protection"),
+	          AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(2, 0.0f));
+	const UClass* EncounterFlowBlueprintClass = LoadClass<UReEchoEncounterFlowSettings>(
+	    nullptr, TEXT("/Game/ReEcho/Gameplay/Encounter/BP_EncounterFlowSettings.BP_EncounterFlowSettings_C"));
+	TestNotNull(TEXT("Dedicated encounter-flow Blueprint is loadable"), EncounterFlowBlueprintClass);
+	if (EncounterFlowBlueprintClass)
+	{
+		const UReEchoEncounterFlowSettings* BlueprintDefaults =
+		    EncounterFlowBlueprintClass->GetDefaultObject<UReEchoEncounterFlowSettings>();
+		TestEqual(TEXT("Encounter-flow Blueprint defaults to half a second"),
+		          BlueprintDefaults->PostEntryInvulnerabilitySeconds,
+		          0.5f);
+	}
 
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);

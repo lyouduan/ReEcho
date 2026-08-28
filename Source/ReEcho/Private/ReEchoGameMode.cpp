@@ -14,6 +14,7 @@
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
 #include "Encounter/ReEchoEncounterDirector.h"
+#include "Encounter/ReEchoEncounterFlowSettings.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
 #include "Enemies/ReEchoEnemyLogicComponent.h"
@@ -79,6 +80,10 @@ AReEchoGameMode::AReEchoGameMode()
 	    TEXT("/Game/ReEcho/Gameplay/Pickups/BP_TimeShardPickup"));
 	TimeShardPickupClass = TimeShardPickupPrefab.Succeeded() ? TimeShardPickupPrefab.Class.Get()
 	                                                         : AReEchoTimeShardPickupActor::StaticClass();
+	static ConstructorHelpers::FClassFinder<UReEchoEncounterFlowSettings> EncounterFlowSettingsPrefab(
+	    TEXT("/Game/ReEcho/Gameplay/Encounter/BP_EncounterFlowSettings"));
+	EncounterFlowSettingsClass = EncounterFlowSettingsPrefab.Succeeded() ? EncounterFlowSettingsPrefab.Class.Get()
+	                                                                     : UReEchoEncounterFlowSettings::StaticClass();
 	static ConstructorHelpers::FObjectFinder<UReEcho2DPresentationCatalog> CatalogFinder(
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog"));
 	PresentationCatalog = CatalogFinder.Object;
@@ -129,6 +134,12 @@ AReEchoEchoActor* AReEchoGameMode::SpawnEchoActorForTests()
 void AReEchoGameMode::SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass)
 {
 	EchoGameplayClass = InClass;
+}
+
+bool AReEchoGameMode::ShouldGrantPostEntryInvulnerabilityForTests(const int32 EncounterIndex,
+                                                                  const float DurationSeconds)
+{
+	return ShouldGrantPostEntryInvulnerability(EncounterIndex, DurationSeconds);
 }
 #endif
 
@@ -2342,6 +2353,7 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 	SetMusicState(IsBossEncounter() ? FReEchoAudioEvents::MusicBoss : FReEchoAudioEvents::MusicEncounter);
 	SetEnemyEncounterSimulationSuspended(false);
 	RestoreGameInput();
+	GrantPostEntryInvulnerability(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
 	ProcessScheduledSpawnEvents(0.0f);
 	UE_LOG(LogReEcho,
@@ -2351,6 +2363,39 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 	       Echoes.Num(),
 	       EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed ? TEXT("true")
 	                                                                                                : TEXT("false"));
+}
+
+bool AReEchoGameMode::ShouldGrantPostEntryInvulnerability(const int32 EncounterIndex,
+                                                           const float DurationSeconds)
+{
+	return EncounterIndex > 1 && DurationSeconds > 0.0f;
+}
+
+float AReEchoGameMode::ResolvePostEntryInvulnerabilitySeconds() const
+{
+	const UReEchoEncounterFlowSettings* Settings = EncounterFlowSettingsClass
+	                                                     ? EncounterFlowSettingsClass->GetDefaultObject<
+	                                                           UReEchoEncounterFlowSettings>()
+	                                                     : GetDefault<UReEchoEncounterFlowSettings>();
+	return Settings ? FMath::Max(0.0f, Settings->PostEntryInvulnerabilitySeconds) : 0.0f;
+}
+
+void AReEchoGameMode::GrantPostEntryInvulnerability(const int32 EncounterIndex)
+{
+	const float DurationSeconds = ResolvePostEntryInvulnerabilitySeconds();
+	if (!ShouldGrantPostEntryInvulnerability(EncounterIndex, DurationSeconds) || !Player || !Player->Combatant ||
+	    !GetWorld())
+	{
+		return;
+	}
+
+	Player->Combatant->GrantTimedInvulnerability(GetWorld()->GetTimeSeconds(), DurationSeconds);
+	UE_LOG(LogReEcho,
+	       Display,
+	       TEXT("[EncounterEntryProtection] encounter=%d duration=%.3f player=%s"),
+	       EncounterIndex,
+	       DurationSeconds,
+	       *GetNameSafe(Player));
 }
 
 FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() const
