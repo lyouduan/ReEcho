@@ -31,8 +31,6 @@ class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
 class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
-class UReEchoEchoManagementWidget;
-class UReEchoStoredEchoEntryWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
 class UReEchoArenaSceneCatalog;
@@ -400,12 +398,6 @@ private:
 
 	UFUNCTION()
 	void HandleEchoSkipRequested();
-
-	UFUNCTION()
-	void HandleEchoReplaceRequested(FGuid RecordingId);
-
-	UFUNCTION()
-	void HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds);
 
 	UFUNCTION()
 	void HandleEchoSkipAndCloseRequested();

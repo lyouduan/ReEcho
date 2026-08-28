@@ -105,8 +105,7 @@ public:
 	TArray<FReEchoRecording> RecordingHistory;
 
 	/**
-	 * Legacy v4 migration input only. v5 never writes this and it is no longer a live authority;
-	 * SelectedReplayIds carries the "which echo replays next" decision instead.
+	 * Legacy v4 migration input only. Modern saves use CurrentBuild.CardState.Runtime.AnchorRecordingId.
 	 */
 	UPROPERTY(SaveGame)
 	FGuid AnchorId;
@@ -133,20 +132,21 @@ public:
 	UPROPERTY(SaveGame)
 	FReEchoRecording PreviousCompletedRecording;
 
-	/** Only echoes the player explicitly chose to store; identity is FReEchoRecording::Id, not index. */
+	/** Compatibility container for the single time anchor. Modern saves contain at most one recording. */
 	UPROPERTY(SaveGame)
 	TArray<FReEchoRecording> StoredEchoes;
 
-	/** Stable ids selected for the next encounter's specific replay; subset of StoredEchoes. */
+	/** Deprecated v5 compatibility field. Deserialized from old saves, ignored, and written empty. */
 	UPROPERTY(SaveGame)
 	TArray<FGuid> SelectedReplayIds;
 
+	/** Deprecated multi-slot capacity retained only so old archives deserialize. New saves write zero. */
 	UPROPERTY(SaveGame)
-	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
+	int32 StorageCapacity = 0;
 
-	/** Zero means specific replay is not unlocked yet. */
+	/** Deprecated v5 compatibility field. Deserialized from old saves, ignored, and written as zero. */
 	UPROPERTY(SaveGame)
-	int32 SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
+	int32 SpecificReplayLimit = 0;
 
 	/** Present only for an explicit in-encounter save-and-quit. */
 	UPROPERTY(SaveGame)

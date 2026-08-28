@@ -21,6 +21,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	Source->OwnedPartIds.Add(TEXT("P_CORE_FLAME"));
 	Source->OwnedWeaponIds.Add(TEXT("W_J_08"));
 	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
+	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_3_02"));
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
 	Recording.EncounterIndex = 1;
@@ -28,13 +29,8 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Completed encounter stages a pending echo"),
 	          Source->StagePendingRecording(Recording),
 	          EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Pending echo stores into a free slot"),
-	          Source->StorePendingRecording(),
-	          EReEchoEchoStorageResult::Success);
-	TestEqual(
-	    TEXT("Specific single replay unlocks"), Source->SetSpecificReplayLimit(1), EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Stored echo is selected for the next encounter"),
-	          Source->SetSelectedReplayIds({Recording.Id}),
+	TestEqual(TEXT("Pending echo becomes the time anchor"),
+	          Source->StorePendingRecordingAsTimeAnchor(),
 	          EReEchoEchoStorageResult::Success);
 	Source->BeginEncounter();
 	const int32 EnemyDrop = Source->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 17);
@@ -65,7 +61,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Additional weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_08")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_01")));
-	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);
+	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 2);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
 	TestEqual(TEXT("Legacy facade resolves one echo from the new state"), RestoredRecordings.Num(), 1);
 	if (RestoredRecordings.Num() == 1)
@@ -73,9 +69,8 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Selected stored echo restores"), RestoredRecordings[0].Id, Recording.Id);
 	}
 	const FReEchoEchoStorageSummary RestoredStorage = Restored->GetEchoStorageSummary();
-	TestEqual(TEXT("Stored echo slot restores"), RestoredStorage.StoredEchoes.Num(), 1);
-	TestEqual(TEXT("Specific replay limit restores"), RestoredStorage.SpecificReplayLimit, 1);
-	TestEqual(TEXT("Storage capacity restores"), RestoredStorage.StorageCapacity, 3);
+	TestTrue(TEXT("Time anchor restores"), RestoredStorage.bHasTimeAnchor);
+	TestEqual(TEXT("Time anchor id restores"), RestoredStorage.TimeAnchorRecording.RecordingId, Recording.Id);
 	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
 	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
 

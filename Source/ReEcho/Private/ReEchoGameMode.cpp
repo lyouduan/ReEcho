@@ -321,8 +321,8 @@ void AReEchoGameMode::GMScene(const FString& Scene)
 		PrintGMResult(FString::Printf(TEXT("GMScene %s failed: %s"), *SceneId.ToString(), *Error), false);
 		return;
 	}
-	PrintGMResult(FString::Printf(TEXT("Arena scene is now %s; current Stage/Encounter is unchanged."),
-	                              *SceneId.ToString()));
+	PrintGMResult(
+	    FString::Printf(TEXT("Arena scene is now %s; current Stage/Encounter is unchanged."), *SceneId.ToString()));
 }
 
 void AReEchoGameMode::GMMoveSpeed(const float Speed)
@@ -339,9 +339,8 @@ void AReEchoGameMode::GMMoveSpeed(const float Speed)
 	}
 	const float PreviousSpeed = Player->Movement->MaxSpeed;
 	Player->Movement->MaxSpeed = Speed;
-	PrintGMResult(FString::Printf(TEXT("Player movement speed %.1f -> %.1f cm/s."),
-	                              PreviousSpeed,
-	                              Player->Movement->MaxSpeed));
+	PrintGMResult(
+	    FString::Printf(TEXT("Player movement speed %.1f -> %.1f cm/s."), PreviousSpeed, Player->Movement->MaxSpeed));
 }
 
 AReEchoEnemyActor* AReEchoGameMode::FindNearestLivingEnemyForGM() const
@@ -423,8 +422,7 @@ bool AReEchoGameMode::TryResolveGMEnemyAttachment(const FString& Element, EReEch
 		OutElement = EReEchoElement::Water;
 		return true;
 	}
-	if (Element.Equals(TEXT("None"), ESearchCase::IgnoreCase) ||
-	    Element.Equals(TEXT("Clear"), ESearchCase::IgnoreCase))
+	if (Element.Equals(TEXT("None"), ESearchCase::IgnoreCase) || Element.Equals(TEXT("Clear"), ESearchCase::IgnoreCase))
 	{
 		OutElement = EReEchoElement::None;
 		return true;
@@ -500,22 +498,23 @@ void AReEchoGameMode::GMReaction(const FString& Reaction, const float Damage)
 			{
 				continue;
 			}
-			const float DistanceSquared = FVector::DistSquared2D(Target->GetActorLocation(), Candidate->GetActorLocation());
+			const float DistanceSquared =
+			    FVector::DistSquared2D(Target->GetActorLocation(), Candidate->GetActorLocation());
 			if (!NearestNeighbor || DistanceSquared < NearestDistanceSquared)
 			{
 				NearestNeighbor = Candidate;
 				NearestDistanceSquared = DistanceSquared;
 			}
 		}
-		const bool bPlayed = TargetVfx && NearestNeighbor &&
-		                     TargetVfx->PlayConductLinkForDebug(Target, NearestNeighbor);
+		const bool bPlayed =
+		    TargetVfx && NearestNeighbor && TargetVfx->PlayConductLinkForDebug(Target, NearestNeighbor);
 		PrintGMResult(
-		    bPlayed
-		        ? FString::Printf(TEXT("Previewed Conduct from %s to %s through production world endpoints; combat state "
-		                               "unchanged."),
-		                          *Target->GetName(),
-		                          *NearestNeighbor->GetName())
-		        : TEXT("GMReaction Conduct requires at least two living enemies and a valid Electricity system."),
+		    bPlayed ? FString::Printf(
+		                  TEXT("Previewed Conduct from %s to %s through production world endpoints; combat state "
+		                       "unchanged."),
+		                  *Target->GetName(),
+		                  *NearestNeighbor->GetName())
+		            : TEXT("GMReaction Conduct requires at least two living enemies and a valid Electricity system."),
 		    bPlayed);
 		return;
 	}
@@ -983,11 +982,11 @@ void AReEchoGameMode::ResolveGMSpawnFoxRequest(
 }
 
 TArray<FVector> AReEchoGameMode::BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
-	                                                      const FBox2D& SpawnWorldBounds,
-	                                                      const float GameplayPlaneWorldZ,
-	                                                      const int32 Count,
-	                                                      const float Distance,
-	                                                      const bool bHasValidBounds)
+                                                          const FBox2D& SpawnWorldBounds,
+                                                          const float GameplayPlaneWorldZ,
+                                                          const int32 Count,
+                                                          const float Distance,
+                                                          const bool bHasValidBounds)
 {
 	TArray<FVector> Locations;
 	Locations.Reserve(Count);
@@ -1023,10 +1022,11 @@ TArray<FVector> AReEchoGameMode::BuildGMSpawnFoxLocations(const FVector& PlayerL
 		                        GameplayPlaneWorldZ);
 		// M_FOX has the largest normal-enemy radius (65 cm); keep test spawns from overlapping each other.
 		constexpr float FoxMinimumCenterSpacing = 130.0f;
-		if (!Locations.ContainsByPredicate([&Candidate](const FVector& Existing)
-		    {
-			    return FVector::Dist2D(Existing, Candidate) < FoxMinimumCenterSpacing;
-		    }))
+		if (!Locations.ContainsByPredicate(
+		        [&Candidate](const FVector& Existing)
+		        {
+			        return FVector::Dist2D(Existing, Candidate) < FoxMinimumCenterSpacing;
+		        }))
 		{
 			Locations.Add(Candidate);
 		}
@@ -1051,7 +1051,9 @@ void AReEchoGameMode::GMSpawnFox(const float CountOrDistance, const float Distan
 	const bool bHasArena = ArenaScene && ArenaScene->GetEnemySpawnWorldBounds(SpawnWorldBounds, &BoundsError);
 	if (!bHasArena)
 	{
-		PrintGMResult(FString::Printf(TEXT("GMSpawnFox rejected: active Arena wall bounds are invalid: %s"), *BoundsError), false);
+		PrintGMResult(
+		    FString::Printf(TEXT("GMSpawnFox rejected: active Arena wall bounds are invalid: %s"), *BoundsError),
+		    false);
 		return;
 	}
 	const float GameplayPlaneWorldZ = ArenaScene->GetGameplayPlaneWorldZ();
@@ -2284,7 +2286,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 	// Echo actor per recording. Each Echo owns its immutable recording and build snapshot, so its
 	// playback, position, weapon and run state stay independent of the others.
 	const TArray<FReEchoRecording> Recordings =
-	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	    RunSubsystem->ResolveReplayRecordings(ReEchoTimeAnchor::MaximumResolvedEchoes);
 	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = SpawnEchoActor();
@@ -2487,7 +2489,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	if (!bBossPostEchoPhaseTriggered)
 	{
 		const TArray<FReEchoRecording> Recordings =
-		    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+		    RunSubsystem->ResolveReplayRecordings(ReEchoTimeAnchor::MaximumResolvedEchoes);
 		for (const FReEchoRecording& Recording : Recordings)
 		{
 			AReEchoEchoActor* Echo = SpawnEchoActor();
@@ -3604,8 +3606,6 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 		bPostTraitShopClosing = false;
 		InventoryShopWidget->OnEchoStoreRequested.AddUObject(this, &AReEchoGameMode::HandleEchoStoreRequested);
 		InventoryShopWidget->OnEchoSkipRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSkipRequested);
-		InventoryShopWidget->OnEchoReplaceRequested.AddUObject(this, &AReEchoGameMode::HandleEchoReplaceRequested);
-		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
 		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(this,
 		                                                            &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
 		RefreshShopPresentation(RunSubsystem, Mode);
@@ -4071,14 +4071,7 @@ FText GetEchoCommandFailureText(const EReEchoEchoStorageResult Result)
 	{
 		case EReEchoEchoStorageResult::NoPendingRecording:
 			return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
-		case EReEchoEchoStorageResult::StorageFull:
-			return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
-		case EReEchoEchoStorageResult::InvalidReplacementTarget:
-			return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
-		case EReEchoEchoStorageResult::ReplayLimitExceeded:
-			return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
 		case EReEchoEchoStorageResult::InvalidRecordingId:
-		case EReEchoEchoStorageResult::DuplicateRecordingId:
 			return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
 		default:
 			return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
@@ -4093,26 +4086,21 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoTimeAnchor::CardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
 		    NSLOCTEXT("ReEcho", "EchoStorageCardRequired", "需要先获得“时空锚点”才能存储回响。"));
 		return;
 	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecording();
+	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingAsTimeAnchor();
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
 		const bool bSaved = RunSubsystem->SaveRun();
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "Echo stored.")
-		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "Echo stored in this session, but saving failed."));
-	}
-	else if (Result == EReEchoEchoStorageResult::StorageFull)
-	{
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->EnterEchoReplacementMode();
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "本场回响已设为时间锚点。")
+		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "本场回响已设为时间锚点，但存档失败。"));
 	}
 	else
 	{
@@ -4137,80 +4125,6 @@ void AReEchoGameMode::HandleEchoSkipRequested()
 		InventoryShopWidget->ShowEchoStatus(
 		    bSaved ? NSLOCTEXT("ReEcho", "EchoSkipped", "Echo skipped.")
 		           : NSLOCTEXT("ReEcho", "EchoSkipSaveFailed", "Echo skipped in this session, but saving failed."));
-	}
-	else
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
-	}
-}
-
-void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
-{
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
-	{
-		return;
-	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoReplaceCardRequired", "需要先获得“时空锚点”才能替换回响。"));
-		return;
-	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingReplacing(RecordingId);
-	if (Result == EReEchoEchoStorageResult::Success)
-	{
-		const bool bSaved = RunSubsystem->SaveRun();
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoReplaced", "Stored echo replaced.")
-		           : NSLOCTEXT("ReEcho", "EchoReplaceSaveFailed", "Echo replaced in this session, but saving failed."));
-	}
-	else
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
-	}
-}
-
-void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds)
-{
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
-	{
-		return;
-	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoSelectionCardRequired", "需要先获得“时空锚点”才能选择存储回响。"));
-		return;
-	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);
-	if (Result == EReEchoEchoStorageResult::Success)
-	{
-		if (RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_3_02")))
-		{
-			if (RecordingIds.Num() == 1)
-			{
-				RunSubsystem->SetCardAnchorRecording(RecordingIds[0]);
-			}
-			else
-			{
-				RunSubsystem->ClearCardAnchorRecording();
-			}
-		}
-		const bool bSaved = RunSubsystem->SaveRun();
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoSelectionSaved", "Replay selection saved.")
-		           : NSLOCTEXT(
-		                 "ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
 	}
 	else
 	{
