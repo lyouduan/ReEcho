@@ -217,6 +217,14 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Longsword third pass ends at lower sixty degrees"),
 	         FMath::IsNearlyEqual(
 	             AReEchoWeaponActor::ResolveTripleSwingAngleForTests(1.0f, 1.0f), -PI / 3.0f, KINDA_SMALL_NUMBER));
+	const FVector ScytheHandAnchor(10.0f, 20.0f, 0.0f);
+	const FVector ScytheVisualOffset(30.0f, 8.0f, 0.0f);
+	const FQuat HalfSpin(FVector::UpVector, PI);
+	const FVector CompensatedRoot =
+	    AReEchoWeaponActor::ResolveSelfCenteredSpinRootLocationForTests(ScytheHandAnchor, ScytheVisualOffset, HalfSpin);
+	TestTrue(TEXT("Scythe full spin keeps its visible center fixed instead of orbiting the hand"),
+	         (CompensatedRoot + HalfSpin.RotateVector(ScytheVisualOffset))
+	             .Equals(ScytheHandAnchor + ScytheVisualOffset, KINDA_SMALL_NUMBER));
 	TestNotNull(TEXT("Sage MoonStaff animation helper retains its presentation profile"),
 	            FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("MoonStaff")));
 	TestFalse(TEXT("Bow has held visual"),

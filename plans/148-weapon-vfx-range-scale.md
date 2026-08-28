@@ -14,12 +14,14 @@
 - Writes: `plans/148-weapon-vfx-range-scale.md`；`Source/ReEchoCombat/Public/Combat/ReEchoCombatContracts.h`；`Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h`；`Source/ReEcho/Private/Weapons/ReEchoWeaponActor.cpp`；`Source/ReEcho/Public/Presentation/Weapon/ReEchoWeaponPresentationProfile.h`；`Source/ReEcho/Public/Presentation/VFX/ReEchoCombatVfxComponent.h`；`Source/ReEcho/Private/Presentation/VFX/ReEchoCombatVfxComponent.cpp`；`Source/ReEcho/Private/Tests/ReEchoCombatVfxTests.cpp`；必要的武器运行聚焦测试；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`；`shared/CODEBASE_MAP/modules/MOD-ReEchoCombat.md`；`shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`；`shared/CODEBASE_MAP/modules/MOD-ReEchoVFX.md`；FullRebuild 刷新的 `Binaries/Win64/ReEchoEditor.prebuilt.json` 及其准确允许列表产物；若安全 Editor 自动化可用，长剑与镰刀 Weapon Presentation DA。
 - Stable Reads: `Content/Data/attack_steps.csv`；`Content/Data/part_effects.csv`；`Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h`；`Source/ReEchoWeapons/Private/Weapons/ReEchoWeaponLogic.cpp`；Plan126 已关闭的挂点契约；长剑与镰刀当前 Niagara 资源局部轴和生产 DA。
 - 影响模式：`SharedContract`。
-- 兼容承诺 / 下游操作：不改变伤害、基础攻击范围、攻击角度、攻击节拍、斩弹、手动/自动互斥、武器本体尺寸、最终挂点、左右播放方向、枪弓与命中特效；无范围修正时保持当前刀光尺寸。
+- 兼容承诺 / 下游操作：不改变伤害、基础攻击范围、攻击角度、攻击节拍、斩弹、手动/自动互斥、武器本体尺寸、最终挂点、左右播放方向、枪弓与命中特效；无范围修正时保持当前刀光尺寸。镰刀 FullSpin 改为围绕其可见组件自身中心旋转，长剑仍以手部挂点为圆心三挥。
 - 明确排除：不在本 Plan 调整镰刀基础 `250cm` 数值，不重做 Niagara，不用刀光 Bounds 参与伤害判定，不把玩法基础范围复制进 Weapon Presentation DA，不修改 Boss 武器表现。
 
 ## 锁定目标
 
 长剑和镰刀的提交刀光必须消费本次攻击实际执行的最终范围快照：无范围符文时保持当前武器与刀光比例；静态范围符文或临时群攻成长改变范围后，刀光只在 DA 声明的资源局部径向轴同步缩放，仍以 Plan126 的最终武器挂点为原点且不发生位置漂移。长剑按向外斩击半径适配，镰刀按 360 度刀光平面半径适配。
+
+镰刀武器本体的 FullSpin 必须围绕其当前可见组件中心旋转，不再因手部挂点到镰刀中心的 `HeldOffsetRatio` 形成环绕角色的轨道；旋转期间自身中心和中心型刀光挂点保持稳定。
 
 ## 架构影响与设计决策
 
@@ -40,6 +42,7 @@
 - [x] 枪、弓、DamageApplied、Travel、Boss VFX、近战斩弹和手动/自动事件出口保持回归通过。
 - [x] 修改源码完成格式化；聚焦自动化、Development `-FullRebuild`、项目校验、预构建检查和 `git diff --check` 通过。
 - [ ] 用户在 PIE 中确认无符文、长剑广域符文及镰刀群攻成长情况下，刀光外缘与实际攻击范围观感匹配且中心不漂移。
+- [ ] 用户在 PIE 中确认镰刀 FullSpin 围绕镰刀自身中心旋转，角色左右朝向均不绕人物画圆；长剑手部枢轴三挥无回归。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -75,6 +78,7 @@
 ### 变化
 
 - 2026-08-28：从 `origin/main@409910aa` 规划；确认 Plan126 已关闭，本任务因扩展 Combat 公共事件及 Weapon/VFX 跨模块契约新建 Plan148，不回写旧计划。
+- 2026-08-28：按用户验收方向扩展同一近战表现任务：镰刀 FullSpin 使用位置反补偿锁定自身中心，长剑仍绕手部挂点三挥；不改变玩法范围或攻击时序。
 
 ### 证据
 
@@ -82,6 +86,7 @@
 - Development 增量构建通过。Editor Python 完成两份 DA 保存：长剑 `AttackCommitted` 使用局部 Y 遮罩，镰刀使用局部 XY 遮罩，均配置 `0.5..2.0` 表现钳制；SDK `MainVersion` 警告后 Win64 Editor 仍继续执行，证据来自完整 session 日志中的两条 `PLAN148_MELEE_RANGE_SCALE`。
 - `ReEcho.Presentation.VFX.Catalog`、`ReEcho.Presentation.Combat.Capabilities`、`ReEcho.Weapons.Runtime.MeleeProjectileCutEligibility` 各发现 1 项且 `Result={Success}`；分别覆盖范围轴/钳制、现有武器挂点与枪弓能力、长剑镰刀斩弹回归。
 - 最终 Development `-FullRebuild` 100/100 成功，精选包 Build ID `55116800`、source fingerprint `e0ef7b5141d7`；`validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过。
+- 镰刀自中心补偿后 `ReEcho.Presentation.Combat.Capabilities` 发现 1 项且 `Result={Success}`；最终 Development `-FullRebuild` 97/97 成功，精选包 Build ID `55116800`、source fingerprint `291ab894576e`，项目/预构建/diff 检查再次通过。
 
 ### 剩余风险
 

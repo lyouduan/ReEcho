@@ -89,6 +89,9 @@ public:
 	                                                      const FVector& Direction,
 	                                                      bool bHasWeaponAnchor);
 	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
+	static FVector ResolveSelfCenteredSpinRootLocationForTests(const FVector& HandAnchor,
+	                                                           const FVector& VisualOffset,
+	                                                           const FQuat& SpinRotation);
 	static EReEchoElement ResolveProjectileElementForTests(bool bUsesDeterministicRandomElement,
 	                                                       EReEchoElement AttackElement,
 	                                                       int64 AttackSequence,

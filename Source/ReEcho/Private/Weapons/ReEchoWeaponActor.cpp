@@ -171,6 +171,12 @@ FVector ResolveFacingPointAroundCenter(const FVector& Point,
 	return Point - 2.0f * HorizontalDistance * CameraRight;
 }
 
+FVector
+ResolveSelfCenteredSpinRootLocation(const FVector& HandAnchor, const FVector& VisualOffset, const FQuat& SpinRotation)
+{
+	return HandAnchor + VisualOffset - SpinRotation.RotateVector(VisualOffset);
+}
+
 float ResolveTripleSwingAngle(const float Progress, const float DirectionSign)
 {
 	const float NormalizedProgress = FMath::Clamp(Progress, 0.0f, 1.0f);
@@ -1936,6 +1942,13 @@ bool AReEchoWeaponActor::CanCutRabbitProjectilesForTests(const FName AttackPatte
 	return ReEchoWeaponVisual::CanCutRabbitProjectiles(AttackPatternId);
 }
 
+FVector AReEchoWeaponActor::ResolveSelfCenteredSpinRootLocationForTests(const FVector& HandAnchor,
+                                                                        const FVector& VisualOffset,
+                                                                        const FQuat& SpinRotation)
+{
+	return ReEchoWeaponVisual::ResolveSelfCenteredSpinRootLocation(HandAnchor, VisualOffset, SpinRotation);
+}
+
 EReEchoElement AReEchoWeaponActor::ResolveProjectileElementForTests(const bool bUsesDeterministicRandomElement,
                                                                     const EReEchoElement AttackElement,
                                                                     const int64 AttackSequence,
@@ -2166,6 +2179,7 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	{
 		SwordAnimationTime = 0.0f;
 		SetActorRelativeRotation(FQuat::Identity);
+		SetActorRelativeLocation(WeaponHandAnchorLocation);
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 		return;
@@ -2175,8 +2189,12 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 	const float Angle = MotionMode == EReEchoWeaponMotionMode::FullSpin
 	                        ? Progress * 2.0f * PI * SwordSwingDirection
 	                        : ReEchoWeaponVisual::ResolveTripleSwingAngle(Progress, SwordSwingDirection);
-	// The WeaponActor root is the character hand anchor. Rotate the child presentation around that fixed pivot.
-	SetActorRelativeRotation(FQuat(ReEchoWeaponVisual::CameraFacingNormal, Angle));
+	const FQuat SpinRotation(ReEchoWeaponVisual::CameraFacingNormal, Angle);
+	SetActorRelativeRotation(SpinRotation);
+	SetActorRelativeLocation(MotionMode == EReEchoWeaponMotionMode::FullSpin
+	                             ? ReEchoWeaponVisual::ResolveSelfCenteredSpinRootLocation(
+	                                   WeaponHandAnchorLocation, ResolveMirroredHeldVisualOffset(), SpinRotation)
+	                             : WeaponHandAnchorLocation);
 	SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 	SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
 }
