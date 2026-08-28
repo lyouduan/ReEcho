@@ -18,6 +18,16 @@ SPEC.loader.exec_module(package_windows)
 
 
 class PackageWindowsTests(unittest.TestCase):
+    def test_mixed_uat_output_decodes_utf8_then_windows_fallback(self) -> None:
+        self.assertEqual(
+            package_windows.decode_process_output("构建成功\n".encode("utf-8"), "gbk"),
+            "构建成功\n",
+        )
+        self.assertEqual(
+            package_windows.decode_process_output("正在创建库\n".encode("gbk"), "gbk"),
+            "正在创建库\n",
+        )
+
     def test_default_mode_is_clean_development_test_package(self) -> None:
         args = package_windows.parse_args([])
         self.assertEqual(package_windows.configuration_for(args), "Development")
