@@ -17,6 +17,7 @@ class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
+class UReEchoEncounterFlowSettings;
 class UReEchoEncounterTransitionWidget;
 class UMediaSoundComponent;
 class UReEchoInventoryShopWidget;
@@ -92,6 +93,9 @@ public:
 	void GMKillAll();
 	UFUNCTION(Exec)
 	void GMSpawnFox(float CountOrDistance = 1.0f, float Distance = -1.0f);
+	/** Ends the current debug encounter state and starts the requested configured encounter (1-based). */
+	UFUNCTION(Exec)
+	void GMGotoEncounter(int32 EncounterNumber);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
 	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
@@ -158,6 +162,7 @@ public:
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
 	static int32 ClearTimeShardPickupsInWorldForTests(UWorld* World);
+	static bool ShouldGrantPostEntryInvulnerabilityForTests(int32 EncounterIndex, float DurationSeconds);
 #endif
 
 private:
@@ -193,6 +198,9 @@ private:
 	TSubclassOf<AReEchoEchoActor> EchoGameplayClass;
 	UPROPERTY(EditDefaultsOnly, Category = "World Pickups")
 	TSubclassOf<AReEchoTimeShardPickupActor> TimeShardPickupClass;
+	/** Dedicated Blueprint class whose Class Defaults own encounter-flow tuning. */
+	UPROPERTY(EditDefaultsOnly, Category = "Encounter Flow")
+	TSubclassOf<UReEchoEncounterFlowSettings> EncounterFlowSettingsClass;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UReEchoEnemyRosterComponent> EnemyRoster;
 	UPROPERTY()
@@ -262,7 +270,8 @@ private:
 		None,
 		CountdownPostProcess,
 		PlayingSequence,
-		FadingToCardChoice,
+		PlayingCardChoiceToShop,
+		FadingToShop,
 		Stage01To02FocusPlayer,
 		Stage01To02HoldPlayer,
 		PlayingStage01To02Cg,
@@ -303,7 +312,10 @@ private:
 	void UpdateEncounterTransitionPresentation(float DeltaSeconds);
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
-	void CompleteEncounterEndSequence(bool bFadeToCards);
+	void CompleteEncounterEndSequence();
+	bool BeginCardChoiceToShopTransition();
+	void CompleteCardChoiceToShopTransition(bool bFailed);
+	void FinishCardChoiceToShopFade();
 	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
 	void CompleteStage01To02Cg(bool bFailed);
@@ -427,6 +439,9 @@ private:
 	bool PrepareNextEncounter(bool bDeferActivation);
 	void ActivatePreparedEncounter();
 	void CaptureActiveSaveSlotPreview();
+	void GrantPostEntryInvulnerability(int32 EncounterIndex);
+	float ResolvePostEntryInvulnerabilitySeconds() const;
+	static bool ShouldGrantPostEntryInvulnerability(int32 EncounterIndex, float DurationSeconds);
 	bool InitializeArenaSceneRegistry(FString& OutError);
 	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
@@ -462,6 +477,10 @@ private:
 	                                              bool bMediaFailed,
 	                                              bool bMediaFinished,
 	                                              float ElapsedSeconds);
+	static bool ShouldPlayCardChoiceToShopTransition(int32 CompletedEncounterIndex,
+	                                                 EReEchoRunPhase Phase,
+	                                                 bool bApplied,
+	                                                 bool bReturningToOpenShop);
 	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
