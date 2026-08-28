@@ -150,6 +150,8 @@
 - 2026-08-28：清理已废弃的 `SHOP_REPLAY_UNLOCK「指定回放解锁」` 商品、购买结果、容量/多选运行时 API 与状态、对应旧测试，以及无资产引用的 `UReEchoEchoManagementWidget` / `UReEchoStoredEchoEntryWidget` 两套 C++ UI。旧存档中的 `SelectedReplayIds` / `SpecificReplayLimit` 仅保留字段布局用于反序列化兼容，新存档固定写空/零。
 - 2026-08-28：用户手测发现此前“单一锚点”仍保留了废案三槽外观。重新以 `cards.csv` 中 G_3_02 的正式语义为准：Run 由三条 Stored Echo 收敛为一条锚点记录；`WBP_ReEchoStoragePopup` 已删除容量、三条槽位、逐槽替换/选择和取消替换，只显示当前锚点与本场回响。
 - 2026-08-28：按用户反馈将锚点与本场回响摘要从内部 `CharacterId` / `WeaponId` 改为正式 CSV `DisplayName`，并把“遭遇 #N”改为“第 N 关”。旧回响可能保存武器类型 ID，显示层在具体武器查找失败时继续查询 `weapon_types.csv`，因此 `J_HEART | LongSword` 正式显示为“勇者 | 长剑”；无法识别时只显示“未知角色/未知武器”，不泄露内部 ID。本轮未写入 WBP，保留用户刚完成的 Designer 微调。
+- 2026-08-28：发布锁内将 `origin/main@4b9cc23777e84a3f728d0acb9dcad52844cefd23` 合入最终候选。传入 Plan149 已改造同一商店 WBP 与图标比例逻辑；组合处理以主线双武器商店资产为底，保留 `ConfigureAspectFitImage`，再挂入本任务独立弹窗。传入 SaveVersion 24 三槽运行存档与 G_3_02 单一回响时间锚点是不同职责，组合后两者并存。
+- 2026-08-28：旧迁移入口首次在新主线资产上因已不存在 `EchoPanelScale` 安全报错且未保存；迁移脚本随后兼容“存在旧回响子树”和“主线只保留根 Canvas”两种结构，第二次执行通过，不重建或覆盖用户微调的 `WBP_ReEchoStoragePopup`。
 
 ### 证据
 
@@ -166,13 +168,15 @@
 - `ReEcho.Run.Echo`：6/6 `Success`；覆盖普通 Latest 回退、单时间锚点替换、锚点存档恢复、待处理生命周期、旧存档折叠迁移与记录负载不变。
 - `ReEcho.Shop.EchoSelection`：3/3 `Success`；其中 `DeprecatedReplayUnlockRemoved` 证明商品目录不再暴露旧商品，旧 ID 购买失败且不扣时间碎片。
 - `ReEcho.Run.SaveSnapshot`：1/1 `Success`；单一锚点可随运行存档恢复。
-- 最终 `scripts/ue/Build-Editor.ps1 -Configuration Development -FullRebuild`：105/105 actions 成功，预构建清单 build id `55116800`、source hash `9c8f26af130b`。
+- 最终主线组合候选 `scripts/ue/Build-Editor.ps1 -Configuration Development -FullRebuild`：95/95 actions 成功，预构建清单 build id `55116800`、source hash `01af1e168b84`。
+- 最终组合资产审计：`[Plan147EchoAudit] PASS`、`[Plan149DualSlotAudit] PASS`、`[Plan147ShopIconAudit] PASS cards=64 active_shop_parts=45 delivered_parts=48 shop_stats=8 shared=8`；证明独立单锚点弹窗与主线一个核心槽/四个非核心槽同时存在。
+- 最终组合聚焦自动化：`ReEcho.UI.Shop` 4/4、`ReEcho.Run.Echo` 6/6、`ReEcho.Shop.EchoSelection` 3/3、`ReEcho.Run.SaveSnapshot` 1/1，全部 `Success`。
 - 最终 `CompileAllBlueprints`：`0 errors / 0 warnings / 0 blueprints failed to load`；命令行仅报告 4 条既有启动警告。
 - `python scripts/validate_project.py`、`python scripts/setup_lfs.py --check`、`git lfs fsck`、`git diff --check`：通过。
 
 ### 剩余风险
 
-- `WBP_ReEchoInventoryShopScreen.uasset` 为二进制共享热点；发布时必须保留最新主线的双武器商店布局，并在最终组合候选上重新挂接独立弹窗、重跑 Blueprint/自动化/FullRebuild 门禁。
+- `WBP_ReEchoInventoryShopScreen.uasset` 仍是后续任务的二进制共享热点；本次最终候选已通过 Plan147/149 双侧资产审计、Blueprint 编译与聚焦自动化，当前无未决集成冲突。
 
 ### 人工验收结果/请求
 
