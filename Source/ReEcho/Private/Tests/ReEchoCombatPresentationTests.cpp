@@ -101,6 +101,28 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	const UReEchoWeaponPresentationProfile* GunAnchorProfile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Gun"));
 	if (SwordAnchorProfile && ScytheAnchorProfile && BowAnchorProfile && GunAnchorProfile)
 	{
+		TestTrue(TEXT("Longsword held visual scales with final attack range"),
+		         SwordAnchorProfile->bScaleHeldVisualWithAttackRange);
+		TestTrue(TEXT("Longsword held visual scales only along its configured length axis"),
+		         SwordAnchorProfile->HeldVisualAttackRangeScaleMask.Equals(
+		             SwordAnchorProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width ? FVector(1.0f, 0.0f, 0.0f)
+		                                                                                 : FVector(0.0f, 1.0f, 0.0f),
+		             KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Scythe held visual uses the approved four metre base length"),
+		         ScytheAnchorProfile->bOverrideHeldLength &&
+		             FMath::IsNearlyEqual(ScytheAnchorProfile->HeldLengthOverrideCm, 400.0f));
+		TestTrue(TEXT("Scythe held visual scales uniformly in its camera plane"),
+		         ScytheAnchorProfile->bScaleHeldVisualWithAttackRange &&
+		             ScytheAnchorProfile->HeldVisualAttackRangeScaleMask.Equals(
+		                 FVector(1.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Held visual range scaling follows the final range multiplier only on declared axes"),
+		         AReEchoWeaponActor::ResolveHeldVisualAttackRangeScaleForTests(
+		             FVector(4.0f, 2.0f, 1.0f), FVector(1.0f, 0.0f, 0.0f), 1.5f, 0.5f, 2.0f)
+		             .Equals(FVector(6.0f, 2.0f, 1.0f), KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Held visual range scaling clamps the same way as authored VFX scaling"),
+		         AReEchoWeaponActor::ResolveHeldVisualAttackRangeScaleForTests(
+		             FVector(4.0f, 2.0f, 1.0f), FVector(1.0f, 1.0f, 0.0f), 3.0f, 0.5f, 2.0f)
+		             .Equals(FVector(8.0f, 4.0f, 1.0f), KINDA_SMALL_NUMBER));
 		const FVector2D ExpectedBowRight =
 		    BowAnchorProfile->bOverrideAttackVfxAnchor ? BowAnchorProfile->AttackVfxAnchorRatio : FVector2D(0.5f, 0.0f);
 		const FVector2D ExpectedGunRight =
@@ -217,6 +239,14 @@ bool FReEchoCombatPresentationCapabilityTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Longsword third pass ends at lower sixty degrees"),
 	         FMath::IsNearlyEqual(
 	             AReEchoWeaponActor::ResolveTripleSwingAngleForTests(1.0f, 1.0f), -PI / 3.0f, KINDA_SMALL_NUMBER));
+	const FVector ScytheHandAnchor(10.0f, 20.0f, 0.0f);
+	const FVector ScytheVisualOffset(30.0f, 8.0f, 0.0f);
+	const FQuat HalfSpin(FVector::UpVector, PI);
+	const FVector CompensatedRoot =
+	    AReEchoWeaponActor::ResolveSelfCenteredSpinRootLocationForTests(ScytheHandAnchor, ScytheVisualOffset, HalfSpin);
+	TestTrue(TEXT("Scythe full spin keeps its visible center fixed instead of orbiting the hand"),
+	         (CompensatedRoot + HalfSpin.RotateVector(ScytheVisualOffset))
+	             .Equals(ScytheHandAnchor + ScytheVisualOffset, KINDA_SMALL_NUMBER));
 	TestNotNull(TEXT("Sage MoonStaff animation helper retains its presentation profile"),
 	            FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("MoonStaff")));
 	TestFalse(TEXT("Bow has held visual"),

@@ -368,8 +368,9 @@ float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSema
 	}
 	if (IsScytheSlashSemantic(Semantic))
 	{
-		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
-		return Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.0f) : 0.0f;
+		// Scythe gameplay resolves its full-sphere hit on the committed frame. Start every default/element slash VFX
+		// on that same frame; MotionDurationSeconds continues to control only the held-weapon spin animation.
+		return 0.0f;
 	}
 	return 0.0f;
 }
@@ -430,6 +431,22 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		Placement.Scale = Slot->Offset.GetScale3D();
 		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
 		                                                 : EReEchoVfxScalePolicy::InheritAttachment;
+		Placement.bScaleWithAttackRange = Slot->bScaleWithAttackRange;
+		Placement.AttackRangeScaleMask = Slot->AttackRangeScaleMask;
+		Placement.MinAttackRangeMultiplier = Slot->MinAttackRangeMultiplier;
+		Placement.MaxAttackRangeMultiplier = Slot->MaxAttackRangeMultiplier;
+		// Existing profiles predate the editable range fields. Keep a resource-axis migration fallback until those
+		// binary assets can be resaved; an explicit DA configuration takes precedence.
+		if (!Placement.bScaleWithAttackRange && Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		{
+			Placement.bScaleWithAttackRange = true;
+			Placement.AttackRangeScaleMask = FVector(0.0f, 1.0f, 0.0f);
+		}
+		else if (!Placement.bScaleWithAttackRange && Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+		{
+			Placement.bScaleWithAttackRange = true;
+			Placement.AttackRangeScaleMask = FVector(1.0f, 1.0f, 0.0f);
+		}
 		Placement.bUseWorldDirectionRotation = true;
 		Placement.PlaybackDurationSeconds = FMath::Max(Slot->PlaybackDurationSeconds, 0.01f);
 		return Placement;

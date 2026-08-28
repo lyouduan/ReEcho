@@ -102,18 +102,21 @@ public:
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
+	static FVector ResolveAttackRangeScale(const FVector& AuthoredScale,
+	                                       const FVector& ScaleMask,
+	                                       float RangeMultiplier,
+	                                       float MinMultiplier,
+	                                       float MaxMultiplier);
 	/** Gun presentation is horizontally authored: discard aim elevation and retain only its screen-side sign. */
 	static FVector ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection, const FVector& CameraRight);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Generic camera-plane convention: local X follows direction and local Z faces camera. */
 	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Delivered 0811_01 sword mesh: local X is its surface normal and local Y follows the projected attack direction.
-	 */
-	static FRotator ResolveSwordMeshDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Keeps the composed sword direction/DA correction but flips a culled local-X back face around its local-Y attack
-	 * axis. */
-	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
+	/** Ground sweep convention: local X follows the horizontal attack direction and local Z faces world up. */
+	static FRotator ResolveGroundPlaneDirectionRotation(const FVector& Direction);
+	/** Delivered 0811_01 sword mesh: local X faces world-up and local Y follows the ground attack direction. */
+	static FRotator ResolveSwordMeshDirectionRotation(const FVector& Direction);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
@@ -236,7 +239,8 @@ private:
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
-	                                 bool bAutoDestroy = true) const;
+	                                 bool bAutoDestroy = true,
+	                                 float AttackRangeMultiplier = 1.0f) const;
 	USceneComponent* ResolveBossWeaponVfxRoot() const;
 	USceneComponent* ResolveWeaponAttackVfxRoot() const;
 	USceneComponent* ResolveAttackVfxRoot() const;

@@ -64,6 +64,10 @@ struct FReEchoVfxPlacement
 	FRotator LocalRotation = FRotator::ZeroRotator;
 	FVector Scale = FVector::OneVector;
 	EReEchoVfxScalePolicy ScalePolicy = EReEchoVfxScalePolicy::InheritAttachment;
+	bool bScaleWithAttackRange = false;
+	FVector AttackRangeScaleMask = FVector::ZeroVector;
+	float MinAttackRangeMultiplier = 0.5f;
+	float MaxAttackRangeMultiplier = 2.0f;
 	bool bUseWorldDirectionRotation = false;
 	float PlaybackDurationSeconds = 0.6f;
 };

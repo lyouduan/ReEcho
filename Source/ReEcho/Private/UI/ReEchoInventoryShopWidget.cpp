@@ -38,6 +38,54 @@ constexpr int32 OwnedCardPageCount = 2;
 const FVector2D WeaponBackpackPopupSize(340.0f, 430.0f);
 const FVector2D RuneBackpackPopupSize(320.0f, 390.0f);
 
+FString ResolveFormalCharacterName(const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot, const FName CharacterId)
+{
+	if (Snapshot.IsValid())
+	{
+		if (const FReEchoCsvCharacterRow* Character = Snapshot->FindCharacter(CharacterId))
+		{
+			if (!Character->DisplayName.IsEmpty())
+			{
+				return Character->DisplayName;
+			}
+		}
+	}
+	return TEXT("未知角色");
+}
+
+FString ResolveFormalWeaponName(const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot, const FName WeaponId)
+{
+	if (Snapshot.IsValid())
+	{
+		if (const FReEchoCsvWeaponRow* Weapon = Snapshot->FindWeapon(WeaponId))
+		{
+			if (!Weapon->DisplayName.IsEmpty())
+			{
+				return Weapon->DisplayName;
+			}
+		}
+		if (const FReEchoCsvWeaponTypeRow* WeaponType = Snapshot->FindWeaponType(WeaponId))
+		{
+			if (!WeaponType->DisplayName.IsEmpty())
+			{
+				return WeaponType->DisplayName;
+			}
+		}
+	}
+	return TEXT("未知武器");
+}
+
+FText FormatFormalEchoRecording(const TCHAR* Prefix,
+                                const FReEchoStoredEchoSummary& Recording,
+                                const TSharedPtr<const FReEchoCsvDataSnapshot>& Snapshot)
+{
+	return FText::FromString(FString::Printf(TEXT("%s：第 %d 关 | 角色 %s | 武器 %s"),
+	                                         Prefix,
+	                                         Recording.EncounterIndex,
+	                                         *ResolveFormalCharacterName(Snapshot, Recording.CharacterId),
+	                                         *ResolveFormalWeaponName(Snapshot, Recording.WeaponId)));
+}
+
 UTextBlock* CreateText(UWidgetTree* WidgetTree, const FName Name, const int32 Size, const FLinearColor Color)
 {
 	UTextBlock* Text = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
@@ -241,7 +289,11 @@ TSharedRef<SWidget> UReEchoInventoryShopWidget::RebuildWidget()
 void UReEchoInventoryShopWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	// Resolve the standalone authored echo popup before deciding whether the
+	// pure-C++ fallback needs to be built.
+	BindEchoPresentation();
 	BuildWidgetTree();
+	BindEchoPresentation();
 	BuildOfferEntries();
 	BuildTargetShopPresentation();
 	BindSaveAndLeaveVisualFeedback();
@@ -254,6 +306,124 @@ void UReEchoInventoryShopWidget::NativeConstruct()
 		OfferButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleOfferClicked);
 	}
 	Refresh();
+}
+
+void UReEchoInventoryShopWidget::BindEchoPresentation()
+{
+	if (!WidgetTree)
+	{
+		return;
+	}
+
+	if (!EchoStoragePopupWidget)
+	{
+		EchoStoragePopupWidget = Cast<UUserWidget>(WidgetTree->FindWidget(TEXT("EchoStoragePopupWidget")));
+	}
+
+	auto FindWidget = [this](const TCHAR* Name) -> UWidget*
+	{
+		if (UWidget* Widget = WidgetTree->FindWidget(FName(Name)))
+		{
+			return Widget;
+		}
+		return EchoStoragePopupWidget ? EchoStoragePopupWidget->GetWidgetFromName(FName(Name)) : nullptr;
+	};
+	auto FindButton = [&FindWidget](const TCHAR* Name)
+	{
+		return Cast<UButton>(FindWidget(Name));
+	};
+	auto FindText = [&FindWidget](const TCHAR* Name)
+	{
+		return Cast<UTextBlock>(FindWidget(Name));
+	};
+
+	if (!EchoPanelScale)
+	{
+		EchoPanelScale = Cast<UScaleBox>(FindWidget(TEXT("EchoPanelScale")));
+	}
+	if (!EchoPanel)
+	{
+		EchoPanel = Cast<UVerticalBox>(FindWidget(TEXT("EchoPanel")));
+	}
+	if (!EchoPopupCloseButton)
+	{
+		EchoPopupCloseButton = FindButton(TEXT("EchoPopupCloseButton"));
+	}
+	if (!EchoCapacityText)
+	{
+		EchoCapacityText = FindText(TEXT("EchoCapacityText"));
+	}
+	if (!EchoCapacityText)
+	{
+		EchoCapacityText = FindText(TEXT("EchoCapacity"));
+	}
+	if (!EchoReplayModeText)
+	{
+		EchoReplayModeText = FindText(TEXT("EchoReplayModeText"));
+	}
+	if (!EchoReplayModeText)
+	{
+		EchoReplayModeText = FindText(TEXT("EchoReplayMode"));
+	}
+	if (!EchoPendingInfoText)
+	{
+		EchoPendingInfoText = FindText(TEXT("EchoPendingInfoText"));
+	}
+	if (!EchoPendingInfoText)
+	{
+		EchoPendingInfoText = FindText(TEXT("EchoPendingInfo"));
+	}
+	if (!EchoStoreButton)
+	{
+		EchoStoreButton = FindButton(TEXT("EchoStoreButton"));
+	}
+	if (!EchoStoreLabel)
+	{
+		EchoStoreLabel = FindText(TEXT("EchoStoreLabel"));
+	}
+	if (!EchoSkipButton)
+	{
+		EchoSkipButton = FindButton(TEXT("EchoSkipButton"));
+	}
+	if (!CloseConfirmWidget)
+	{
+		CloseConfirmWidget = Cast<UVerticalBox>(FindWidget(TEXT("CloseConfirmWidget")));
+	}
+	if (!CloseConfirmWidget)
+	{
+		CloseConfirmWidget = Cast<UVerticalBox>(FindWidget(TEXT("EchoCloseConfirm")));
+	}
+	if (!EchoConfirmSkipContinue)
+	{
+		EchoConfirmSkipContinue = FindButton(TEXT("EchoConfirmSkipContinue"));
+	}
+	if (!EchoConfirmReturn)
+	{
+		EchoConfirmReturn = FindButton(TEXT("EchoConfirmReturn"));
+	}
+
+	if (EchoPopupCloseButton)
+	{
+		EchoPopupCloseButton->OnClicked.AddUniqueDynamic(this,
+		                                                 &UReEchoInventoryShopWidget::HandleEchoPopupCloseClicked);
+	}
+	if (EchoStoreButton)
+	{
+		EchoStoreButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleStoreClicked);
+	}
+	if (EchoSkipButton)
+	{
+		EchoSkipButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSkipClicked);
+	}
+	if (EchoConfirmSkipContinue)
+	{
+		EchoConfirmSkipContinue->OnClicked.AddUniqueDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleConfirmSkipContinueClicked);
+	}
+	if (EchoConfirmReturn)
+	{
+		EchoConfirmReturn->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleConfirmReturnClicked);
+	}
 }
 
 void UReEchoInventoryShopWidget::ShowInventory(const int32 TimeShards, const TArray<FName>& OwnedItems)
@@ -721,10 +891,10 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	EchoStoreButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EchoStoreButton"));
 	EchoStoreButton->SetBackgroundColor(FLinearColor(0.2f, 0.5f, 0.2f, 0.9f));
 	{
-		UTextBlock* T = CreateText(WidgetTree, TEXT("EchoStoreLabel"), 22, FLinearColor(1.0f, 1.0f, 1.0f));
-		T->SetText(NSLOCTEXT("ReEcho", "StorePendingEcho", "存储本场回响"));
-		T->SetJustification(ETextJustify::Center);
-		EchoStoreButton->SetContent(T);
+		EchoStoreLabel = CreateText(WidgetTree, TEXT("EchoStoreLabel"), 22, FLinearColor(1.0f, 1.0f, 1.0f));
+		EchoStoreLabel->SetText(NSLOCTEXT("ReEcho", "StorePendingEcho", "设为时间锚点"));
+		EchoStoreLabel->SetJustification(ETextJustify::Center);
+		EchoStoreButton->SetContent(EchoStoreLabel);
 	}
 	EchoStoreButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleStoreClicked);
 	EchoPanel->AddChildToVerticalBox(EchoStoreButton);
@@ -739,90 +909,6 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 	}
 	EchoSkipButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleSkipClicked);
 	EchoPanel->AddChildToVerticalBox(EchoSkipButton);
-
-	EchoReplaceInstructionText =
-	    CreateText(WidgetTree, TEXT("EchoReplaceInstruction"), 20, FLinearColor(0.12f, 0.12f, 0.12f));
-	EchoReplaceInstructionText->SetAutoWrapText(true);
-	EchoPanel->AddChildToVerticalBox(EchoReplaceInstructionText);
-
-	EchoCancelReplaceButton =
-	    WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EchoCancelReplaceButton"));
-	EchoCancelReplaceButton->SetBackgroundColor(FLinearColor(0.4f, 0.4f, 0.4f, 0.9f));
-	{
-		UTextBlock* T = CreateText(WidgetTree, TEXT("EchoCancelReplaceLabel"), 22, FLinearColor(1.0f, 1.0f, 1.0f));
-		T->SetText(NSLOCTEXT("ReEcho", "CancelEchoReplacement", "取消替换"));
-		T->SetJustification(ETextJustify::Center);
-		EchoCancelReplaceButton->SetContent(T);
-	}
-	EchoCancelReplaceButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleCancelReplaceClicked);
-	EchoPanel->AddChildToVerticalBox(EchoCancelReplaceButton);
-
-	const int32 SlotCount = ReEchoEchoStorage::MaxStorageCapacity;
-	EchoSlotTexts.SetNum(SlotCount);
-	EchoReplaceButtons.SetNum(SlotCount);
-	EchoSelectButtons.SetNum(SlotCount);
-	EchoSelectLabels.SetNum(SlotCount);
-	for (int32 SlotIndex = 0; SlotIndex < SlotCount; ++SlotIndex)
-	{
-		EchoSlotTexts[SlotIndex] = CreateText(
-		    WidgetTree, *FString::Printf(TEXT("EchoSlotText%d"), SlotIndex), 18, FLinearColor(0.12f, 0.12f, 0.12f));
-		EchoSlotTexts[SlotIndex]->SetAutoWrapText(true);
-		EchoPanel->AddChildToVerticalBox(EchoSlotTexts[SlotIndex]);
-
-		EchoReplaceButtons[SlotIndex] = WidgetTree->ConstructWidget<UButton>(
-		    UButton::StaticClass(), *FString::Printf(TEXT("EchoReplace%d"), SlotIndex));
-		EchoReplaceButtons[SlotIndex]->SetBackgroundColor(FLinearColor(0.4f, 0.3f, 0.15f, 0.9f));
-		UTextBlock* RLabel = CreateText(
-		    WidgetTree, *FString::Printf(TEXT("EchoReplaceLabel%d"), SlotIndex), 18, FLinearColor(1.0f, 1.0f, 1.0f));
-		RLabel->SetText(NSLOCTEXT("ReEcho", "ReplaceThisEcho", "替换这个回响"));
-		RLabel->SetJustification(ETextJustify::Center);
-		EchoReplaceButtons[SlotIndex]->SetContent(RLabel);
-		if (SlotIndex == 0)
-		{
-			EchoReplaceButtons[SlotIndex]->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleReplaceSlot0Clicked);
-		}
-		else if (SlotIndex == 1)
-		{
-			EchoReplaceButtons[SlotIndex]->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleReplaceSlot1Clicked);
-		}
-		else
-		{
-			EchoReplaceButtons[SlotIndex]->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleReplaceSlot2Clicked);
-		}
-		EchoPanel->AddChildToVerticalBox(EchoReplaceButtons[SlotIndex]);
-
-		EchoSelectButtons[SlotIndex] = WidgetTree->ConstructWidget<UButton>(
-		    UButton::StaticClass(), *FString::Printf(TEXT("EchoSelect%d"), SlotIndex));
-		EchoSelectButtons[SlotIndex]->SetBackgroundColor(FLinearColor(0.2f, 0.35f, 0.5f, 0.9f));
-		EchoSelectLabels[SlotIndex] = CreateText(
-		    WidgetTree, *FString::Printf(TEXT("EchoSelectLabel%d"), SlotIndex), 18, FLinearColor(1.0f, 1.0f, 1.0f));
-		EchoSelectLabels[SlotIndex]->SetText(NSLOCTEXT("ReEcho", "SelectEchoForReplay", "选为下场回放"));
-		EchoSelectLabels[SlotIndex]->SetJustification(ETextJustify::Center);
-		EchoSelectButtons[SlotIndex]->SetContent(EchoSelectLabels[SlotIndex]);
-		if (SlotIndex == 0)
-		{
-			EchoSelectButtons[SlotIndex]->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleSelectSlot0Clicked);
-		}
-		else if (SlotIndex == 1)
-		{
-			EchoSelectButtons[SlotIndex]->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleSelectSlot1Clicked);
-		}
-		else
-		{
-			EchoSelectButtons[SlotIndex]->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleSelectSlot2Clicked);
-		}
-		EchoPanel->AddChildToVerticalBox(EchoSelectButtons[SlotIndex]);
-	}
-
-	EchoSelectionText = CreateText(WidgetTree, TEXT("EchoSelection"), 20, FLinearColor(0.08f, 0.22f, 0.08f));
-	EchoSelectionText->SetAutoWrapText(true);
-	EchoPanel->AddChildToVerticalBox(EchoSelectionText);
 
 	// Close confirmation overlay (hidden until an undecided pending echo blocks closing).
 	CloseConfirmWidget =
@@ -1758,7 +1844,7 @@ bool UReEchoInventoryShopWidget::HasEchoStorageCard() const
 	return CurrentPartShopView.OwnedCards.ContainsByPredicate(
 	    [](const FReEchoShopOffer& Card)
 	    {
-		    return Card.ContentId == FName(ReEchoEchoStorage::StorageUnlockCardId);
+		    return Card.ContentId == FName(ReEchoTimeAnchor::CardId);
 	    });
 }
 
@@ -1782,7 +1868,7 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 	const FReEchoShopOffer* StorageCard = CurrentPartShopView.OwnedCards.FindByPredicate(
 	    [](const FReEchoShopOffer& Card)
 	    {
-		    return Card.ContentId == FName(ReEchoEchoStorage::StorageUnlockCardId);
+		    return Card.ContentId == FName(ReEchoTimeAnchor::CardId);
 	    });
 	if (StorageCard && !DisplayedOwnedCards.ContainsByPredicate(
 	                       [&](const FReEchoShopOffer& Card)
@@ -1827,8 +1913,7 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		SlotImage->SetVisibility(Index < VisibleCount ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		if (Index < VisibleCount)
 		{
-			const bool bStorageCard =
-			    DisplayedOwnedCards[CardIndex].ContentId == FName(ReEchoEchoStorage::StorageUnlockCardId);
+			const bool bStorageCard = DisplayedOwnedCards[CardIndex].ContentId == FName(ReEchoTimeAnchor::CardId);
 			CardSlotButton->SetToolTip(BuildSlotTooltip(DisplayedOwnedCards[CardIndex]));
 			if (bStorageCard)
 			{
@@ -3040,109 +3125,10 @@ void UReEchoInventoryShopWidget::HandleEchoStorageCardSlotClicked()
 void UReEchoInventoryShopWidget::HandleEchoPopupCloseClicked()
 {
 	bEchoStoragePopupOpen = false;
-	EchoPendingDecision = EReEchoShopEchoPendingDecision::Undecided;
 	BuildEchoPanel();
 }
 
 // ============================ Inline echo management (origin/main) ============================
-
-void UReEchoInventoryShopWidget::RefreshEchoState(UReEchoRunSubsystem* RunSubsystem)
-{
-	if (!RunSubsystem)
-	{
-		return;
-	}
-	CachedRunSubsystem = RunSubsystem;
-	EchoSummary = RunSubsystem->GetEchoStorageSummary();
-	EchoSelection = EchoSummary.SelectedReplayIds;
-	if (!EchoSummary.bHasPendingRecording && EchoPendingDecision == EReEchoShopEchoPendingDecision::Replacing)
-	{
-		EchoPendingDecision = EReEchoShopEchoPendingDecision::Undecided;
-	}
-	BuildEchoPanel();
-}
-
-void UReEchoInventoryShopWidget::RequestStoreEcho(UReEchoRunSubsystem* RunSubsystem)
-{
-	if (!RunSubsystem || !EchoSummary.bHasPendingRecording)
-	{
-		return;
-	}
-	if (EchoSummary.StoredEchoes.Num() >= FMath::Max(0, EchoSummary.StorageCapacity))
-	{
-		EchoPendingDecision = EReEchoShopEchoPendingDecision::Replacing;
-		BuildEchoPanel();
-		return;
-	}
-	RunSubsystem->StorePendingRecording();
-	EchoPendingDecision = EReEchoShopEchoPendingDecision::Stored;
-	RefreshEchoState(RunSubsystem);
-}
-
-void UReEchoInventoryShopWidget::RequestSkipEcho(UReEchoRunSubsystem* RunSubsystem)
-{
-	if (!RunSubsystem)
-	{
-		return;
-	}
-	RunSubsystem->SkipPendingRecordingStorage();
-	EchoPendingDecision = EReEchoShopEchoPendingDecision::Skipped;
-	RefreshEchoState(RunSubsystem);
-}
-
-void UReEchoInventoryShopWidget::RequestReplaceEcho(UReEchoRunSubsystem* RunSubsystem, FGuid TargetId)
-{
-	if (!RunSubsystem || !TargetId.IsValid())
-	{
-		return;
-	}
-	RunSubsystem->StorePendingRecordingReplacing(TargetId);
-	EchoPendingDecision = EReEchoShopEchoPendingDecision::Stored;
-	RefreshEchoState(RunSubsystem);
-}
-
-void UReEchoInventoryShopWidget::RequestCancelReplaceEcho()
-{
-	EchoPendingDecision = EReEchoShopEchoPendingDecision::Undecided;
-	BuildEchoPanel();
-}
-
-void UReEchoInventoryShopWidget::ToggleReplaySelection(UReEchoRunSubsystem* RunSubsystem, FGuid Id)
-{
-	if (!RunSubsystem || !Id.IsValid())
-	{
-		return;
-	}
-	const int32 Limit = EchoSummary.SpecificReplayLimit;
-	if (Limit <= 0)
-	{
-		return;
-	}
-	TArray<FGuid> Next = EchoSelection;
-	const int32 Existing = Next.IndexOfByKey(Id);
-	if (Existing != INDEX_NONE)
-	{
-		Next.RemoveAt(Existing);
-	}
-	else if (Limit == 1)
-	{
-		Next.Reset();
-		Next.Add(Id);
-	}
-	else if (Next.Num() < Limit)
-	{
-		Next.Add(Id);
-	}
-	else
-	{
-		return;
-	}
-	if (RunSubsystem->SetSelectedReplayIds(Next) == EReEchoEchoStorageResult::Success)
-	{
-		EchoSelection = Next;
-	}
-	RefreshEchoState(RunSubsystem);
-}
 
 void UReEchoInventoryShopWidget::RequestClose()
 {
@@ -3192,103 +3178,40 @@ void UReEchoInventoryShopWidget::BuildEchoPanel()
 	EchoPanel->SetVisibility(ESlateVisibility::Visible);
 
 	const FReEchoEchoStorageSummary& S = EchoSummary;
-	EchoCapacityText->SetText(
-	    FText::FromString(FString::Printf(TEXT("回响存储  %d / %d"), S.StoredEchoes.Num(), S.StorageCapacity)));
-
-	if (S.SpecificReplayLimit <= 0)
+	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (EchoCapacityText)
 	{
-		EchoReplayModeText->SetText(
-		    FText::FromString(TEXT("下一场自动回放上一场（SpecificReplayLimit = 0，不提供指定回放选择）。")));
+		EchoCapacityText->SetText(
+		    S.bHasTimeAnchor ? FormatFormalEchoRecording(TEXT("当前时间锚点"), S.TimeAnchorRecording, DataSnapshot)
+		                     : FText::FromString(TEXT("当前时间锚点：尚未设置")));
 	}
-	else
+	if (EchoReplayModeText)
 	{
-		EchoReplayModeText->SetText(
-		    FText::FromString(FString::Printf(TEXT("可选下场回放：上限 %d（SpecificReplayLimit = %d）。"),
-		                                      S.SpecificReplayLimit,
-		                                      S.SpecificReplayLimit)));
+		EchoReplayModeText->SetText(FText::FromString(TEXT("你的回响只会重复时间锚点所在关卡内的行为。")));
 	}
 
 	const bool bHasPending = S.bHasPendingRecording;
-	const bool bReplacing = bHasPending && EchoPendingDecision == EReEchoShopEchoPendingDecision::Replacing;
-
-	EchoPendingInfoText->SetVisibility(bHasPending ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	EchoStoreButton->SetVisibility(bHasPending ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	EchoSkipButton->SetVisibility(bHasPending ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	EchoReplaceInstructionText->SetVisibility(bReplacing ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	EchoCancelReplaceButton->SetVisibility(bReplacing ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-
-	if (bHasPending)
+	if (EchoPendingInfoText)
 	{
-		EchoPendingInfoText->SetText(FText::FromString(FString::Printf(TEXT("本场回响：遭遇 #%d | 角色 %s | 武器 %s"),
-		                                                               S.PendingRecording.EncounterIndex,
-		                                                               *S.PendingRecording.CharacterId.ToString(),
-		                                                               *S.PendingRecording.WeaponId.ToString())));
+		EchoPendingInfoText->SetVisibility(bHasPending ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (EchoStoreButton)
+	{
+		EchoStoreButton->SetVisibility(bHasPending ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (EchoSkipButton)
+	{
+		EchoSkipButton->SetVisibility(bHasPending ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (EchoStoreLabel)
+	{
+		EchoStoreLabel->SetText(
+		    FText::FromString(S.bHasTimeAnchor ? TEXT("替换为本场时间锚点") : TEXT("设为时间锚点")));
 	}
 
-	for (int32 i = 0; i < EchoReplaceButtons.Num(); ++i)
+	if (bHasPending && EchoPendingInfoText)
 	{
-		EchoReplaceButtons[i]->SetVisibility(ESlateVisibility::Collapsed);
-	}
-
-	if (bReplacing)
-	{
-		EchoReplaceInstructionText->SetText(FText::FromString(TEXT("容量已满：选择要替换的已存储回响。")));
-		for (int32 i = 0; i < S.StoredEchoes.Num() && i < EchoSlotGuids.Num(); ++i)
-		{
-			EchoReplaceButtons[i]->SetVisibility(ESlateVisibility::Visible);
-		}
-	}
-
-	EchoSlotGuids.Reset();
-	for (int32 SlotIndex = 0; SlotIndex < EchoSlotTexts.Num(); ++SlotIndex)
-	{
-		UTextBlock* SlotText = EchoSlotTexts[SlotIndex];
-		UButton* SelectBtn = EchoSelectButtons[SlotIndex];
-		UTextBlock* SelectLabel = EchoSelectLabels[SlotIndex];
-		if (!S.StoredEchoes.IsValidIndex(SlotIndex))
-		{
-			SlotText->SetVisibility(ESlateVisibility::Collapsed);
-			SelectBtn->SetVisibility(ESlateVisibility::Collapsed);
-			continue;
-		}
-		const FReEchoStoredEchoSummary& Stored = S.StoredEchoes[SlotIndex];
-		const bool bSelected = EchoSelection.Contains(Stored.RecordingId);
-		SlotText->SetVisibility(ESlateVisibility::Visible);
-		SlotText->SetText(FText::FromString(FString::Printf(TEXT("槽 %d：遭遇 #%d | 角色 %s | 武器 %s%s"),
-		                                                    SlotIndex,
-		                                                    Stored.EncounterIndex,
-		                                                    *Stored.CharacterId.ToString(),
-		                                                    *Stored.WeaponId.ToString(),
-		                                                    bSelected ? TEXT("  [已选为下场回放]") : TEXT(""))));
-		EchoSlotGuids.Add(Stored.RecordingId);
-
-		const bool bCanSelect = S.SpecificReplayLimit > 0;
-		SelectBtn->SetVisibility(bCanSelect ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-		SelectBtn->SetIsEnabled(bCanSelect);
-		SelectLabel->SetText(FText::FromString(bSelected ? TEXT("取消回放选择") : TEXT("选为下场回放")));
-	}
-
-	if (S.SpecificReplayLimit <= 0)
-	{
-		EchoSelectionText->SetText(FText::FromString(TEXT("下一场将自动回放上一场。")));
-	}
-	else
-	{
-		FString Sel;
-		for (const FGuid& Id : EchoSelection)
-		{
-			const int32 Idx = S.StoredEchoes.IndexOfByPredicate(
-			    [&Id](const FReEchoStoredEchoSummary& E)
-			    {
-				    return E.RecordingId == Id;
-			    });
-			if (Idx != INDEX_NONE)
-			{
-				Sel += FString::Printf(TEXT("遭遇 #%d  "), S.StoredEchoes[Idx].EncounterIndex);
-			}
-		}
-		EchoSelectionText->SetText(FText::FromString(
-		    FString::Printf(TEXT("已选下场回放（%d / %d）：%s"), EchoSelection.Num(), S.SpecificReplayLimit, *Sel)));
+		EchoPendingInfoText->SetText(FormatFormalEchoRecording(TEXT("本场回响"), S.PendingRecording, DataSnapshot));
 	}
 }
 
@@ -3303,83 +3226,6 @@ void UReEchoInventoryShopWidget::HandleStoreClicked()
 void UReEchoInventoryShopWidget::HandleSkipClicked()
 {
 	OnEchoSkipRequested.Broadcast();
-}
-
-void UReEchoInventoryShopWidget::HandleCancelReplaceClicked()
-{
-	RequestCancelReplaceEcho();
-}
-
-void UReEchoInventoryShopWidget::HandleReplaceSlot0Clicked()
-{
-	HandleReplaceSlotClicked(0);
-}
-
-void UReEchoInventoryShopWidget::HandleReplaceSlot1Clicked()
-{
-	HandleReplaceSlotClicked(1);
-}
-
-void UReEchoInventoryShopWidget::HandleReplaceSlot2Clicked()
-{
-	HandleReplaceSlotClicked(2);
-}
-
-void UReEchoInventoryShopWidget::HandleSelectSlot0Clicked()
-{
-	HandleSelectSlotClicked(0);
-}
-
-void UReEchoInventoryShopWidget::HandleSelectSlot1Clicked()
-{
-	HandleSelectSlotClicked(1);
-}
-
-void UReEchoInventoryShopWidget::HandleSelectSlot2Clicked()
-{
-	HandleSelectSlotClicked(2);
-}
-
-void UReEchoInventoryShopWidget::HandleReplaceSlotClicked(int32 SlotIndex)
-{
-	if (EchoSlotGuids.IsValidIndex(SlotIndex))
-	{
-		OnEchoReplaceRequested.Broadcast(EchoSlotGuids[SlotIndex]);
-	}
-}
-
-void UReEchoInventoryShopWidget::HandleSelectSlotClicked(int32 SlotIndex)
-{
-	if (!EchoSlotGuids.IsValidIndex(SlotIndex))
-	{
-		return;
-	}
-	const int32 Limit = EchoSummary.SpecificReplayLimit;
-	if (Limit <= 0)
-	{
-		return;
-	}
-	TArray<FGuid> Next = EchoSelection;
-	const FGuid Id = EchoSlotGuids[SlotIndex];
-	const int32 Existing = Next.IndexOfByKey(Id);
-	if (Existing != INDEX_NONE)
-	{
-		Next.RemoveAt(Existing);
-	}
-	else if (Limit == 1)
-	{
-		Next.Reset();
-		Next.Add(Id);
-	}
-	else if (Next.Num() < Limit)
-	{
-		Next.Add(Id);
-	}
-	else
-	{
-		return;
-	}
-	OnEchoSelectionRequested.Broadcast(Next);
 }
 
 void UReEchoInventoryShopWidget::HandleConfirmSkipContinueClicked()
@@ -3530,7 +3376,6 @@ void UReEchoInventoryShopWidget::ShowPostTraitIntermission(int32 TimeShards,
 void UReEchoInventoryShopWidget::SetEchoSummary(const FReEchoEchoStorageSummary& InEchoSummary)
 {
 	EchoSummary = InEchoSummary;
-	EchoSelection = EchoSummary.SelectedReplayIds;
 	BuildEchoPanel();
 }
 
@@ -3542,42 +3387,7 @@ void UReEchoInventoryShopWidget::ShowEchoStatus(const FText& Status)
 	}
 }
 
-void UReEchoInventoryShopWidget::EnterEchoReplacementMode()
-{
-	if (EchoSummary.bHasPendingRecording &&
-	    EchoSummary.StoredEchoes.Num() >= FMath::Max(0, EchoSummary.StorageCapacity))
-	{
-		EchoPendingDecision = EReEchoShopEchoPendingDecision::Replacing;
-		BuildEchoPanel();
-	}
-}
-
 void UReEchoInventoryShopWidget::CompletePostTraitClose()
 {
 	OnClosed.Broadcast();
-}
-
-void UReEchoInventoryShopWidget::HandleEchoStoreRequested()
-{
-	OnEchoStoreRequested.Broadcast();
-}
-
-void UReEchoInventoryShopWidget::HandleEchoSkipRequested()
-{
-	OnEchoSkipRequested.Broadcast();
-}
-
-void UReEchoInventoryShopWidget::HandleEchoReplaceRequested(FGuid RecordingId)
-{
-	OnEchoReplaceRequested.Broadcast(RecordingId);
-}
-
-void UReEchoInventoryShopWidget::HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds)
-{
-	OnEchoSelectionRequested.Broadcast(RecordingIds);
-}
-
-void UReEchoInventoryShopWidget::HandleEchoSkipAndCloseRequested()
-{
-	OnEchoSkipAndCloseRequested.Broadcast();
 }

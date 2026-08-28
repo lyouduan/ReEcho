@@ -22,6 +22,10 @@ struct REECHOCOMBAT_API FReEchoAttackCommittedEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Origin = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Direction = FVector::ForwardVector;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EffectiveRangeCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float BaseRangeCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RangeMultiplierFromBase = 1.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EffectiveArcDegrees = 0.0f;
 };
 USTRUCT(BlueprintType)
 

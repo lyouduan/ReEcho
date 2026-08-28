@@ -25,6 +25,11 @@ bool ReEchoWeaponGeometry::IsInsideMeleeArc(
 	return FMath::RadiansToDegrees(FMath::Acos(Dot)) <= ArcDegrees * 0.5f + KINDA_SMALL_NUMBER;
 }
 
+bool ReEchoWeaponGeometry::IsInsideMeleeSphere(const FVector& Origin, const FVector& Target, const float RangeCm)
+{
+	return RangeCm >= 0.0f && FVector::DistSquared(Origin, Target) <= FMath::Square(RangeCm);
+}
+
 TArray<FVector> ReEchoWeaponGeometry::BuildProjectileDirections(const FVector& Forward,
                                                                 const int32 ProjectileCount,
                                                                 const float SpreadDegrees)
@@ -56,6 +61,34 @@ TArray<AActor*> ReEchoWeaponGeometry::FindMeleeTargets(UWorld& World,
 		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
 		if (!Target || !Target->IsCombatTargetAlive() || !ReEchoCombatRelations::CanDamage(Attack, *Candidate) ||
 		    !IsInsideMeleeArc(Origin, Forward, Target->GetCombatTargetLocation(), RangeCm, ArcDegrees))
+		{
+			continue;
+		}
+		Result.Add(Candidate);
+	}
+	Result.Sort(
+	    [](const AActor& Left, const AActor& Right)
+	    {
+		    const IReEchoCombatTarget* LeftTarget = Cast<IReEchoCombatTarget>(&Left);
+		    const IReEchoCombatTarget* RightTarget = Cast<IReEchoCombatTarget>(&Right);
+		    return LeftTarget && RightTarget &&
+		           LeftTarget->GetCombatTargetTieBreakIndex() < RightTarget->GetCombatTargetTieBreakIndex();
+	    });
+	return Result;
+}
+
+TArray<AActor*> ReEchoWeaponGeometry::FindMeleeTargetsInSphere(UWorld& World,
+                                                               const FReEchoAttackIdentity& Attack,
+                                                               const FVector& Origin,
+                                                               const float RangeCm)
+{
+	TArray<AActor*> Result;
+	for (TActorIterator<AActor> It(&World); It; ++It)
+	{
+		AActor* Candidate = *It;
+		IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate);
+		if (!Target || !Target->IsCombatTargetAlive() || !ReEchoCombatRelations::CanDamage(Attack, *Candidate) ||
+		    !IsInsideMeleeSphere(Origin, Target->GetCombatTargetLocation(), RangeCm))
 		{
 			continue;
 		}

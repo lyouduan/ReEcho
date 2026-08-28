@@ -17,6 +17,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Engine/Texture2D.h"
+#include "Blueprint/UserWidget.h"
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoInventoryShopWidget.h"
@@ -673,7 +674,7 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	PartShopView.EquippedParts.Add(EquippedPart);
 	FReEchoShopOffer StorageCard;
 	StorageCard.ItemId = TEXT("SHOP_CARD_G_3_02");
-	StorageCard.ContentId = FName(ReEchoEchoStorage::StorageUnlockCardId);
+	StorageCard.ContentId = FName(ReEchoTimeAnchor::CardId);
 	StorageCard.DisplayName = FText::FromString(TEXT("时空锚点"));
 	StorageCard.EffectText = FText::FromString(TEXT("开启回响存储"));
 	StorageCard.OutcomeText = FText::FromString(TEXT("实际效果测试"));
@@ -701,13 +702,20 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		DesignerClockSlot->SetPosition(DesignerClockTestPosition);
 	}
 	FReEchoEchoStorageSummary EchoSummary;
-	EchoSummary.StorageCapacity = 3;
 	EchoSummary.bHasPendingRecording = true;
 	Widget->ShowPostTraitIntermission(100, {}, EchoSummary);
 
 	UScrollBox* ShopScrollBox = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("ShopLogicScrollBox")));
-	UScaleBox* EchoPanelScale = Cast<UScaleBox>(Widget->GetWidgetFromName(TEXT("EchoPanelScale")));
-	UVerticalBox* EchoPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("EchoPanel")));
+	UUserWidget* EchoStoragePopupWidget = Cast<UUserWidget>(Widget->GetWidgetFromName(TEXT("EchoStoragePopupWidget")));
+	auto GetEchoWidget = [EchoStoragePopupWidget](const TCHAR* Name) -> UWidget*
+	{
+		return EchoStoragePopupWidget ? EchoStoragePopupWidget->GetWidgetFromName(FName(Name)) : nullptr;
+	};
+	UScaleBox* EchoPanelScale = Cast<UScaleBox>(GetEchoWidget(TEXT("EchoPanelScale")));
+	UVerticalBox* EchoPanel = Cast<UVerticalBox>(GetEchoWidget(TEXT("EchoPanel")));
+	UImage* EchoPopupFrameArt = Cast<UImage>(GetEchoWidget(TEXT("EchoPopupFrameArt")));
+	UButton* EchoStoreButton = Cast<UButton>(GetEchoWidget(TEXT("EchoStoreButton")));
+	UVerticalBox* EchoCloseConfirm = Cast<UVerticalBox>(GetEchoWidget(TEXT("CloseConfirmWidget")));
 	UVerticalBox* WeaponPartPanel = Cast<UVerticalBox>(Widget->GetWidgetFromName(TEXT("WeaponPartOfferPanel")));
 	TestNotNull(TEXT("Authored shop keeps the legacy scroll host as a hidden compatibility host"), ShopScrollBox);
 	TestNotNull(TEXT("Authored shop binds the formal presentation canvas"),
@@ -748,7 +756,11 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	         OwnedWeaponBuyText && OwnedWeaponBuyText->GetText().EqualTo(FText::FromString(TEXT("已获得"))));
 	TestTrue(TEXT("Legacy weapon-part block is hidden behind the target composition"),
 	         WeaponPartPanel && WeaponPartPanel->GetVisibility() == ESlateVisibility::Collapsed);
-	TestNotNull(TEXT("Authored shop receives the independent echo popup"), EchoPanelScale);
+	TestNotNull(TEXT("Authored shop contains one standalone echo popup child"), EchoStoragePopupWidget);
+	TestNotNull(TEXT("Standalone echo popup retains its independent presentation host"), EchoPanelScale);
+	TestNotNull(TEXT("Echo storage uses a Designer-authored formal frame"), EchoPopupFrameArt);
+	TestNotNull(TEXT("Echo storage keeps a stable authored store action"), EchoStoreButton);
+	TestNotNull(TEXT("Unresolved echo close uses an authored confirmation layer"), EchoCloseConfirm);
 	TestTrue(TEXT("Post-trait echo management starts hidden until the storage-card slot is clicked"),
 	         EchoPanel && EchoPanel->GetVisibility() == ESlateVisibility::Collapsed);
 	TestTrue(TEXT("Runtime refresh preserves the clock's Blueprint-authored position"),
@@ -916,14 +928,44 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	if (EchoPanelScale)
 	{
 		const UCanvasPanelSlot* EchoCanvasSlot = Cast<UCanvasPanelSlot>(EchoPanelScale->Slot);
-		TestNotNull(TEXT("Authored echo popup is attached to a canvas"), EchoCanvasSlot);
+		const UCanvasPanelSlot* EchoHostSlot =
+		    EchoStoragePopupWidget ? Cast<UCanvasPanelSlot>(EchoStoragePopupWidget->Slot) : nullptr;
+		TestNotNull(TEXT("Standalone echo popup is attached to its own canvas"), EchoCanvasSlot);
+		TestNotNull(TEXT("Shop owns only a full-screen standalone popup host"), EchoHostSlot);
 		if (EchoCanvasSlot)
 		{
-			TestEqual(TEXT("Authored echo popup renders above shop art"), EchoCanvasSlot->GetZOrder(), 40);
-			TestTrue(TEXT("Authored echo popup occupies a centered modal region"),
-			         EchoCanvasSlot->GetAnchors().Minimum.Y < 0.30f && EchoCanvasSlot->GetAnchors().Maximum.Y > 0.70f);
+			TestEqual(TEXT("Standalone echo popup preserves its 1920x1080 Designer surface"),
+			          EchoCanvasSlot->GetSize(),
+			          FVector2D(1920.0f, 1080.0f));
+		}
+		if (EchoHostSlot)
+		{
+			TestEqual(TEXT("Standalone echo popup renders above shop art"), EchoHostSlot->GetZOrder(), 40);
+			TestEqual(TEXT("Standalone echo popup host fills the 1920x1080 shop surface"),
+			          EchoHostSlot->GetSize(),
+			          FVector2D(1920.0f, 1080.0f));
 		}
 	}
+	UTexture2D* ExpectedEchoFrame =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/EchoStorage/"
+	                                "T_UI_EchoStorage_PopupFrame.T_UI_EchoStorage_PopupFrame"));
+	UTexture2D* ExpectedEchoButtonLight =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/EchoStorage/"
+	                                "T_UI_EchoStorage_ButtonLight.T_UI_EchoStorage_ButtonLight"));
+	UTexture2D* ExpectedEchoButtonDark =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/EchoStorage/"
+	                                "T_UI_EchoStorage_ButtonDark.T_UI_EchoStorage_ButtonDark"));
+	TestTrue(TEXT("Echo storage renders the delivered formal popup frame"),
+	         EchoPopupFrameArt && ExpectedEchoFrame &&
+	             EchoPopupFrameArt->GetBrush().GetResourceObject() == ExpectedEchoFrame);
+	TestTrue(TEXT("Echo storage action uses the delivered light and dark button states"),
+	         EchoStoreButton && ExpectedEchoButtonLight && ExpectedEchoButtonDark &&
+	             EchoStoreButton->GetStyle().Normal.GetResourceObject() == ExpectedEchoButtonLight &&
+	             EchoStoreButton->GetStyle().Hovered.GetResourceObject() == ExpectedEchoButtonDark &&
+	             EchoStoreButton->GetStyle().Pressed.GetResourceObject() == ExpectedEchoButtonDark);
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
 		UButton* AttachmentSlotButton =

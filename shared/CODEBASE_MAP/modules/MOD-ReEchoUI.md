@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132、Plan145、Plan150。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132、Plan145、Plan147、Plan149、Plan150。
 
 ## 存在原因
 
@@ -18,7 +18,7 @@
 - `UReEchoUIManagerSubsystem` 管理 Screen Class、实例和 Viewport 层级。
 - `UReEchoUIFlowCoordinatorSubsystem` 管理页面开关、焦点、输入模式和暂停策略，并在屏幕创建后递归遍历嵌套 `UUserWidget`，为已有 `UButton` 统一绑定 `UI.Hover` / 基础 `UI.Confirm` 与 `1.05` 倍中心悬停缩放；具体 Widget 可通过 `BindButtonAudioFeedback` 把稳定语义覆盖为 `UI.CardSelect` 等专用反馈，绑定对象幂等更新而不重复注册 Delegate。父级若是只有一个 Button 且有视觉兄弟的 `Overlay`，即使 Button 已有 Content 也优先缩放该完整根，否则缩放 Button，移出后恢复作者ing Scale/Pivot。设置页的 `ComboBox` 选择与 `Slider` 交互完成由 `UReEchoSettingsWidget` 补发一次基础 `UI.Confirm`。所有注册页面的创建/复用/关闭/聚焦结果与按钮点击统一写入 Shipping 可用的 `Saved/Logs/UIInteractionAudit.log`；`UReEchoIndexedButton` 自审计以覆盖页面打开后才生成的动态条目，卡组入口另记录命令接收、拒绝原因、打开结果和候选 ID。
 - 交付版 Settings 保持“总音量 / 背景音乐 / 音效音量”三滑条；第三条是非音乐聚合控制，同时预览并保存 `Ambience`、`CombatSfx`、`UiSfx`，因此 `Ambience_Rain` 等环境循环不需要额外第四条滑条。
-- 通关后商店的回响存储控件由 `UReEchoInventoryShopWidget` 动态生成，使用底部紧凑缩放托盘承载，避免遮挡商店/装配室主体；存储、跳过、替换与指定回放事件语义保持不变。
+- 通关后商店的回响存储主弹窗与未决离店确认层由独立 `WBP_ReEchoStoragePopup` 作者ing，`WBP_ReEchoInventoryShopScreen` 只放一个全屏子控件；正式底板、按钮四态、当前锚点/本场回响文字和按钮几何均可在弹窗 Designer 中预览及微调。`UReEchoInventoryShopWidget` 只按稳定名称投影 G_3_02 的单一时间锚点状态与待处理回响，并绑定“设为/替换锚点”和“跳过”窄事件；不展示容量、三槽或逐槽操作，也不写回作者几何。回响摘要以“第 N 关 | 角色正式名 | 武器正式名”展示，名称读取 CSV `DisplayName`；旧记录的武器类型 ID 允许回退到 `weapon_types.csv`，未知项不显示内部 ID。无完整 WBP 时仍保留最低可用的动态 fallback。
 - `WBP_ReEchoSettings` 与 `WBP_ReEchoRestart` 的作者ing Root 是正常表现权威；原生 `BuildWidgetTree()` 只在完全没有 Root 时建立最低可用 fallback，不得因单一可选绑定缺失而覆盖整页。Settings 的运行时 ComboBox/Slider 按稳定名称幂等复用。
 - `WBP_ReEchoStartMenu` 的 `SaveRollbackPanel` 是正式三槽存档页的布局权威；标题、关闭按钮、三行深/浅底板、截图、便签、名称、摘要和时间文本都由 WBP Canvas 直接拥有并可在 Designer 中调整。`UReEchoStartMenuWidget` 只消费 Run 提供的三条只读摘要，切换占用/空槽美术、载入真实截图并广播稳定槽号；它不选择物理 SaveGame 名、不写存档，也不在 C++ 中重建几何。占用槽点击立即读取，空槽意图由 GameMode 解析为第一个空槽，新旧存档兼容和全槽策略归 Run。
 - 三选一卡牌页的三个单槽刷新按钮与样例文案由 `WBP_ReEchoTraitCardChoice` 的 `ShopCardRefreshButton0..2` / `ShopCardRefreshText0..2` 持有，Designer 中可直接预览、拖动与缩放；`UReEchoTraitCardChoiceWidget` 运行时复用这些控件并只更新索引、次数、费用、显隐、启用状态和点击广播。按钮四态统一复用 `T_UI_Pause_ButtonLight`；无 WBP 的原生兜底仍动态创建同款按钮。
@@ -98,6 +98,7 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
 - Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
 - Plan110 正式商店回归：`scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.Shop.AuthoredLayoutHosts` 验证正式 authored 报价/装配槽绑定、现有背包与回响入口、购买后即时投影，以及第 13 张卡进入第二页首槽并可用左右箭头往返 `1/2`、`2/2`；`scripts/ue/Run-EditorPythonLocked.ps1 -ScriptPath scripts/ue/audit_plan110_formal_shop_ui.py` 验证正式控件仍可在 Designer 调整且整屏参考图未成为运行时纹理。
+- Plan147 回响弹窗回归：同一 `ReEcho.UI.Shop.AuthoredLayoutHosts` 聚焦自动化验证 `G_3_02` 点击入口、正式弹窗开启和单一时间锚点语义；`scripts/ue/Run-EditorPythonLocked.ps1 -ScriptPath scripts/ue/audit_plan147_echo_storage_popup.py` 验证独立主/确认层级、1920×1080 作者面、当前锚点/本场回响 Designer 默认文案、正式底板和浅/深按钮状态，并断言旧容量、三槽、逐槽替换/选择控件不存在；整屏 SVG 只保留为 SourceArt 参考。
 - Plan149 双重武器槽回归：`ReEcho.UI.Shop.AuthoredLayoutHosts` 同时验证扩容后五个 authored 槽分别显示各 occurrence，`scripts/ue/audit_plan149_dual_weapon_slot_ui.py` 验证一个 `89x175` 核心长槽与四个 `89x89` 非核心方槽仍存在于 WBP 且可在 Designer 调整。
 - 卡牌商店投影固定为1/2/3级三个卡组入口；入口不显示具体卡牌 icon，底部按钮按状态显示“购买 · 折扣后卡组价 / 继续选择 / 已购”。可购买入口发布 Tier 命令后，GameMode 先调用 Run 的卡组付款事务并立即 `SaveRun`，成功才在 ZOrder 98 的 `BuildChoice` 层打开复用的选择页；已付款待选入口不检查余额或额外购卡门槛，直接继续同一候选页且不重复收费。页内最多三张同级候选，不显示单卡价格，并提供“返回商店”；最终选择调用独立领取事务。商店已付款与战后免费三选一都在每张实际候选下方显示独立刷新按钮、该槽剩余次数和价格，并通过统一 `OnCardSlotRefreshRequested(SlotIndex)` 发送稳定槽位；GameMode 按当前页面调用对应 Run 原子命令后重注入同一层，Widget 不自行抽牌或扣费。成功逐槽刷新只将该稳定槽位映射到当前可见卡牌并重播它的揭示，另外两张卡与页面指针保持已揭示状态。领取/刷新失败恢复原选择；取消仅关闭页面，已付款状态不退款且可继续。
 - Plan91 武器背包扩展：Widget 不持有武器所有权，也不把换装伪装成购买；`OnWeaponEquipRequested` 交给 GameMode 调用 Run 事务。成功后整页重取只读投影，使当前武器图、武器名和兼容符文槽同时更新，但独立的武器/符文与卡牌刷新序列都不变，因此报价不重摇。
