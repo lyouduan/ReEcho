@@ -1,6 +1,6 @@
 EncounterIndex,MeleeMin,MeleeMax,RangedMin,RangedMax,EliteMin,EliteMax,SourceSheet,SourceRow,Notes
-1,2,2,3,3,,,投放系统,40,Elite blank: no elite reward in this encounter.
-2,2,2,3,3,,,投放系统,41,Elite blank: no elite reward in this encounter.
+1,2,2,3,3,4,4,投放系统,40,怪物掉落时间碎片配置
+2,2,2,3,3,4,4,投放系统,41,怪物掉落时间碎片配置
 3,3,3,4,4,5,5,投放系统,42,怪物掉落时间碎片配置
 4,3,3,4,4,6,6,投放系统,43,怪物掉落时间碎片配置
 5,3,3,5,5,6,6,投放系统,44,怪物掉落时间碎片配置
