@@ -221,7 +221,7 @@ bool UReEchoCombatantComponent::ApplyTimedStatus(const FReEchoTimedStatusCommand
 		return false;
 	}
 	const float ExpiresAt = Command.CurrentTimeSeconds + Command.DurationSeconds;
-	if (Command.StatusId == TEXT("Z_Vertigo"))
+	if (Command.StatusId == TEXT("Z_Vertigo") && !bStunImmune)
 	{
 		StunnedUntilWorldTime = FMath::Max(StunnedUntilWorldTime, ExpiresAt);
 		ElementState.ActiveStatusUntilSeconds.Add(Command.StatusId, StunnedUntilWorldTime);
@@ -263,6 +263,29 @@ void UReEchoCombatantComponent::SetCursedImmune(const bool bImmune)
 {
 	bCursedImmune = bImmune;
 	if (bCursedImmune && ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Cursed")) > 0)
+	{
+		PublishElementStateChange();
+	}
+	RefreshTickState();
+}
+
+void UReEchoCombatantComponent::SetStunImmune(const bool bImmune)
+{
+	bStunImmune = bImmune;
+	if (!bStunImmune)
+	{
+		return;
+	}
+
+	const bool bHadStunTimer = StunnedUntilWorldTime > 0.0f;
+	const bool bHadStunStatus = ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Vertigo")) > 0;
+	const bool bHadActiveStun = bHadStunTimer || bHadStunStatus;
+	StunnedUntilWorldTime = 0.0f;
+	if (BoundAbilitySystem)
+	{
+		BoundAbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Stunned);
+	}
+	if (bHadActiveStun)
 	{
 		PublishElementStateChange();
 	}
@@ -699,6 +722,10 @@ UReEchoCombatantComponent::ExecuteElementCleanse(const FReEchoElementCleanseComm
 void UReEchoCombatantComponent::RestoreElementState(const FReEchoElementState& SavedState)
 {
 	ElementState = SavedState;
+	if (bStunImmune)
+	{
+		ElementState.ActiveStatusUntilSeconds.Remove(TEXT("Z_Vertigo"));
+	}
 	PublishElementStateChange();
 }
 

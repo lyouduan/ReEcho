@@ -251,6 +251,7 @@ private:
 	void UpdateStunState(bool bStunned);
 	void RefreshBornGameplayGate();
 	void EndBornGameplayGate();
+	void TraceBossPhase2TransitionState(float DeltaSeconds, const TCHAR* TickGate);
 
 	UFUNCTION()
 	void HandleCombatDeath(const FReEchoDamageEvent& Event);
@@ -387,4 +388,5 @@ private:
 	float CardMovementMultiplier = 1.0f;
 	float GameplayPlaneWorldZ = 0.0f;
 	float CrowdBlockedSeconds = 0.0f;
+	double NextBossPhase2TracePlatformSeconds = 0.0;
 };
