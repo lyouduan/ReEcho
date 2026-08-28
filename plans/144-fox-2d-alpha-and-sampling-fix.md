@@ -6,8 +6,8 @@
 - Executor 负责人：独立 Executor。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Codex`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
 - 本地规划基线：`origin/main@a334a04b443c78294f158c667d3829769ceb09c0`；已发布 Plan / 实现基线：`origin/main@07d9f7ed38dac2e51328bf6d7292e3f3dc958148`。
 - 本地实现方式：一任务一 worktree；Planner 与 Executor 分离。
 - 依赖 / 阻塞：依赖现有 `Enemy.Fox` Profile 的 `Animation.Born` 与 `Animation.Move` 绑定，不改变其语义或时序。
@@ -47,8 +47,8 @@
 
 - [x] Born 5 张、Walk 24 张源 PNG 的尺寸、Alpha 通道和主体可见像素保持，透明/低 Alpha 边缘不再携带异常白色 RGB。
 - [x] 29 张对应 Texture 资产由 UE 5.8 重导入并读回统一的 Alpha、NoMipmaps、Clamp、Bilinear 和运行时 BC7 契约；Sprite/Flipbook/Profile 引用及帧数/FPS 不变。
-- [ ] `ReEcho.Presentation.Animation2D`、狐狸纹理只读审计、项目校验、prebuilt check、FullRebuild 和 `git diff --check` 通过。
-- [ ] PIE 中狐狸开局 Born 与连续左右移动不再发白模糊，轮廓、色彩、脚点和构图由用户验收。
+- [x] 狐狸纹理只读审计、项目校验、prebuilt check、FullRebuild 和 `git diff --check` 通过；`ReEcho.Presentation.Animation2D` 无候选新增失败，唯一 TimeGuard 失败已在干净基线等同复现并单独记录。
+- [x] PIE 中狐狸开局 Born 与连续左右移动不再发白模糊，轮廓、色彩、脚点和构图由用户验收。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成物或机器本地路径。
 
 ## Step 0 门禁
@@ -106,7 +106,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请用户在最终候选 PIE 中观察狐狸开局 Born 以及连续左右移动，确认白色模糊消失且主体轮廓、颜色、脚点和构图未改变。
+- `Passed`：用户在最终候选 PIE 验收后回复 `ok，合入远程`，确认狐狸开局与移动表现可接受并授权发布。
 
 ### 架构文档审阅结果
 
