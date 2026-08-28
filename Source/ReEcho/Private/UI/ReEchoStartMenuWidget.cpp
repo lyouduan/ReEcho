@@ -7,6 +7,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
+#include "ImageUtils.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoMenuWidgetHelpers.h"
 
@@ -20,6 +22,9 @@ enum class EStartMenuAction : int32
 	About,
 	Quit
 };
+
+constexpr int32 CloseSaveRollbackAction = 90;
+constexpr int32 SaveSlotActionBase = 100;
 }
 
 TSharedRef<SWidget> UReEchoStartMenuWidget::RebuildWidget()
@@ -63,6 +68,21 @@ void UReEchoStartMenuWidget::NativeConstruct()
 		QuitButton->SetEntryIndex(static_cast<int32>(EStartMenuAction::Quit));
 		QuitButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
 	}
+	if (UReEchoIndexedButton* CloseButton =
+	        Cast<UReEchoIndexedButton>(WidgetTree->FindWidget(TEXT("SaveRollbackCloseButton"))))
+	{
+		CloseButton->SetEntryIndex(CloseSaveRollbackAction);
+		CloseButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
+	}
+	for (int32 SlotIndex = 0; SlotIndex < UReEchoRunSubsystem::SaveSlotCount; ++SlotIndex)
+	{
+		if (UReEchoIndexedButton* SlotButton = Cast<UReEchoIndexedButton>(
+		        WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotButton%d"), SlotIndex))))
+		{
+			SlotButton->SetEntryIndex(SaveSlotActionBase + SlotIndex);
+			SlotButton->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoStartMenuWidget::HandleMenuAction);
+		}
+	}
 	RefreshMenu();
 	if (bHasSavedRun && ContinueButton)
 	{
@@ -82,10 +102,13 @@ void UReEchoStartMenuWidget::NativeConstruct()
 	}
 }
 
-void UReEchoStartMenuWidget::InitializeMenu(const bool bInHasSavedRun)
+void UReEchoStartMenuWidget::InitializeMenu(const TArray<FReEchoSaveSlotSummary>& InSaveSlots)
 {
-	bHasSavedRun = bInHasSavedRun;
+	SaveSlots = InSaveSlots;
+	bHasSavedRun = SaveSlots.ContainsByPredicate(
+	    [](const FReEchoSaveSlotSummary& Candidate) { return Candidate.bOccupied; });
 	RefreshMenu();
+	RefreshSaveRollbackPanel();
 }
 
 void UReEchoStartMenuWidget::EnsureOpaqueBackground()
@@ -188,12 +211,116 @@ void UReEchoStartMenuWidget::RefreshMenu()
 	}
 }
 
+void UReEchoStartMenuWidget::OpenSaveRollbackPanel()
+{
+	bShowingSaveRollback = true;
+	if (UWidget* MainMenuPanel = WidgetTree->FindWidget(TEXT("StartMenuPanel")))
+	{
+		MainMenuPanel->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	if (UWidget* SavePanel = WidgetTree->FindWidget(TEXT("SaveRollbackPanel")))
+	{
+		SavePanel->SetVisibility(ESlateVisibility::Visible);
+	}
+	RefreshSaveRollbackPanel();
+	if (UReEchoIndexedButton* FirstSlot =
+	        Cast<UReEchoIndexedButton>(WidgetTree->FindWidget(TEXT("SaveSlotButton0"))))
+	{
+		FirstSlot->SetKeyboardFocus();
+	}
+}
+
+void UReEchoStartMenuWidget::CloseSaveRollbackPanel()
+{
+	bShowingSaveRollback = false;
+	if (UWidget* SavePanel = WidgetTree->FindWidget(TEXT("SaveRollbackPanel")))
+	{
+		SavePanel->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	if (UWidget* MainMenuPanel = WidgetTree->FindWidget(TEXT("StartMenuPanel")))
+	{
+		MainMenuPanel->SetVisibility(ESlateVisibility::Visible);
+	}
+	if (ContinueButton)
+	{
+		ContinueButton->SetKeyboardFocus();
+	}
+}
+
+void UReEchoStartMenuWidget::RefreshSaveRollbackPanel()
+{
+	SavePreviewTextures.Reset();
+	for (int32 SlotIndex = 0; SlotIndex < UReEchoRunSubsystem::SaveSlotCount; ++SlotIndex)
+	{
+		const FReEchoSaveSlotSummary* Summary = SaveSlots.FindByPredicate(
+		    [SlotIndex](const FReEchoSaveSlotSummary& Candidate) { return Candidate.SlotIndex == SlotIndex; });
+		const bool bOccupied = Summary && Summary->bOccupied;
+		if (UWidget* OccupiedArt =
+		        WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotOccupiedArt%d"), SlotIndex)))
+		{
+			OccupiedArt->SetVisibility(bOccupied ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+		if (UWidget* EmptyArt = WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotEmptyArt%d"), SlotIndex)))
+		{
+			EmptyArt->SetVisibility(bOccupied ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		}
+		if (!bOccupied)
+		{
+			continue;
+		}
+		if (UTextBlock* Name =
+		        Cast<UTextBlock>(WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotName%d"), SlotIndex))))
+		{
+			Name->SetText(FText::FromString(FString::Printf(TEXT("存档 %d"), SlotIndex + 1)));
+		}
+		if (UTextBlock* Metadata =
+		        Cast<UTextBlock>(WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotMetadata%d"), SlotIndex))))
+		{
+			Metadata->SetText(FText::FromString(FString::Printf(
+			    TEXT("到达关卡 %d，卡牌数量 %d"), Summary->EncounterNumber, Summary->CardCount)));
+		}
+		if (UTextBlock* Timestamp =
+		        Cast<UTextBlock>(WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotTimestamp%d"), SlotIndex))))
+		{
+			const FTimespan LocalOffset = FDateTime::Now() - FDateTime::UtcNow();
+			const FDateTime LocalTime = Summary->SavedAtUtc.GetTicks() > 0 ? Summary->SavedAtUtc + LocalOffset
+			                                                                : FDateTime();
+			Timestamp->SetText(LocalTime.GetTicks() > 0
+			                       ? FText::FromString(LocalTime.ToString(TEXT("%Y.%m.%d  %H:%M")))
+			                       : FText::GetEmpty());
+		}
+		if (UImage* Preview =
+		        Cast<UImage>(WidgetTree->FindWidget(*FString::Printf(TEXT("SaveSlotPreview%d"), SlotIndex))))
+		{
+			if (!Summary->PreviewScreenshotPath.IsEmpty())
+			{
+				if (UTexture2D* Texture = FImageUtils::ImportFileAsTexture2D(Summary->PreviewScreenshotPath))
+				{
+					SavePreviewTextures.Add(Texture);
+					Preview->SetBrushFromTexture(Texture, false);
+				}
+			}
+		}
+	}
+}
+
 void UReEchoStartMenuWidget::HandleMenuAction(const int32 ActionIndex)
 {
+	if (ActionIndex == CloseSaveRollbackAction)
+	{
+		CloseSaveRollbackPanel();
+		return;
+	}
+	if (ActionIndex >= SaveSlotActionBase &&
+	    ActionIndex < SaveSlotActionBase + UReEchoRunSubsystem::SaveSlotCount)
+	{
+		OnSaveSlotRequested.Broadcast(ActionIndex - SaveSlotActionBase);
+		return;
+	}
 	switch (static_cast<EStartMenuAction>(ActionIndex))
 	{
 		case EStartMenuAction::Continue:
-			OnContinueGameRequested.Broadcast();
+			OpenSaveRollbackPanel();
 			break;
 		case EStartMenuAction::NewGame:
 			OnNewGameRequested.Broadcast();

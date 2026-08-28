@@ -7,7 +7,7 @@
 - Build 文件：无；当前构建规则仍位于 `Source/ReEcho/ReEcho.Build.cs`。
 - 主要目录：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`、`Content/ReEcho/UI/`、`Content/ReEcho/Textures/UI/`、`Content/SourceArt/UI/`。
 - UI 架构设计权威：[ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md)。
-- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132。
+- 相关 Plan：Plan29、Plan34、Plan45、Plan51、Plan70、Plan93、Plan99、Plan102、Plan110、Plan116、Plan118、Plan132、Plan145、Plan150。
 
 ## 存在原因
 
@@ -20,16 +20,17 @@
 - 交付版 Settings 保持“总音量 / 背景音乐 / 音效音量”三滑条；第三条是非音乐聚合控制，同时预览并保存 `Ambience`、`CombatSfx`、`UiSfx`，因此 `Ambience_Rain` 等环境循环不需要额外第四条滑条。
 - 通关后商店的回响存储控件由 `UReEchoInventoryShopWidget` 动态生成，使用底部紧凑缩放托盘承载，避免遮挡商店/装配室主体；存储、跳过、替换与指定回放事件语义保持不变。
 - `WBP_ReEchoSettings` 与 `WBP_ReEchoRestart` 的作者ing Root 是正常表现权威；原生 `BuildWidgetTree()` 只在完全没有 Root 时建立最低可用 fallback，不得因单一可选绑定缺失而覆盖整页。Settings 的运行时 ComboBox/Slider 按稳定名称幂等复用。
+- `WBP_ReEchoStartMenu` 的 `SaveRollbackPanel` 是正式三槽存档页的布局权威；标题、关闭按钮、三行深/浅底板、截图、便签、名称、摘要和时间文本都由 WBP Canvas 直接拥有并可在 Designer 中调整。`UReEchoStartMenuWidget` 只消费 Run 提供的三条只读摘要，切换占用/空槽美术、载入真实截图并广播稳定槽号；它不选择物理 SaveGame 名、不写存档，也不在 C++ 中重建几何。占用槽点击立即读取，空槽意图由 GameMode 解析为第一个空槽，新旧存档兼容和全槽策略归 Run。
 - 三选一卡牌页的三个单槽刷新按钮与样例文案由 `WBP_ReEchoTraitCardChoice` 的 `ShopCardRefreshButton0..2` / `ShopCardRefreshText0..2` 持有，Designer 中可直接预览、拖动与缩放；`UReEchoTraitCardChoiceWidget` 运行时复用这些控件并只更新索引、次数、费用、显隐、启用状态和点击广播。按钮四态统一复用 `T_UI_Pause_ButtonLight`；无 WBP 的原生兜底仍动态创建同款按钮。
 - 商店装配树的卡牌槽框由 `DesignerCardSlot0..11` 的 Button 四态持有，子图层 `DesignerCardSlotArt0..11` 只承载已拥有卡牌内容；`T_UI_Shop110_EmptyCardSlotIcon` 锁图用于左侧 `DesignerPackOfferIcon0..2` 卡组商品位，不进入右侧装配树。
 - `WBP_ReEchoSettings` 的三个分类内容容器、文字字体/颜色与 Slot 布局均由 WBP 作者ing；C++ 只切换容器并绑定设置值/交互。运行时生成的下拉选项从 WBP `GraphicsValue0` 读取字体、颜色和渲染位移，不另设一套程序样式。
 - `WBP_ReEchoRestart` 复用既有 Pause 层承载普通暂停、退出到主菜单确认、退出游戏确认和 Death/Victory 结算状态，不新增独立 Pause WBP；交付切图只负责表现，透明真实按钮继续发出继续、设置、保存/不保存退出、返回等类型化 Delegate，目标关卡切换和程序退出由 `AReEchoGameMode` 执行。正式结算页的透明按钮与可见底图/文字是 Canvas 兄弟节点，因此 `UReEchoRestartWidget` 以 visual-only 绑定把统一 `1.05` 倍中心悬停缩放同步到对应底图和标签；该绑定不接管 WBP 几何，也不重复点击审计或音效。正式 `VictoryCanvas` / `DefeatCanvas` 是结算表现的唯一权威；被其替代的旧结果标题、摘要、角色、卡牌底板和按钮素材已经删除，不得重新导入。保存失败仍使用 `ArtRestartDialogPanel`，普通暂停与退出确认层保持不变。
 - 正式 Victory 由同一 `WBP_ReEchoRestart` 内的可选 `VictoryCanvas` 作者ing；其全部视觉与文字保持可独立编辑，C++ 只投影真实关卡总数、时间碎片和构筑数量，并把 `VictoryContinueButton` 转发到既有 `OnRestartRequested`，不新增结算或推进逻辑。`ArtVictoryCharacterFormal` 继续拥有位置和尺寸，运行时只按 `CurrentBuild.CharacterId` 把 Brush 替换为选角页对应的 `Selected` 角色纹理；其 Canvas ZOrder 固定高于同 Canvas 其他兄弟，避免角色局部被装饰或文字遮住。
-- 正式 Death 由同一 `WBP_ReEchoRestart` 内的可选 `DefeatCanvas` 作者ing；视觉、文字和五个样例卡槽均保持可独立编辑，C++ 只投影真实到达关卡、时间碎片和构筑数量。`DefeatRestartButton` 转发既有重开请求，`DefeatMainMenuButton` 转发既有返回主菜单请求，不伪造击败数、金币或修改结算状态所有权。`ArtDefeatCharacterFormal` 同样只在运行时替换 Brush且保持 Canvas 最前层；四个已知角色复用 LoadoutSelection `Selected` 纹理，未知 ID 或缺图回退 J_HEART，WBP 作者几何不被 C++ 覆盖。
+- 正式 Death 由同一 `WBP_ReEchoRestart` 内的可选 `DefeatCanvas` 作者ing；视觉、文字和五个空槽底板均保持可独立编辑，C++ 只投影真实到达关卡、时间碎片、构筑数量和只读卡牌展示。`DesignerDefeatCardIcon0..4` 是对应空槽上方的正方形作者化覆盖层：按权威 `Tier` 降序展示当前构筑最多五张卡牌，同 Tier 保持获得顺序；图标路径和缺图时的通用卡图回退与商店一致，未占用覆盖层隐藏而不改变空槽 Brush、作者几何、Tooltip 或交互。`DefeatRestartButton` 转发既有重开请求，`DefeatMainMenuButton` 转发既有返回主菜单请求，不伪造击败数、金币或修改结算状态所有权。`ArtDefeatCharacterFormal` 同样只在运行时替换 Brush 且保持 Canvas 最前层；四个已知角色复用 LoadoutSelection `Selected` 纹理，未知 ID 或缺图回退 J_HEART，WBP 作者几何不被 C++ 覆盖。
 - 商店/背包页允许 `WBP_ReEchoRestart` 以更高 Pause 层覆盖：按 `P` 不关闭商店，不触发战后推进或回响存储门禁；关闭 Pause 后必须重新聚焦商店并继续保持世界暂停与菜单能力阻挡。
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
-- `UReEchoEncounterTransitionWidget` 是 ZOrder 10000 的非交互视口最上层 Screen。第一关结算后通过 WmfMedia/HAP、MediaTexture 直绘播放无音轨 `Stage01To02.mov`，并在首个有效视频表面出现后独立启动 `S_Stage01To02`；GameMode使用既有局间门停止玩法并显式停止Music State，但不暂停World媒体时钟。该路径不先播放 Hap Alpha、不打开 CardChoice 或 Shop。第二关及以后在权威时间到 00 后通过动态材质从第 0 帧播放 `EncounterTransitionAlpha.mov`（Hap Alpha、RGBA、121 帧、40 FPS）。两类视频都非循环、按 Fill 等比居中裁切，只报告媒体完成/失败；第一关CG明确区分 Opening、首帧等待、Playing、Completed 和 Failed，只有实际播放器时间推进与有效 MediaTexture 表面才证明画面开始，OnEndReached 是正常完成信号，首帧/时钟停滞与末尾容差仅作幂等失败兜底。03→00 的场景重影模糊由 `AReEchoArenaCameraActor` 的 Post Process Material 负责，发生在 UMG 合成前，因此 HUD 保持清晰。Widget 不生成卡牌、不推进 Run、不拥有 Encounter 时间或后处理状态。
+- `UReEchoEncounterTransitionWidget` 是默认 ZOrder 10000 的非交互视口最上层 Screen。第一关结算后通过 WmfMedia/HAP、MediaTexture 直绘播放无音轨 `Stage01To02.mov`，并在首个有效视频表面出现后独立启动 `S_Stage01To02`；GameMode使用既有局间门停止玩法并显式停止Music State，但不暂停World媒体时钟。该路径不先播放 Hap Alpha、不打开 CardChoice 或 Shop。第二关及以后在权威时间到 00 后通过动态材质从第 0 帧播放 `EncounterEndToCardChoiceV2.mov`（Hap Alpha、RGBA、120帧、40 FPS）：0–57完成一次入场和首轮摆动，再追加两遍27–57，使钟表共来回摆动三轮；后两轮跳过与上一轮末尾重复的26帧中心姿态，避免接缝卡顿。旧 `EncounterTransitionAlpha.mov` 与其资产保留但不再作为普通运行时来源。第一段与 `CardChoiceToShop.mov` 第二段共用左右对称的归一化区域 `(0.17,0.02)–(0.83,0.74)` 和同一16:9 Fit算法，完整画布水平居中、向上对齐，使两段钟表轴心都落在游戏画面50%中心。第一段结束后立即关闭转场Screen，TraitChoice不创建或保留末帧媒体背景；第2–7关全部免费抽卡成功耗尽、Run Phase 离开 `CardChoice` 后，再由同一运行时 MediaPlayer 重新打开相同位置并播放第二段（Hap Alpha、RGBA、63帧、40 FPS）。播放期间抽卡不可交互，结束时 GameMode 在覆盖层下关闭抽卡、打开但暂时禁用商店，淡出完成后关闭覆盖层、启用并聚焦商店。付费卡包返回、仍有免费抽卡、第一关CG和最终关均不触发第二段；失败时幂等放行到同一商店目标。两段透明视频均无音轨，`Music.Shop` 依靠音频状态幂等保持连续。所有视频都非循环。Widget 只报告媒体完成/失败；首帧/时钟停滞与末尾容差仅作幂等失败兜底。03→00 的场景重影模糊由 `AReEchoArenaCameraActor` 的 Post Process Material 负责，发生在 UMG 合成前，因此 HUD 保持清晰。Widget 不生成卡牌、不推进 Run、不拥有 Encounter 时间或后处理状态。
 - Player HUD 显式接收当前玩家的 Combatant 与 CombatEvents：`OnHurt` 仅触发瞬时受击红光，生命变化仅更新可配置的低血量底色。`UReEchoPlayerScreenFeedbackWidget` 独占合成、钳制、重触发和死亡清理等表现状态；`WBP_ReEchoPlayerScreenFeedback` 的 Class Defaults 是阈值、强度、曲线指数、呼吸和材质参数的 Editor 调参表面。HUD 硬引用并构造该 WBP Class，Widget 硬引用 `/Game/ReEcho/Materials/UI/M_UI_PlayerHurtVignette`，保证 cook 收集；材质缺失时使用不影响玩法的原生左右边缘 fallback。
 - Plan93/102 战斗常驻 HUD 以两个 WBP 为视觉权威：Player HUD 用 `PlayerHealthFill` 映射真实生命比例并显示 Run 的只读 TimeShards；免费选卡暂停期的单槽刷新扣费成功后，GameMode 立即更新该 HUD 投影，不依赖暂停中不运行的普通 Tick；Encounter HUD 显示 `第 N 关`、零补齐 `MM:SS`，并把现有真实 `UReEchoMinimapCanvasWidget` 包进交付回响框。倒计时不保留 `ArtTimeReadout` 黑色半透明底块；普通关 `ArtClockNeedle` 的 WBP Pivot 位于源图顶部轴心，C++ 按 Encounter Director 剩余/总时长把它从左经下半圆逆时针转到右。Boss 关保留 `ArtClockFrame` 钟背板，只隐藏倒计时文字和指针；同一中心区域的 `BossHealthPanel` 复用玩家血条底板纹理并使用紫色 Tint，暗紫 Fill 位于不透明底板内部上层，只读 EnemyRoster 中存活 Boss Combatant 的当前/最大生命并从左向右缩放；关卡文字与小地图继续显示。Minimap Canvas 底板透明且不绘制内层竞技场边框，保留轨迹，并用 Player/Echo Presentation Profile 的对应头像绘制实时位置；缺图时才降级为旧色点。参考图底部技能栏已被产品废弃，不进入 WBP 或运行时纹理；Widget 不写 Run、不复制遭遇时钟或 Boss 生命，也不伪造技能状态。
 - Plan118 将 Minimap Canvas 的 Echo 轨迹从 2px 纯色折线改为沿同一投影路径确定性盖印经典墨水笔尖。`UReEchoMinimapCanvasWidget` 硬引用 UI 材质以进入 Cook；笔尖尺寸、间距、角度/透明度抖动、Grain 强度和固定六项 `Ink Trail Colors` 调色板均在该控件实例的 `Minimap | Ink Trail` 分类调整。控件按 Echo 顺序为每个调色板项维护独立动态材质实例，把颜色写入 `TrailColor` 向量参数；Slate Tint 仅乘单次盖印 Alpha，因此不依赖 UI Material 的 Vertex Color RGB。缺项回退视图颜色且不染色头像。盖印跨折线段保持间距，并受单 Echo 最大数量约束；材质缺失时才回退旧折线，不改变录制采样、路径数据、头像或坐标投影。
@@ -64,12 +65,13 @@
 | 修改页面行为或绑定 | 对应 `Source/ReEcho/Public/UI/*Widget.h` | 配对的 `Source/ReEcho/Private/UI/*Widget.cpp` |
 | 修改玩家受伤/低血量屏幕反馈 | `ReEchoPlayerHudWidget.*` | `WBP_ReEchoPlayerScreenFeedback`、`M_UI_PlayerHurtVignette`、两个 `scripts/ue/author_plan70_*` 作者ing脚本 |
 | 修改战斗常驻 HUD | `WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` | `ReEchoPlayerHudWidget.*`、`ReEchoEncounterHudWidget.*`、`ReEchoMinimapCanvasWidget.*`、`Content/SourceArt/UI/CombatHud/Plan{93,102}/`、`Content/SourceArt/UI/CombatHud/MinimapInkBrush/` |
-| 修改关末倒计时/序列过渡 | `ReEchoGameMode` 结算状态、`Presentation/Scene/ReEchoArenaCameraActor.*`、`ReEchoEncounterTransitionWidget.*` | `M_PP_EncounterCountdownGhost_V4`、`Content/Movies/EncounterTransition/{EncounterTransitionAlpha.mov,Stage01To02.mov}`、`S_Stage01To02`、MediaAssets/HAPMedia |
+| 修改关末倒计时/序列过渡 | `ReEchoGameMode` 结算状态、`Presentation/Scene/ReEchoArenaCameraActor.*`、`ReEchoEncounterTransitionWidget.*` | `M_PP_EncounterCountdownGhost_V4`、`Content/Movies/EncounterTransition/{EncounterEndToCardChoiceV2.mov,CardChoiceToShop.mov,Stage01To02.mov}`、`S_Stage01To02`、MediaAssets/HAPMedia |
 | 修改商店卡牌规则展示 | `ReEchoInventoryShopWidget.*` | `ReEchoGameMode::RefreshShopPresentation`、`UReEchoRunSubsystem` 商店命令 |
 | 修改正式商店构图 | `WBP_ReEchoInventoryShopScreen` 的两个 `Designer*Canvas` | `Content/SourceArt/UI/InventoryShop/Plan110/README.md`、`scripts/ue/audit_plan110_formal_shop_ui.py` |
 | 修改页面创建、层级和实例 | `ReEchoUIManagerSubsystem.*` | `UI/Framework/ReEchoUIScreenTypes.h` |
 | 修改焦点、输入或暂停流程 | `UI/Framework/ReEchoUIFlowCoordinatorSubsystem.*` | `ReEchoGameMode` 类型化端点 |
 | 修改暂停/退出确认表现 | `WBP_ReEchoRestart`、`ReEchoRestartWidget.*` | `ReEchoGameMode` 的暂停退出端点 |
+| 修改正式存档回溯页 | `WBP_ReEchoStartMenu` 的 `SaveRollbackPanel` | `ReEchoStartMenuWidget.*`、`ReEchoRunSubsystem` 三槽摘要、`scripts/ue/audit_plan145_start_menu_tree.py` |
 | 修改音频设置页 | `WBP_ReEchoSettings` 的绑定契约 | `ReEchoSettingsWidget.*`、`MOD-ReEchoAudio.md` |
 | 修改通用按钮反馈 | `UI/Framework/ReEchoButtonVisualFeedback.*` | `ReEchoUIFlowCoordinatorSubsystem.*`、`FReEchoAudioEvents`、具体结果宿主 |
 

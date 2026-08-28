@@ -61,6 +61,19 @@
 2. 按 `shared/GIT_RULES.md` 取得 `main-publish-lock`，获锁后把最新 `origin/main` merge 到候选，重新完成最终 FullRebuild、自动化、项目校验、差异审计与 LFS 门禁，再普通推送锁分支和 main。测试分支上的旧构建不能替代最终组合候选构建。
 3. 获锁合入 main 并形成可引用的最终集成提交后，先在同一发布候选的报告中记录该集成提交、最终门禁与预期结果，再提交报告闭环并完成发布；不能等发布后另起一次 main 发布补记录。发布后核验结果，确认远端 Issue 的全部提交均已进入 main、报告与日志已留档且远端 Issue tip 未变化后，按 `DESIGNER_RULES.md` 的正常生命周期准确删除该 Issue 分支。
 
+## Windows 打包权威流程
+
+本节是 Windows 测试包和正式包的唯一规则入口。打包必须以准确来源、磁盘已保存状态和可复核证据为准，不能用“构建成功”代替资源一致性或日志可用性证明。
+
+1. **先确定准确物理工程。** 用户没有明确说“远端最新主分支”时，必须从用户确认、正在运行的进程或最新 Unreal Editor 日志确定其实际打开的 `ReEcho.uproject`，并从该物理工作树打包；不得擅自改用本地 `main`、`origin/main`、另一 worktree 或旧打包目录。只有用户明确要求远端最新时，才先 fetch 并从准确 `origin/main` 建立干净打包工作树。
+2. **所见即所得只覆盖已保存到磁盘的状态。** 打包前要求用户在准确工程内保存全部资产并正常关闭 Editor；脚本检测到 `UnrealEditor.exe` 或 `UnrealEditor-Cmd.exe` 仍运行时必须停止并提醒，禁止强制关闭或声称未保存的内存状态已进入包。打包前记录 `Content/Config` 工作区状态；使用镜像 worktree 时，必须证明其 `Content/Config` 与用户实际工程的已保存快照无差异。
+3. **先通过 LFS 门禁。** 打包前运行 `python scripts/setup_lfs.py --check`；fetch、checkout、merge 或切换打包来源后如涉及 `.gitattributes` 或 LFS 路径，重新还原并检查对象。LFS 指针、缺失对象或未还原的大资源会直接阻止打包。
+4. **默认生成带完整日志的 Development 测试包。** 用户只说“打包”而未明确说“正式包”“发布包”或“无日志包”时，使用 Win64 Development Game 配置；只有用户明确要求正式发布或无日志时才使用 Win64 Shipping。UE 5.8 安装版的 Shipping 引擎预构建关闭普通日志，不得用项目侧宏强开后冒充可用的 Shipping 完整日志包。Development Game 会编译非 Editor 目标；引用 Editor-only API 的自动化测试必须同时受 `WITH_EDITOR` 保护。
+5. **来源或模式变化必须干净构建。** 工作树、提交、`Content/Config`、Development/Shipping 模式或关键打包配置变化后，必须执行 Clean Build/Cook/Stage/Archive，不得用 `--no-clean`、旧 Cook、旧二进制或另一模式的输出拼装本次包。Cook 对软引用、Loose/NonUFS 数据和影片的收集必须按项目契约验证；运行时从磁盘读取但未被 Cook 引用的文件必须显式 Stage。
+6. **每个包附带来源清单。** 输出根目录必须包含 `ReEchoPackageSource.txt`，至少记录源 `.uproject` 绝对路径、准确 Git 提交、打包模式、`Content/Config` 已保存工作区差异数量及明细；无法证明来源时不得把包描述为 UE 所见即所得。
+7. **日志路径按实际模式验证。** Development 包的完整会话日志通常位于包内 `Windows\\ReEcho\\Saved\\Logs\\ReEcho-session-*.log`；环境发生重定向时再检查 `%LOCALAPPDATA%\\ReEcho\\Saved\\Logs`。AI 必须实际启动目标 EXE 并确认本次新生成、非空的会话日志，不能只检查 `ShopPurchaseAudit.log` 或 `UIInteractionAudit.log` 就声称完整日志已开启。
+8. **交付前完成闭环检查。** 至少确认 Build、Cook、Stage、Archive 成功，目标 EXE 存在且能持续运行冒烟时长，来源清单准确，预期日志实际生成，并关闭所有冒烟测试进程。交付给策划前应清理包内由打包者冒烟产生的旧 `Saved` 测试状态，或明确隔离并标注证据日志，避免策划误把旧日志当作本次复现原始日志。
+
 ## 程序范围
 
 - 可以修改 C++、Python 工具、Schema、配置、公共契约和技术文档，但不得越过用户目标或专业角色边界。

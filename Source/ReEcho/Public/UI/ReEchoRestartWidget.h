@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoAttackModeWidget.h"
 #include "ReEchoRestartWidget.generated.h"
 
@@ -78,6 +79,13 @@ public:
 	                    int32 TimeShards = 0,
 	                    int32 TraitCount = 0,
 	                    FName InCharacterId = NAME_None);
+	/** Death result overload that projects the highest-tier owned card icons into the five authored slots. */
+	void SetDeathScreen(bool bInDeathScreen,
+	                    int32 EncounterIndex,
+	                    int32 TimeShards,
+	                    int32 TraitCount,
+	                    FName InCharacterId,
+	                    const TArray<FReEchoShopOffer>& OwnedCards);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount, FName InCharacterId = NAME_None);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
@@ -93,6 +101,7 @@ private:
 	void BuildWidgetTree();
 	void RefreshMenuMode();
 	void RefreshSettlementCharacterImages();
+	void RefreshDefeatCardSlots();
 	void EnsureAttackModeWidget();
 	void BindFormalResultButtonFeedback();
 
@@ -223,6 +232,7 @@ private:
 	int32 DefeatEncounterIndex = 0;
 	int32 DefeatTimeShards = 0;
 	int32 DefeatTraitCount = 0;
+	TArray<FString> DefeatCardIconTexturePaths;
 	FName SettlementCharacterId = NAME_None;
 	int32 PauseEncounterIndex = 0;
 	bool bAutomaticAttackMode = true;

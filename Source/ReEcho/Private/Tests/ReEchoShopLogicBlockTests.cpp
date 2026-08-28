@@ -571,6 +571,8 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Confirm label is independent from the button and freely draggable"),
 	         ConfirmLabel && ConfirmLabel->GetParent() && ConfirmLabel->GetParent()->GetName() == TEXT("RootPanel") &&
 	             Cast<UCanvasPanelSlot>(ConfirmLabel->Slot));
+	TestFalse(TEXT("Completed transition does not leave a retained media image in the card UI"),
+	          Choice->GetWidgetFromName(TEXT("EncounterTransitionBackgroundImage")) != nullptr);
 	return true;
 }
 

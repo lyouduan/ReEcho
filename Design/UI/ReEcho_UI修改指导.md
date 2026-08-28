@@ -135,7 +135,9 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 可以修改面板尺寸、按钮布局、按钮 Style、文本、焦点高亮和转场动画。不要在 WBP 中直接开始游戏、读写存档、重启关卡或退出程序；按钮只应把请求交给 C++ Delegate。
 
-`WBP_ReEchoStartMenu` 的 Plan45 正式样板使用 `T_UI_Start_Background`、`T_UI_Start_TitleLogo`、`T_UI_Start_PrimaryActions`、`T_UI_Start_SettingsIcon` 和 `T_UI_Start_Quit`。这些 Image 都是命中测试不可见的表现层，既有 `NewGameButton`、`ContinueButton`、`GameSettingsButton` 和 `QuitButton` 作为透明交互层覆盖对应图案。`存档回溯` 固定映射到继续当前存档；无存档时仍显示，但必须置灰并禁用。关于入口当前隐藏。开始页退出只发送 C++ Delegate，由 GameMode 直接退出程序；WBP 不得自行调用退出 API。设置继续打开既有 Settings 页面，不能在 WBP 中复制设置逻辑。
+`WBP_ReEchoStartMenu` 的 Plan45 正式样板使用 `T_UI_Start_Background`、`T_UI_Start_TitleLogo`、`T_UI_Start_PrimaryActions`、`T_UI_Start_SettingsIcon` 和 `T_UI_Start_Quit`。这些 Image 都是命中测试不可见的表现层，既有 `NewGameButton`、`ContinueButton`、`GameSettingsButton` 和 `QuitButton` 作为透明交互层覆盖对应图案。Plan145 起，`存档回溯` 打开同一 WBP 内的正式 `SaveRollbackPanel`，不再直接读取单一存档；三个 `SaveSlotButton0..2` 分别覆盖三行槽位，占用槽立即读取对应槽，空槽进入既有新游戏流程并由 Run 选择第一个空槽。关于入口当前隐藏。开始页退出只发送 C++ Delegate，由 GameMode 直接退出程序；WBP 不得自行调用退出 API。设置继续打开既有 Settings 页面，不能在 WBP 中复制设置逻辑。
+
+正式存档页的可编辑节点为 `ArtSaveRollbackFrame`、`ArtSaveRollbackSurface`、`ArtSaveRollbackTitle`、`ArtSaveRollbackClose`，以及每行的 `SaveSlotOccupiedArtN`、`SaveSlotEmptyArtN`、`SaveSlotPreviewN`、`DesignerSaveSlotNoteStripN`、`SaveSlotNameN`、`SaveSlotMetadataN`、`SaveSlotTimestampN`。正式源图归档在 `Content/SourceArt/UI/SaveRollback/Plan145/`，运行时纹理位于 `/Game/ReEcho/Textures/UI/SaveRollback/Plan145`。可以直接在 Designer 中移动和缩放这些 Canvas 子项；C++ 只替换占用状态、文字和截图 Brush，不覆盖 Canvas Position/Size。截图缺失时保留正式占位图，不能因此禁用读档。
 
 项目将 `UserInterfaceSettings.RenderFocusRule` 设为 `Never`，不绘制 Unreal 默认的紫色虚线焦点框；这只隐藏默认 Focus Brush，不移除键盘/手柄焦点和导航。需要焦点反馈时，应使用与页面美术一致的按钮 Normal/Hovered/Pressed/Disabled 状态，不要重新启用默认紫色描边。
 
