@@ -93,6 +93,9 @@ public:
 	void GMKillAll();
 	UFUNCTION(Exec)
 	void GMSpawnFox(float CountOrDistance = 1.0f, float Distance = -1.0f);
+	/** Ends the current debug encounter state and starts the requested configured encounter (1-based). */
+	UFUNCTION(Exec)
+	void GMGotoEncounter(int32 EncounterNumber);
 	UFUNCTION(Exec)
 	void GMGotoBoss();
 	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
@@ -267,7 +270,8 @@ private:
 		None,
 		CountdownPostProcess,
 		PlayingSequence,
-		FadingToCardChoice,
+		PlayingCardChoiceToShop,
+		FadingToShop,
 		Stage01To02FocusPlayer,
 		Stage01To02HoldPlayer,
 		PlayingStage01To02Cg,
@@ -308,7 +312,10 @@ private:
 	void UpdateEncounterTransitionPresentation(float DeltaSeconds);
 	UReEchoEncounterTransitionWidget* EnsureEncounterTransitionWidget();
 	bool BeginEncounterEndSequence();
-	void CompleteEncounterEndSequence(bool bFadeToCards);
+	void CompleteEncounterEndSequence();
+	bool BeginCardChoiceToShopTransition();
+	void CompleteCardChoiceToShopTransition(bool bFailed);
+	void FinishCardChoiceToShopFade();
 	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
 	void CompleteStage01To02Cg(bool bFailed);
@@ -466,6 +473,10 @@ private:
 	                                              bool bMediaFailed,
 	                                              bool bMediaFinished,
 	                                              float ElapsedSeconds);
+	static bool ShouldPlayCardChoiceToShopTransition(int32 CompletedEncounterIndex,
+	                                                 EReEchoRunPhase Phase,
+	                                                 bool bApplied,
+	                                                 bool bReturningToOpenShop);
 	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()

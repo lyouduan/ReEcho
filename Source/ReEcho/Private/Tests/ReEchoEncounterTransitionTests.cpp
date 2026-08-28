@@ -68,6 +68,15 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Ultrawide Fill covers width"), WideFill.X >= 2560.0f);
 	TestTrue(TEXT("Ultrawide Fill crops height"), WideFill.Y >= 1080.0f);
 	TestEqual(TEXT("Fill preserves source aspect"), static_cast<double>(WideFill.X / WideFill.Y), 16.0 / 9.0, 0.0001);
+	const FVector2D CardChoiceFrameSize =
+	    UReEchoEncounterTransitionWidget::CalculateCardChoiceFrameSize(FVector2D(1920.0f, 1080.0f));
+	const FVector2D CardChoiceFramePosition =
+	    UReEchoEncounterTransitionWidget::CalculateCardChoiceFramePosition(FVector2D(1920.0f, 1080.0f));
+	TestEqual(TEXT("Playing transition uses the same width as the card-choice Fit frame"), CardChoiceFrameSize.X, 1267.2, 0.01);
+	TestEqual(TEXT("Playing transition preserves 16:9 inside the card-choice frame"),
+	          static_cast<double>(CardChoiceFrameSize.X / CardChoiceFrameSize.Y), 16.0 / 9.0, 0.0001);
+	TestEqual(TEXT("Playing transition is horizontally centered on the game view"), CardChoiceFramePosition.X, 326.4, 0.01);
+	TestEqual(TEXT("Playing transition and retained card background share the top edge"), CardChoiceFramePosition.Y, 21.6, 0.01);
 
 	TestTrue(TEXT("Three seconds starts countdown post process"),
 	         AReEchoGameMode::ShouldStartEncounterTransition(3.0f, false, false));
@@ -113,6 +122,20 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Encounter-flow Blueprint keeps a non-negative designer value"),
 		         BlueprintDefaults->PostEntryInvulnerabilitySeconds >= 0.0f);
 	}
+	TestTrue(TEXT("Encounter 2 final free card transitions to shop"),
+	         AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(2, EReEchoRunPhase::Planning, true, false));
+	TestTrue(TEXT("Encounter 7 final free card transitions to shop"),
+	         AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(7, EReEchoRunPhase::Planning, true, false));
+	TestFalse(TEXT("Another pending free card does not transition to shop"),
+	          AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(2, EReEchoRunPhase::CardChoice, true, false));
+	TestFalse(TEXT("Encounter 1 direct CG route does not use card-to-shop media"),
+	          AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(1, EReEchoRunPhase::Planning, true, false));
+	TestFalse(TEXT("Final encounter does not use card-to-shop media"),
+	          AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(8, EReEchoRunPhase::Planning, true, false));
+	TestFalse(TEXT("Paid shop card pack return does not use card-to-shop media"),
+	          AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(3, EReEchoRunPhase::Planning, true, true));
+	TestFalse(TEXT("Failed card application does not use card-to-shop media"),
+	          AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(3, EReEchoRunPhase::Planning, false, false));
 
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);

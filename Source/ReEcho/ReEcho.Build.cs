@@ -51,6 +51,8 @@ public class ReEcho : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/boss_phases.csv", StagedFileType.NonUFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/audio_events.csv", StagedFileType.NonUFS);
 		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov", StagedFileType.NonUFS);
+		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/EncounterEndToCardChoiceV2.mov", StagedFileType.NonUFS);
+		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/CardChoiceToShop.mov", StagedFileType.NonUFS);
 		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/Stage01To02.mov", StagedFileType.NonUFS);
 
         // One-way dependency: gameplay -> ReEchoAudio audio runtime module.

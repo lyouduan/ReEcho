@@ -30712,6 +30712,14 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/CardChoiceToShop.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterEndToCardChoiceV2.mov",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
       "Type": "NonUFS"
     },

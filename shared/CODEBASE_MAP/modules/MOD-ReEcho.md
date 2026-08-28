@@ -46,7 +46,7 @@
 | 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
-| Encounter 结算与入场保护编排 | `AReEchoGameMode` + `BP_EncounterFlowSettings` | 首场及后续每场恢复控制 | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入现有抽卡或商店页；所有 Encounter 均在恢复玩家输入的同一时刻按 Blueprint 配置向 Player Combatant 授予短暂无敌，不复制伤害门 |
+| Encounter 结算与入场保护编排 | `AReEchoGameMode` + `BP_EncounterFlowSettings` | 首场及后续每场恢复控制、单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入抽卡；第2–7关全部免费抽卡成功耗尽后，再播放独立透明序列并在覆盖层下切换到商店；所有 Encounter 均在恢复玩家输入的同一时刻按 Blueprint 配置向 Player Combatant 授予短暂无敌，不复制伤害门 |
 | Stage/Wave 门、预警、出生候选与普通怪全局技能令牌 | WaveScheduler / SpawnResolver / GameMode Encounter coordinator | 单场遭遇 | 预警时锁定位置，Commit 时才创建 Enemy Host；Host 完成 Definition/Profile 装配后只尝试一次可选 Born，成功播放时进入临时不可伤害/不可移动/不可攻击 Gate，缺失或失败不进入 Gate，碰撞、AI 计时和目标不暂停；零秒首波在遭遇 0 秒预警并完整等待 SpawnProfile 的 WarningLeadSeconds 后 Commit；GameMode 统一限制远程窗口和精英并发；EnemyLogic 只消费许可 |
 | 当前 Arena 场景与 SceneId 注册 | `UReEchoArenaSceneCatalog` 唯一注册表；Stage CSV `SceneId` 为选择权威；`AReEchoGameMode` 只持有 Active/Pending Arena | World/Stage | GameMode 先生成并验证隐藏候选，再提交消费者重绑；同 SceneId 不重建，准备失败保留旧 Arena 与局内对象 |
 | 当前录制与历史 Playback | Recorder/Playback 组件 | 单场/存储录制 | 录制数据与播放接口 |
@@ -130,7 +130,7 @@ Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBo
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
-Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMGotoEncounter <1-based index>` 仅在存活玩家的活动 Encounter 中生效，清理当前敌人和回响后把 Run 索引设为目标前一关并复用正式 `BeginNextEncounter`，因此目标关的场景、刷怪、计时、录制和音乐都从标准入口启动且不经过结算 UI。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
 

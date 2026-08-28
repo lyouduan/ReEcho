@@ -34,7 +34,10 @@ class REECHO_API UReEchoEncounterTransitionWidget : public UUserWidget
 public:
 	UReEchoEncounterTransitionWidget(const FObjectInitializer& ObjectInitializer);
 	static FVector2D CalculateFillSize(const FVector2D& ViewSize);
+	static FVector2D CalculateCardChoiceFrameSize(const FVector2D& ViewSize);
+	static FVector2D CalculateCardChoiceFramePosition(const FVector2D& ViewSize);
 	bool StartSequence();
+	bool StartCardChoiceToShopSequence();
 	bool StartStage01To02Sequence();
 	UMediaPlayer* GetMediaPlayer() const;
 	void BeginSequenceFadeOut(float DurationSeconds);
@@ -51,7 +54,7 @@ protected:
 
 private:
 	void BuildFallbackTree();
-	bool StartSequenceWithSource(UMediaSource* Source, bool bOpaqueMedia);
+	bool StartSequenceWithSource(UMediaSource* Source, bool bOpaqueMedia, FName SequencePurpose);
 	void ApplySequenceBrush(bool bOpaqueMedia);
 	void UpdateFillLayout(const FVector2D& ViewSize);
 	void StartStageCgAudio();
@@ -80,6 +83,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMediaSource> MediaSource;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMediaSource> CardChoiceToShopMediaSource;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMediaSource> Stage01To02MediaSource;
@@ -111,4 +117,5 @@ private:
 	float PlaybackStallElapsedSeconds = 0.0f;
 	FTimespan LastObservedMediaTime = FTimespan::MinValue();
 	EReEchoTransitionMediaState MediaState = EReEchoTransitionMediaState::Closed;
+	FName ActiveSequencePurpose = NAME_None;
 };
