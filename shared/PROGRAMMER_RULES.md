@@ -65,6 +65,8 @@
 
 本节是 Windows 测试包和正式包的唯一规则入口。打包必须以准确来源、磁盘已保存状态和可复核证据为准，不能用“构建成功”代替资源一致性或日志可用性证明。
 
+标准一键入口为 `python scripts\ue\package_windows.py`：无参数时从当前工作树生成桌面 Development 日志测试包；明确要求远端最新主线时使用 `--remote-main`；明确要求正式包时使用 `--formal`。参数含义与输出位置只在 `scripts/README.md` 维护，本节只维护门禁原则。
+
 1. **先确定准确物理工程。** 用户没有明确说“远端最新主分支”时，必须从用户确认、正在运行的进程或最新 Unreal Editor 日志确定其实际打开的 `ReEcho.uproject`，并从该物理工作树打包；不得擅自改用本地 `main`、`origin/main`、另一 worktree 或旧打包目录。只有用户明确要求远端最新时，才先 fetch 并从准确 `origin/main` 建立干净打包工作树。
 2. **所见即所得只覆盖已保存到磁盘的状态。** 打包前要求用户在准确工程内保存全部资产并正常关闭 Editor；脚本检测到 `UnrealEditor.exe` 或 `UnrealEditor-Cmd.exe` 仍运行时必须停止并提醒，禁止强制关闭或声称未保存的内存状态已进入包。打包前记录 `Content/Config` 工作区状态；使用镜像 worktree 时，必须证明其 `Content/Config` 与用户实际工程的已保存快照无差异。
 3. **先通过 LFS 门禁。** 打包前运行 `python scripts/setup_lfs.py --check`；fetch、checkout、merge 或切换打包来源后如涉及 `.gitattributes` 或 LFS 路径，重新还原并检查对象。LFS 指针、缺失对象或未还原的大资源会直接阻止打包。
