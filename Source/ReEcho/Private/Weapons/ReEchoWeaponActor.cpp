@@ -155,6 +155,21 @@ FVector2D ResolveHeldDimensions(const UTexture2D& Texture,
 	return FVector2D(HeldLength * TextureWidth / TextureHeight, HeldLength);
 }
 
+FVector ResolveHeldVisualAttackRangeScale(const FVector& AuthoredScale,
+                                          const FVector& ScaleMask,
+                                          const float RangeMultiplier,
+                                          const float MinMultiplier,
+                                          const float MaxMultiplier)
+{
+	const float SafeMin = FMath::Max(0.01f, FMath::Min(MinMultiplier, MaxMultiplier));
+	const float SafeMax = FMath::Max(SafeMin, FMath::Max(MinMultiplier, MaxMultiplier));
+	const float ClampedMultiplier = FMath::Clamp(RangeMultiplier, SafeMin, SafeMax);
+	const FVector SafeMask(FMath::Clamp(ScaleMask.X, 0.0f, 1.0f),
+	                       FMath::Clamp(ScaleMask.Y, 0.0f, 1.0f),
+	                       FMath::Clamp(ScaleMask.Z, 0.0f, 1.0f));
+	return AuthoredScale * (FVector::OneVector + SafeMask * (ClampedMultiplier - 1.0f));
+}
+
 FVector ResolveFacingPointAroundCenter(const FVector& Point,
                                        const FVector& CharacterCenter,
                                        const float FacingSign,
@@ -313,26 +328,6 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		StaffSprite->SetRelativeScale3D(FVector(StaffWorldHeight / FMath::Max(1, StaffTexture->GetSizeY())));
 	}
 
-	auto CreateWeaponBillboard = [this](const TCHAR* Name, const FString& TexturePath)
-	{
-		UBillboardComponent* Billboard = CreateDefaultSubobject<UBillboardComponent>(Name);
-		Billboard->SetupAttachment(Root);
-		Billboard->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Billboard->SetCastShadow(false);
-		Billboard->SetTranslucentSortPriority(6);
-		Billboard->SetRelativeLocation(ReEchoWeaponVisual::StaffLocation);
-		Billboard->SetHiddenInGame(false);
-		if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *TexturePath))
-		{
-			Billboard->SetSprite(Tex);
-			constexpr float WorldHeight = 250.0f;
-			Billboard->SetRelativeScale3D(FVector(WorldHeight / FMath::Max(1, Tex->GetSizeY())));
-		}
-		return Billboard;
-	};
-	ScytheSprite =
-	    CreateWeaponBillboard(TEXT("ScytheSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Scythe")));
-
 	// Billboard 会在渲染阶段覆盖组件旋转；使用透明 Plane 才能稳定显示武器自身的 360 度旋转。
 	UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
 	UMaterialInterface* SpriteMaterial = LoadObject<UMaterialInterface>(
@@ -354,6 +349,8 @@ AReEchoWeaponActor::AReEchoWeaponActor()
 		}
 		return Plane;
 	};
+	ScytheSprite =
+	    CreateWeaponPlane(TEXT("ScytheSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Scythe")));
 	BowSprite = CreateWeaponPlane(TEXT("BowSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Bow")));
 	GunSprite = CreateWeaponPlane(TEXT("GunSprite"), FReEchoWeaponVisualCatalog::ResolveHeldTexturePath(TEXT("Gun")));
 
@@ -1088,6 +1085,13 @@ float AReEchoWeaponActor::GetTimedRangeMultiplier() const
 	return FMath::Max(0.01f, 1.0f + BonusFraction);
 }
 
+float AReEchoWeaponActor::ResolveCurrentAttackRangeMultiplier() const
+{
+	const float EffectiveRangeCm = GetCurrentAttackRangeCm();
+	const float BaseRangeCm = ResolveBaseAttackRangeCm(GetCurrentAttackStepId(), EffectiveRangeCm);
+	return BaseRangeCm > UE_SMALL_NUMBER ? FMath::Max(0.01f, EffectiveRangeCm / BaseRangeCm) : 1.0f;
+}
+
 void AReEchoWeaponActor::ProcessOnAttackRuneEffects(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context)
 {
 	if (!Context.IsValid())
@@ -1258,6 +1262,7 @@ void AReEchoWeaponActor::ProcessAttackResolved(const TSharedPtr<FReEchoWeaponRun
 	}
 	Context->bAttackResolved = true;
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	bool bHeldVisualRangeChanged = false;
 	for (const FReEchoWeaponRuneEffectSpec& Effect : Context->Effects)
 	{
 		if (Effect.ParamName != TEXT("GroupThreshold") ||
@@ -1271,6 +1276,7 @@ void AReEchoWeaponActor::ProcessAttackResolved(const TSharedPtr<FReEchoWeaponRun
 			Stack.SourceId = Effect.PartId;
 			Stack.BonusFraction = Effect.Value;
 			Stack.ExpiresAt = WorldTime + Effect.DurationSeconds;
+			bHeldVisualRangeChanged = true;
 		}
 		else if (Effect.BehaviorId == TEXT("Part.InvulnerableOnGroupHit"))
 		{
@@ -1318,6 +1324,10 @@ void AReEchoWeaponActor::ProcessAttackResolved(const TSharedPtr<FReEchoWeaponRun
 				}
 			}
 		}
+	}
+	if (bHeldVisualRangeChanged)
+	{
+		RefreshHeldPresentation();
 	}
 }
 
@@ -1782,13 +1792,10 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 	{
 		Billboard = StaffSprite;
 	}
-	else if (VisualKey == TEXT("Scythe"))
-	{
-		Billboard = ScytheSprite;
-	}
 
 	HeldVisualOffset = WeaponProfile->HeldOffsetRatio * CharacterWorldHeight;
 	const FVector VisualOffset = ResolveMirroredHeldVisualOffset();
+	const float AttackRangeMultiplier = ResolveCurrentAttackRangeMultiplier();
 	if (Billboard && Texture)
 	{
 		const float TextureAxisLength = WeaponProfile->HeldSizeAxis == EReEchoHeldWeaponSizeAxis::Width
@@ -1801,18 +1808,27 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		Billboard->SetRelativeScale3D(FVector(UniformScale));
 	}
 
-	UStaticMeshComponent* RangedPlane = VisualKey == TEXT("Bow")   ? BowSprite.Get()
-	                                    : VisualKey == TEXT("Gun") ? GunSprite.Get()
-	                                                               : nullptr;
-	if (RangedPlane && Texture)
+	UStaticMeshComponent* WeaponPlane = VisualKey == TEXT("Scythe") ? ScytheSprite.Get()
+	                                    : VisualKey == TEXT("Bow")  ? BowSprite.Get()
+	                                    : VisualKey == TEXT("Gun")  ? GunSprite.Get()
+	                                                                : nullptr;
+	if (WeaponPlane && Texture)
 	{
 		const FVector2D Dimensions =
 		    ReEchoWeaponVisual::ResolveHeldDimensions(*Texture, *WeaponProfile, CharacterWorldHeight);
-		RangedPlane->SetRelativeLocation(VisualOffset);
-		RangedPlane->SetRelativeRotation(WeaponProfile->HeldRotationOffset.Quaternion() *
+		WeaponPlane->SetRelativeLocation(VisualOffset);
+		WeaponPlane->SetRelativeRotation(WeaponProfile->HeldRotationOffset.Quaternion() *
 		                                 ReEchoWeaponVisual::GetSwordRotation());
-		RangedPlane->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
-		ApplyHeldPlaneMirror(RangedPlane, WeaponProfile->HeldMirrorRule);
+		const FVector AuthoredScale(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f);
+		WeaponPlane->SetRelativeScale3D(WeaponProfile->bScaleHeldVisualWithAttackRange
+		                                    ? ReEchoWeaponVisual::ResolveHeldVisualAttackRangeScale(
+		                                          AuthoredScale,
+		                                          WeaponProfile->HeldVisualAttackRangeScaleMask,
+		                                          AttackRangeMultiplier,
+		                                          WeaponProfile->MinHeldVisualAttackRangeMultiplier,
+		                                          WeaponProfile->MaxHeldVisualAttackRangeMultiplier)
+		                                    : AuthoredScale);
+		ApplyHeldPlaneMirror(WeaponPlane, WeaponProfile->HeldMirrorRule);
 	}
 
 	if (SwordSprite && VisualKey == TEXT("CrescentBlade") && Texture)
@@ -1825,7 +1841,15 @@ void AReEchoWeaponActor::RefreshHeldPresentation()
 		SwordSpriteRestRotation = ResolveMirroredSwordRestRotation();
 		SwordSprite->SetRelativeLocation(SwordSpriteRestLocation);
 		SwordSprite->SetRelativeRotation(SwordSpriteRestRotation);
-		SwordSprite->SetRelativeScale3D(FVector(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f));
+		const FVector AuthoredScale(Dimensions.X / 100.0f, Dimensions.Y / 100.0f, 1.0f);
+		SwordSprite->SetRelativeScale3D(WeaponProfile->bScaleHeldVisualWithAttackRange
+		                                    ? ReEchoWeaponVisual::ResolveHeldVisualAttackRangeScale(
+		                                          AuthoredScale,
+		                                          WeaponProfile->HeldVisualAttackRangeScaleMask,
+		                                          AttackRangeMultiplier,
+		                                          WeaponProfile->MinHeldVisualAttackRangeMultiplier,
+		                                          WeaponProfile->MaxHeldVisualAttackRangeMultiplier)
+		                                    : AuthoredScale);
 	}
 	RefreshWeaponAttackVfxRoot(*WeaponProfile);
 }
@@ -1957,6 +1981,16 @@ FVector AReEchoWeaponActor::ResolveSelfCenteredSpinRootLocationForTests(const FV
 	return ReEchoWeaponVisual::ResolveSelfCenteredSpinRootLocation(HandAnchor, VisualOffset, SpinRotation);
 }
 
+FVector AReEchoWeaponActor::ResolveHeldVisualAttackRangeScaleForTests(const FVector& AuthoredScale,
+                                                                      const FVector& ScaleMask,
+                                                                      const float RangeMultiplier,
+                                                                      const float MinMultiplier,
+                                                                      const float MaxMultiplier)
+{
+	return ReEchoWeaponVisual::ResolveHeldVisualAttackRangeScale(
+	    AuthoredScale, ScaleMask, RangeMultiplier, MinMultiplier, MaxMultiplier);
+}
+
 EReEchoElement AReEchoWeaponActor::ResolveProjectileElementForTests(const bool bUsesDeterministicRandomElement,
                                                                     const EReEchoElement AttackElement,
                                                                     const int64 AttackSequence,
@@ -1980,18 +2014,34 @@ bool AReEchoWeaponActor::SwingMelee(const FReEchoWeaponAttackCommit& Commit,
 	}
 	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
 	const FVector AimDirection = ResolveOwnerAimDirection();
-	// Gameplay geometry comes from the committed step: longsword uses its forward 180-degree arc, while scythe
-	// uses the authored 360-degree sweep. Presentation motion below never changes this resolved hit authority.
-	for (AActor* Target : ReEchoWeaponGeometry::FindMeleeTargets(
-	         *GetWorld(), Commit.Attack, OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees))
+	// Gameplay geometry comes from the committed step: longsword uses its forward 180-degree ground arc, while
+	// scythe owns a true three-dimensional sphere centered on the same final weapon anchor as its slash VFX.
+	// Presentation motion never changes this resolved hit authority.
+	const bool bScytheSphere = Commit.AttackPatternId == TEXT("Pattern.ScytheSweep");
+	const FVector MeleeOrigin =
+	    bScytheSphere && IsValid(WeaponAttackVfxRoot) ? WeaponAttackVfxRoot->GetComponentLocation() : OwnerLocation;
+	const TArray<AActor*> Targets =
+	    bScytheSphere
+	        ? ReEchoWeaponGeometry::FindMeleeTargetsInSphere(*GetWorld(), Commit.Attack, MeleeOrigin, Commit.RangeCm)
+	        : ReEchoWeaponGeometry::FindMeleeTargets(
+	              *GetWorld(), Commit.Attack, MeleeOrigin, AimDirection, Commit.RangeCm, Commit.ArcDegrees);
+	for (AActor* Target : Targets)
 	{
-		ApplyDamageToTarget(*Target, Commit, OwnerLocation, Combatant, Context);
+		ApplyDamageToTarget(*Target, Commit, MeleeOrigin, Combatant, Context);
 	}
 	if (ReEchoWeaponVisual::CanCutRabbitProjectiles(Commit.AttackPatternId))
 	{
 		for (TActorIterator<AReEchoEnemyActor> EnemyIt(GetWorld()); EnemyIt; ++EnemyIt)
 		{
-			EnemyIt->DestroyRabbitProjectilesInMeleeArc(OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees);
+			if (bScytheSphere)
+			{
+				EnemyIt->DestroyRabbitProjectilesInMeleeSphere(MeleeOrigin, Commit.RangeCm);
+			}
+			else
+			{
+				EnemyIt->DestroyRabbitProjectilesInMeleeArc(
+				    OwnerLocation, AimDirection, Commit.RangeCm, Commit.ArcDegrees);
+			}
 		}
 	}
 	ProcessAttackResolved(Context);
@@ -2025,7 +2075,8 @@ void AReEchoWeaponActor::BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAtta
 	ScytheInitialHitTargets.Reset();
 	if (ScytheSprite)
 	{
-		ScytheSprite->SetAbsolute(true, true, false);
+		// The thrown scythe owns its world position, but its rotatable plane must keep inheriting FullSpin.
+		ScytheSprite->SetAbsolute(true, false, false);
 		ScytheSprite->SetWorldLocation(ScytheThrowLocation);
 	}
 }
@@ -2038,7 +2089,7 @@ void AReEchoWeaponActor::RecallScythe()
 	ScytheInitialHitTargets.Reset();
 	if (ScytheSprite)
 	{
-		ScytheSprite->SetAbsolute(false, true, false);
+		ScytheSprite->SetAbsolute(false, false, false);
 		ScytheSprite->SetRelativeLocation(ResolveMirroredHeldVisualOffset());
 	}
 }
@@ -2140,21 +2191,28 @@ void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 		{
 			ScytheSprite->SetRelativeLocation(VisualOffset);
 		}
-		if (UStaticMeshComponent* Plane = GetEquippedWeaponVisualKey() == TEXT("Bow")   ? BowSprite.Get()
-		                                  : GetEquippedWeaponVisualKey() == TEXT("Gun") ? GunSprite.Get()
-		                                                                                : nullptr)
+		if (UStaticMeshComponent* Plane = VisualKey == TEXT("Scythe") ? ScytheSprite.Get()
+		                                  : VisualKey == TEXT("Bow")  ? BowSprite.Get()
+		                                  : VisualKey == TEXT("Gun")  ? GunSprite.Get()
+		                                                              : nullptr)
 		{
 			Plane->SetRelativeLocation(VisualOffset);
 			ApplyHeldPlaneMirror(Plane, Profile->HeldMirrorRule);
 		}
 		RefreshWeaponAttackVfxRoot(*Profile);
 	}
+	bool bHeldVisualRangeExpired = false;
 	for (int32 Index = TimedRangeStacks.Num() - 1; Index >= 0; --Index)
 	{
 		if (WorldTime >= TimedRangeStacks[Index].ExpiresAt)
 		{
 			TimedRangeStacks.RemoveAt(Index);
+			bHeldVisualRangeExpired = true;
 		}
+	}
+	if (bHeldVisualRangeExpired)
+	{
+		RefreshHeldPresentation();
 	}
 	if (LastRuneAttackContext.IsValid() && LastRuneAttackWorldTime >= 0.0f &&
 	    WorldTime >= LastRuneAttackWorldTime + 1.0f && WorldTime >= NextComboDecayWorldTime)

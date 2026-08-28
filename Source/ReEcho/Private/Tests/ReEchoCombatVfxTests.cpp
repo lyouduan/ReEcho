@@ -552,6 +552,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Scythe slash opts into attack-range scaling"), ScytheRangePlacement.bScaleWithAttackRange);
 	TestTrue(TEXT("Scythe slash scales in both local camera-plane axes"),
 	         ScytheRangePlacement.AttackRangeScaleMask.Equals(FVector(1.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Scythe slash keeps the authored ten-percent size margin"),
+	         ScytheRangePlacement.Scale.Equals(FVector(0.55f, 0.55f, 1.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
@@ -561,21 +563,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Forward longsword slash releases its VFX immediately"),
 	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash),
 	          0.0f);
-	TestTrue(TEXT("Scythe slash waits for its full-spin motion"),
-	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash) > 0.0f);
+	TestEqual(TEXT("Scythe slash starts on the same committed frame as its sphere damage"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash),
+	          0.0f);
+	TestEqual(TEXT("Element scythe slash also starts without presentation delay"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlashFlame),
+	          0.0f);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"),
 	          SwordPlacement.LocalRotation.ContainsNaN());
-	TestTrue(TEXT("Sword slash corrects the replacement asset's reversed authored axis"),
-	         FMath::IsNearlyEqual(FMath::Abs(SwordPlacement.LocalRotation.Yaw), 180.0f, KINDA_SMALL_NUMBER));
+	TestFalse(TEXT("Sword slash consumes a finite in-plane Roll correction"),
+	          FMath::IsNaN(SwordPlacement.LocalRotation.Roll));
 	TestTrue(
 	    TEXT("Sword slash cancels different host scales"),
 	    UReEchoCombatVfxComponent::ResolveAttachedScale(
 	        SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
 	        .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
 	const FVector SlashDirections[] = {FVector::ForwardVector, FVector::BackwardVector, FVector(0.6f, 0.8f, 0.0f)};
-	const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 	TestEqual(TEXT("Left-side sword slash plays forward"),
 	          UReEchoCombatVfxComponent::ResolveMeleePlayDirection(-FVector::RightVector, FVector::RightVector),
 	          1.0f);
@@ -585,29 +590,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	for (const FVector& SlashDirection : SlashDirections)
 	{
 		const FRotator DirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(SlashDirection, CameraFacingNormal);
-		const FVector ExpectedPlaneDirection =
-		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal)
-		        .GetSafeNormal();
+		    UReEchoCombatVfxComponent::ResolveGroundPlaneDirectionRotation(SlashDirection);
+		const FVector ExpectedPlaneDirection = FVector(SlashDirection.X, SlashDirection.Y, 0.0f).GetSafeNormal();
 		TestTrue(
-		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
-		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		    TEXT("Scythe VFX rotates in the ground plane toward the committed enemy"),
+		    DirectionRotation.RotateVector(FVector::RightVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Scythe mesh local X surface normal remains world-up for a floor-parallel 360 sweep"),
+		         DirectionRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
 		const FRotator SwordDirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection, CameraFacingNormal);
-		TestTrue(TEXT("Sword slash presents its authored local X surface normal to the camera"),
-		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
-		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
-		const FRotator ComposedSwordRotation =
-		    UReEchoCombatVfxComponent::ComposeAttachedRotation(SwordDirectionRotation, SwordPlacement.LocalRotation);
-		const FVector ComposedAttackAxis = ComposedSwordRotation.RotateVector(FVector::RightVector);
-		const FRotator FrontFacingSwordRotation =
-		    UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(ComposedSwordRotation, CameraFacingNormal);
-		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
-		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::ForwardVector),
-		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
+		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection);
 		TestTrue(
-		    TEXT("Sword front-face correction preserves its composed attack axis"),
-		    FrontFacingSwordRotation.RotateVector(FVector::RightVector).Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
+		    TEXT("Sword slash keeps its authored local X surface normal world-up"),
+		    SwordDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Sword slash maps its authored local Y attack axis to the committed ground direction"),
+		         SwordDirectionRotation.RotateVector(FVector::RightVector)
+		             .Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
+		    SwordDirectionRotation, FRotator(0.0f, 0.0f, SwordPlacement.LocalRotation.Roll));
+		TestTrue(
+		    TEXT("Sword in-plane Roll correction preserves its world-up surface normal"),
+		    ComposedSwordRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -1183,6 +1185,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			int32 BowSpriteRendererCount = 0;
 			int32 SwordMeshRendererCount = 0;
+			int32 SwordSpriteRendererCount = 0;
+			int32 ScytheMeshRendererCount = 0;
+			int32 ScytheSpriteRendererCount = 0;
 			int32 FoxDirectionEnabledEmitterCount = 0;
 			int32 FoxDirectionEnabledRendererCount = 0;
 			int32 FoxDirectionEnabledSpriteRendererCount = 0;
@@ -1268,7 +1273,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 						          FName(TEXT("User.DirectionSpriteRotationDegrees")));
 					}
 				}
-				if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && EmitterData)
+				if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic) && EmitterData)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 					{
@@ -1278,6 +1283,53 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 							TestEqual(TEXT("Sword mesh renderer preserves component-space direction"),
 							          Mesh->FacingMode,
 							          ENiagaraMeshFacingMode::Default);
+						}
+						if (const UNiagaraSpriteRendererProperties* Sprite =
+						        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+						{
+							++SwordSpriteRendererCount;
+							TestEqual(TEXT("Sword sprite faces the runtime ground normal"),
+							          Sprite->FacingMode,
+							          ENiagaraSpriteFacingMode::CustomFacingVector);
+							TestEqual(TEXT("Sword sprite uses the runtime ground tangent"),
+							          Sprite->Alignment,
+							          ENiagaraSpriteAlignment::CustomAlignment);
+							TestEqual(TEXT("Sword sprite normal binding is stable"),
+							          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundNormal")));
+							TestEqual(TEXT("Sword sprite tangent binding is stable"),
+							          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundTangent")));
+						}
+					}
+				}
+				if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic) && EmitterData)
+				{
+					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+					{
+						if (const UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer))
+						{
+							++ScytheMeshRendererCount;
+							TestEqual(TEXT("Scythe mesh renderer follows component ground-plane rotation"),
+							          Mesh->FacingMode,
+							          ENiagaraMeshFacingMode::Default);
+						}
+						if (const UNiagaraSpriteRendererProperties* Sprite =
+						        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+						{
+							++ScytheSpriteRendererCount;
+							TestEqual(TEXT("Scythe sprite faces the runtime ground normal"),
+							          Sprite->FacingMode,
+							          ENiagaraSpriteFacingMode::CustomFacingVector);
+							TestEqual(TEXT("Scythe sprite uses the runtime ground tangent"),
+							          Sprite->Alignment,
+							          ENiagaraSpriteAlignment::CustomAlignment);
+							TestEqual(TEXT("Scythe sprite normal binding is stable"),
+							          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundNormal")));
+							TestEqual(TEXT("Scythe sprite tangent binding is stable"),
+							          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundTangent")));
 						}
 					}
 				}
@@ -1293,9 +1345,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			{
 				TestEqual(TEXT("Bow flight keeps its three authored sprite layers"), BowSpriteRendererCount, 3);
 			}
-			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+			if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
+				TestTrue(TEXT("Sword slash retains at least one authored sprite renderer"),
+				         SwordSpriteRendererCount > 0);
+			}
+			if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+			{
+				TestTrue(TEXT("Scythe slash retains at least one authored mesh renderer"), ScytheMeshRendererCount > 0);
+				TestTrue(TEXT("Scythe slash retains at least one authored sprite renderer"),
+				         ScytheSpriteRendererCount > 0);
 			}
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle)
 			{
@@ -1348,6 +1408,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				{
 					continue;
 				}
+				TestTrue(TEXT("Scythe slash emitter positions follow the ground-aligned component transform"),
+				         EmitterData->bLocalSpace);
 				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 				{
 					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
@@ -1362,6 +1424,36 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				}
 			}
 			TestTrue(TEXT("Goat ground effect contains at least one ground-facing sprite renderer"),
+			         GroundSpriteRendererCount > 0);
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+		{
+			int32 GroundSpriteRendererCount = 0;
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				const FVersionedNiagaraEmitterData* EmitterData =
+				    EmitterHandle.GetIsEnabled() ? EmitterHandle.GetEmitterData() : nullptr;
+				if (!EmitterData)
+				{
+					continue;
+				}
+				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+				{
+					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+					if (!Sprite || !Sprite->GetIsEnabled())
+					{
+						continue;
+					}
+					++GroundSpriteRendererCount;
+					TestEqual(TEXT("Scythe slash sprite uses a custom ground-facing vector"),
+					          Sprite->FacingMode,
+					          ENiagaraSpriteFacingMode::CustomFacingVector);
+					TestEqual(TEXT("Scythe slash sprite binds the authoritative ground normal"),
+					          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+					          FName(TEXT("User.GroundNormal")));
+				}
+			}
+			TestTrue(TEXT("Scythe slash contains at least one ground-facing sprite renderer"),
 			         GroundSpriteRendererCount > 0);
 		}
 		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill04Lighting)

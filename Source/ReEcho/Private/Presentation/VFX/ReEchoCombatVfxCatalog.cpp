@@ -368,8 +368,9 @@ float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSema
 	}
 	if (IsScytheSlashSemantic(Semantic))
 	{
-		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
-		return Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.0f) : 0.0f;
+		// Scythe gameplay resolves its full-sphere hit on the committed frame. Start every default/element slash VFX
+		// on that same frame; MotionDurationSeconds continues to control only the held-weapon spin animation.
+		return 0.0f;
 	}
 	return 0.0f;
 }
