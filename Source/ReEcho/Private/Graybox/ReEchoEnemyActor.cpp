@@ -2042,10 +2042,16 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 		EnemyLogic->NotifyDeath();
 	}
 	SetActorEnableCollision(false);
+	FVector DeathKnockbackDirection = (Event.WorldLocation - Event.SourceWorldLocation).GetSafeNormal2D();
+	if (DeathKnockbackDirection.IsNearlyZero())
+	{
+		DeathKnockbackDirection = -GetFacingDirection().GetSafeNormal2D();
+	}
 	float ExpectedDurationSeconds = 0.0f;
 	const bool bPlayingDeath =
 	    EnemyPresentation &&
 	    EnemyPresentation->BeginTerminalDeath(
+	        DeathKnockbackDirection,
 	        FSimpleDelegate::CreateUObject(this, &AReEchoEnemyActor::CompleteDeathSequence), ExpectedDurationSeconds);
 	if (!bPlayingDeath)
 	{

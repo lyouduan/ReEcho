@@ -94,6 +94,55 @@ bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathKnockbackPresentationTest,
+	                             "ReEcho.Presentation.VFX.EnemyDeathKnockbackPresentation",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Parameters)
+{
+	const FVector Direction(3.0f, 4.0f, 0.0f);
+	const FVector StartOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.0f, 0.3f, 90.0f);
+	const FVector HalfwayOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.15f, 0.3f, 90.0f);
+	const FVector EndOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.3f, 0.3f, 90.0f);
+
+	TestTrue(TEXT("Fatal presentation starts without a position jump"), StartOffset.IsNearlyZero());
+	TestTrue(TEXT("Fatal presentation quickly covers most of its displacement"),
+	         HalfwayOffset.Equals(Direction.GetSafeNormal() * 78.75f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Fatal presentation reaches the stronger 90 cm displacement"),
+	         EndOffset.Equals(Direction.GetSafeNormal() * 90.0f, KINDA_SMALL_NUMBER));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFatalEnemyHurtVfxPolicyTest,
+                                 "ReEcho.Presentation.VFX.FatalEnemyHurtPolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFatalEnemyHurtVfxPolicyTest::RunTest(const FString& Parameters)
+{
+	AReEchoEnemyActor* Enemy = GetMutableDefault<AReEchoEnemyActor>();
+	AReEchoVfxScenarioTargetActor* NonEnemy = GetMutableDefault<AReEchoVfxScenarioTargetActor>();
+	FReEchoDamageEvent Event;
+	Event.AppliedDamage = 5.0f;
+	Event.DamageSource = EReEchoDamageSource::Player;
+	Event.bFatal = true;
+	Event.Target = Enemy;
+	TestTrue(TEXT("Fatal positive damage keeps enemy hurt feedback"),
+	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, Enemy));
+
+	Event.AppliedDamage = 0.0f;
+	TestFalse(TEXT("Fatal zero damage does not produce enemy hurt feedback"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, Enemy));
+
+	Event.AppliedDamage = 5.0f;
+	Event.Target = NonEnemy;
+	TestFalse(TEXT("Fatal non-enemy damage keeps the existing hurt-feedback policy"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, NonEnemy));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,
                                  "ReEcho.Presentation.VFX.FoxDirectionRuntime",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -465,7 +514,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Fatal connection-line damage still produces target hurt feedback"),
 	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
 	ConnectionHurtEvent.DamageSource = EReEchoDamageSource::Player;
-	TestFalse(TEXT("Existing fatal non-connection damage keeps its prior hurt-feedback policy"),
+	TestFalse(TEXT("Fatal non-enemy damage keeps the existing hurt-feedback policy"),
 	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
 	ConnectionHurtEvent.bFatal = false;
 	ConnectionHurtEvent.AppliedDamage = 0.0f;

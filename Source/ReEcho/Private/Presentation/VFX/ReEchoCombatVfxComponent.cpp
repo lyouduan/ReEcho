@@ -361,8 +361,9 @@ bool UReEchoCombatVfxComponent::TryResolveFlipbookCenter(AActor* Target, FVector
 
 bool UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner)
 {
+	const bool bTargetIsEnemy = Cast<AReEchoEnemyActor>(Owner) != nullptr;
 	return Event.Target == Owner && Event.AppliedDamage > 0.0f &&
-	       (!Event.bFatal || Event.DamageSource == EReEchoDamageSource::Path);
+	       (!Event.bFatal || bTargetIsEnemy || Event.DamageSource == EReEchoDamageSource::Path);
 }
 
 FVector UReEchoCombatVfxComponent::ResolveBossHurtEffectLocation(const FVector& HurtRootWorld,
@@ -2456,10 +2457,10 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 			BossHurtLocation = ResolveBossHurtEffectLocation(HurtRoot->GetComponentLocation(), FlipbookCenterWorld);
 		}
 	}
-	if (Event.DamageSource == EReEchoDamageSource::Path && Cast<AReEchoEnemyActor>(GetOwner()))
+	if (TargetEnemy && (Event.bFatal || Event.DamageSource == EReEchoDamageSource::Path))
 	{
-		// Connection-line damage has no weapon impact semantic. Spawn the existing enemy hurt effect in world
-		// space so a fatal hit remains visible after the target's presentation is torn down.
+		// Fatal enemy hits cannot remain attached to presentation that death tears down. Connection-line damage
+		// has no weapon impact semantic either, so both paths use a world instance that survives target cleanup.
 		const FVector ImpactLocation = bTargetIsBoss ? BossHurtLocation : Event.WorldLocation;
 		const FVector ImpactDirection = ImpactLocation - Event.SourceWorldLocation;
 		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt), ImpactLocation, ImpactDirection);

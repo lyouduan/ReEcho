@@ -41,7 +41,7 @@
 | 输入 | 来源权威 | VFX 行为 |
 |---|---|---|
 | `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 长剑/镰刀 Pattern 播放一次刀光；枪 Pattern 在最终武器枪口播放一次 Muzzle |
-| `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
+| `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击；怪物致命命中改用世界实例以越过死亡清理 |
 | `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Recovery、Ended/Cancelled 驱动阶段表现 |
 | `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
 | `FReEchoCardEncounterTickResult::EchoAuraPulseCount` + 水草规则 | `MOD-ReEchoCards` / Run | 每次权威 2 秒脉冲在存活 Echo 的角色背景层播放一次 Water/Grass Aura；不另建计时器、不参与 4m 元素结算 |
@@ -51,7 +51,7 @@ VFX 唯一拥有的是 Niagara/Material Billboard 组件实例及其表现生命
 
 Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。Echo 额外提供 `EchoAuraVfxRoot`：它依据当前 Flipbook 的稳定渲染 Bounds 中心定位，并让卡牌 Aura 使用角色当前透明排序的下一背景层。攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`；Aura 不复用这两个前景挂点。美术可在 Gameplay Blueprint 中独立调整挂点，但不能把 Aura 中心或层级改成玩法输入。兔子子弹从 Spawned 起就直接使用逻辑投射物世界位置，离开发射者后继续由逻辑事件覆盖位置，绝不附着人物、叠加挂点偏移或反向修改命中。
 
-TimeGuard Boss 的 `EnemyHurt` 是一次性世界特效，其位置从作者 `HurtVfxRoot` 向当前 Flipbook 渲染 Bounds 中心插值 50%，避免大体型 Boss 的受击表现半埋地下；普通敌人仍附着各自 `HurtVfxRoot`，该修正不改变 Boss 攻击的命中位置。
+TimeGuard Boss 的 `EnemyHurt` 是一次性世界特效，其位置从作者 `HurtVfxRoot` 向当前 Flipbook 渲染 Bounds 中心插值 50%，避免大体型 Boss 的受击表现半埋地下；普通敌人的非致命受击仍附着各自 `HurtVfxRoot`，致命正伤害则在命中世界位置生成一次性实例，避免随目标死亡清理。该修正不改变 Boss 攻击的命中位置。
 
 ```text
 Weapons / EnemyLogic
@@ -175,7 +175,7 @@ Plan148 在上述作者 Scale 之后增加可选攻击范围倍率：Combat 事�
 FullSpin 近战的伤害仍在 Combat Commit 当帧结算；刀光只在 Weapon Profile 的 `MotionDurationSeconds` 结束后按该次 Commit 已锁定方向播放，使武器先完成一周环绕再释放刀光。新 Commit 会替换尚未释放的旧表现计时，不改变攻击冷却或命中权威。
 Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。Conduct 的每条电链必须同时取得来源与目标显式配置的 `HurtVfxRoot` 世界坐标，任一挂点缺失时不生成该电链且不回退 Actor 根节点。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。
 
-卡牌 `G_2_30`（连接，连接！）启用时，GameMode 只把卡牌规则和当前存活 Echo 集合投影给玩家的 `UReEchoCombatVfxComponent`；组件以 Echo Actor 为稳定键维护 `/Game/VFX/Echo/Particle/NS_Echo_Chain`，每个存活 Echo 独立一条。固定步只同步规则与集合生命周期，VFX Component 每个渲染 Tick 通过当前 `UReEcho2DAnimationComponent` 的 Flipbook `RenderBounds.Origin` 计算玩家与 Echo 的真实渲染中心世界坐标，不复用受击挂点。该资源沿用 Beam 模板的参数契约：`User.StartPosition` 为绝对世界位置，`User.EndPosition` 为相对起点的位移；Niagara Component 保持世界原点单位变换。Chain Niagara 的每个启用 Emitter 在 Particle Update 栈执行 `Update Beam`，并把 VFX adapter 设为 Tick prerequisite，在同帧端点写入之后更新现有 Ribbon；持续移动时禁止重初始化或重生。组件还会逐帧用两端的 effect-local 坐标和有限安全边距更新 System Fixed Bounds，避免长距离 Ribbon 超出资产静态 Bounds 后被误剔除，而不采用无限 Bounds。连接线正伤害沿统一 Hurt 事件复用 `EnemyHurt`，在命中世界位置生成一次性特效；致死连接线命中也保留表现，其他致死伤害的既有策略不变。链条生命周期由卡牌玩法状态持有：资源自身播放完成时，只要玩家及对应 Echo 仍存活便重新激活；仅在卡牌关闭、玩家或 Echo 死亡、Echo 清场、Boss 阶段退休 Echo 或组件 EndPlay 时清理。资源或当前 Flipbook 缺失时只缺视觉，不改变连接线穿越伤害。
+卡牌 `G_2_30`（连接，连接！）启用时，GameMode 只把卡牌规则和当前存活 Echo 集合投影给玩家的 `UReEchoCombatVfxComponent`；组件以 Echo Actor 为稳定键维护 `/Game/VFX/Echo/Particle/NS_Echo_Chain`，每个存活 Echo 独立一条。固定步只同步规则与集合生命周期，VFX Component 每个渲染 Tick 通过当前 `UReEcho2DAnimationComponent` 的 Flipbook `RenderBounds.Origin` 计算玩家与 Echo 的真实渲染中心世界坐标，不复用受击挂点。该资源沿用 Beam 模板的参数契约：`User.StartPosition` 为绝对世界位置，`User.EndPosition` 为相对起点的位移；Niagara Component 保持世界原点单位变换。Chain Niagara 的每个启用 Emitter 在 Particle Update 栈执行 `Update Beam`，并把 VFX adapter 设为 Tick prerequisite，在同帧端点写入之后更新现有 Ribbon；持续移动时禁止重初始化或重生。组件还会逐帧用两端的 effect-local 坐标和有限安全边距更新 System Fixed Bounds，避免长距离 Ribbon 超出资产静态 Bounds 后被误剔除，而不采用无限 Bounds。连接线正伤害沿统一 Hurt 事件复用 `EnemyHurt`，在命中世界位置生成一次性特效；所有怪物致死正伤害均沿同一世界实例策略保留受击表现。链条生命周期由卡牌玩法状态持有：资源自身播放完成时，只要玩家及对应 Echo 仍存活便重新激活；仅在卡牌关闭、玩家或 Echo 死亡、Echo 清场、Boss 阶段退休 Echo 或组件 EndPlay 时清理。资源或当前 Flipbook 缺失时只缺视觉，不改变连接线穿越伤害。
 
 Echo Born 不复用居中的 `EchoAuraVfxRoot`，普通 `InitializeEcho` 也不登记出生表现；只有第一关转第二关的专用延迟显现链路会先定位并隐藏 Echo，再武装并播放法阵。法阵中心使用 Echo Actor 的稳定世界 XY，并只从 `GroundShadow` 读取地面 Z，避免阴影的镜头相关 2D 补偿污染固定世界落点。Niagara 作为不附着 Echo 的独立世界组件创建，先设置暂停 Tick、排序、`User.GroundNormal=(0,0,1)` 及 `User.GroundTangent=(1,0,0)`，再显式激活；Sprite 的 CustomFacing 与 CustomAlignment 同时锁定法线和面内方向，不会再绕世界 Up 跟随相机旋转。第一关转第二关时镜头先定位隐藏 Echo 并保持静止，在最终 CG 遮罩仍存在时先激活法阵，再关闭过渡界面；法阵启动 0.4 秒后显示 Echo/武器并开始后续镜头拉远，法阵继续播放到自身生命周期结束。PreserveWorldSize 保持生成时的世界尺寸，且不阻塞初始化、回放、攻击或伤害。该 System 从 Goat 地面法阵复制为独立资产，其 Sprite/Ribbon/Mesh Renderer 只引用 Echo 目录下 4 个青蓝材质实例；Boss 原 System 和共享材质保持不变。
 
