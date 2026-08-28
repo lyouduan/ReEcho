@@ -193,7 +193,10 @@ bool AReEchoEchoActor::InitializeEcho(const FReEchoRecording& Recording,
 		CombatAudioAdapter->PostConfiguredEvent(FReEchoAudioEvents::EchoSpawn, GetActorLocation());
 		bAudioLifecycleStarted = true;
 	}
-	bBornVfxPending = Weapon != nullptr;
+	// Echo creation is shared by normal encounter entry, save restoration and GM stage jumps.
+	// Do not arm the one-shot birth presentation here: the Stage 01 -> 02 transition owns
+	// the only automatic reveal and explicitly arms it through PrepareDeferredBornReveal().
+	bBornVfxPending = false;
 	return Weapon != nullptr;
 }
 
