@@ -1052,13 +1052,22 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
 	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
 	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
-	const FQuat EchoBornRotation = UReEchoCombatVfxComponent::ResolveEchoBornWorldRotation();
+	const FVector RequestedScreenDown(0.25f, -0.75f, -0.5f);
+	const FVector ExpectedGroundArrow = FVector(RequestedScreenDown.X, RequestedScreenDown.Y, 0.0f).GetSafeNormal();
+	const FQuat EchoBornRotation = UReEchoCombatVfxComponent::ResolveEchoBornWorldRotation(RequestedScreenDown);
 	TestTrue(TEXT("Echo Born maps its local X normal to world up"),
 	         EchoBornRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Echo Born keeps local Y inside the horizontal world plane"),
-	         FMath::IsNearlyZero(
-	             FVector::DotProduct(EchoBornRotation.RotateVector(FVector::RightVector), FVector::UpVector),
-	             KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born maps its local Z arrow to screen down on the ground plane"),
+	         EchoBornRotation.RotateVector(FVector::UpVector).Equals(ExpectedGroundArrow, KINDA_SMALL_NUMBER));
+	const FBox OffsetBounds(FVector(-20.0f, -200.0f, -50.0f), FVector(40.0f, 400.0f, 250.0f));
+	const FVector RequestedCenter(700.0f, -300.0f, 25.0f);
+	const FVector TestScale(0.5f);
+	const FVector ResolvedComponentLocation = UReEchoCombatVfxComponent::ResolveEchoBornComponentLocation(
+	    RequestedCenter, OffsetBounds, TestScale, EchoBornRotation);
+	const FVector LocalPlaneCenter(0.0f, OffsetBounds.GetCenter().Y, OffsetBounds.GetCenter().Z);
+	TestTrue(TEXT("Echo Born authored YZ center resolves exactly onto the Flipbook bottom center"),
+	         (ResolvedComponentLocation + EchoBornRotation.RotateVector(LocalPlaneCenter * TestScale))
+	             .Equals(RequestedCenter, KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);

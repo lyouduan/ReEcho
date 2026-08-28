@@ -592,7 +592,13 @@ bool AReEchoEchoActor::PlayBornVfx()
 	const FVector LocalBottomCenter(
 	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
 	const FVector BornCircleCenter = EchoAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
-	return CombatVfx->PlayEchoBornAtWorldLocation(BornCircleCenter, EchoWorldWidth * BornCircleToEchoWidthRatio);
+	FVector WorldScreenDownDirection = FVector::ForwardVector;
+	if (const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0))
+	{
+		WorldScreenDownDirection = -FRotationMatrix(CameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Z);
+	}
+	return CombatVfx->PlayEchoBornAtWorldLocation(
+	    BornCircleCenter, EchoWorldWidth * BornCircleToEchoWidthRatio, WorldScreenDownDirection);
 }
 
 bool AReEchoEchoActor::IsBornVfxPlaying() const

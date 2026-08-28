@@ -139,14 +139,21 @@ public:
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
 	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
 	/** Plays one independent world-space Echo birth circle at the resolved Flipbook bottom center. */
-	bool PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation, float DesiredWorldDiameterCm) const;
+	bool PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation,
+	                                    float DesiredWorldDiameterCm,
+	                                    const FVector& WorldScreenDownDirection) const;
 	/** True while the most recently spawned Echo birth system is still simulating. */
 	bool IsEchoBornEffectActive() const;
 	static FVector ResolveEchoBornWorldScale(float DesiredWorldDiameterCm,
 	                                         const FBox& AuthoredSystemBounds,
 	                                         const FVector& FallbackScale);
 	/** Maps the Echo Born resource's local X normal onto world up so its authored local YZ plane lies flat. */
-	static FQuat ResolveEchoBornWorldRotation();
+	static FQuat ResolveEchoBornWorldRotation(const FVector& WorldScreenDownDirection);
+	/** Offsets the authored local YZ bounds center so the visible circle center lands on the requested world point. */
+	static FVector ResolveEchoBornComponentLocation(const FVector& DesiredWorldCenter,
+	                                                const FBox& AuthoredSystemBounds,
+	                                                const FVector& WorldScale,
+	                                                const FQuat& WorldRotation);
 	/** Keeps one card-owned visual link from this owner to every requested living Echo. */
 	void SyncEchoConnectionLinks(bool bEnabled, const TArray<AActor*>& EchoActors);
 	void ClearEchoConnectionLinks();
