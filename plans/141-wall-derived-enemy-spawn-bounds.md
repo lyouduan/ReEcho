@@ -5,9 +5,9 @@
 - Planner 负责人：当前对话程序 Planner（Codex）。
 - Executor 负责人：独立程序 Executor，Plan 发布后启动。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
+- 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@6fdb7938624031cafc6401e1b72fbc5651def6ec`。
 - 本地实现方式：独立 worktree `C:\tmp\ReEcho-plan141-wall-derived-spawn-bounds`。
 - 依赖 / 阻塞：四场 Arena Blueprint 中 `WallEast/WallWest/WallNorth/WallSouth` 是当前碰撞墙权威；Plan134 的事务场景切换和 Plan136 的场景资产结果保持。
@@ -48,7 +48,7 @@
 - 设计意图：消除墙体与 `EnemySpawnBounds` 的重复配置，让美术只移动墙体即可改变真实出生安全区，同时保持出生求解纯函数、可测试和确定性。
 - 权威状态与依赖：四个 Wall 组件是出生外边界权威；Arena Scene 将四墙包围区域转换为世界 `FBox2D`，GameMode 只传值，SpawnResolver 不依赖 UObject 或碰撞查询。`EnemySpawnBounds` 保留序列化/Editor 可视兼容，但不再决定正式出生范围。
 - 决策记录：
-  1. 按命名语义读取墙体世界 Bounds 的内侧面：West.MaxX、East.MinX、South.MaxY、North.MinY，支持非对称位置与 Arena 整体平移；墙旋转时采用世界 AABB，结果偏保守而不会越墙。
+  1. 读取四墙世界 AABB 后枚举三种对边拆分及两种轴向分配，以墙中心分离方向过滤错误配对，选择最大合法内接世界矩形，再按中心排序取得左右/上下内侧面；不得假定 `WallEast/West/North/South` 名称固定对应世界轴正负。支持非对称位置、Arena 整体平移、镜像及轴向旋转；所有配对均无法围合时失败关闭。
   2. Arena 暴露可调 `EnemySpawnWallPadding`，安全区由墙内侧再统一内缩；怪物实际碰撞尺寸若当前预生成链无法无复制取得，则第一版使用覆盖现有最大普通怪碰撞的保守场景 Padding，并在 Plan 记录取值依据，不在 SpawnResolver 硬编码第二份敌人数值。
   3. `FReEchoSpawnResolveRequest` 改为显式世界 Min/Max 或 `FBox2D` 值语义；Player/Echo Anchor 按该 Bounds 处理，删除世界零点假设。
   4. 随机候选越界直接继续尝试，不再 Clamp；确定性 fallback 在安全区内部寻找合法点，并遵守玩家距离与既有出生间距，失败则 fail closed。
@@ -61,15 +61,15 @@
 
 ## 锁定验收
 
-- [ ] 四墙派生的世界安全区正确支持非对称墙体、非零 Arena 中心、墙体厚度和统一内缩；退化/交叉墙体配置明确失败。
-- [ ] SpawnResolver 的所有成功结果严格位于安全区内部；越界随机候选不 Clamp，fallback 不违反玩家/现有出生间距。
-- [ ] 正式波次预警与 Commit 继续共享同一预留位置，存档字段与旧已保存位置不迁移。
-- [ ] `GMSpawnFox` 与正式波次消费同一活动 Arena 安全区，且不会刷到墙外。
-- [ ] SC01-SC04 当前 Blueprint 不发生二进制变化；场景切换后使用新活动 Arena 的墙体安全区。
-- [ ] 聚焦 Arena、Encounter SpawnResolver、GameMode、StageTransition 自动化及项目静态校验通过。
-- [ ] 最终 `-FullRebuild` 与精选预构建包检查通过。
-- [ ] 用户 PIE 验证至少 SC03 的边缘波次和 `GMSpawnFox 16 1000` 均不会在墙外生成，人工验收才可设为 `Passed`。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 四墙派生的世界安全区正确支持非对称墙体、非零 Arena 中心、墙体厚度和统一内缩；退化/交叉墙体配置明确失败。
+- [x] SpawnResolver 的所有成功结果严格位于安全区内部；越界随机候选不 Clamp，fallback 不违反玩家/现有出生间距。
+- [x] 正式波次预警与 Commit 继续共享同一预留位置，存档字段与旧已保存位置不迁移。
+- [x] `GMSpawnFox` 与正式波次消费同一活动 Arena 安全区，且不会刷到墙外。
+- [x] SC01-SC04 当前 Blueprint 不发生二进制变化；场景切换后使用新活动 Arena 的墙体安全区。
+- [x] 聚焦 Arena、Encounter SpawnResolver、GameMode、StageTransition 自动化及项目静态校验通过。
+- [x] 最终 `-FullRebuild` 与精选预构建包检查通过。
+- [x] 用户 PIE 验证至少 SC03 的边缘波次和 `GMSpawnFox 16 1000` 均不会在墙外生成，人工验收才可设为 `Passed`。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -106,10 +106,36 @@
 
 ### 变化
 
+- Arena 新增四墙世界 AABB 内侧面派生查询：枚举三种对边拆分及两种轴向分配，以墙中心分离方向过滤相邻墙误配并选择最大合法内接世界矩形，再统一内缩 `EnemySpawnWallPadding=100 cm`；不依赖组件名称对应世界方向，兼容非零中心、镜像和轴向旋转。当前生产普通怪最大碰撞半径为 65 cm，因此仍保留 35 cm 额外墙距。
+- `EnemySpawnBounds` 仅保留序列化与 Editor 可视兼容；Arena 有效性、正式波次和 GM 均不再以其 HalfExtent 作为出生权威。
+- SpawnResolver 请求改为世界 `FBox2D` 值语义；随机越界候选直接重试，确定性 11x11 网格 fallback 完整复查玩家/Echo 距离和既有出生间距，无合法点时失败关闭。
+- 正式预警预留在活动 Arena 读取一次墙体 Bounds，预测锚点只钳到该世界矩形；Commit 仍原样复用预留位置，未修改存档字段或已有保存位置。
+- `GMSpawnFox` 改用同一 Bounds；越界弧线候选被拒绝，由安全区内确定性网格补足，非法 Bounds 整体拒绝并输出原因。
+- PIE 修复轮次：首个候选在 SC01 `PrepareNextEncounter` 暴露墙名与世界轴方向不一致，旧算法误判 Bounds 退化并阻止 `BeginEncounter`。现改为完全按四墙 AABB 围合几何选择对边和轴向；错误信息包含具名四墙实际 AABB 及六个候选计算 Bounds，补充名称轴向反转/镜像成功与真实过窄失败回归。
+- 集成轮次：将 `origin/main@bf40050c` 合入本任务候选；Plan135 UI 源码自动合并，生成包冲突采用远端版本后由最终组合源码统一 FullRebuild 刷新，没有回退传入 UI/特效功能。
+
 ### 证据
+
+- LFS：`python scripts/setup_lfs.py --check` 通过，1 个 LFS 文件已还原。
+- 构建：基于合并提交 `127f079c` 的最终组合候选执行 `scripts\\ue\\Build-Editor.cmd -Configuration Development -FullRebuild`，95/95 通过；精选 Editor 包为 modules=7、build_id=`55116800`、source fingerprint=`127affc65905`。
+- 聚焦自动化：`ReEcho.Presentation.ArenaScene` 1/1、`ReEcho.Encounter.DeterministicSpawnResolver` 1/1、`ReEcho.GameMode` 4/4、`ReEcho.StageTransition` 3/3 通过。
+- 测试覆盖非零中心、非对称墙体、墙厚/Padding、名称轴向反转/镜像、真实退化失败、越界 fail closed、世界 Bounds 内结果和 GM 最大 16 只 fallback。
+- SC01-SC04 Blueprint 未出现在工作树差异中，未发生二进制修改。
+- 最终静态门禁：`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check` 与 `git diff --check` 通过。
+- 修复前候选 `c7e9ddf6` 的证据曾因 `83baa757` 源码变化失效；现已由上述合并后 FullRebuild、聚焦自动化、LFS、项目静态校验和预构建检查完整替换，不复用旧证据。
 
 ### 剩余风险
 
+- 需要用户在 PIE 中验证 SC03 边缘正式波次及 `GMSpawnFox 16 1000` 的实际碰撞/可击杀性；自动化不能代替视觉和玩法验收。
+- 还需先回归 SC01 从 Encounter 1 进入 PrepareNextEncounter，确认墙体安全区不再误判且 EncounterIndex 正常推进；随后再执行 SC03 边缘验证。
+- 附加运行全量 `ReEcho` 自动化暴露与本任务路径无关的既有基线失败：`ReEcho.UI.CombatHud.Formatting` 负数格式预期、多个禁用武器符文数据预期，随后 `ReEchoWeaponRuntimeTests.cpp:184` 的测试辅助断言退出。Plan141 聚焦矩阵均独立通过；本候选未修改 UI、武器或生产数据。
+
 ### 人工验收结果/请求
 
+- `Passed`：用户在准确候选 `3b12d22a2bb584a30fc3bb779caf104eeab2784b` 上完成 PIE，确认开始游戏能正确进入关卡、怪物生成与击杀均无问题。
+
 ### 架构文档审阅结果
+
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，模块拓扑未变化，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅，AREA 路由未变化，无需修改。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新 Arena 墙体权威、世界 Bounds SpawnResolver、fail-closed fallback 与 GM 复用契约。

@@ -984,17 +984,17 @@ void AReEchoGameMode::ResolveGMSpawnFoxRequest(
 }
 
 TArray<FVector> AReEchoGameMode::BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
-                                                          const FVector2D& ArenaCenter,
-                                                          const FVector2D& ArenaHalfExtents,
-                                                          const float GameplayPlaneWorldZ,
-                                                          const int32 Count,
-                                                          const float Distance,
-                                                          const bool bHasArena)
+	                                                      const FBox2D& SpawnWorldBounds,
+	                                                      const float GameplayPlaneWorldZ,
+	                                                      const int32 Count,
+	                                                      const float Distance,
+	                                                      const bool bHasValidBounds)
 {
 	TArray<FVector> Locations;
 	Locations.Reserve(Count);
+	const FVector2D ArenaCenter = bHasValidBounds ? SpawnWorldBounds.GetCenter() : FVector2D::ZeroVector;
 	FVector2D InwardDirection =
-	    bHasArena ? ArenaCenter - FVector2D(PlayerLocation.X, PlayerLocation.Y) : FVector2D(1.0f, 0.0f);
+	    bHasValidBounds ? ArenaCenter - FVector2D(PlayerLocation.X, PlayerLocation.Y) : FVector2D(1.0f, 0.0f);
 	if (InwardDirection.IsNearlyZero())
 	{
 		InwardDirection = FVector2D(1.0f, 0.0f);
@@ -1008,15 +1008,29 @@ TArray<FVector> AReEchoGameMode::BuildGMSpawnFoxLocations(const FVector& PlayerL
 		const FVector2D RadialDirection = InwardDirection.GetRotated(AngleDegrees);
 		FVector Location(PlayerLocation.X + RadialDirection.X * Distance,
 		                 PlayerLocation.Y + RadialDirection.Y * Distance,
-		                 bHasArena ? GameplayPlaneWorldZ : PlayerLocation.Z);
-		if (bHasArena)
+		                 bHasValidBounds ? GameplayPlaneWorldZ : PlayerLocation.Z);
+		if (!bHasValidBounds || SpawnWorldBounds.IsInside(FVector2D(Location.X, Location.Y)))
 		{
-			Location.X =
-			    FMath::Clamp(Location.X, ArenaCenter.X - ArenaHalfExtents.X, ArenaCenter.X + ArenaHalfExtents.X);
-			Location.Y =
-			    FMath::Clamp(Location.Y, ArenaCenter.Y - ArenaHalfExtents.Y, ArenaCenter.Y + ArenaHalfExtents.Y);
+			Locations.Add(Location);
 		}
-		Locations.Add(Location);
+	}
+	for (int32 GridIndex = 0; bHasValidBounds && Locations.Num() < Count && GridIndex < 256; ++GridIndex)
+	{
+		constexpr int32 GridSide = 16;
+		const float AlphaX = (static_cast<float>(GridIndex % GridSide) + 0.5f) / GridSide;
+		const float AlphaY = (static_cast<float>(GridIndex / GridSide) + 0.5f) / GridSide;
+		const FVector Candidate(FMath::Lerp(SpawnWorldBounds.Min.X, SpawnWorldBounds.Max.X, AlphaX),
+		                        FMath::Lerp(SpawnWorldBounds.Min.Y, SpawnWorldBounds.Max.Y, AlphaY),
+		                        GameplayPlaneWorldZ);
+		// M_FOX has the largest normal-enemy radius (65 cm); keep test spawns from overlapping each other.
+		constexpr float FoxMinimumCenterSpacing = 130.0f;
+		if (!Locations.ContainsByPredicate([&Candidate](const FVector& Existing)
+		    {
+			    return FVector::Dist2D(Existing, Candidate) < FoxMinimumCenterSpacing;
+		    }))
+		{
+			Locations.Add(Candidate);
+		}
 	}
 	return Locations;
 }
@@ -1033,12 +1047,17 @@ void AReEchoGameMode::GMSpawnFox(const float CountOrDistance, const float Distan
 	bool bLegacyDistance = false;
 	ResolveGMSpawnFoxRequest(CountOrDistance, Distance, SafeCount, SafeDistance, bLegacyDistance);
 	const FVector PlayerLocation = Player->GetActorLocation();
-	const bool bHasArena = ArenaScene != nullptr;
-	const FVector2D ArenaCenter = bHasArena ? ArenaScene->GetArenaCenter() : FVector2D::ZeroVector;
-	const FVector2D ArenaHalfExtents = bHasArena ? ArenaScene->GetEnemySpawnHalfExtents() : FVector2D::ZeroVector;
-	const float GameplayPlaneWorldZ = bHasArena ? ArenaScene->GetGameplayPlaneWorldZ() : PlayerLocation.Z;
+	FBox2D SpawnWorldBounds(ForceInit);
+	FString BoundsError;
+	const bool bHasArena = ArenaScene && ArenaScene->GetEnemySpawnWorldBounds(SpawnWorldBounds, &BoundsError);
+	if (!bHasArena)
+	{
+		PrintGMResult(FString::Printf(TEXT("GMSpawnFox rejected: active Arena wall bounds are invalid: %s"), *BoundsError), false);
+		return;
+	}
+	const float GameplayPlaneWorldZ = ArenaScene->GetGameplayPlaneWorldZ();
 	const TArray<FVector> SpawnLocations = BuildGMSpawnFoxLocations(
-	    PlayerLocation, ArenaCenter, ArenaHalfExtents, GameplayPlaneWorldZ, SafeCount, SafeDistance, bHasArena);
+	    PlayerLocation, SpawnWorldBounds, GameplayPlaneWorldZ, SafeCount, SafeDistance, bHasArena);
 	int32 SuccessCount = 0;
 	for (const FVector& SpawnLocation : SpawnLocations)
 	{
@@ -1047,7 +1066,7 @@ void AReEchoGameMode::GMSpawnFox(const float CountOrDistance, const float Distan
 			++SuccessCount;
 		}
 	}
-	const int32 FailureCount = SpawnLocations.Num() - SuccessCount;
+	const int32 FailureCount = SafeCount - SuccessCount;
 	PrintGMResult(FString::Printf(TEXT("GMSpawnFox%s requested %.0f, used count=%d distance=%.0f cm: "
 	                                   "%d succeeded, %d failed."),
 	                              bLegacyDistance ? TEXT(" legacy-distance") : TEXT(""),
@@ -2103,9 +2122,13 @@ void AReEchoGameMode::RefreshArenaSceneConsumers()
 		return;
 	}
 	const FVector2D PlayerHalfExtents = ArenaScene->GetPlayerHalfExtents();
-	const FVector2D EnemySpawnHalfExtents = ArenaScene->GetEnemySpawnHalfExtents();
-	ArenaSceneWorldHeight = EnemySpawnHalfExtents.X * 2.0f;
-	ArenaSceneWorldWidth = EnemySpawnHalfExtents.Y * 2.0f;
+	FBox2D SpawnWorldBounds(ForceInit);
+	if (ArenaScene->GetEnemySpawnWorldBounds(SpawnWorldBounds))
+	{
+		const FVector2D SpawnSize = SpawnWorldBounds.GetSize();
+		ArenaSceneWorldHeight = SpawnSize.X;
+		ArenaSceneWorldWidth = SpawnSize.Y;
+	}
 	if (Player)
 	{
 		Player->ConfigureArenaBounds(ArenaScene->GetArenaCenter(), PlayerHalfExtents);
@@ -2786,21 +2809,31 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	Pending.WaveId = Event.WaveId;
 	Pending.EnemyRole = Event.EnemyRole;
 	Pending.EnemyId = Event.EnemyId;
+	FBox2D SpawnWorldBounds(ForceInit);
+	FString SpawnBoundsError;
+	if (!ArenaScene || !ArenaScene->GetEnemySpawnWorldBounds(SpawnWorldBounds, &SpawnBoundsError))
+	{
+		UE_LOG(LogTemp,
+		       Error,
+		       TEXT("[EncounterSpawn] warning wave=%s role=%s SceneId=%s rejected: invalid wall-derived bounds: %s"),
+		       *Event.WaveId.ToString(),
+		       *Event.EnemyRole.ToString(),
+		       *ActiveArenaSceneId.ToString(),
+		       *SpawnBoundsError);
+		return;
+	}
 	for (int32 Index = 0; Index < ReservationCount; ++Index)
 	{
 		FReEchoSpawnResolveRequest Request;
 		Request.PlayerAnchor = Player->GetActorLocation() + Player->GetVelocity() * Policy->AnchorLeadSeconds;
-		Request.PlayerAnchor.X =
-		    FMath::Clamp(Request.PlayerAnchor.X, -ArenaSceneWorldHeight * 0.5f, ArenaSceneWorldHeight * 0.5f);
-		Request.PlayerAnchor.Y =
-		    FMath::Clamp(Request.PlayerAnchor.Y, -ArenaSceneWorldWidth * 0.5f, ArenaSceneWorldWidth * 0.5f);
+		Request.PlayerAnchor.X = FMath::Clamp(Request.PlayerAnchor.X, SpawnWorldBounds.Min.X, SpawnWorldBounds.Max.X);
+		Request.PlayerAnchor.Y = FMath::Clamp(Request.PlayerAnchor.Y, SpawnWorldBounds.Min.Y, SpawnWorldBounds.Max.Y);
 		Request.bHasEchoAnchor = Echoes.Num() > 0 && IsValid(Echoes[0]);
 		Request.EchoAnchor = Request.bHasEchoAnchor
 		                         ? Echoes[0]->EvaluateRecordedPosition(Event.SpawnSeconds + Policy->AnchorLeadSeconds)
 		                         : FVector::ZeroVector;
 		Request.EchoAnchorRatio = Encounter->EchoAnchorRatio;
-		Request.ArenaHalfX = FMath::Max(100.0f, ArenaSceneWorldHeight * 0.5f);
-		Request.ArenaHalfY = FMath::Max(100.0f, ArenaSceneWorldWidth * 0.5f);
+		Request.SpawnWorldBounds = SpawnWorldBounds;
 		Request.SpawnCenterWorldZ = SpawnCenterWorldZ;
 		Request.Seed = 1337 + Encounter->EncounterIndex * 7919;
 		Request.Sequence = EncounterSpawnSequence++;

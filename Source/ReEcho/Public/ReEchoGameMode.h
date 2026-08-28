@@ -448,12 +448,11 @@ private:
 	static bool IsValidGMMoveSpeed(float Speed);
 	static bool TryResolveGMEnemyAttachment(const FString& Element, EReEchoElement& OutElement);
 	static TArray<FVector> BuildGMSpawnFoxLocations(const FVector& PlayerLocation,
-	                                                const FVector2D& ArenaCenter,
-	                                                const FVector2D& ArenaHalfExtents,
+	                                                const FBox2D& SpawnWorldBounds,
 	                                                float GameplayPlaneWorldZ,
 	                                                int32 Count,
 	                                                float Distance,
-	                                                bool bHasArena);
+	                                                bool bHasValidBounds);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;

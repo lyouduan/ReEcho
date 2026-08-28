@@ -25,6 +25,8 @@ public:
 	FVector2D GetPlayerHalfExtents() const;
 	FVector2D GetCameraClampHalfExtents() const;
 	FVector2D GetEnemySpawnHalfExtents() const;
+	/** World-space spawn-safe rectangle derived from the four collision-wall inner faces. */
+	bool GetEnemySpawnWorldBounds(FBox2D& OutBounds, FString* OutReason = nullptr) const;
 	FVector2D GetArenaCenter() const;
 	/** Actor-local gameplay plane height; scene/map visual transforms never offset gameplay height. */
 	UFUNCTION(BlueprintPure, Category = "Arena|Bounds")
@@ -68,6 +70,14 @@ public:
 	                                            const FIntPoint& PriorityRange);
 	static float CalculateGameplayPlaneWorldZ(const FTransform& MapTransform, float LocalGameplayPlaneZ);
 	static FBox2D CalculateWorldXYBounds(const FBox& LocalBounds, const FTransform& LocalToWorld);
+	/** Derives axis-aligned inner faces from wall geometry; argument order and component names are not directional. */
+	static bool CalculateWallDerivedSpawnBounds(const FBox2D& WallBoundsA,
+	                                            const FBox2D& WallBoundsB,
+	                                            const FBox2D& WallBoundsC,
+	                                            const FBox2D& WallBoundsD,
+	                                            float Padding,
+	                                            FBox2D& OutBounds,
+	                                            FString* OutReason = nullptr);
 	int32 CalculateFootpointSortPriority(const FVector& WorldFootpoint) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena")
@@ -130,6 +140,9 @@ public:
 	FVector2D PlayerHalfExtents = FVector2D(1200.0f, 2190.0f);
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "100.0"))
 	FVector2D EnemySpawnHalfExtents = FVector2D(1100.0f, 2090.0f);
+	/** Includes the largest production enemy radius plus clearance from each wall inner face. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Bounds", meta = (ClampMin = "0.0"))
+	float EnemySpawnWallPadding = 100.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena|Camera")
 	float GameplayPlaneZ = 0.0f;
 	/** 关闭后 Backdrop 的位置、旋转和缩放完全采用 Editor 组件 Transform。 */
