@@ -762,6 +762,15 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	         FName(TEXT("Card.ConductDamageGrowth")),
 	         FName(TEXT("Card.OverhealCapacity")),
 	         FName(TEXT("Card.AlternatingSources")),
+	         FName(TEXT("Card.EasterShardSwing")),
+	         FName(TEXT("Card.EasterIndependentGrant")),
+	         FName(TEXT("Card.EasterEchoContact")),
+	         FName(TEXT("Card.EasterShardSacrifice")),
+	         FName(TEXT("Card.EasterRandomStun")),
+	         FName(TEXT("Card.EasterDamageCards")),
+	         FName(TEXT("Card.EasterPhysicalLottery")),
+	         FName(TEXT("Card.EasterShardComparison")),
+	         FName(TEXT("Card.EasterAttendance")),
 	     })
 	{
 		RegisterBehaviorId(BehaviorId);

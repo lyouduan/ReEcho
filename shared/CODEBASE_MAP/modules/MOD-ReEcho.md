@@ -97,6 +97,13 @@ MOD-ReEcho ──→ MOD-ReEchoAudio
 
 `ReEcho` 可以调用并组合独立模块；Audio、Combat、Cards、Weapons、Enemies 均不得反向依赖 `ReEcho`。Cards 只依赖 Combat 的稳定值类型；主模块内部高层编排可以依赖领域契约，领域逻辑不应依赖具体 Widget、纹理、材质或 GameMode 私有实现。
 
+### Plan152 彩蛋卡牌装配
+
+- Run 为免费卡组、商店卡组初始三槽及逐槽刷新调用同一个 Cards 逐槽选择契约，固定传入 `1%`，并保存候选、展示历史、刷新次数及真实时间初始化的 `RunSeed`；重复打开页面和读档不重摇。
+- SaveVersion 25 保存彩蛋卡的阈值、脉冲、毛收入、下关倍率和实际结果；迁移旧存档时使用中性默认值，当前页与拥有卡校验同时接受合法 `Trait` 和 `EasterEgg`。
+- GameMode 只把世界事实接到类型化规则：Echo 新接触去重、4m 敌人候选和 0.5 秒眩晕目标。Run 的 `BuildCardEffectRandomSeed` 为这些世界适配及每击伤害彩票提供基于本局根种子的稳定随机上下文。
+- 正向时间碎片仍只经 `GrantTimeShards` 入账并在遭遇期记录毛收入；`G_4_1` 的关末余额投影避免再次套用 `G_4_8` 收入倍率，但仍优先偿还诅咒银行债务。
+
 ### 音频语义装配
 
 - `AReEchoGameMode` 从已经确认的菜单、遭遇、Boss、商店、天气、死亡、胜利、镜头切换和死亡重开生命周期发布状态或事件；普通遭遇把权威 `StageId` 作为 `Music.Encounter` 变体，普通非 Boss Encounter 完成发布一次 `Flow.Victory`，Boss 通关只保留 `Boss.Death`，`UReEchoRunSubsystem` 不保存第二份音乐状态。

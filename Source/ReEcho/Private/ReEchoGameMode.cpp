@@ -3455,6 +3455,83 @@ void AReEchoGameMode::HandleFixedStep(float)
 			}
 		}
 	}
+	if (CardTick.EasterRandomStunPulseCount > 0 && CardTick.EasterRandomStunRadiusCm > 0.0f)
+	{
+		TArray<AReEchoEnemyActor*> NearbyEnemies;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+			if (Enemy && FVector::Dist2D(Player->GetActorLocation(), Enemy->GetActorLocation()) <=
+			                 CardTick.EasterRandomStunRadiusCm)
+			{
+				NearbyEnemies.Add(Enemy);
+			}
+		}
+		for (int32 PulseOffset = 0; PulseOffset < CardTick.EasterRandomStunPulseCount && !NearbyEnemies.IsEmpty();
+		     ++PulseOffset)
+		{
+			const int32 PulseIndex = CardTick.CardState.Runtime.LastEasterStunPulseIndex - PulseOffset;
+			FRandomStream Random(RunSubsystem->BuildCardEffectRandomSeed(TEXT("G_4_5_STUN_TARGET"), PulseIndex));
+			AReEchoEnemyActor* Target = NearbyEnemies[Random.RandRange(0, NearbyEnemies.Num() - 1)];
+			FReEchoTimedStatusCommand Stun;
+			Stun.StatusId = TEXT("Z_Stun");
+			Stun.CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+			Stun.DurationSeconds = CardTick.EasterRandomStunDuration;
+			Stun.Attack.Source = Player;
+			Stun.Attack.Sequence = PulseIndex;
+			Target->GetCombatantComponent()->ApplyTimedStatus(Stun);
+		}
+	}
+	if (Rules.bEasterEchoContact)
+	{
+		TSet<uint64> CurrentContacts;
+		for (AReEchoEchoActor* Echo : Echoes)
+		{
+			if (!Echo || !Echo->IsCombatTargetAlive())
+			{
+				continue;
+			}
+			const uint64 EchoKey = static_cast<uint64>(static_cast<uint32>(Echo->GetUniqueID())) << 32;
+			const uint64 PlayerPair = EchoKey | 0xffffffffu;
+			if (Player->IsCombatTargetAlive() && FVector::DistSquared2D(Echo->GetActorLocation(), Player->GetActorLocation()) <=
+			                                         FMath::Square(100.0f))
+			{
+				CurrentContacts.Add(PlayerPair);
+				if (!ActiveEasterEchoContactPairs.Contains(PlayerPair))
+				{
+					Player->Combatant->ApplyHealing(Rules.EasterEchoContactHealing);
+				}
+			}
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+			{
+				AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+				if (!Enemy || FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) >
+				                  FMath::Square(100.0f))
+				{
+					continue;
+				}
+				const uint64 PairKey = EchoKey | static_cast<uint32>(Enemy->GetUniqueID());
+				CurrentContacts.Add(PairKey);
+				if (!ActiveEasterEchoContactPairs.Contains(PairKey))
+				{
+					FReEchoHitIntent ContactHit;
+					ContactHit.Attack.Source = Echo;
+					ContactHit.Attack.Sequence = HashCombine(Echo->GetUniqueID(), Enemy->GetUniqueID());
+					ContactHit.Target = Enemy;
+					ContactHit.RawDamage = Rules.EasterEchoContactDamage;
+					ContactHit.DamageSource = EReEchoDamageSource::Echo;
+					ContactHit.SourceLocation = Echo->GetActorLocation();
+					ContactHit.HitLocation = Enemy->GetActorLocation();
+					ReEchoHitResolver::ResolvePhysicalHit(ContactHit);
+				}
+			}
+		}
+		ActiveEasterEchoContactPairs = MoveTemp(CurrentContacts);
+	}
+	else
+	{
+		ActiveEasterEchoContactPairs.Reset();
+	}
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
@@ -5674,6 +5751,10 @@ void AReEchoGameMode::HandleCardGrantCommitted(const FReEchoStatBlock& Stats,
 	if (HealthAdjustment != EReEchoHealthAdjustment::None && Player && Player->Combatant)
 	{
 		Player->Combatant->ApplyHealthAdjustment(Stats.HpMax, HealthAdjustment);
+		if (HealthAdjustment == EReEchoHealthAdjustment::SetToStatPoint)
+		{
+			Player->Combatant->RestoreCurrentHealth(Stats.HpPoint);
+		}
 	}
 }
 

@@ -83,7 +83,9 @@ UENUM(BlueprintType)
 enum class EReEchoHealthAdjustment : uint8
 {
 	None,
-	FillToMax
+	FillToMax,
+	/** Keep the authoritative maximum and set current health to the committed build's HpPoint. */
+	SetToStatPoint
 };
 
 /** A weapon-generated candidate hit. It contains no presentation resource and no final result. */

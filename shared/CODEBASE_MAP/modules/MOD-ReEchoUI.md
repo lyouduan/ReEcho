@@ -103,3 +103,9 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - Plan91 的任意商品购买成功后由 GameMode 重新注入完整商店只读投影，Widget 不再局部拼接 `EquippedParts`。这保证新购符文立即进入 `OwnedParts` 背包视图，同时依赖 Run 的稳定页缓存保持其余报价不变。
 - 武器/符文购买按钮由 GameMode 调用 Run 的 `PurchaseShopItemDetailed`；卡组入口发送 Tier 并分别消费 `PurchaseShopCardPackDetailed` / `ClaimPaidShopCardChoice` 的结构化结果。Widget 只根据只读投影控制购买与继续按钮，不自行修改扣费、付款或所有权状态。
 - 人工检查：按 UI 修改指导执行页面导航、焦点、DPI、可读性和交互验收。
+
+## Plan152 彩蛋卡牌表现
+
+- 彩蛋卡玩法 Tier 为 0，但 Run 向三选一和已拥有卡槽显式投影 `PresentationTier=3`；Widget 只据展示 Tier 复用三级卡底，不能把彩蛋重新归入三级玩法池。
+- 九张图标固定解析 `/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_4_1`～`G_4_9`，源图位于对应 `Content/SourceArt/UI/Cards/Icon/`；缺图只走既有安全回退，不改变投放资格。
+- 随机、累计和多项效果继续使用现有 Tooltip 第二块“实际效果”面板；`RandomDetails` 的目标/数值数组由 Run 统一翻译，UI 不按 `G_4_*` ID 或中文描述自行推断。

@@ -1261,6 +1261,13 @@ void AReEchoPlayerPawn::HandlePlayerHurtCollisionIgnore(const FReEchoDamageEvent
 	{
 		return;
 	}
+	if (Event.AppliedDamage > 0.0f)
+	{
+		if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
+		{
+			Run->NotifyCardPlayerDamageReceived(Event.AppliedDamage);
+		}
+	}
 	if (Event.bFatal)
 	{
 		RestorePawnCollisionAfterHurt();

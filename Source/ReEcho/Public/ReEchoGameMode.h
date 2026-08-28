@@ -548,4 +548,6 @@ private:
 	bool bAboutReturnToStartMenu = false;
 	bool bBeginSelectedRunRequested = false;
 	bool bBeginSelectedRunStarted = false;
+	/** Runtime overlap edges for 恋爱小脑; damage/healing fires only when a pair newly enters contact. */
+	TSet<uint64> ActiveEasterEchoContactPairs;
 };

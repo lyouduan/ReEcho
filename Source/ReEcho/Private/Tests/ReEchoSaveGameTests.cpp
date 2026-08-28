@@ -92,6 +92,42 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
 	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
 
+	UReEchoRunSaveGame* EasterSnapshot = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
+	EasterSnapshot->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_4_8"));
+	FReEchoCardRuntimeState& EasterRuntime = EasterSnapshot->CurrentBuild.CardState.Runtime;
+	EasterRuntime.bHasPreviousEncounterShardIncome = true;
+	EasterRuntime.PreviousEncounterGrossShardIncome = 120;
+	EasterRuntime.CurrentEncounterGrossShardIncome = 45;
+	EasterRuntime.EncounterShardIncomeMultiplier = 1.35f;
+	EasterRuntime.ShopCardOfferEncounterIndex = EasterSnapshot->EncounterIndex;
+	EasterRuntime.ShopCardOfferRefreshSequence = 0;
+	EasterRuntime.ShopCardPackStates.SetNum(3);
+	for (int32 PackIndex = 0; PackIndex < EasterRuntime.ShopCardPackStates.Num(); ++PackIndex)
+	{
+		EasterRuntime.ShopCardPackStates[PackIndex].Tier = PackIndex + 1;
+	}
+	EasterRuntime.ShopCardPackStates[0].CandidateCardIds = {TEXT("G_4_1")};
+	EasterRuntime.ShopCardPackStates[0].OfferHistoryCardIds = {TEXT("G_4_1")};
+	EasterRuntime.ShopCardPackStates[0].SlotRefreshUses = {0};
+	UGameInstance* EasterGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* EasterRestored = NewObject<UReEchoRunSubsystem>(EasterGameInstance);
+	TestTrue(TEXT("A v25 snapshot restores owned Easter cards, their runtime state, and cached shop offers"),
+	         EasterRestored->RestoreSaveSnapshot(*EasterSnapshot));
+	TestTrue(TEXT("Owned Easter card identity restores"),
+	         EasterRestored->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_4_8")));
+	TestEqual(TEXT("Previous encounter gross shard income restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.PreviousEncounterGrossShardIncome,
+	          120);
+	TestEqual(TEXT("Current encounter gross shard income restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.CurrentEncounterGrossShardIncome,
+	          45);
+	TestEqual(TEXT("Encounter shard multiplier restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          1.35f);
+	TestEqual(TEXT("Cached Easter shop offer restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.ShopCardPackStates[0].CandidateCardIds[0],
+	          FName(TEXT("G_4_1")));
+
 	UReEchoRunSaveGame* RetiredCurrentWeapon = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
 	RetiredCurrentWeapon->CurrentBuild.WeaponId = TEXT("W_J_02");
 	UGameInstance* RetiredCurrentGameInstance = NewObject<UGameInstance>();
@@ -116,6 +152,10 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	UReEchoRunSaveGame* PreUnifiedSeedSave = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
 	PreUnifiedSeedSave->SaveVersion = 23;
 	PreUnifiedSeedSave->RunSeed = 0;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.bHasPreviousEncounterShardIncome = true;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.PreviousEncounterGrossShardIncome = 999;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.CurrentEncounterGrossShardIncome = 888;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.EncounterShardIncomeMultiplier = 9.0f;
 	UGameInstance* FirstSeedMigrationGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* FirstSeedMigrationRun = NewObject<UReEchoRunSubsystem>(FirstSeedMigrationGameInstance);
 	UGameInstance* SecondSeedMigrationGameInstance = NewObject<UGameInstance>();
@@ -128,6 +168,17 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	const int32 SecondMigratedRunSeed = SecondSeedMigrationRun->CreateSaveSnapshot()->RunSeed;
 	TestTrue(TEXT("A legacy save receives a non-zero unified run seed"), FirstMigratedRunSeed != 0);
 	TestEqual(TEXT("Legacy unified seed migration is deterministic"), FirstMigratedRunSeed, SecondMigratedRunSeed);
+	TestFalse(TEXT("Pre-v25 saves migrate without Easter shard history"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.bHasPreviousEncounterShardIncome);
+	TestEqual(TEXT("Pre-v25 previous shard income migrates to zero"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.PreviousEncounterGrossShardIncome,
+	          0);
+	TestEqual(TEXT("Pre-v25 current shard income migrates to zero"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.CurrentEncounterGrossShardIncome,
+	          0);
+	TestEqual(TEXT("Pre-v25 shard multiplier migrates to neutral"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          1.0f);
 
 	Snapshot->SaveVersion = 12;
 	Snapshot->OwnedWeaponIds.Reset();

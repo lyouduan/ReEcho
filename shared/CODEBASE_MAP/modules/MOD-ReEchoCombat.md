@@ -492,3 +492,10 @@ Plan76 的晕眩、流血、短暂无敌和临时攻速/移速均通过 `UReEcho
 # Plan73 元素反应表现契约
 
 `UReEchoCombatEventsComponent::OnElementReactionResolved` 只在有效反应完整结算后发布一次资源中立结果，携带 ReactionId、ReactionBehaviorId、RadiusCm、反应前/进入/结算后元素以及玩法确定的受影响目标顺序；表现消费者不得重新计算半径或连锁拓扑。
+
+# Plan152 彩蛋卡牌战斗接缝
+
+- `G_4_7` 由 Cards 在来源增益完成后把 Player/Echo 的物理 `RawDamage` 改写为权重结果，再由 Combat 执行防御、生命和死亡裁决；元素伤害及 Enemy/Path/Reaction 来源不进入该彩票。
+- `G_4_3` 的新接触事件仍通过 `ReEchoHitResolver::ResolvePhysicalHit` 和 `UReEchoCombatantComponent::ApplyHealing`，`G_4_5` 通过 `ApplyTimedStatus(Z_Stun)`；世界宿主不得直接写生命或状态。
+- `G_4_6` 的 55 点阈值累计使用 Combat 返回的最终 `AppliedDamage`，同一次命中不得按原始伤害或多个表现回调重复累计。
+- `EReEchoHealthAdjustment::SetToStatPoint` 是授予时“当前生命调整为精确值”及关末永久生命同步的窄意图；Combatant 仍是实时生命权威。
