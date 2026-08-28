@@ -330,7 +330,9 @@ private:
 	void FinishCardChoiceToShopFade();
 	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
-	void CompleteStage01To02Cg(bool bFailed);
+	void CompleteStage01To02Cg(bool bFailed, bool bSkipped = false);
+	UFUNCTION()
+	void HandleStage01To02CgSkipRequested();
 	void BeginStage01To02PostCgCameraSequence();
 	void AdvanceStage01To02CameraSequence(float DeltaSeconds);
 	bool BeginStage01To02EchoReveal();
@@ -498,6 +500,7 @@ private:
 	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
 	static float GetStage01To02EchoRevealDelaySeconds();
 	static float GetStage01To02EchoRevealTimeoutSeconds();
+	static bool ShouldOfferStage01To02CgSkip(bool bHasViewedCg, bool bPlayingStageCg);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

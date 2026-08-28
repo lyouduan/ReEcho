@@ -6,7 +6,9 @@
 
 class UCanvasPanel;
 class UAudioComponent;
+class UButton;
 class UImage;
+class UTextBlock;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UMediaPlayer;
@@ -24,6 +26,8 @@ enum class EReEchoTransitionMediaState : uint8
 	Failed
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoStageCgSkipRequested);
+
 /** Full-screen, non-interactive presentation for the final countdown and post-zero card transition. */
 UCLASS()
 
@@ -32,6 +36,9 @@ class REECHO_API UReEchoEncounterTransitionWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(BlueprintAssignable)
+	FReEchoStageCgSkipRequested OnStageCgSkipRequested;
+
 	UReEchoEncounterTransitionWidget(const FObjectInitializer& ObjectInitializer);
 	static FVector2D CalculateFillSize(const FVector2D& ViewSize);
 	static FVector2D CalculateCardChoiceFrameSize(const FVector2D& ViewSize);
@@ -46,6 +53,8 @@ public:
 	bool StartSequence();
 	bool StartCardChoiceToShopSequence();
 	bool StartStage01To02Sequence();
+	void SetStage01To02SkipAvailable(bool bAvailable);
+	bool IsStage01To02SkipAvailable() const;
 	UMediaPlayer* GetMediaPlayer() const;
 	void BeginSequenceFadeOut(float DurationSeconds);
 	bool IsSequenceFinished() const;
@@ -71,6 +80,9 @@ private:
 	void FailSequence(const TCHAR* Reason);
 
 	UFUNCTION()
+	void HandleStageCgSkipClicked();
+
+	UFUNCTION()
 	void HandleMediaOpened(FString OpenedUrl);
 
 	UFUNCTION()
@@ -84,6 +96,12 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImage> SequenceImage;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> StageCgSkipButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> StageCgSkipLabel;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMediaPlayer> MediaPlayer;

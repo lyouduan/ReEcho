@@ -3,9 +3,36 @@
 #include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Run/ReEchoRunSaveGame.h"
+#include "Run/ReEchoPlayerProgressSaveGame.h"
 #include "Run/ReEchoRunSubsystem.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoPlayerProgressSaveTest,
+                                 "ReEcho.Run.PlayerProgress.Stage01To02Cg",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoPlayerProgressSaveTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	UReEchoPlayerProgressSaveGame* FreshProgress = NewObject<UReEchoPlayerProgressSaveGame>();
+	TestFalse(TEXT("A new account has not viewed Stage01To02 CG"), FreshProgress->bHasViewedStage01To02Cg);
+	FreshProgress->bHasViewedStage01To02Cg = true;
+	TArray<uint8> SerializedProgress;
+	TestTrue(TEXT("Account progress serializes independently from a run slot"),
+	         UGameplayStatics::SaveGameToMemory(FreshProgress, SerializedProgress));
+	const UReEchoPlayerProgressSaveGame* RestoredProgress =
+	    Cast<UReEchoPlayerProgressSaveGame>(UGameplayStatics::LoadGameFromMemory(SerializedProgress));
+	TestNotNull(TEXT("Account progress deserializes"), RestoredProgress);
+	if (RestoredProgress)
+	{
+		TestEqual(TEXT("Player progress version survives serialization"),
+		          RestoredProgress->SaveVersion,
+		          UReEchoPlayerProgressSaveGame::CurrentSaveVersion);
+		TestTrue(TEXT("Viewed CG state survives serialization"), RestoredProgress->bHasViewedStage01To02Cg);
+	}
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSaveSnapshotTest,
                                  "ReEcho.Run.SaveSnapshot",

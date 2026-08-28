@@ -7,6 +7,7 @@
 #include "ReEchoRunSubsystem.generated.h"
 
 class UReEchoRunSaveGame;
+class UReEchoPlayerProgressSaveGame;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
@@ -64,6 +65,8 @@ class REECHO_API UReEchoRunSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
 	UPROPERTY(BlueprintAssignable)
 	FReEchoRunPhaseChanged OnPhaseChanged;
 
@@ -284,12 +287,16 @@ public:
 	bool WriteActiveSaveSlotPreview(const TArray<uint8>& PngBytes) const;
 	bool HasPendingEncounterResume() const;
 	FReEchoEncounterRuntimeState ConsumePendingEncounterResume();
+	bool HasViewedStage01To02Cg() const { return bHasViewedStage01To02Cg; }
+	/** Persists the account-level watched flag. Returns false without granting it when persistence fails. */
+	bool MarkStage01To02CgViewed();
 
 	/** In-memory conversion used by persistence and deterministic automation. */
 	UReEchoRunSaveGame* CreateSaveSnapshot(const FReEchoEncounterRuntimeState* EncounterRuntimeState = nullptr) const;
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	void LoadPlayerProgress();
 	FString GetSaveSlotName(int32 SlotIndex) const;
 	FString GetSaveSlotPreviewPath(int32 SlotIndex) const;
 	const UReEchoRunSaveGame* LoadValidatedSaveForSlot(int32 SlotIndex, bool& bOutLegacy) const;
@@ -302,6 +309,9 @@ private:
 
 	UPROPERTY()
 	bool bAutomaticAttackMode = true;
+
+	UPROPERTY()
+	bool bHasViewedStage01To02Cg = false;
 
 	/** All subsequent automatic saves target this slot. INDEX_NONE means no new run slot was selected yet. */
 	UPROPERTY()

@@ -4,7 +4,9 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/AudioComponent.h"
+#include "Components/Button.h"
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Materials/MaterialInterface.h"
@@ -66,7 +68,7 @@ void UReEchoEncounterTransitionWidget::NativeConstruct()
 	Super::NativeConstruct();
 	SetAnchorsInViewport(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	SetAlignmentInViewport(FVector2D::ZeroVector);
-	SetVisibility(ESlateVisibility::HitTestInvisible);
+	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	ResetPresentation();
 }
 
@@ -111,6 +113,22 @@ void UReEchoEncounterTransitionWidget::BuildFallbackTree()
 	SequenceImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SequenceImage"));
 	SequenceImage->SetVisibility(ESlateVisibility::Collapsed);
 	RootCanvas->AddChildToCanvas(SequenceImage);
+
+	StageCgSkipButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("StageCgSkipButton"));
+	StageCgSkipButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.5f));
+	StageCgSkipButton->SetVisibility(ESlateVisibility::Collapsed);
+	StageCgSkipButton->OnClicked.AddDynamic(this, &UReEchoEncounterTransitionWidget::HandleStageCgSkipClicked);
+	StageCgSkipLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StageCgSkipLabel"));
+	StageCgSkipLabel->SetText(FText::FromString(TEXT("跳过")));
+	StageCgSkipLabel->SetJustification(ETextJustify::Center);
+	StageCgSkipButton->AddChild(StageCgSkipLabel);
+	if (UCanvasPanelSlot* SkipSlot = RootCanvas->AddChildToCanvas(StageCgSkipButton))
+	{
+		SkipSlot->SetAnchors(FAnchors(1.0f, 0.0f));
+		SkipSlot->SetAlignment(FVector2D(1.0f, 0.0f));
+		SkipSlot->SetPosition(FVector2D(-48.0f, 36.0f));
+		SkipSlot->SetSize(FVector2D(140.0f, 54.0f));
+	}
 
 	if (!MediaSource || !MediaMaterial)
 	{
@@ -169,6 +187,32 @@ bool UReEchoEncounterTransitionWidget::StartCardChoiceToShopSequence()
 bool UReEchoEncounterTransitionWidget::StartStage01To02Sequence()
 {
 	return StartSequenceWithSource(Stage01To02MediaSource, true, TEXT("Stage01To02"));
+}
+
+void UReEchoEncounterTransitionWidget::SetStage01To02SkipAvailable(const bool bAvailable)
+{
+	BuildFallbackTree();
+	if (StageCgSkipButton)
+	{
+		StageCgSkipButton->SetIsEnabled(bAvailable);
+		StageCgSkipButton->SetVisibility(bAvailable ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+}
+
+bool UReEchoEncounterTransitionWidget::IsStage01To02SkipAvailable() const
+{
+	return StageCgSkipButton && StageCgSkipButton->GetVisibility() == ESlateVisibility::Visible &&
+	       StageCgSkipButton->GetIsEnabled();
+}
+
+void UReEchoEncounterTransitionWidget::HandleStageCgSkipClicked()
+{
+	if (!IsStage01To02SkipAvailable() || ActiveSequencePurpose != TEXT("Stage01To02"))
+	{
+		return;
+	}
+	StageCgSkipButton->SetIsEnabled(false);
+	OnStageCgSkipRequested.Broadcast();
 }
 
 UMediaPlayer* UReEchoEncounterTransitionWidget::GetMediaPlayer() const
@@ -363,6 +407,7 @@ void UReEchoEncounterTransitionWidget::ResetPresentation()
 		SequenceImage->SetRenderOpacity(1.0f);
 		SequenceImage->SetVisibility(ESlateVisibility::Collapsed);
 	}
+	SetStage01To02SkipAvailable(false);
 }
 
 void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

@@ -151,6 +151,12 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Echo birth reveal has a bounded Niagara completion fallback"),
 	          AReEchoGameMode::GetStage01To02EchoRevealTimeoutSeconds(),
 	          1.2f);
+	TestFalse(TEXT("First viewing never offers a skip button"),
+	          AReEchoGameMode::ShouldOfferStage01To02CgSkip(false, true));
+	TestFalse(TEXT("A watched CG does not expose skip outside playback"),
+	          AReEchoGameMode::ShouldOfferStage01To02CgSkip(true, false));
+	TestTrue(TEXT("A watched CG exposes skip during Stage01To02 playback"),
+	         AReEchoGameMode::ShouldOfferStage01To02CgSkip(true, true));
 	TestEqual(TEXT("Native encounter-entry protection defaults to half a second"),
 	          GetDefault<UReEchoEncounterFlowSettings>()->PostEntryInvulnerabilitySeconds,
 	          0.5f);

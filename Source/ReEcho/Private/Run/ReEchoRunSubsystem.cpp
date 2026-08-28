@@ -6,6 +6,7 @@
 #include "ReEcho.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoRunSaveGame.h"
+#include "Run/ReEchoPlayerProgressSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "Cards/ReEchoCardRuntime.h"
 #include "Combat/ReEchoCombatantComponent.h"
@@ -28,6 +29,7 @@ const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
+const FString PlayerProgressSaveSlot = TEXT("ReEchoPlayerProgress");
 constexpr int32 RunSaveUserIndex = 0;
 
 FString MakeRunSaveSlotName(const int32 SlotIndex)
@@ -1395,6 +1397,47 @@ bool ReEchoRunData::TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
 		    return ApplyCardEffects(Card, Candidate);
 	    },
 	    OutBuild);
+}
+
+void UReEchoRunSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	LoadPlayerProgress();
+}
+
+void UReEchoRunSubsystem::LoadPlayerProgress()
+{
+	bHasViewedStage01To02Cg = false;
+	const UReEchoPlayerProgressSaveGame* Progress =
+	    Cast<UReEchoPlayerProgressSaveGame>(UGameplayStatics::LoadGameFromSlot(PlayerProgressSaveSlot, RunSaveUserIndex));
+	if (!Progress)
+	{
+		return;
+	}
+	if (Progress->SaveVersion < 1 || Progress->SaveVersion > UReEchoPlayerProgressSaveGame::CurrentSaveVersion)
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("Player progress save version %d is unsupported; using defaults."), Progress->SaveVersion);
+		return;
+	}
+	bHasViewedStage01To02Cg = Progress->bHasViewedStage01To02Cg;
+}
+
+bool UReEchoRunSubsystem::MarkStage01To02CgViewed()
+{
+	if (bHasViewedStage01To02Cg)
+	{
+		return true;
+	}
+	UReEchoPlayerProgressSaveGame* Progress = NewObject<UReEchoPlayerProgressSaveGame>(GetTransientPackage());
+	Progress->bHasViewedStage01To02Cg = true;
+	if (!UGameplayStatics::SaveGameToSlot(Progress, PlayerProgressSaveSlot, RunSaveUserIndex))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] watched state could not be persisted; skip remains locked."));
+		return false;
+	}
+	bHasViewedStage01To02Cg = true;
+	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] natural completion persisted account watched state."));
+	return true;
 }
 
 void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)

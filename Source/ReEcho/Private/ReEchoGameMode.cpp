@@ -4858,6 +4858,11 @@ float AReEchoGameMode::GetStage01To02EchoRevealTimeoutSeconds()
 	return 1.2f;
 }
 
+bool AReEchoGameMode::ShouldOfferStage01To02CgSkip(const bool bHasViewedCg, const bool bPlayingStageCg)
+{
+	return bHasViewedCg && bPlayingStageCg;
+}
+
 bool AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(const int32 CompletedEncounterIndex,
                                                            const EReEchoRunPhase Phase,
                                                            const bool bApplied,
@@ -5318,6 +5323,11 @@ bool AReEchoGameMode::BeginStage01To02Cg()
 		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] media source could not start; fail-open."));
 		return false;
 	}
+	TransitionWidget->OnStageCgSkipRequested.RemoveAll(this);
+	TransitionWidget->OnStageCgSkipRequested.AddDynamic(this, &AReEchoGameMode::HandleStage01To02CgSkipRequested);
+	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	TransitionWidget->SetStage01To02SkipAvailable(
+	    ShouldOfferStage01To02CgSkip(RunSubsystem && RunSubsystem->HasViewedStage01To02Cg(), true));
 	SetPlayerMenuAbilityBlocked(true);
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingStage01To02Cg;
 	if (UReEchoAudioService* AudioService = GetGameInstance()->GetSubsystem<UReEchoAudioService>())
@@ -5328,7 +5338,21 @@ bool AReEchoGameMode::BeginStage01To02Cg()
 	return true;
 }
 
-void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed)
+void AReEchoGameMode::HandleStage01To02CgSkipRequested()
+{
+	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingStage01To02Cg)
+	{
+		return;
+	}
+	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] previously viewed CG skipped by player."));
+	if (EncounterTransitionWidget)
+	{
+		EncounterTransitionWidget->ResetPresentation();
+	}
+	CompleteStage01To02Cg(false, true);
+}
+
+void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed, const bool bSkipped)
 {
 	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingStage01To02Cg)
 	{
@@ -5338,9 +5362,17 @@ void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed)
 	{
 		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] playback failed; continuing to the post-CG camera gate."));
 	}
+	else if (bSkipped)
+	{
+		UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] skip accepted; preparing Encounter 2 presentation."));
+	}
 	else
 	{
 		UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] playback completed; preparing Encounter 2 presentation."));
+		if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
+		{
+			RunSubsystem->MarkStage01To02CgViewed();
+		}
 	}
 	if (EncounterTransitionMediaSound)
 	{
