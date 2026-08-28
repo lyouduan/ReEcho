@@ -36,6 +36,13 @@ public:
 	static FVector2D CalculateFillSize(const FVector2D& ViewSize);
 	static FVector2D CalculateCardChoiceFrameSize(const FVector2D& ViewSize);
 	static FVector2D CalculateCardChoiceFramePosition(const FVector2D& ViewSize);
+	static float CalculateCardChoiceToShopBackgroundBlendAlpha(double MediaTimeSeconds);
+	static float CalculateCardChoiceToShopCollapseAlpha(double MediaTimeSeconds);
+	static FVector2D CalculateCardChoiceToShopCollapseSize(const FVector2D& ViewSize, float CollapseAlpha);
+	static float CalculateCardChoiceToShopCollapseOpacity(float CollapseAlpha);
+	static FVector2D CalculateCardChoiceToShopCollapsePosition(const FVector2D& ViewSize,
+	                                                           float CollapseAlpha,
+	                                                           const FVector2D& TargetCenter);
 	bool StartSequence();
 	bool StartCardChoiceToShopSequence();
 	bool StartStage01To02Sequence();
@@ -43,6 +50,9 @@ public:
 	void BeginSequenceFadeOut(float DurationSeconds);
 	bool IsSequenceFinished() const;
 	bool HasSequenceFailed() const;
+	float GetCardChoiceToShopBackgroundBlendAlpha() const;
+	bool HasCardChoiceToShopCollapseStarted() const;
+	void SetCardChoiceToShopCollapseTargetAbsolute(const FVector2D& AbsoluteCenter);
 	bool IsFadeOutFinished() const;
 	void ResetPresentation();
 
@@ -56,7 +66,7 @@ private:
 	void BuildFallbackTree();
 	bool StartSequenceWithSource(UMediaSource* Source, bool bOpaqueMedia, FName SequencePurpose);
 	void ApplySequenceBrush(bool bOpaqueMedia);
-	void UpdateFillLayout(const FVector2D& ViewSize);
+	void UpdateFillLayout(const FGeometry& Geometry);
 	void StartStageCgAudio();
 	void FailSequence(const TCHAR* Reason);
 
@@ -112,10 +122,12 @@ private:
 	FIntPoint LastLoggedMediaSurface = FIntPoint::ZeroValue;
 	float FadeDurationSeconds = 0.4f;
 	float FadeElapsedSeconds = 0.0f;
+	float FadeStartOpacity = 1.0f;
 	float OpaquePlaybackElapsedSeconds = 0.0f;
 	float FirstFrameWaitElapsedSeconds = 0.0f;
 	float PlaybackStallElapsedSeconds = 0.0f;
 	FTimespan LastObservedMediaTime = FTimespan::MinValue();
 	EReEchoTransitionMediaState MediaState = EReEchoTransitionMediaState::Closed;
 	FName ActiveSequencePurpose = NAME_None;
+	TOptional<FVector2D> CardChoiceToShopCollapseTargetAbsolute;
 };

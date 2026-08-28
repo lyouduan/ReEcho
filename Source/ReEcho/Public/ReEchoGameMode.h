@@ -264,6 +264,7 @@ private:
 	bool bContinueRunAfterShop = false;
 	bool bReturnToOpenShopAfterTraitChoice = false;
 	bool bPostTraitShopClosing = false;
+	bool bCardChoiceToShopBackgroundPrepared = false;
 	bool bPauseOpenedOverInventoryShop = false;
 
 	UPROPERTY()
@@ -322,6 +323,9 @@ private:
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence();
 	bool BeginCardChoiceToShopTransition();
+	void PrepareCardChoiceToShopBackground();
+	void UpdateCardChoiceToShopBackgroundBlend();
+	void UpdateCardChoiceToShopCollapseTarget();
 	void CompleteCardChoiceToShopTransition(bool bFailed);
 	void FinishCardChoiceToShopFade();
 	bool BeginStage01To02CameraSequence();

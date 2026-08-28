@@ -6,7 +6,7 @@
 - Executor 负责人：当前程序用户授权的 Executor（Codex）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`InProgress`（第二段收拢表现细化）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@bf40050cb66161a7abd441e8822f51bb19938853`。
 - 本地实现方式（可选，仅作交接说明）：Plan worktree `C:\tmp\ReEcho-plan143-card-shop-transition`；Plan 发布后继续在该任务专属 worktree 实施。
@@ -87,10 +87,12 @@
 
 ### 变化
 
+- 第二段表现细化：保持 `frame_0058.png`–`frame_0120.png` 原媒体内容不变；从面具人首次进入画面的 `frame_0068.png`（第二段媒体时间 0.25 秒）开始，一边继续播放一边把媒体矩形平滑缩放并移动到 `ArtFormalLoadoutTree` 底图内小面具人的归一化锚点，同时把媒体透明度平滑降到 0。目标位置每帧从该 Widget 的 Slate 几何换算，随窗口和 DPI 缩放保持贴合；终点尺寸保留为初始媒体的 57.5%，使视频人物与底图中约 410px 高的小面具人一致，不再缩到 0；至 `frame_0120.png`（1.55 秒）融合完成。商店交互与揭示仍由既有媒体完成门控制。
+- 第二段开始时先关闭已确认的 TraitChoice，露出游戏场景，再按稳定 Guard 路径创建正常 Enabled、`HitTestInvisible`、初始 `RenderOpacity=0` 的商店。`frame_0058.png`–`frame_0078.png` 的20帧（0.5秒）期间商店按 SmoothStep 从0渐入到1，使底层从游戏场景平滑过渡到商店；第68帧收缩开始时商店约为50%透明度，但其 `ArtFormalLoadoutTree` 实际几何从第58帧起已可用于正确目标定位。商店创建后立即解除其菜单 Pause，保持 Run 阶段与菜单能力阻挡，确保 Wmf/HAP 时钟推进但不恢复玩法。媒体完成后恢复商店 `Visible`、焦点与 World Pause；全程不使用纯黑 Backdrop 或 Disabled Tint。
 - 已用 `scripts/ue/build_plan143_card_shop_media.ps1` 从 `F:\frames` 可复现生成 `EncounterEndToCardChoiceV2.mov`（0–57入场/首轮摆动，27–57追加两轮并去除接缝重复中心帧）和 `CardChoiceToShop.mov`（58–120），创建两个独立 FileMediaSource；旧 MOV 与旧 UE 资产未删除、未覆盖。
 - Transition Widget 复用单一运行时 MediaPlayer/MediaTexture/HAP 材质，新增显式 CardChoiceToShop 播放入口；普通关末运行时引用切换到 V2。
 - GameMode 新增 CardChoiceToShop Playing/Fading 状态：仅第2–7关最后一次免费卡牌成功提交且 Run Phase 已进入 Planning 时触发。媒体结束后在覆盖层下关闭抽卡并打开禁用态商店，淡出后启用和聚焦；媒体失败直接放行到同一目标。付费卡包、仍有免费卡、第一关和最终关不触发。
-- 第一段和第二段共用左右对称的归一化区域 `(0.17,0.02)–(0.83,0.74)`：完整1920×1080画布统一等比 Fit、水平居中并向上对齐，使两段钟表轴心都落在游戏画面50%中心。第一段完成后立即关闭媒体层，抽卡UI不再创建或保留钟表末帧底图；完成全部免费抽卡后，第二段重新打开同一位置的媒体Screen。第一关CG仍保持全屏 Fill。
+- 第一段和第二段共用左右对称的归一化区域 `(0.17,0.0806)–(0.83,0.8006)`：完整1920×1080画布统一等比 Fit、水平居中并向上对齐；顶部对应战斗 HUD 设计面中 `ArtClockNeedle` 的 `Y=87`，区域高度仍保持 0.72，因此两段只整体下移而不改变大小。第一段完成后立即关闭媒体层，抽卡UI不再创建或保留钟表末帧底图；完成全部免费抽卡后，第二段重新打开同一位置的媒体Screen。第一关CG仍保持全屏 Fill。
 
 ### 证据
 

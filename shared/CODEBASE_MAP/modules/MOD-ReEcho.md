@@ -123,7 +123,7 @@ DefaultEngine.ini
           → 普通战按 30 秒完成；ReEchoStageTransition 统一解析下一场策略；Boss 按胜负
           → 完成录制与 RunSubsystem::CompleteEncounter
           → 局间停止玩家并冻结保留 Enemy Host，清理旧 Echo/瞬时攻击
-          → 特质选择 → 商店 → Echo 管理
+          → 特质选择 → 第二段媒体收拢时在覆盖层下准备禁用态商店 → 媒体完成后启用商店 → Echo 管理
           → 同 Stage 原 Arena/Actor/Roster 与玩家位置继续；跨 Stage 清理并切换 Arena、解析入口 → 下一场
           → `ActivatePreparedEncounter` 恢复输入 → `BP_EncounterFlowSettings.PostEntryInvulnerabilitySeconds`（默认 0.5 秒）→ Combatant 最终伤害无敌门
 ```

@@ -182,6 +182,27 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	WhiteTexture = WhiteFinder.Object;
 }
 
+bool UReEchoInventoryShopWidget::GetCardChoiceToShopCollapseTargetAbsolute(FVector2D& OutAbsoluteCenter) const
+{
+	const UWidget* LoadoutTree = GetWidgetFromName(TEXT("ArtFormalLoadoutTree"));
+	if (!LoadoutTree)
+	{
+		return false;
+	}
+
+	const FGeometry& TreeGeometry = LoadoutTree->GetCachedGeometry();
+	const FVector2D TreeSize = TreeGeometry.GetLocalSize();
+	if (TreeSize.X <= 0.0f || TreeSize.Y <= 0.0f)
+	{
+		return false;
+	}
+
+	// The masked shopkeeper is baked into LoadoutTreePanel.png at this normalized anchor.
+	const FVector2D MaskedShopkeeperAnchor(0.215f, 0.675f);
+	OutAbsoluteCenter = TreeGeometry.LocalToAbsolute(TreeSize * MaskedShopkeeperAnchor);
+	return true;
+}
+
 TSharedRef<SWidget> UReEchoInventoryShopWidget::RebuildWidget()
 {
 	if (!WidgetTree->RootWidget)
@@ -992,14 +1013,12 @@ void UReEchoInventoryShopWidget::BindSaveAndLeaveVisualFeedback()
 	{
 		SaveAndLeaveVisualFeedback = NewObject<UReEchoButtonVisualFeedback>(this);
 	}
-	SaveAndLeaveVisualFeedback->Bind(
-		CloseButton, SaveAndLeaveArt, TEXT("InventoryShop"), TEXT("SaveAndLeave"));
+	SaveAndLeaveVisualFeedback->Bind(CloseButton, SaveAndLeaveArt, TEXT("InventoryShop"), TEXT("SaveAndLeave"));
 }
 
 bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 {
-	UCanvasPanel* AuthoredCanvas =
-	    Cast<UCanvasPanel>(GetWidgetFromName(TEXT("DesignerShopPresentationCanvas")));
+	UCanvasPanel* AuthoredCanvas = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("DesignerShopPresentationCanvas")));
 	if (!AuthoredCanvas)
 	{
 		return false;
@@ -1058,16 +1077,16 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		DesignerPartOfferCards.Add(Cast<UCanvasPanel>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferCard%d"), Index))));
+		DesignerPartOfferCards.Add(
+		    Cast<UCanvasPanel>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferCard%d"), Index))));
 		DesignerPartOfferIcons.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferIcon%d"), Index))));
-		DesignerPartOfferDescriptions.Add(Cast<UTextBlock>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferDescription%d"), Index))));
+		DesignerPartOfferDescriptions.Add(
+		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferDescription%d"), Index))));
 		DesignerPartOfferCosts.Add(
 		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferCost%d"), Index))));
-		UReEchoIndexedButton* PartBuy = Cast<UReEchoIndexedButton>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferBuy%d"), Index)));
+		UReEchoIndexedButton* PartBuy =
+		    Cast<UReEchoIndexedButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferBuy%d"), Index)));
 		DesignerPartOfferBuyButtons.Add(PartBuy);
 		DesignerPartOfferBuyArts.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPartOfferBuy%dArt"), Index))));
@@ -1076,22 +1095,20 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 		if (PartBuy)
 		{
 			PartBuy->SetEntryIndex(Index);
-			PartBuy->OnIndexedClicked.RemoveDynamic(this,
-			                                              &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
-			PartBuy->OnIndexedClicked.AddDynamic(this,
-			                                           &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
+			PartBuy->OnIndexedClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
+			PartBuy->OnIndexedClicked.AddDynamic(this, &UReEchoInventoryShopWidget::HandleWeaponPartOfferClicked);
 		}
 
 		DesignerPackOfferCards.Add(
 		    Cast<UCanvasPanel>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferCard%d"), Index))));
 		DesignerPackOfferIcons.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferIcon%d"), Index))));
-		DesignerPackOfferDescriptions.Add(Cast<UTextBlock>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferDescription%d"), Index))));
+		DesignerPackOfferDescriptions.Add(
+		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferDescription%d"), Index))));
 		DesignerPackOfferCosts.Add(
 		    Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferCost%d"), Index))));
-		UReEchoIndexedButton* PackBuy = Cast<UReEchoIndexedButton>(
-		    GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferBuy%d"), Index)));
+		UReEchoIndexedButton* PackBuy =
+		    Cast<UReEchoIndexedButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferBuy%d"), Index)));
 		DesignerPackOfferBuyButtons.Add(PackBuy);
 		DesignerPackOfferBuyArts.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferBuy%dArt"), Index))));
@@ -1179,10 +1196,8 @@ void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 	DesignerCardSlotArts.Reset();
 	for (int32 Index = 0; Index < 12; ++Index)
 	{
-		UButton* CardButton =
-		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlot%d"), Index)));
-		UImage* CardArt =
-		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlotArt%d"), Index)));
+		UButton* CardButton = Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlot%d"), Index)));
+		UImage* CardArt = Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerCardSlotArt%d"), Index)));
 		DesignerCardSlotButtons.Add(CardButton);
 		DesignerCardSlotArts.Add(CardArt);
 		ApplyPersistentSlotFrame(CardButton, ShopCardSlotTexture.Get());
@@ -1514,9 +1529,8 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		}
 		if (DesignerPartOfferIcons.IsValidIndex(Index) && DesignerPartOfferIcons[Index])
 		{
-			UTexture2D* OfferIcon = Offer.Type == EReEchoShopOfferType::Weapon
-			                            ? ShopAttachmentSlotTexture.Get()
-			                            : ResolveWeaponPartIcon(Offer.ContentId);
+			UTexture2D* OfferIcon = Offer.Type == EReEchoShopOfferType::Weapon ? ShopAttachmentSlotTexture.Get()
+			                                                                   : ResolveWeaponPartIcon(Offer.ContentId);
 			if (Offer.Type == EReEchoShopOfferType::Weapon && !Offer.IconTexturePath.IsEmpty())
 			{
 				if (UTexture2D* WeaponIcon = LoadObject<UTexture2D>(nullptr, *Offer.IconTexturePath))
@@ -1569,16 +1583,16 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		}
 		if (DesignerPackOfferDescriptions.IsValidIndex(Index) && DesignerPackOfferDescriptions[Index])
 		{
-			DesignerPackOfferDescriptions[Index]->SetText(FText::Format(
-			    NSLOCTEXT("ReEcho", "AuthoredPackTierOnly", "{0}卡组"), Pack.DisplayName));
+			DesignerPackOfferDescriptions[Index]->SetText(
+			    FText::Format(NSLOCTEXT("ReEcho", "AuthoredPackTierOnly", "{0}卡组"), Pack.DisplayName));
 		}
 		if (DesignerPackOfferCosts.IsValidIndex(Index) && DesignerPackOfferCosts[Index])
 		{
 			DesignerPackOfferCosts[Index]->SetText(FText::AsNumber(EffectivePrice));
 		}
-		const FText OverrideLabel = bPendingChoice ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
-		                                : !Pack.IsAvailable() ? Pack.StatusText
-		                                                      : FText::GetEmpty();
+		const FText OverrideLabel = bPendingChoice        ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+		                            : !Pack.IsAvailable() ? Pack.StatusText
+		                                                  : FText::GetEmpty();
 		SetBuyState(DesignerPackOfferBuyButtons.IsValidIndex(Index) ? DesignerPackOfferBuyButtons[Index] : nullptr,
 		            DesignerPackOfferBuyArts.IsValidIndex(Index) ? DesignerPackOfferBuyArts[Index] : nullptr,
 		            DesignerPackOfferBuyLabels.IsValidIndex(Index) ? DesignerPackOfferBuyLabels[Index] : nullptr,
@@ -1655,8 +1669,7 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		}
 		SlotImage->SetBrushFromTexture(CardTexture, false);
 		SlotImage->SetColorAndOpacity(FLinearColor::White);
-		SlotImage->SetVisibility(Index < VisibleCount ? ESlateVisibility::HitTestInvisible
-		                                                   : ESlateVisibility::Hidden);
+		SlotImage->SetVisibility(Index < VisibleCount ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		if (Index < VisibleCount)
 		{
 			const bool bStorageCard =

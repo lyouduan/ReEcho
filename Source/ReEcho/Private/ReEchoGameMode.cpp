@@ -4932,6 +4932,8 @@ void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSec
 	{
 		const bool bFailed = !EncounterTransitionWidget || EncounterTransitionWidget->HasSequenceFailed();
 		const bool bFinished = EncounterTransitionWidget && EncounterTransitionWidget->IsSequenceFinished();
+		UpdateCardChoiceToShopBackgroundBlend();
+		UpdateCardChoiceToShopCollapseTarget();
 		if (bFailed || bFinished)
 		{
 			CompleteCardChoiceToShopTransition(bFailed);
@@ -5021,19 +5023,26 @@ bool AReEchoGameMode::BeginCardChoiceToShopTransition()
 	}
 	if (TraitCardChoiceWidget)
 	{
-		TraitCardChoiceWidget->SetIsEnabled(false);
+		TraitCardChoiceWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+		TraitCardChoiceWidget->SetRenderOpacity(1.0f);
 	}
+	// TraitChoice pauses the world. Wmf/HAP can expose its first decoded surface while paused, but its media clock
+	// does not advance reliably in PIE. Keep menu abilities blocked and let the transition own the visible frame.
+	ResumeWorldForMenuTransition();
+	bCardChoiceToShopBackgroundPrepared = false;
+	PrepareCardChoiceToShopBackground();
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingCardChoiceToShop;
 	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] final free-card choice committed; transition started."));
 	return true;
 }
 
-void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
+void AReEchoGameMode::PrepareCardChoiceToShopBackground()
 {
-	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingCardChoiceToShop)
+	if (bCardChoiceToShopBackgroundPrepared)
 	{
 		return;
 	}
+	bCardChoiceToShopBackgroundPrepared = true;
 	if (TraitCardChoiceWidget)
 	{
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
@@ -5046,7 +5055,48 @@ void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
 	ShowPostTraitShop();
 	if (InventoryShopWidget)
 	{
-		InventoryShopWidget->SetIsEnabled(false);
+		InventoryShopWidget->SetIsEnabled(true);
+		InventoryShopWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+		InventoryShopWidget->SetRenderOpacity(0.0f);
+		// Opening the shop reapplies menu pause; the still-playing media must remain on a live world clock.
+		ResumeWorldForMenuTransition();
+	}
+	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] transparent shop created after TraitChoice closed."));
+}
+
+void AReEchoGameMode::UpdateCardChoiceToShopBackgroundBlend()
+{
+	if (!bCardChoiceToShopBackgroundPrepared || !InventoryShopWidget || !EncounterTransitionWidget)
+	{
+		return;
+	}
+	InventoryShopWidget->SetRenderOpacity(EncounterTransitionWidget->GetCardChoiceToShopBackgroundBlendAlpha());
+}
+
+void AReEchoGameMode::UpdateCardChoiceToShopCollapseTarget()
+{
+	if (!bCardChoiceToShopBackgroundPrepared || !InventoryShopWidget || !EncounterTransitionWidget)
+	{
+		return;
+	}
+
+	FVector2D TargetAbsoluteCenter;
+	if (InventoryShopWidget->GetCardChoiceToShopCollapseTargetAbsolute(TargetAbsoluteCenter))
+	{
+		EncounterTransitionWidget->SetCardChoiceToShopCollapseTargetAbsolute(TargetAbsoluteCenter);
+	}
+}
+
+void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
+{
+	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingCardChoiceToShop)
+	{
+		return;
+	}
+	PrepareCardChoiceToShopBackground();
+	if (InventoryShopWidget)
+	{
+		InventoryShopWidget->SetRenderOpacity(1.0f);
 	}
 	if (!bFailed && EncounterTransitionWidget)
 	{
@@ -5072,9 +5122,13 @@ void AReEchoGameMode::FinishCardChoiceToShopFade()
 		}
 	}
 	EncounterTransitionWidget = nullptr;
+	bCardChoiceToShopBackgroundPrepared = false;
 	if (InventoryShopWidget)
 	{
 		InventoryShopWidget->SetIsEnabled(true);
+		InventoryShopWidget->SetRenderOpacity(1.0f);
+		InventoryShopWidget->SetVisibility(ESlateVisibility::Visible);
+		UGameplayStatics::SetGamePaused(this, true);
 	}
 	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
 	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] shop revealed and interaction enabled."));
@@ -5105,6 +5159,7 @@ void AReEchoGameMode::ResetEncounterTransitionPresentation()
 		}
 	}
 	EncounterTransitionWidget = nullptr;
+	bCardChoiceToShopBackgroundPrepared = false;
 	EncounterSequenceElapsedSeconds = 0.0f;
 	Stage01To02EchoRevealElapsedSeconds = 0.0f;
 	CompleteStage01To02EchoReveal();

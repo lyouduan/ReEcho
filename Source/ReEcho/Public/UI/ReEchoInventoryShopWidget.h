@@ -58,6 +58,7 @@ class REECHO_API UReEchoInventoryShopWidget : public UUserWidget
 
 public:
 	UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer);
+	bool GetCardChoiceToShopCollapseTargetAbsolute(FVector2D& OutAbsoluteCenter) const;
 
 	FReEchoInventoryShopClosed OnClosed;
 

@@ -19,9 +19,13 @@ namespace
 constexpr float SequenceWidth = 1920.0f;
 constexpr float SequenceHeight = 1080.0f;
 constexpr float CardChoiceFrameLeft = 0.17f;
-constexpr float CardChoiceFrameTop = 0.02f;
+constexpr float CardChoiceFrameTop = 87.0f / SequenceHeight;
 constexpr float CardChoiceFrameRight = 0.83f;
-constexpr float CardChoiceFrameBottom = 0.74f;
+constexpr float CardChoiceFrameBottom = CardChoiceFrameTop + 0.72f;
+constexpr double CardChoiceToShopCollapseStartSeconds = 10.0 / 40.0;
+constexpr double CardChoiceToShopCollapseEndSeconds = 62.0 / 40.0;
+constexpr double CardChoiceToShopBackgroundBlendEndSeconds = 20.0 / 40.0;
+constexpr float CardChoiceToShopFinalScale = 0.575f;
 constexpr double OpaqueMediaCompletionGraceSeconds = 5.0;
 constexpr float FirstFrameTimeoutSeconds = 5.0f;
 constexpr float PlaybackStallTimeoutSeconds = 5.0f;
@@ -192,6 +196,46 @@ FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceFramePosition(con
 	                 ViewSize.Y * CardChoiceFrameTop);
 }
 
+float UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseAlpha(const double MediaTimeSeconds)
+{
+	const float LinearAlpha =
+	    static_cast<float>((MediaTimeSeconds - CardChoiceToShopCollapseStartSeconds) /
+	                       (CardChoiceToShopCollapseEndSeconds - CardChoiceToShopCollapseStartSeconds));
+	return FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LinearAlpha, 0.0f, 1.0f));
+}
+
+float UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopBackgroundBlendAlpha(const double MediaTimeSeconds)
+{
+	return FMath::SmoothStep(
+	    0.0f,
+	    1.0f,
+	    FMath::Clamp(static_cast<float>(MediaTimeSeconds / CardChoiceToShopBackgroundBlendEndSeconds), 0.0f, 1.0f));
+}
+
+FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseSize(const FVector2D& ViewSize,
+                                                                                  const float CollapseAlpha)
+{
+	const float Scale = FMath::Lerp(1.0f, CardChoiceToShopFinalScale, FMath::Clamp(CollapseAlpha, 0.0f, 1.0f));
+	return CalculateCardChoiceFrameSize(ViewSize) * Scale;
+}
+
+float UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseOpacity(const float CollapseAlpha)
+{
+	return 1.0f - FMath::Clamp(CollapseAlpha, 0.0f, 1.0f);
+}
+
+FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapsePosition(const FVector2D& ViewSize,
+                                                                                      const float CollapseAlpha,
+                                                                                      const FVector2D& TargetCenter)
+{
+	const float ClampedAlpha = FMath::Clamp(CollapseAlpha, 0.0f, 1.0f);
+	const FVector2D InitialSize = CalculateCardChoiceFrameSize(ViewSize);
+	const FVector2D CurrentSize = CalculateCardChoiceToShopCollapseSize(ViewSize, ClampedAlpha);
+	const FVector2D InitialCenter = CalculateCardChoiceFramePosition(ViewSize) + InitialSize * 0.5f;
+	const FVector2D CurrentCenter = FMath::Lerp(InitialCenter, TargetCenter, ClampedAlpha);
+	return CurrentCenter - CurrentSize * 0.5f;
+}
+
 bool UReEchoEncounterTransitionWidget::StartSequenceWithSource(UMediaSource* Source,
                                                                const bool bOpaqueMedia,
                                                                const FName SequencePurpose)
@@ -252,6 +296,7 @@ void UReEchoEncounterTransitionWidget::BeginSequenceFadeOut(const float Duration
 	bFadingOut = true;
 	FadeDurationSeconds = FMath::Max(DurationSeconds, KINDA_SMALL_NUMBER);
 	FadeElapsedSeconds = 0.0f;
+	FadeStartOpacity = SequenceImage ? SequenceImage->GetRenderOpacity() : 1.0f;
 }
 
 bool UReEchoEncounterTransitionWidget::IsSequenceFinished() const
@@ -262,6 +307,24 @@ bool UReEchoEncounterTransitionWidget::IsSequenceFinished() const
 bool UReEchoEncounterTransitionWidget::HasSequenceFailed() const
 {
 	return bSequenceFailed;
+}
+
+float UReEchoEncounterTransitionWidget::GetCardChoiceToShopBackgroundBlendAlpha() const
+{
+	return ActiveSequencePurpose == TEXT("CardChoiceToShop") && MediaPlayer
+	           ? CalculateCardChoiceToShopBackgroundBlendAlpha(MediaPlayer->GetTime().GetTotalSeconds())
+	           : 0.0f;
+}
+
+bool UReEchoEncounterTransitionWidget::HasCardChoiceToShopCollapseStarted() const
+{
+	return ActiveSequencePurpose == TEXT("CardChoiceToShop") && MediaPlayer &&
+	       MediaPlayer->GetTime().GetTotalSeconds() >= CardChoiceToShopCollapseStartSeconds;
+}
+
+void UReEchoEncounterTransitionWidget::SetCardChoiceToShopCollapseTargetAbsolute(const FVector2D& AbsoluteCenter)
+{
+	CardChoiceToShopCollapseTargetAbsolute = AbsoluteCenter;
 }
 
 bool UReEchoEncounterTransitionWidget::IsFadeOutFinished() const
@@ -282,8 +345,10 @@ void UReEchoEncounterTransitionWidget::ResetPresentation()
 	LastObservedMediaTime = FTimespan::MinValue();
 	MediaState = EReEchoTransitionMediaState::Closed;
 	ActiveSequencePurpose = NAME_None;
+	CardChoiceToShopCollapseTargetAbsolute.Reset();
 	bFadingOut = false;
 	FadeElapsedSeconds = 0.0f;
+	FadeStartOpacity = 1.0f;
 	if (MediaPlayer)
 	{
 		MediaPlayer->Close();
@@ -371,16 +436,18 @@ void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, c
 			}
 		}
 	}
-	UpdateFillLayout(MyGeometry.GetLocalSize());
+	UpdateFillLayout(MyGeometry);
 	if (bFadingOut && SequenceImage)
 	{
 		FadeElapsedSeconds = FMath::Min(FadeElapsedSeconds + InDeltaTime, FadeDurationSeconds);
-		SequenceImage->SetRenderOpacity(1.0f - FadeElapsedSeconds / FadeDurationSeconds);
+		const float FadeAlpha = 1.0f - FadeElapsedSeconds / FadeDurationSeconds;
+		SequenceImage->SetRenderOpacity(FadeStartOpacity * FadeAlpha);
 	}
 }
 
-void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FVector2D& ViewSize)
+void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FGeometry& Geometry)
 {
+	const FVector2D ViewSize = Geometry.GetLocalSize();
 	if (!SequenceImage || ViewSize.X <= 0.0f || ViewSize.Y <= 0.0f)
 	{
 		return;
@@ -390,13 +457,28 @@ void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FVector2D& ViewSiz
 	{
 		return;
 	}
-	const bool bCardChoiceComposition = ActiveSequencePurpose == TEXT("EncounterEndToCardChoice") ||
-	                                    ActiveSequencePurpose == TEXT("CardChoiceToShop");
-	const FVector2D FillSize = bCardChoiceComposition ? CalculateCardChoiceFrameSize(ViewSize)
-	                                                : CalculateFillSize(ViewSize);
+	const bool bCardChoiceComposition =
+	    ActiveSequencePurpose == TEXT("EncounterEndToCardChoice") || ActiveSequencePurpose == TEXT("CardChoiceToShop");
+	const bool bCollapseToShop = ActiveSequencePurpose == TEXT("CardChoiceToShop");
+	const float CollapseAlpha = bCollapseToShop && MediaPlayer
+	                                ? CalculateCardChoiceToShopCollapseAlpha(MediaPlayer->GetTime().GetTotalSeconds())
+	                                : 0.0f;
+	if (bCollapseToShop && !bFadingOut)
+	{
+		SequenceImage->SetRenderOpacity(CalculateCardChoiceToShopCollapseOpacity(CollapseAlpha));
+	}
+	const FVector2D FillSize = bCollapseToShop ? CalculateCardChoiceToShopCollapseSize(ViewSize, CollapseAlpha)
+	                                           : (bCardChoiceComposition ? CalculateCardChoiceFrameSize(ViewSize)
+	                                                                     : CalculateFillSize(ViewSize));
 	CanvasSlot->SetAnchors(FAnchors(0.0f));
-	CanvasSlot->SetPosition(bCardChoiceComposition ? CalculateCardChoiceFramePosition(ViewSize)
-	                                             : (ViewSize - FillSize) * 0.5f);
+	const FVector2D CollapseTargetCenter =
+	    bCollapseToShop && CardChoiceToShopCollapseTargetAbsolute.IsSet()
+	        ? Geometry.AbsoluteToLocal(CardChoiceToShopCollapseTargetAbsolute.GetValue())
+	        : ViewSize * 0.5f;
+	CanvasSlot->SetPosition(
+	    bCollapseToShop
+	        ? CalculateCardChoiceToShopCollapsePosition(ViewSize, CollapseAlpha, CollapseTargetCenter)
+	        : (bCardChoiceComposition ? CalculateCardChoiceFramePosition(ViewSize) : (ViewSize - FillSize) * 0.5f));
 	CanvasSlot->SetSize(FillSize);
 }
 
