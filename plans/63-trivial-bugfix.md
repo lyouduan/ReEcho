@@ -218,3 +218,12 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **验收 / Acceptance**：`GMGotoBoss` 进入第八关后先显示 Boss 出生预警，Boss 成功生成后关卡继续；只有击杀已成功生成的 Boss 才显示胜利。Boss 生成失败时输出错误但不显示胜利。
 - **验证 / Verification**：取得 `main-publish-lock` 后合入 `origin/main@8017c6d4`，传入的卡牌与敌人伤害诊断改动和本修复无文本逻辑冲突；7 个精选预构建模块由最终组合源码执行 Development Editor `-FullRebuild` 94/94 成功重生（源码指纹 `230b07c834f2`）。最终组合上的 `ReEcho.GameMode` 2/2、`ReEcho.Encounter` 4/4、`ReEcho.Run.FinalBossRequiresKill` 1/1 自动化通过；`validate_project.py`、预构建一致性与 `git diff --check` 通过。
 - **状态 / Status**：Closed。用户已明确授权推送并合入远端主分支。
+
+### #24 — Esc 与 P 共用暂停菜单动作
+
+- **需求 / Need**：`Esc` 应与 `P` 产生完全相同的暂停菜单效果，包括打开暂停、再次按键恢复，以及复用暂停菜单对设置、属性页和商店覆盖层的既有处理。
+- **根因 / Root cause**：玩家代码已经把 `PauseMenu` Action 统一绑定到 `AReEchoGameMode::TogglePauseMenu()`，并允许暂停期间继续响应；但 `Config/DefaultInput.ini` 只把 `P` 映射到该 Action，缺少 `Escape` 映射，与 `MOD-ReEcho` 已声明的“Esc 进入暂停层”契约不一致。
+- **改动 / Changes**：仅在 `DefaultInput.ini` 为同一个 `PauseMenu` Action 增加 `Escape`；不新增输入回调，不修改暂停、恢复、菜单焦点、商店覆盖或存档逻辑。影响 `MOD-ReEcho / AREA-Player / AREA-UI`。
+- **验证 / Verification**：`python scripts/validate_project.py`、`git diff --check` 通过；额外静态断言确认 `PauseMenu` 恰有 `P` 与 `Escape` 两条目标映射。该变更仅涉及输入配置，因此按项目矩阵不要求 UHT/UBT；仍需 PIE 人工确认战斗中 `P`/`Esc` 均可打开和关闭暂停菜单，商店页面按 `Esc` 时沿用 `P` 的暂停层覆盖行为。
+- **文档审阅 / Documentation review**：`shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已审阅且无需修改，因为正文已准确声明 `Esc` 进入暂停层；`MOD-ReEchoUI.md` 已审阅且无需修改，因为屏幕层级、焦点和生命周期契约未改变；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 无模块拓扑或稳定路由变化，无需修改。
+- **状态 / Status**：Review。等待客观门禁与用户 PIE 验收。
