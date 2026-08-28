@@ -134,6 +134,7 @@ private:
 	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
 	void RebuildAttachmentHoverSlots();
+	void RebuildAttachmentSlotMapping();
 	void RebuildEquippedWeaponDisplay();
 	void UpdateWeaponLoadoutText();
 	int32 GetDisplayedTimeShardBalance() const;
@@ -150,6 +151,10 @@ private:
 	void HandleAttachmentSlot1Clicked();
 	UFUNCTION()
 	void HandleAttachmentSlot2Clicked();
+	UFUNCTION()
+	void HandleAttachmentSlot3Clicked();
+	UFUNCTION()
+	void HandleAttachmentSlot4Clicked();
 	void BuildBackpackPopup(int32 SlotIndex);
 	void HideBackpackPopup();
 	UFUNCTION()
@@ -236,6 +241,8 @@ private:
 	TObjectPtr<UTexture2D> ShopItemCardTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopAttachmentSlotTexture;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopCoreAttachmentSlotTexture;
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> WeaponPartIconTextures;
 	UPROPERTY()
@@ -381,6 +388,19 @@ private:
 	TArray<TObjectPtr<UButton>> DesignerAttachmentSlotButtons;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerAttachmentSlotArts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> DesignerStandardAttachmentSlotButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerStandardAttachmentSlotArts;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> DesignerDualAttachmentSlotButtons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerDualAttachmentSlotArts;
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> DualAttachmentLayoutWidget;
+	TArray<FName> DesignerAttachmentSlotTypeIds;
+	TArray<int32> DesignerAttachmentSlotOccurrenceIndices;
+	bool bUsingDualAttachmentLayout = false;
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> BackpackPopupLayer;
 	UPROPERTY(Transient)

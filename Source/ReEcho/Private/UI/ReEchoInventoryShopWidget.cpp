@@ -120,6 +120,10 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
 	         "T_UI_Shop110_WeaponLoadoutSlot.T_UI_Shop110_WeaponLoadoutSlot"));
 	ShopAttachmentSlotTexture = AttachmentSlotFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CoreAttachmentSlotFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan149/"
+	         "T_UI_Shop149_CoreWeaponLoadoutSlot.T_UI_Shop149_CoreWeaponLoadoutSlot"));
+	ShopCoreAttachmentSlotTexture = CoreAttachmentSlotFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CorePrimordialIconFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/WeaponParts/Icons/T_UI_Part_P_CORE_PRIMORDIAL.T_UI_Part_P_CORE_PRIMORDIAL"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CoreTideIconFinder(
@@ -1153,16 +1157,16 @@ void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 		DesignerEquippedWeaponButton->OnClicked.AddDynamic(this,
 		                                                   &UReEchoInventoryShopWidget::HandleEquippedWeaponClicked);
 	}
-	DesignerAttachmentSlotButtons.Reset();
-	DesignerAttachmentSlotArts.Reset();
+	DesignerStandardAttachmentSlotButtons.Reset();
+	DesignerStandardAttachmentSlotArts.Reset();
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
 		UButton* AttachmentButton =
 		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerAttachmentSlot%d"), Index)));
 		UImage* AttachmentArt =
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerAttachmentSlotArt%d"), Index)));
-		DesignerAttachmentSlotButtons.Add(AttachmentButton);
-		DesignerAttachmentSlotArts.Add(AttachmentArt);
+		DesignerStandardAttachmentSlotButtons.Add(AttachmentButton);
+		DesignerStandardAttachmentSlotArts.Add(AttachmentArt);
 		ApplyPersistentSlotFrame(AttachmentButton, ShopAttachmentSlotTexture.Get());
 		if (AttachmentArt)
 		{
@@ -1174,6 +1178,33 @@ void UReEchoInventoryShopWidget::BindDesignerLoadoutLayout()
 			}
 		}
 	}
+
+	DualAttachmentLayoutWidget = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("DesignerDualAttachmentLayout")));
+	DesignerDualAttachmentSlotButtons.Reset();
+	DesignerDualAttachmentSlotArts.Reset();
+	for (int32 Index = 0; Index < 5; ++Index)
+	{
+		UButton* AttachmentButton =
+		    Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlot%d"), Index)));
+		UImage* AttachmentArt =
+		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlotArt%d"), Index)));
+		DesignerDualAttachmentSlotButtons.Add(AttachmentButton);
+		DesignerDualAttachmentSlotArts.Add(AttachmentArt);
+		ApplyPersistentSlotFrame(AttachmentButton,
+		                         Index == 0 && ShopCoreAttachmentSlotTexture
+		                             ? ShopCoreAttachmentSlotTexture.Get()
+		                             : ShopAttachmentSlotTexture.Get());
+		if (AttachmentArt)
+		{
+			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(AttachmentArt->Slot))
+			{
+				ContentSlot->SetPadding(FMargin(0.0f));
+				ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+				ContentSlot->SetVerticalAlignment(VAlign_Fill);
+			}
+		}
+	}
+	RebuildAttachmentSlotMapping();
 
 	DesignerCardSlotButtons.Reset();
 	DesignerCardSlotArts.Reset();
@@ -1673,19 +1704,33 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 
 void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 {
-	// 按固定槽位顺序（Slots 已排序：核心在最左）填充 UI 左中右槽位，避免随装备插入顺序变化。
+	RebuildAttachmentSlotMapping();
+	// 双重武器槽将两个非核心类别分别展开为两个实际槽位；每个视觉槽只展示一件符文。
 	TArray<const FReEchoShopOffer*> DisplayedAttachmentParts;
 	DisplayedAttachmentParts.SetNumZeroed(DesignerAttachmentSlotButtons.Num());
-	for (int32 SlotIndex = 0;
-	     SlotIndex < CurrentPartShopView.Slots.Num() && SlotIndex < DesignerAttachmentSlotButtons.Num();
-	     ++SlotIndex)
+	for (int32 SlotIndex = 0; SlotIndex < DesignerAttachmentSlotButtons.Num(); ++SlotIndex)
 	{
-		const FName SlotTypeId = CurrentPartShopView.Slots[SlotIndex].SlotTypeId;
-		const FReEchoEquippedPartSnapshot* Equipped = CurrentPartShopView.EquippedParts.FindByPredicate(
-		    [&](const FReEchoEquippedPartSnapshot& E)
-		    {
-			    return E.SlotTypeId == SlotTypeId;
-		    });
+		if (!DesignerAttachmentSlotTypeIds.IsValidIndex(SlotIndex) ||
+		    !DesignerAttachmentSlotOccurrenceIndices.IsValidIndex(SlotIndex))
+		{
+			continue;
+		}
+		const FName SlotTypeId = DesignerAttachmentSlotTypeIds[SlotIndex];
+		const int32 TargetOccurrence = DesignerAttachmentSlotOccurrenceIndices[SlotIndex];
+		const FReEchoEquippedPartSnapshot* Equipped = nullptr;
+		int32 MatchingOccurrence = 0;
+		for (const FReEchoEquippedPartSnapshot& Candidate : CurrentPartShopView.EquippedParts)
+		{
+			if (Candidate.SlotTypeId != SlotTypeId)
+			{
+				continue;
+			}
+			if (MatchingOccurrence++ == TargetOccurrence)
+			{
+				Equipped = &Candidate;
+				break;
+			}
+		}
 		if (!Equipped)
 		{
 			continue;
@@ -1717,7 +1762,10 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 		UImage* AttachmentArt = DesignerAttachmentSlotArts[Index];
 		const bool bHasPart =
 		    DisplayedAttachmentParts.IsValidIndex(Index) && DisplayedAttachmentParts[Index] != nullptr;
-		ApplyPersistentSlotFrame(HoverButton, ShopAttachmentSlotTexture.Get());
+		ApplyPersistentSlotFrame(HoverButton,
+		                         bUsingDualAttachmentLayout && Index == 0 && ShopCoreAttachmentSlotTexture
+		                             ? ShopCoreAttachmentSlotTexture.Get()
+		                             : ShopAttachmentSlotTexture.Get());
 		if (AttachmentArt)
 		{
 			// Keep the slot frame in the Button style and layer only the equipped rune in its child art.
@@ -1763,6 +1811,114 @@ void UReEchoInventoryShopWidget::RebuildAttachmentHoverSlots()
 		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked);
 		DesignerAttachmentSlotButtons[2]->OnClicked.AddDynamic(
 		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked);
+	}
+	if (DesignerAttachmentSlotButtons.IsValidIndex(3) && DesignerAttachmentSlotButtons[3])
+	{
+		DesignerAttachmentSlotButtons[3]->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot3Clicked);
+		DesignerAttachmentSlotButtons[3]->OnClicked.AddDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot3Clicked);
+	}
+	if (DesignerAttachmentSlotButtons.IsValidIndex(4) && DesignerAttachmentSlotButtons[4])
+	{
+		DesignerAttachmentSlotButtons[4]->OnClicked.RemoveDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot4Clicked);
+		DesignerAttachmentSlotButtons[4]->OnClicked.AddDynamic(
+		    this, &UReEchoInventoryShopWidget::HandleAttachmentSlot4Clicked);
+	}
+}
+
+void UReEchoInventoryShopWidget::RebuildAttachmentSlotMapping()
+{
+	const bool bShouldUseDualLayout = CurrentPartShopView.Slots.ContainsByPredicate(
+	    [](const FReEchoWeaponSlotShopView& SlotView)
+	    {
+		    return !SlotView.bRequired && SlotView.Capacity > 1;
+	    });
+	bUsingDualAttachmentLayout = bShouldUseDualLayout && DesignerDualAttachmentSlotButtons.Num() == 5 &&
+	                             !DesignerDualAttachmentSlotButtons.ContainsByPredicate(
+	                                 [](const TObjectPtr<UButton>& Button)
+	                                 {
+		                                 return Button == nullptr;
+	                                 });
+
+	for (UButton* Button : DesignerStandardAttachmentSlotButtons)
+	{
+		if (Button)
+		{
+			Button->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::Collapsed
+			                                                       : ESlateVisibility::Visible);
+		}
+	}
+	if (DualAttachmentLayoutWidget)
+	{
+		DualAttachmentLayoutWidget->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::SelfHitTestInvisible
+		                                                                    : ESlateVisibility::Collapsed);
+	}
+	for (UButton* Button : DesignerDualAttachmentSlotButtons)
+	{
+		if (Button)
+		{
+			Button->SetVisibility(bUsingDualAttachmentLayout ? ESlateVisibility::Visible
+			                                                       : ESlateVisibility::Collapsed);
+		}
+	}
+
+	DesignerAttachmentSlotButtons = bUsingDualAttachmentLayout ? DesignerDualAttachmentSlotButtons
+	                                                           : DesignerStandardAttachmentSlotButtons;
+	DesignerAttachmentSlotArts = bUsingDualAttachmentLayout ? DesignerDualAttachmentSlotArts
+	                                                        : DesignerStandardAttachmentSlotArts;
+	DesignerAttachmentSlotTypeIds.Reset();
+	DesignerAttachmentSlotOccurrenceIndices.Reset();
+	if (!bUsingDualAttachmentLayout)
+	{
+		for (const FReEchoWeaponSlotShopView& SlotView : CurrentPartShopView.Slots)
+		{
+			if (DesignerAttachmentSlotTypeIds.Num() >= DesignerAttachmentSlotButtons.Num())
+			{
+				break;
+			}
+			DesignerAttachmentSlotTypeIds.Add(SlotView.SlotTypeId);
+			DesignerAttachmentSlotOccurrenceIndices.Add(0);
+		}
+		return;
+	}
+
+	const FReEchoWeaponSlotShopView* CoreSlot = CurrentPartShopView.Slots.FindByPredicate(
+	    [](const FReEchoWeaponSlotShopView& SlotView)
+	    {
+		    return SlotView.bRequired;
+	    });
+	if (!CoreSlot && !CurrentPartShopView.Slots.IsEmpty())
+	{
+		CoreSlot = &CurrentPartShopView.Slots[0];
+	}
+	if (CoreSlot)
+	{
+		DesignerAttachmentSlotTypeIds.Add(CoreSlot->SlotTypeId);
+		DesignerAttachmentSlotOccurrenceIndices.Add(0);
+	}
+
+	TArray<const FReEchoWeaponSlotShopView*> NonCoreSlots;
+	for (const FReEchoWeaponSlotShopView& SlotView : CurrentPartShopView.Slots)
+	{
+		if (&SlotView != CoreSlot)
+		{
+			NonCoreSlots.Add(&SlotView);
+		}
+	}
+	for (int32 Occurrence = 0; Occurrence < 2; ++Occurrence)
+	{
+		for (const FReEchoWeaponSlotShopView* SlotView : NonCoreSlots)
+		{
+			if (!SlotView || Occurrence >= SlotView->Capacity ||
+			    DesignerAttachmentSlotTypeIds.Num() >= DesignerAttachmentSlotButtons.Num())
+			{
+				continue;
+			}
+			DesignerAttachmentSlotTypeIds.Add(SlotView->SlotTypeId);
+			DesignerAttachmentSlotOccurrenceIndices.Add(Occurrence);
+		}
 	}
 }
 
@@ -1812,12 +1968,21 @@ void UReEchoInventoryShopWidget::HandleAttachmentSlot2Clicked()
 	HandleAttachmentSlotClicked(2);
 }
 
+void UReEchoInventoryShopWidget::HandleAttachmentSlot3Clicked()
+{
+	HandleAttachmentSlotClicked(3);
+}
+
+void UReEchoInventoryShopWidget::HandleAttachmentSlot4Clicked()
+{
+	HandleAttachmentSlotClicked(4);
+}
+
 FName UReEchoInventoryShopWidget::GetSlotTypeIdForIndex(int32 SlotIndex) const
 {
-	// UI 左中右槽位与 Slots 固定顺序一一对应（核心最左），点击打开背包时按同一映射取槽位类型，避免随装备插入顺序错位。
-	if (CurrentPartShopView.Slots.IsValidIndex(SlotIndex))
+	if (DesignerAttachmentSlotTypeIds.IsValidIndex(SlotIndex))
 	{
-		return CurrentPartShopView.Slots[SlotIndex].SlotTypeId;
+		return DesignerAttachmentSlotTypeIds[SlotIndex];
 	}
 	return NAME_None;
 }
