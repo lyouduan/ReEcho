@@ -82,7 +82,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
+- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先占用空槽，三槽均满时删除并复用 `SavedAtUtc` 最早的槽位。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -133,7 +133,7 @@ Arena 以 Blueprint 组件为权威：相机与玩家范围读取 `CameraClampBo
 
 Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、当前录制和存活敌人，保存失败不得退出。
 
-Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMGotoEncounter <1-based index>` 仅在存活玩家的活动 Encounter 中生效，清理当前敌人和回响后把 Run 索引设为目标前一关并复用正式 `BeginNextEncounter`，因此目标关的场景、刷怪、计时、录制和音乐都从标准入口启动且不经过结算 UI。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
+Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMWeapon <WeaponId>` 允许测试任意已启用生产武器：有活动 Run 时通过 WeaponRuntime 生成候选构筑、只保留兼容插件，实时初始化成功后才提交 `CurrentBuild`，失败恢复原构筑；该入口不修改商店武器所有权。`GMGotoEncounter <1-based index>` 仅在存活玩家的活动 Encounter 中生效，清理当前敌人和回响后把 Run 索引设为目标前一关并复用正式 `BeginNextEncounter`，因此目标关的场景、刷怪、计时、录制和音乐都从标准入口启动且不经过结算 UI。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
 
@@ -396,11 +396,11 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ## 运行时 CSV 松散文件与 Shipping 打包契约
 
-`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的 28 张运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
+`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的全部生产运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
 
 - **cook 只枚举被资产引用的文件**。`Content/Data/*.csv` 没有任何 `.uasset`/`.umap` 引用（已用全量二进制扫描确认，连已进包的 `characters.csv`/`weapons.csv` 也不被任何资产内嵌），因此 cook 不会把它们作为资产依赖暂存进包。
 - 历史打包中出现了"部分 csv 进包、部分不进"的偶发结果（22 进、6 缺），这是 cook 内部行为的非确定性副作用，**不能作为数据齐备的保证**；缺表会在启动期触发 `ReEcho.cpp` 的 `LowLevelFatalError`（`...: File could not be read`，退出码 3）。
-- **确定化投递**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 拷贝进最终包 `ReEcho/Content/Data/`（见其 `stage_runtime_csvs`）。该函数排除 `Engine` 目录下的 `Content`，只写入游戏模块目录，保证 manifest 列示的 28 张 csv 全部就位，与已进包的 22 张走同一松散文件机制。
+- **确定化投递与验证**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 全部拷贝进最终包 `ReEcho/Content/Data/`，排除 `Engine` 目录下的 `Content`，再按 `reecho_data_manifest.csv` 逐项验证生产表及 manifest 存在；缺失任一生产源文件、目标文件或游戏 `Content` 目录都会使打包失败。
 - 修改 csv 集合时：保持 `reecho_data_manifest.csv` 为真源；`package_windows.py` 不写死表名，按目录通配拷贝，因此新增/删除运行时 csv 无需改脚本。
 - 此契约仅影响打包投递，不改变 Development/PIE 既有的松散文件读取路径，也不改变 CSV schema、稳定 ID 或 `ReEcho.cpp` 的启动校验逻辑。
 # Plan73 元素表现装配

@@ -220,7 +220,7 @@ class SyncXlsxToCsvTests(unittest.TestCase):
 
     def test_enemy_shard_drop_contract_rejects_half_or_inverted_ranges(self) -> None:
         self.assert_invalid_workbook(
-            lambda wb: setattr(self.table_cell(wb, "tblEnemyShardDrops", 0, "EliteMin"), "value", 10),
+            lambda wb: setattr(self.table_cell(wb, "tblEnemyShardDrops", 0, "EliteMax"), "value", None),
             "EliteMin and EliteMax must both be blank or both configured",
         )
         self.assert_invalid_workbook(

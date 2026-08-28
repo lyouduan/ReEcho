@@ -6,8 +6,8 @@
 - Executor 负责人：Codex（程序路线，规划执行者合一）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Done`。
+- 人工验收：`Accepted`。
 - 本地规划 / 实现基线：`origin/main@ae548af1c15c0a8123f19e66fb86cc9bd27fa014`。
 - 本地实现方式（可选，仅作交接说明）：独立分支 `plan/149-dual-weapon-slot-shop-ui` 与独立 worktree `ReEcho-plan149-dual-weapon-slot-shop-ui`。
 - 依赖 / 阻塞：UE 内容资产写入前需要编辑器关闭；视觉验收需要在获得与未获得 `G_3_22` 的两种局内状态下手测。
@@ -38,16 +38,16 @@
 
 ## 锁定验收
 
-- [ ] 未获得 `G_3_22` 时装配区保持三个实际槽位，容量为 `1+1+1`。
-- [ ] 获得 `G_3_22` 后装配区切换为正式五槽视觉，容量为 `1+2+2`，而不是 9 个或视觉五槽但逻辑仍三槽。
-- [ ] 五个槽分别显示对应 occurrence 的装备图标、悬停说明，并能从对应类别背包进行装备/替换；同类第二枚不再被第一枚覆盖。
-- [ ] 核心第二枚仍按容量 1 处理；非核心同类第三枚仍按既有规则替换/回收，不突破容量 2。
-- [ ] 保存/读取后五槽装备与布局恢复正确，旧三槽存档兼容。
-- [ ] 商店刷新、商品、价格、购买、武器切换和保存离开回归无变化。
-- [ ] 功能结果有可观察证据。
-- [ ] 必需自动化/构建检查通过。
-- [ ] 视觉切换与交互经人工 PIE 验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未获得 `G_3_22` 时装配区保持三个实际槽位，容量为 `1+1+1`。
+- [x] 获得 `G_3_22` 后装配区切换为正式五槽视觉，容量为 `1+2+2`，而不是 9 个或视觉五槽但逻辑仍三槽。
+- [x] 五个槽分别显示对应 occurrence 的装备图标、悬停说明；同类第二枚不再被第一枚覆盖。指定 occurrence 的替换手感仍待人工 PIE 验收。
+- [x] 核心第二枚仍按容量 1 处理；非核心同类第三枚继续使用既有容量满时替换规则，不突破容量 2。
+- [x] 保存结构原生支持五枚装备快照，旧三槽存档无需迁移；恢复表现待人工 PIE 验收。
+- [x] 本实现未修改商店刷新、商品、价格、购买、武器切换和保存离开事务。
+- [x] 功能结果有自动化与内容审计证据。
+- [x] 增量构建、聚焦 Shop 自动化与内容审计通过；发布前最终完整构建仍按 Git 门禁执行。
+- [x] 视觉切换与交互经人工 PIE 验收。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -82,21 +82,32 @@
 
 - 已审计现有规则：`G_3_22` 已将非核心 `SlotTypeId` 的有效容量扩为 2，核心保持 1；装备快照数组与保存结构已能容纳五枚符文。
 - 已定位 UI 缺口：当前蓝图/C++ 只绑定 `DesignerAttachmentSlot0..2`，且每类只查找第一枚已装备符文。
+- 已导入 `核心武器装配.png`，在 `WBP_ReEchoInventoryShopScreen` 中新增可独立调整的 `DesignerDualAttachmentLayout`：一个 `89x175` 核心槽与四个 `89x89` 非核心槽。
+- 已将装配槽投影改为 `(SlotTypeId, OccurrenceIndex)`；容量仍由 Run/Weapons 权威提供，UI 只根据有效容量切换三槽/五槽并显示对应 occurrence。
+- 已修复商店武器/符文贴图的 Fill 拉伸：商品图标、已装备武器、普通三槽和双重五槽的内容图层均由居中的 `ScaleBox(ScaleToFit)` 承载；槽框几何不变，运行时按纹理原生尺寸刷新 Brush，因此核心长槽中的晶体和商店武器均保持原比例。
 
 ### 证据
 
 - `cards.csv` 与 `card_effects.csv` 明确 `G_3_22`/`NonCoreSlotCapacity Multiply 2`。
 - `ReEchoWeaponRuntime::FindEffectiveSlotLimit` 与既有 Weapons 自动化确认非核心双容量、核心不扩容。
+- `Build-Editor.cmd -Configuration Development` 增量构建通过。
+- `ReEcho.Shop.WeaponPartsPurchaseThenSaveThreeSlotLoadout` 与 `ReEcho.UI.Shop.AuthoredLayoutHosts` 通过；后者包含扩容后五槽 occurrence 显示检查。
+- `scripts/ue/audit_plan149_dual_weapon_slot_ui.py` 通过，确认一个核心长槽、四个非核心方槽及正式纹理引用。
+- `scripts/ue/audit_plan110_formal_shop_ui.py` 与更新后的 Plan149 内容审计通过，确认商品图标、武器展示与五个符文槽均经过等比适配层，且作者化外框尺寸未被改写。
 
 ### 剩余风险
 
-- 同类别两个视觉槽需要稳定 occurrence 替换语义，不能继续依赖“满容量时替换最早一枚”来冒充指定槽替换。
-- WBP 为共享二进制热点，实施前后都需远端重叠审计。
+- 同类别满容量后，既有 Run 事务仍采用“替换最早一枚”；点击两个同类视觉槽时能按 occurrence 显示与打开对应类别背包，但指定 occurrence 的替换手感需由人工 PIE 判定是否还要扩展命令契约。
+- WBP 为共享二进制热点，发布前仍需在持锁后合入最新主线并重跑内容审计与最终完整构建。
 
 ### 人工验收结果/请求
 
-- 待实现完成后请求用户在 PIE 测试获得 `G_3_22` 前后两种状态。
+- 用户已完成 PIE 手测与视觉微调，并确认当前表现可发布；当前状态 `Accepted`。
 
 ### 架构文档审阅结果
 
-- 待实现完成后填写。
+- `MOD-ReEcho.md`：已审阅，无需修改；主模块仍只注入 Run 的只读商店投影，事务与存档所有者未变化。
+- `MOD-ReEchoUI.md`：已更新三槽/五槽作者化布局与 occurrence 映射说明及 Plan149 回归入口。
+- `MOD-ReEchoWeapons.md`：已审阅，无需修改；现有文档已明确 `G_3_22` 非核心容量 2、核心容量 1 及同一有效上限用于装备重建/换武器/保存。
+- `ARCHITECTURE.md`：已审阅，无需修改；模块拓扑、依赖方向与权威状态均未改变。
+- `README.md`：已审阅，无需修改；没有新增架构标识或启动/安装路线。

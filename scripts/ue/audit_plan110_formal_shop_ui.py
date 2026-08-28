@@ -108,14 +108,34 @@ for index in range(3):
                     f"{prefix}{suffix}{index} must keep overlay-relative alignment",
                 )
             else:
-                require(child.get_parent() == card, f"{prefix}{suffix}{index} must remain inside its card Canvas")
-                require(
-                    isinstance(child.get_editor_property("slot"), unreal.CanvasPanelSlot),
-                    f"{prefix}{suffix}{index} is not freely positionable in Designer",
-                )
+                if suffix == "Icon" and prefix == "DesignerPartOffer":
+                    scale = widget_map.get(f"DesignerPartOfferIconScale{index}")
+                    require(isinstance(scale, unreal.ScaleBox), f"Missing aspect-fit offer icon host {index}")
+                    require(scale.get_parent() == card, f"Offer icon host {index} is not freely positionable")
+                    require(
+                        isinstance(scale.get_editor_property("slot"), unreal.CanvasPanelSlot),
+                        f"Offer icon host {index} is not a Canvas child",
+                    )
+                    require(child.get_parent() == scale, f"Offer icon {index} bypasses aspect fitting")
+                    require(
+                        scale.get_editor_property("stretch") == unreal.Stretch.SCALE_TO_FIT,
+                        f"Offer icon {index} does not preserve texture aspect ratio",
+                    )
+                else:
+                    require(child.get_parent() == card, f"{prefix}{suffix}{index} must remain inside its card Canvas")
+                    require(
+                        isinstance(child.get_editor_property("slot"), unreal.CanvasPanelSlot),
+                        f"{prefix}{suffix}{index} is not freely positionable in Designer",
+                    )
     attachment = widget_map.get(f"DesignerAttachmentSlot{index}")
+    attachment_art = widget_map.get(f"DesignerAttachmentSlotArt{index}")
     require(isinstance(attachment, unreal.Button), f"Missing attachment slot {index}")
     require(attachment.get_parent() == loadout, f"Attachment slot {index} is not designer-positionable")
+    require(isinstance(attachment_art, unreal.Image), f"Missing attachment slot art {index}")
+    require(
+        attachment_art.get_editor_property("visibility") == unreal.SlateVisibility.HIDDEN,
+        f"Empty attachment slot art {index} must not render as a white placeholder",
+    )
 
 for index in range(12):
     card_slot = widget_map.get(f"DesignerCardSlot{index}")
@@ -128,6 +148,16 @@ for index in range(12):
 weapon_button = widget_map.get("DesignerWeaponInteractionButton")
 require(isinstance(weapon_button, unreal.Button), "Missing authored weapon interaction button")
 require(weapon_button.get_parent() == loadout, "Weapon interaction geometry must remain designer-authored")
+weapon_scale = widget_map.get("DesignerWeaponInteractionScale")
+weapon_art = widget_map.get("DesignerWeaponInteractionArt")
+require(isinstance(weapon_scale, unreal.ScaleBox), "Missing equipped-weapon aspect-fit host")
+require(weapon_scale.get_parent() == weapon_button, "Equipped weapon scale must stay inside its interaction button")
+require(isinstance(weapon_art, unreal.Image), "Missing equipped weapon art")
+require(weapon_art.get_parent() == weapon_scale, "Equipped weapon art bypasses aspect fitting")
+require(
+    weapon_scale.get_editor_property("stretch") == unreal.Stretch.SCALE_TO_FIT,
+    "Equipped weapon art does not preserve texture aspect ratio",
+)
 clock = widget_map.get("DesignerShopClock")
 require(isinstance(clock, unreal.Image), "Missing authored shop-clock hover target")
 require(clock.get_parent() == loadout, "Shop-clock geometry must remain designer-authored")
