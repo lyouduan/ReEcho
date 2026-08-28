@@ -6,8 +6,8 @@
 - Executor 负责人：Codex（程序路线，规划执行者合一）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Done`。
+- 人工验收：`Accepted`。
 - 本地规划 / 实现基线：`origin/main@ae548af1c15c0a8123f19e66fb86cc9bd27fa014`。
 - 本地实现方式（可选，仅作交接说明）：独立分支 `plan/149-dual-weapon-slot-shop-ui` 与独立 worktree `ReEcho-plan149-dual-weapon-slot-shop-ui`。
 - 依赖 / 阻塞：UE 内容资产写入前需要编辑器关闭；视觉验收需要在获得与未获得 `G_3_22` 的两种局内状态下手测。
@@ -46,8 +46,8 @@
 - [x] 本实现未修改商店刷新、商品、价格、购买、武器切换和保存离开事务。
 - [x] 功能结果有自动化与内容审计证据。
 - [x] 增量构建、聚焦 Shop 自动化与内容审计通过；发布前最终完整构建仍按 Git 门禁执行。
-- [ ] 视觉切换与交互经人工 PIE 验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 视觉切换与交互经人工 PIE 验收。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -84,6 +84,7 @@
 - 已定位 UI 缺口：当前蓝图/C++ 只绑定 `DesignerAttachmentSlot0..2`，且每类只查找第一枚已装备符文。
 - 已导入 `核心武器装配.png`，在 `WBP_ReEchoInventoryShopScreen` 中新增可独立调整的 `DesignerDualAttachmentLayout`：一个 `89x175` 核心槽与四个 `89x89` 非核心槽。
 - 已将装配槽投影改为 `(SlotTypeId, OccurrenceIndex)`；容量仍由 Run/Weapons 权威提供，UI 只根据有效容量切换三槽/五槽并显示对应 occurrence。
+- 已修复商店武器/符文贴图的 Fill 拉伸：商品图标、已装备武器、普通三槽和双重五槽的内容图层均由居中的 `ScaleBox(ScaleToFit)` 承载；槽框几何不变，运行时按纹理原生尺寸刷新 Brush，因此核心长槽中的晶体和商店武器均保持原比例。
 
 ### 证据
 
@@ -92,6 +93,7 @@
 - `Build-Editor.cmd -Configuration Development` 增量构建通过。
 - `ReEcho.Shop.WeaponPartsPurchaseThenSaveThreeSlotLoadout` 与 `ReEcho.UI.Shop.AuthoredLayoutHosts` 通过；后者包含扩容后五槽 occurrence 显示检查。
 - `scripts/ue/audit_plan149_dual_weapon_slot_ui.py` 通过，确认一个核心长槽、四个非核心方槽及正式纹理引用。
+- `scripts/ue/audit_plan110_formal_shop_ui.py` 与更新后的 Plan149 内容审计通过，确认商品图标、武器展示与五个符文槽均经过等比适配层，且作者化外框尺寸未被改写。
 
 ### 剩余风险
 
@@ -100,7 +102,7 @@
 
 ### 人工验收结果/请求
 
-- 已请求用户在 PIE 测试获得 `G_3_22` 前后两种状态、五枚符文显示/悬停/替换及保存恢复；当前状态 `PendingBeforeClose`。
+- 用户已完成 PIE 手测与视觉微调，并确认当前表现可发布；当前状态 `Accepted`。
 
 ### 架构文档审阅结果
 

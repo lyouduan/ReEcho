@@ -149,24 +149,40 @@ for index, rect in enumerate(slot_rects):
     texture = core_texture if index == 0 else square_texture
     apply_frame(button, texture, rect[2], rect[3])
 
+    scale = add_widget(
+        toolset,
+        blueprint,
+        unreal.ScaleBox,
+        f"DesignerDualAttachmentSlotScale{index}",
+        button,
+    )
+    scale.set_editor_property("stretch", unreal.Stretch.SCALE_TO_FIT)
+    scale.set_editor_property("stretch_direction", unreal.StretchDirection.BOTH)
+    scale_slot = scale.get_editor_property("slot")
+    if isinstance(scale_slot, unreal.ButtonSlot):
+        scale_slot.set_editor_property("padding", unreal.Margin(0.0, 0.0, 0.0, 0.0))
+        scale_slot.set_editor_property(
+            "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_FILL
+        )
+        scale_slot.set_editor_property(
+            "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_FILL
+        )
+
     art = add_widget(
         toolset,
         blueprint,
         unreal.Image,
         f"DesignerDualAttachmentSlotArt{index}",
-        button,
+        scale,
     )
     art.set_editor_property("visibility", unreal.SlateVisibility.HIDDEN)
     content_slot = art.get_editor_property("slot")
-    if isinstance(content_slot, unreal.ButtonSlot):
+    if isinstance(content_slot, unreal.ScaleBoxSlot):
         content_slot.set_editor_property(
-            "padding", unreal.Margin(0.0, 0.0, 0.0, 0.0)
+            "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER
         )
         content_slot.set_editor_property(
-            "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_FILL
-        )
-        content_slot.set_editor_property(
-            "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_FILL
+            "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER
         )
 
 # The Designer previews the acquired-card state; runtime restores the standard

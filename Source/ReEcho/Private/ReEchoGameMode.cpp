@@ -1470,9 +1470,34 @@ void AReEchoGameMode::HandleNewGameRequested()
 	}
 	if (!RunSubsystem->SelectFirstEmptySaveSlot())
 	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game rejected: all save slots are occupied."));
-		return;
+		const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
+		const FReEchoSaveSlotSummary* OldestSaveSlot = nullptr;
+		for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
+		{
+			if (!SaveSlot.bOccupied)
+			{
+				continue;
+			}
+
+			if (!OldestSaveSlot || SaveSlot.SavedAtUtc < OldestSaveSlot->SavedAtUtc)
+			{
+				OldestSaveSlot = &SaveSlot;
+			}
+		}
+
+		if (!OldestSaveSlot || !RunSubsystem->SelectSaveSlot(OldestSaveSlot->SlotIndex))
+		{
+			PostUiEvent(FReEchoAudioEvents::UiError);
+			UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no replaceable save slot found."));
+			return;
+		}
+
+		UE_LOG(LogTemp,
+		       Display,
+		       TEXT("[ReEchoStartFlow] Replacing oldest save slot. Slot=%d SavedAtUtc=%s"),
+		       OldestSaveSlot->SlotIndex + 1,
+		       *OldestSaveSlot->SavedAtUtc.ToIso8601());
+		RunSubsystem->DeleteSavedRun();
 	}
 	ShowLoadoutSelection();
 }

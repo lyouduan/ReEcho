@@ -257,14 +257,29 @@ def add_offer_card(index, is_pack, x, y):
         (0.0, 0.0, 161.0, 296.0),
         0,
     )
+    icon_scale = add_widget(
+        toolset, blueprint, unreal.ScaleBox, f"{prefix}IconScale{index}", card
+    )
+    icon_scale.set_editor_property("stretch", unreal.Stretch.SCALE_TO_FIT)
+    icon_scale.set_editor_property(
+        "stretch_direction", unreal.StretchDirection.BOTH
+    )
+    set_canvas_layout(icon_scale, 27.0, 13.0, 108.0, 108.0, 2)
     icon = add_widget(
-        toolset, blueprint, unreal.Image, f"{prefix}Icon{index}", card
+        toolset, blueprint, unreal.Image, f"{prefix}Icon{index}", icon_scale
     )
     if is_pack:
         icon.set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
     else:
         set_image(icon, textures["WeaponLoadoutSlot"])
-    set_canvas_layout(icon, 27.0, 13.0, 108.0, 108.0, 2)
+    icon_slot = icon.get_editor_property("slot")
+    if isinstance(icon_slot, unreal.ScaleBoxSlot):
+        icon_slot.set_editor_property(
+            "horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER
+        )
+        icon_slot.set_editor_property(
+            "vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER
+        )
     main_text = add_text(
         toolset,
         blueprint,

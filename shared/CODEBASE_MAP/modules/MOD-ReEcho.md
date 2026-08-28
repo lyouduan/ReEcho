@@ -79,7 +79,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
+- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先占用空槽，三槽均满时删除并复用 `SavedAtUtc` 最早的槽位。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 

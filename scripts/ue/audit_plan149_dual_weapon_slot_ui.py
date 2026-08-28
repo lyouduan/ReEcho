@@ -38,6 +38,7 @@ require(
 
 for index in range(5):
     button = widgets.get(f"DesignerDualAttachmentSlot{index}")
+    scale = widgets.get(f"DesignerDualAttachmentSlotScale{index}")
     art = widgets.get(f"DesignerDualAttachmentSlotArt{index}")
     require(isinstance(button, unreal.Button), f"Missing dual slot {index}")
     require(button.get_parent() == layout, f"Dual slot {index} is not independently movable")
@@ -45,8 +46,18 @@ for index in range(5):
         isinstance(button.get_editor_property("slot"), unreal.CanvasPanelSlot),
         f"Dual slot {index} is not a Canvas child",
     )
+    require(isinstance(scale, unreal.ScaleBox), f"Missing dual slot scale {index}")
+    require(scale.get_parent() == button, f"Dual slot scale {index} is not inside its frame")
+    require(
+        scale.get_editor_property("stretch") == unreal.Stretch.SCALE_TO_FIT,
+        f"Dual slot scale {index} does not preserve texture aspect ratio",
+    )
     require(isinstance(art, unreal.Image), f"Missing dual slot art {index}")
-    require(art.get_parent() == button, f"Dual slot art {index} is not layered in its frame")
+    require(art.get_parent() == scale, f"Dual slot art {index} is not aspect-fitted in its frame")
+    require(
+        art.get_editor_property("visibility") == unreal.SlateVisibility.HIDDEN,
+        f"Empty dual slot art {index} must not render as a white placeholder",
+    )
 
 core_button = widgets["DesignerDualAttachmentSlot0"]
 require(
