@@ -15,8 +15,10 @@
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraMeshRendererProperties.h"
+#include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "PaperFlipbook.h"
 #include "Kismet/GameplayStatics.h"
 #include "Math/RotationMatrix.h"
 #include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
@@ -29,12 +31,25 @@
 #include "TimerManager.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
+#if WITH_EDITOR
+#include "Materials/MaterialInstanceConstant.h"
+#include "NiagaraDataInterfaceColorCurve.h"
+#include "NiagaraGraph.h"
+#include "NiagaraNodeFunctionCall.h"
+#include "NiagaraNodeOutput.h"
+#include "NiagaraScript.h"
+#include "NiagaraScriptSource.h"
+#include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
+#include "UObject/UObjectHash.h"
+#endif
+
 namespace ReEchoCombatVfx
 {
 constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 1000;
 constexpr float DebugElementReactionPreviewSeconds = 2.0f;
 constexpr int32 EchoAuraSortOffset = -1;
+constexpr float EchoConnectionBoundsPaddingCm = 200.0f;
 const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
 const FName FoxDirectionSpriteRotationParameter(TEXT("User.DirectionSpriteRotationDegrees"));
 constexpr float RabbitProjectileGlowDiameterScale = 1.5f;
@@ -331,6 +346,44 @@ void UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(const FVector& 
 	OutEndParameter = EndWorld - StartWorld;
 }
 
+bool UReEchoCombatVfxComponent::TryResolveFlipbookCenter(AActor* Target, FVector& OutCenterWorld)
+{
+	UReEcho2DAnimationComponent* Animation =
+	    Target ? Target->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+	const UPaperFlipbook* Flipbook = Animation ? Animation->GetFlipbook() : nullptr;
+	if (!Animation || !Flipbook)
+	{
+		return false;
+	}
+	OutCenterWorld = Animation->GetComponentTransform().TransformPosition(Flipbook->GetRenderBounds().Origin);
+	return true;
+}
+
+bool UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner)
+{
+	return Event.Target == Owner && Event.AppliedDamage > 0.0f &&
+	       (!Event.bFatal || Event.DamageSource == EReEchoDamageSource::Path);
+}
+
+FVector UReEchoCombatVfxComponent::ResolveBossHurtEffectLocation(const FVector& HurtRootWorld,
+                                                                 const FVector& FlipbookCenterWorld)
+{
+	FVector Result = HurtRootWorld;
+	Result.Z = FMath::Lerp(HurtRootWorld.Z, FlipbookCenterWorld.Z, 0.5f);
+	return Result;
+}
+
+FBox UReEchoCombatVfxComponent::ResolveConnectionLinkLocalBounds(const FTransform& EffectTransform,
+                                                                 const FVector& StartWorld,
+                                                                 const FVector& EndWorld,
+                                                                 const float PaddingCm)
+{
+	FBox LocalBounds(EForceInit::ForceInit);
+	LocalBounds += EffectTransform.InverseTransformPosition(StartWorld);
+	LocalBounds += EffectTransform.InverseTransformPosition(EndWorld);
+	return LocalBounds.ExpandBy(FMath::Max(0.0f, PaddingCm));
+}
+
 float UReEchoCombatVfxComponent::ResolveConductPropagationDelaySeconds(const FName WeaponId)
 {
 	if (WeaponId.IsNone())
@@ -367,7 +420,9 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSyst
 	}
 	System->Modify();
 	const FNiagaraVariable GroundNormalParameter(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.GroundNormal"));
+	const FNiagaraVariable GroundTangentParameter(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.GroundTangent"));
 	System->GetExposedParameters().SetParameterValue(FVector3f::UpVector, GroundNormalParameter, true);
+	System->GetExposedParameters().SetParameterValue(FVector3f::ForwardVector, GroundTangentParameter, true);
 	bool bModifiedSpriteRenderer = false;
 	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 	{
@@ -392,12 +447,22 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSyst
 			}
 			Sprite->Modify();
 			Sprite->FacingMode = ENiagaraSpriteFacingMode::CustomFacingVector;
+			Sprite->Alignment = ENiagaraSpriteAlignment::CustomAlignment;
 			Sprite->SpriteFacingBinding.SetValue(TEXT("User.GroundNormal"), VersionedEmitter, Sprite->SourceMode);
+			Sprite->SpriteAlignmentBinding.SetValue(TEXT("User.GroundTangent"), VersionedEmitter, Sprite->SourceMode);
 			if (!Sprite->SpriteFacingBinding.DoesBindingExistOnSource())
 			{
 				UE_LOG(LogReEcho,
 				       Error,
 				       TEXT("[VFX] User.GroundNormal is not a valid renderer source for emitter '%s'"),
+				       *EmitterHandle.GetName().ToString());
+				return false;
+			}
+			if (!Sprite->SpriteAlignmentBinding.DoesBindingExistOnSource())
+			{
+				UE_LOG(LogReEcho,
+				       Error,
+				       TEXT("[VFX] User.GroundTangent is not a valid renderer source for emitter '%s'"),
 				       *EmitterHandle.GetName().ToString());
 				return false;
 			}
@@ -411,6 +476,333 @@ bool UReEchoCombatVfxComponent::SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSyst
 		System->MarkPackageDirty();
 	}
 	return bModifiedSpriteRenderer;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetEchoBornRendererMaterials(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	static const TMap<FString, FString> MaterialReplacements = {
+	    {TEXT("/Game/VFX/Monster/Goat/MI/BaseVFX003_Inst15.BaseVFX003_Inst15"),
+	     TEXT("/Game/VFX/Echo/MI/MI_Echo_Born_Inst15.MI_Echo_Born_Inst15")},
+	    {TEXT("/Game/VFX/Monster/Goat/MI/BaseVFX003_Inst21.BaseVFX003_Inst21"),
+	     TEXT("/Game/VFX/Echo/MI/MI_Echo_Born_Inst21.MI_Echo_Born_Inst21")},
+	    {TEXT("/Game/VFX/Monster/Goat/MI/BaseVFX003_Inst22.BaseVFX003_Inst22"),
+	     TEXT("/Game/VFX/Echo/MI/MI_Echo_Born_Inst22.MI_Echo_Born_Inst22")},
+	    {TEXT("/Game/VFX/Monster/Goat/MI/BaseVFX003_Inst23.BaseVFX003_Inst23"),
+	     TEXT("/Game/VFX/Echo/MI/MI_Echo_Born_Inst23.MI_Echo_Born_Inst23")},
+	};
+	auto ResolveReplacement = [](UMaterialInterface* Material) -> UMaterialInterface*
+	{
+		if (!Material)
+		{
+			return nullptr;
+		}
+		if (Material->GetPathName().StartsWith(TEXT("/Game/VFX/Echo/MI/MI_Echo_Born_")))
+		{
+			return Material;
+		}
+		const FString* ReplacementPath = MaterialReplacements.Find(Material->GetPathName());
+		return ReplacementPath ? LoadObject<UMaterialInterface>(nullptr, **ReplacementPath) : nullptr;
+	};
+	bool bModified = false;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		if (!EmitterData || !EmitterBase)
+		{
+			continue;
+		}
+		for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			if (UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer))
+			{
+				if (UMaterialInterface* Replacement = ResolveReplacement(Sprite->Material))
+				{
+					EmitterBase->Modify();
+					Sprite->Modify();
+					Sprite->Material = Replacement;
+					Sprite->PostEditChange();
+					bModified = true;
+				}
+				continue;
+			}
+			if (UNiagaraRibbonRendererProperties* Ribbon = Cast<UNiagaraRibbonRendererProperties>(Renderer))
+			{
+				if (UMaterialInterface* Replacement = ResolveReplacement(Ribbon->Material))
+				{
+					EmitterBase->Modify();
+					Ribbon->Modify();
+					Ribbon->Material = Replacement;
+					Ribbon->PostEditChange();
+					bModified = true;
+				}
+				continue;
+			}
+			UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer);
+			if (!Mesh)
+			{
+				continue;
+			}
+			bool bMeshModified = false;
+			for (FNiagaraMeshMaterialOverride& Override : Mesh->OverrideMaterials)
+			{
+				if (UMaterialInterface* Replacement = ResolveReplacement(Override.ExplicitMat))
+				{
+					Override.ExplicitMat = Replacement;
+					bMeshModified = true;
+				}
+			}
+			for (FNiagaraMeshMICOverride& Override : Mesh->MICOverrideMaterials)
+			{
+				if (UMaterialInterface* Replacement = ResolveReplacement(Override.ReplacementMaterial))
+				{
+					Override.ReplacementMaterial = CastChecked<UMaterialInstanceConstant>(Replacement);
+					bMeshModified = true;
+				}
+			}
+			if (bMeshModified)
+			{
+				EmitterBase->Modify();
+				Mesh->Modify();
+				Mesh->PostEditChange();
+				bModified = true;
+			}
+		}
+	}
+	if (bModified)
+	{
+		System->Modify();
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return bModified;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::CompileNiagaraSystemAndWait(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	System->RequestCompile(true);
+	System->WaitForCompilationComplete(true, false);
+	return !System->HasOutstandingCompilationRequests(true);
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetEchoBornParticleColors(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	// Preserve the selected ice-blue hue while allowing HDR values to make the short-lived circle and particles read.
+	constexpr float IceRed = 0.75f;
+	constexpr float IceGreen = 1.17f;
+	constexpr float IceBlue = 1.50f;
+	auto RecolorCurve = [](FRichCurve& Curve,
+	                       const FRichCurve& Red,
+	                       const FRichCurve& Green,
+	                       const FRichCurve& Blue,
+	                       const float ChannelScale)
+	{
+		for (auto Iterator = Curve.GetKeyHandleIterator(); Iterator; ++Iterator)
+		{
+			const FKeyHandle Handle = *Iterator;
+			const float Time = Curve.GetKeyTime(Handle);
+			const float Intensity = FMath::Max3(Red.Eval(Time), Green.Eval(Time), Blue.Eval(Time));
+			Curve.SetKeyValue(Handle, Intensity * ChannelScale);
+		}
+	};
+
+	bool bModified = false;
+	TArray<UObject*> NestedObjects;
+	GetObjectsWithOuter(System, NestedObjects, EGetObjectsFlags::IncludeNestedObjects);
+	for (UObject* Object : NestedObjects)
+	{
+		UNiagaraDataInterfaceColorCurve* ColorCurve = Cast<UNiagaraDataInterfaceColorCurve>(Object);
+		if (!ColorCurve)
+		{
+			continue;
+		}
+		ColorCurve->Modify();
+		const FRichCurve OriginalRed = ColorCurve->RedCurve;
+		const FRichCurve OriginalGreen = ColorCurve->GreenCurve;
+		const FRichCurve OriginalBlue = ColorCurve->BlueCurve;
+		RecolorCurve(ColorCurve->RedCurve, OriginalRed, OriginalGreen, OriginalBlue, IceRed);
+		RecolorCurve(ColorCurve->GreenCurve, OriginalRed, OriginalGreen, OriginalBlue, IceGreen);
+		RecolorCurve(ColorCurve->BlueCurve, OriginalRed, OriginalGreen, OriginalBlue, IceBlue);
+		ColorCurve->UpdateTimeRanges();
+		ColorCurve->PostEditChange();
+		bModified = true;
+	}
+
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			continue;
+		}
+		TArray<UNiagaraScript*> Scripts;
+		EmitterData->GetScripts(Scripts, false, false);
+		for (UNiagaraScript* Script : Scripts)
+		{
+			if (!Script)
+			{
+				continue;
+			}
+			for (const FNiagaraVariableWithOffset& Parameter :
+			     Script->RapidIterationParameters.ReadParameterVariables())
+			{
+				if (Parameter.GetType() != FNiagaraTypeDefinition::GetColorDef() ||
+				    !Parameter.GetName().ToString().Contains(TEXT("Color")))
+				{
+					continue;
+				}
+				const FLinearColor Current =
+				    Script->RapidIterationParameters.GetParameterValue<FLinearColor>(Parameter);
+				const float Intensity = FMath::Max3(Current.R, Current.G, Current.B);
+				Script->Modify();
+				Script->RapidIterationParameters.SetParameterValue(
+				    FLinearColor(Intensity * IceRed, Intensity * IceGreen, Intensity * IceBlue, Current.A), Parameter);
+				bModified = true;
+			}
+		}
+	}
+	if (bModified)
+	{
+		System->Modify();
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return bModified;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::SetEchoBornMeshHeightScale(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	bool bModified = false;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		if (!EmitterData)
+		{
+			continue;
+		}
+		TArray<UNiagaraScript*> Scripts;
+		EmitterData->GetScripts(Scripts, false, false);
+		for (UNiagaraScript* Script : Scripts)
+		{
+			if (!Script)
+			{
+				continue;
+			}
+			for (const FNiagaraVariableWithOffset& Parameter :
+			     Script->RapidIterationParameters.ReadParameterVariables())
+			{
+				if (Parameter.GetType() != FNiagaraTypeDefinition::GetVec3Def() ||
+				    !Parameter.GetName().ToString().EndsWith(TEXT("InitializeParticle.Mesh Scale")))
+				{
+					continue;
+				}
+				const FVector3f Current = Script->RapidIterationParameters.GetParameterValue<FVector3f>(Parameter);
+				Script->Modify();
+				Script->RapidIterationParameters.SetParameterValue(FVector3f(Current.X, Current.Y, 0.1f), Parameter);
+				bModified = true;
+			}
+		}
+	}
+	if (bModified)
+	{
+		System->Modify();
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return bModified;
+#else
+	return false;
+#endif
+}
+
+bool UReEchoCombatVfxComponent::RestoreEchoBornSpriteFacing(UNiagaraSystem* System, UNiagaraSystem* SourceSystem)
+{
+#if WITH_EDITOR
+	if (!System || !SourceSystem || System->GetEmitterHandles().Num() != SourceSystem->GetEmitterHandles().Num())
+	{
+		return false;
+	}
+	bool bModified = false;
+	for (int32 EmitterIndex = 0; EmitterIndex < System->GetEmitterHandles().Num(); ++EmitterIndex)
+	{
+		FNiagaraEmitterHandle& DestinationHandle = System->GetEmitterHandles()[EmitterIndex];
+		const FNiagaraEmitterHandle& SourceHandle = SourceSystem->GetEmitterHandles()[EmitterIndex];
+		FVersionedNiagaraEmitterData* DestinationData = DestinationHandle.GetEmitterData();
+		const FVersionedNiagaraEmitterData* SourceData = SourceHandle.GetEmitterData();
+		UNiagaraEmitterBase* DestinationBase = DestinationHandle.GetEmitterBase();
+		if (!DestinationData || !SourceData || !DestinationBase)
+		{
+			return false;
+		}
+		const TArray<UNiagaraRendererProperties*>& DestinationRenderers = DestinationData->GetRenderers();
+		const TArray<UNiagaraRendererProperties*>& SourceRenderers = SourceData->GetRenderers();
+		if (DestinationRenderers.Num() != SourceRenderers.Num())
+		{
+			return false;
+		}
+		for (int32 RendererIndex = 0; RendererIndex < DestinationRenderers.Num(); ++RendererIndex)
+		{
+			UNiagaraSpriteRendererProperties* DestinationSprite =
+			    Cast<UNiagaraSpriteRendererProperties>(DestinationRenderers[RendererIndex]);
+			const UNiagaraSpriteRendererProperties* SourceSprite =
+			    Cast<UNiagaraSpriteRendererProperties>(SourceRenderers[RendererIndex]);
+			if (!DestinationSprite && !SourceSprite)
+			{
+				continue;
+			}
+			if (!DestinationSprite || !SourceSprite)
+			{
+				return false;
+			}
+			DestinationBase->Modify();
+			DestinationSprite->Modify();
+			DestinationSprite->FacingMode = SourceSprite->FacingMode;
+			DestinationSprite->Alignment = SourceSprite->Alignment;
+			DestinationSprite->SpriteFacingBinding = SourceSprite->SpriteFacingBinding;
+			DestinationSprite->SpriteAlignmentBinding = SourceSprite->SpriteAlignmentBinding;
+			DestinationSprite->PostEditChange();
+			bModified = true;
+		}
+	}
+	if (bModified)
+	{
+		System->Modify();
+		System->RequestCompile(true);
+		System->MarkPackageDirty();
+	}
+	return bModified;
 #else
 	return false;
 #endif
@@ -550,6 +942,14 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
                                               FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!EchoConnectionEffects.IsEmpty())
+	{
+		const IReEchoCombatTarget* OwnerCombatTarget = Cast<IReEchoCombatTarget>(GetOwner());
+		if (!OwnerCombatTarget || !OwnerCombatTarget->IsCombatTargetAlive())
+		{
+			ClearEchoConnectionLinks();
+		}
+	}
 	if (BossActiveEffectRemainingSeconds > 0.0f)
 	{
 		BossActiveEffectRemainingSeconds = FMath::Max(0.0f, BossActiveEffectRemainingSeconds - DeltaTime);
@@ -572,6 +972,159 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
 		}
 		Effect->SetDesiredAge(Playback.RemainingSeconds);
 	}
+	for (auto It = EchoConnectionEffects.CreateIterator(); It; ++It)
+	{
+		AActor* EchoActor = It.Key();
+		UNiagaraComponent* Effect = It.Value();
+		const IReEchoCombatTarget* EchoCombatTarget =
+		    IsValid(EchoActor) ? Cast<IReEchoCombatTarget>(EchoActor) : nullptr;
+		if (!EchoCombatTarget || !EchoCombatTarget->IsCombatTargetAlive() || !IsValid(Effect))
+		{
+			StopNiagaraEffect(Effect);
+			It.RemoveCurrent();
+			continue;
+		}
+		UpdateEchoConnectionEffect(EchoActor, Effect);
+		if (!Effect->IsActive())
+		{
+			// The card owns this lifetime. Authored Niagara completion must not remove the link while both endpoints
+			// live.
+			Effect->Activate(true);
+		}
+	}
+}
+
+FVector UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(const float DesiredWorldDiameterCm,
+                                                             const FBox& AuthoredSystemBounds,
+                                                             const FVector& FallbackScale)
+{
+	if (DesiredWorldDiameterCm <= UE_SMALL_NUMBER || !AuthoredSystemBounds.IsValid)
+	{
+		return FallbackScale;
+	}
+	const FVector AuthoredSize = AuthoredSystemBounds.GetSize();
+	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.X, AuthoredSize.Y);
+	if (AuthoredGroundDiameter <= UE_SMALL_NUMBER)
+	{
+		return FallbackScale;
+	}
+	return FVector(DesiredWorldDiameterCm / AuthoredGroundDiameter);
+}
+
+bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation,
+                                                            const float DesiredWorldDiameterCm) const
+{
+	const EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::EchoBorn;
+	UNiagaraComponent* Effect =
+	    SpawnWorld(static_cast<uint8>(Semantic), GroundWorldLocation, FVector::ForwardVector, false, false);
+	UWorld* World = GetWorld();
+	if (!Effect || !World)
+	{
+		return false;
+	}
+	// The caller supplies stable actor XY plus the shadow's ground Z. Niagara stays independent and cannot inherit the
+	// hidden Echo actor's visibility or its camera-dependent presentation offset.
+	Effect->PrimaryComponentTick.bTickEvenWhenPaused = true;
+	Effect->SetTranslucentSortPriority(ResolveOwnerAuraSortPriority());
+	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
+	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::ForwardVector);
+	const UNiagaraSystem* System = Effect->GetAsset();
+	const FBox AuthoredBounds = System ? System->GetFixedBounds() : FBox(EForceInit::ForceInit);
+	Effect->SetWorldScale3D(ResolveEchoBornWorldScale(
+	    DesiredWorldDiameterCm, AuthoredBounds, FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).Scale));
+	EchoBornEffect = Effect;
+	Effect->Activate(true);
+	const float DurationSeconds = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).PlaybackDurationSeconds;
+	const TWeakObjectPtr<UNiagaraComponent> WeakEffect(Effect);
+	FTimerHandle LifetimeTimer;
+	World->GetTimerManager().SetTimer(
+	    LifetimeTimer,
+	    [WeakEffect]()
+	    {
+		    if (UNiagaraComponent* ActiveEffect = WeakEffect.Get())
+		    {
+			    ActiveEffect->Deactivate();
+			    ActiveEffect->DestroyComponent();
+		    }
+	    },
+	    FMath::Max(DurationSeconds, 0.01f),
+	    false);
+	return true;
+}
+
+bool UReEchoCombatVfxComponent::IsEchoBornEffectActive() const
+{
+	return EchoBornEffect.IsValid() && EchoBornEffect->IsActive();
+}
+
+bool UReEchoCombatVfxComponent::EnsureNiagaraUpdateBeamModule(UNiagaraSystem* System)
+{
+#if WITH_EDITOR
+	if (!System)
+	{
+		return false;
+	}
+	UNiagaraScript* UpdateBeamScript =
+	    LoadObject<UNiagaraScript>(nullptr, TEXT("/Niagara/Modules/Beams/UpdateBeam.UpdateBeam"));
+	if (!UpdateBeamScript)
+	{
+		return false;
+	}
+	System->Modify();
+	bool bAllEmittersReady = true;
+	for (FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+		UNiagaraEmitterBase* EmitterBase = EmitterHandle.GetEmitterBase();
+		UNiagaraScript* ParticleUpdateScript = EmitterData ? EmitterData->UpdateScriptProps.Script : nullptr;
+		UNiagaraScriptSource* ScriptSource =
+		    ParticleUpdateScript ? Cast<UNiagaraScriptSource>(ParticleUpdateScript->GetLatestSource()) : nullptr;
+		UNiagaraGraph* Graph = ScriptSource ? ScriptSource->NodeGraph : nullptr;
+		TArray<UNiagaraNodeOutput*> OutputNodes;
+		if (Graph)
+		{
+			Graph->GetNodesOfClass(OutputNodes);
+		}
+		UNiagaraNodeOutput** OutputNodeEntry = OutputNodes.FindByPredicate(
+		    [](const UNiagaraNodeOutput* Node)
+		    {
+			    return Node && Node->GetUsage() == ENiagaraScriptUsage::ParticleUpdateScript;
+		    });
+		UNiagaraNodeOutput* OutputNode = OutputNodeEntry ? *OutputNodeEntry : nullptr;
+		if (!EmitterData || !EmitterBase || !Graph || !OutputNode)
+		{
+			bAllEmittersReady = false;
+			continue;
+		}
+		TArray<UNiagaraNodeFunctionCall*> FunctionCalls;
+		Graph->GetNodesOfClass(FunctionCalls);
+		const bool bAlreadyPresent = FunctionCalls.ContainsByPredicate(
+		    [UpdateBeamScript](const UNiagaraNodeFunctionCall* Node)
+		    {
+			    return Node && Node->FunctionScript == UpdateBeamScript;
+		    });
+		if (!bAlreadyPresent)
+		{
+			EmitterBase->Modify();
+			if (!FNiagaraStackGraphUtilities::AddScriptModuleToStack(UpdateBeamScript, *OutputNode))
+			{
+				bAllEmittersReady = false;
+			}
+		}
+	}
+	if (bAllEmittersReady)
+	{
+		System->RequestCompile(false);
+		System->MarkPackageDirty();
+	}
+	return bAllEmittersReady;
+#else
+	return false;
+#endif
 }
 
 void UReEchoCombatVfxComponent::BindEventSources(UReEchoCombatEventsComponent* InCombatEvents,
@@ -693,7 +1246,8 @@ TArray<UMaterialInterface*> UReEchoCombatVfxComponent::ResolveRabbitProjectileGl
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticValue,
                                                          const FVector& Location,
                                                          const FVector& Direction,
-                                                         const bool bAutoDestroy) const
+                                                         const bool bAutoDestroy,
+                                                         const bool bActivateImmediately) const
 {
 	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
@@ -714,7 +1268,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	                                                                           bAutoDestroy,
 	                                                                           true,
 	                                                                           ENCPoolMethod::None,
-	                                                                           true);
+	                                                                           bActivateImmediately);
 	if (Effect)
 	{
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
@@ -1152,18 +1706,18 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                    : Direction;
 	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, VisualDirection);
 	FVector SwordCameraFacingNormal = FVector::UpVector;
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 	{
 		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
 		DirectionRotation = ResolveSwordMeshDirectionRotation(VisualDirection, SwordCameraFacingNormal);
 	}
-	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
 	{
 		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
 		DirectionRotation = ResolveCameraPlaneDirectionRotation(VisualDirection, CameraFacingNormal);
 	}
 	FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 	{
 		RelativeRotation = EnsureSwordFrontFacesCamera(RelativeRotation, SwordCameraFacingNormal);
 	}
@@ -1178,10 +1732,10 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	    ResolveAttachedScale(DesiredScale,
 	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
 	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
+	const float PlayDirection = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic)
 	                                ? ResolveMeleePlayDirection(VisualDirection, CameraRight)
 	                                : 1.0f;
-	const bool bReverseMelee = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && PlayDirection < 0.0f;
+	const bool bReverseMelee = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic) && PlayDirection < 0.0f;
 	const bool bHasPlayDirectionParameter = HasMeleePlayDirectionParameter(System);
 	UNiagaraComponent* Effect =
 	    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
@@ -1219,7 +1773,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 			Effect->SetAbsolute(false, true, false);
 			Effect->SetWorldRotation(RelativeRotation);
 		}
-		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 		{
 			if (bHasPlayDirectionParameter)
 			{
@@ -1367,6 +1921,7 @@ bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackS
 
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
+	ClearEchoConnectionLinks();
 	for (FReverseMeleePlayback& Playback : ReverseMeleePlaybacks)
 	{
 		StopNiagaraEffect(Playback.Effect.Get());
@@ -1390,6 +1945,104 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 	BossProjectileEffects.Reset();
 	StopBossActionEffects();
 	BossAbilityByAttackSequence.Reset();
+}
+
+void UReEchoCombatVfxComponent::ClearEchoConnectionLinks()
+{
+	for (TPair<TObjectPtr<AActor>, TObjectPtr<UNiagaraComponent>>& Pair : EchoConnectionEffects)
+	{
+		StopNiagaraEffect(Pair.Value);
+	}
+	EchoConnectionEffects.Reset();
+}
+
+void UReEchoCombatVfxComponent::UpdateEchoConnectionEffect(AActor* EchoActor, UNiagaraComponent* Effect)
+{
+	FVector StartWorld = FVector::ZeroVector;
+	FVector EndWorld = FVector::ZeroVector;
+	if (!Effect || !TryResolveFlipbookCenter(GetOwner(), StartWorld) || !TryResolveFlipbookCenter(EchoActor, EndWorld))
+	{
+		return;
+	}
+	FVector StartParameter = FVector::ZeroVector;
+	FVector EndParameter = FVector::ZeroVector;
+	ResolveConductLinkWorldEndpoints(StartWorld, EndWorld, StartParameter, EndParameter);
+	Effect->SetVariablePosition(TEXT("User.StartPosition"), StartParameter);
+	Effect->SetVariablePosition(TEXT("User.EndPosition"), EndParameter);
+	// The world-spawned component can be far from its rendered ribbon. Cover the current endpoints with a
+	// finite runtime bounds so a valid long link is not culled by the asset's authored static bounds.
+	Effect->SetSystemFixedBounds(ResolveConnectionLinkLocalBounds(
+	    Effect->GetComponentTransform(), StartWorld, EndWorld, ReEchoCombatVfx::EchoConnectionBoundsPaddingCm));
+}
+
+void UReEchoCombatVfxComponent::SyncEchoConnectionLinks(const bool bEnabled, const TArray<AActor*>& EchoActors)
+{
+	const IReEchoCombatTarget* OwnerCombatTarget = Cast<IReEchoCombatTarget>(GetOwner());
+	if (!bEnabled || !OwnerCombatTarget || !OwnerCombatTarget->IsCombatTargetAlive() || !GetWorld())
+	{
+		ClearEchoConnectionLinks();
+		return;
+	}
+
+	TSet<AActor*> DesiredEchoes;
+	for (AActor* EchoActor : EchoActors)
+	{
+		const IReEchoCombatTarget* EchoCombatTarget = EchoActor ? Cast<IReEchoCombatTarget>(EchoActor) : nullptr;
+		FVector StartWorld = FVector::ZeroVector;
+		FVector EndWorld = FVector::ZeroVector;
+		if (EchoCombatTarget && EchoCombatTarget->IsCombatTargetAlive() &&
+		    TryResolveFlipbookCenter(GetOwner(), StartWorld) && TryResolveFlipbookCenter(EchoActor, EndWorld))
+		{
+			DesiredEchoes.Add(EchoActor);
+		}
+	}
+
+	for (auto It = EchoConnectionEffects.CreateIterator(); It; ++It)
+	{
+		if (!IsValid(It.Key()) || !DesiredEchoes.Contains(It.Key()))
+		{
+			StopNiagaraEffect(It.Value());
+			It.RemoveCurrent();
+		}
+	}
+
+	UNiagaraSystem* System = nullptr;
+	for (AActor* EchoActor : DesiredEchoes)
+	{
+		UNiagaraComponent* Effect = EchoConnectionEffects.FindRef(EchoActor);
+		if (!IsValid(Effect))
+		{
+			EchoConnectionEffects.Remove(EchoActor);
+			System = System ? System : ResolveSystem(static_cast<uint8>(EReEchoCombatVfxSemantic::EchoConnectionLine));
+			if (!System)
+			{
+				return;
+			}
+			Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(),
+			                                                        System,
+			                                                        FVector::ZeroVector,
+			                                                        FRotator::ZeroRotator,
+			                                                        FVector::OneVector,
+			                                                        false,
+			                                                        false,
+			                                                        ENCPoolMethod::None,
+			                                                        false);
+			if (!Effect)
+			{
+				continue;
+			}
+			Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
+			// Parameter endpoints are written by this adapter; make Niagara consume them later in the same frame.
+			Effect->AddTickPrerequisiteComponent(this);
+			EchoConnectionEffects.Add(EchoActor, Effect);
+			UpdateEchoConnectionEffect(EchoActor, Effect);
+			Effect->Activate(true);
+		}
+		else
+		{
+			UpdateEchoConnectionEffect(EchoActor, Effect);
+		}
+	}
 }
 
 FName UReEchoCombatVfxComponent::ResolveElementVfxTargetId(AActor* Target) const
@@ -1708,6 +2361,15 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	{
 		return;
 	}
+	const EReEchoCombatVfxSemantic DefaultSemantic = Semantic;
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
+	{
+		FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(Event.Element, Semantic);
+	}
+	else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+	{
+		FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(Event.Element, Semantic);
+	}
 	const float DelaySeconds = FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(Semantic);
 	if (UWorld* World = GetWorld(); World && DelaySeconds > 0.0f)
 	{
@@ -1719,27 +2381,44 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 		    MeleeSlashTimer,
 		    [WeakThis,
 		     Semantic,
+		     DefaultSemantic,
 		     LockedDirection = Event.Direction,
 		     LockedRangeMultiplier = Event.RangeMultiplierFromBase]()
 		    {
 			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
 			    {
-				    Component->SpawnAttached(static_cast<uint8>(Semantic),
-				                             LockedDirection,
-				                             Component->ResolveWeaponAttackVfxRoot(),
-				                             true,
-				                             LockedRangeMultiplier);
+				    if (!Component->SpawnAttached(static_cast<uint8>(Semantic),
+				                                  LockedDirection,
+				                                  Component->ResolveWeaponAttackVfxRoot(),
+				                                  true,
+				                                  LockedRangeMultiplier) &&
+				        Semantic != DefaultSemantic)
+				    {
+					    Component->SpawnAttached(static_cast<uint8>(DefaultSemantic),
+					                             LockedDirection,
+					                             Component->ResolveWeaponAttackVfxRoot(),
+					                             true,
+					                             LockedRangeMultiplier);
+				    }
 			    }
 		    },
 		    DelaySeconds,
 		    false);
 		return;
 	}
-	SpawnAttached(static_cast<uint8>(Semantic),
-	              Event.Direction,
-	              ResolveWeaponAttackVfxRoot(),
-	              true,
-	              Event.RangeMultiplierFromBase);
+	if (!SpawnAttached(static_cast<uint8>(Semantic),
+	                   Event.Direction,
+	                   ResolveWeaponAttackVfxRoot(),
+	                   true,
+	                   Event.RangeMultiplierFromBase) &&
+	    Semantic != DefaultSemantic)
+	{
+		SpawnAttached(static_cast<uint8>(DefaultSemantic),
+		              Event.Direction,
+		              ResolveWeaponAttackVfxRoot(),
+		              true,
+		              Event.RangeMultiplierFromBase);
+	}
 }
 
 void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)
@@ -1759,12 +2438,33 @@ void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)
 
 void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 {
-	if (Event.Target != GetOwner() || Event.AppliedDamage <= 0.0f || Event.bFatal)
+	if (!ShouldPlayTargetHurtEffect(Event, GetOwner()))
 	{
 		return;
 	}
 	EReEchoCombatVfxSemantic Semantic = Cast<AReEchoEnemyActor>(GetOwner()) ? EReEchoCombatVfxSemantic::EnemyHurt
 	                                                                        : EReEchoCombatVfxSemantic::PlayerHurt;
+	const AReEchoEnemyActor* TargetEnemy = Cast<AReEchoEnemyActor>(GetOwner());
+	const bool bTargetIsBoss = TargetEnemy && TargetEnemy->GetPresentationId() == TEXT("Enemy.TimeGuard");
+	FVector BossHurtLocation = Event.WorldLocation;
+	if (bTargetIsBoss)
+	{
+		FVector FlipbookCenterWorld = FVector::ZeroVector;
+		if (const USceneComponent* HurtRoot = ResolveHurtVfxRoot();
+		    HurtRoot && TryResolveFlipbookCenter(GetOwner(), FlipbookCenterWorld))
+		{
+			BossHurtLocation = ResolveBossHurtEffectLocation(HurtRoot->GetComponentLocation(), FlipbookCenterWorld);
+		}
+	}
+	if (Event.DamageSource == EReEchoDamageSource::Path && Cast<AReEchoEnemyActor>(GetOwner()))
+	{
+		// Connection-line damage has no weapon impact semantic. Spawn the existing enemy hurt effect in world
+		// space so a fatal hit remains visible after the target's presentation is torn down.
+		const FVector ImpactLocation = bTargetIsBoss ? BossHurtLocation : Event.WorldLocation;
+		const FVector ImpactDirection = ImpactLocation - Event.SourceWorldLocation;
+		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt), ImpactLocation, ImpactDirection);
+		return;
+	}
 	if (const AReEchoEnemyActor* SourceEnemy = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
 	    SourceEnemy && SourceEnemy->GetPresentationId() == TEXT("Enemy.Fox"))
 	{
@@ -1784,6 +2484,11 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 				return;
 			}
 		}
+	}
+	if (bTargetIsBoss)
+	{
+		SpawnWorld(static_cast<uint8>(Semantic), BossHurtLocation, FVector::ForwardVector);
+		return;
 	}
 	SpawnAttached(static_cast<uint8>(Semantic), FVector::ForwardVector, ResolveHurtVfxRoot());
 }

@@ -71,7 +71,7 @@ UI 和属性面板只订阅最终通知或读取快照，不得在回调中反�
 ### 结果、事件与快照
 
 - `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。对应的 `FReEchoDamageEvent::bFatal` 明确标记本次 Hurt 已把存活目标降至零血，表现消费者仍可显示伤害数字，但必须抑制普通受击动画与受击 VFX。反应内部伤害同时携带资源中立的 `ReactionBehaviorId`；Burn 跨 Tick/存档保留该来源，强化被下一次伤害反应消费时发布 `Reaction.Enhance`，表现只据此选色而不得重算元素规则。
-- `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。WeaponActor 的普通攻击与主动攻击只要成功 Confirm，都必须走同一 `AttackCommitted` 出口；输入来源是自动、手动或 Echo 不得改变表现事件契约，未产生新 Commit 的镰刀召回不重复发布。
+- `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。WeaponActor 的普通攻击与主动攻击只要成功 Confirm，都必须走同一 `AttackCommitted` 出口；事件携带该次攻击最终元素供表现只读消费，Development `GMElement` 覆盖必须在发布前落实，表现不得重新推导元素。输入来源是自动、手动或 Echo 不得改变表现事件契约，未产生新 Commit 的镰刀召回不重复发布。
 - `FReEchoAttackCommittedEvent` 同时快照本次执行的 `EffectiveRangeCm`、原始 AttackStep `BaseRangeCm`、两者倍率与有效角度。它们是资源无关的几何事实，供延迟表现锁定同一次 Commit；表现不得重新读取可变符文状态或反向决定命中。
 - `FReEchoCombatantSnapshot` 和 `FReEchoAttackSnapshot` 是调用瞬间的只读副本，不持久化，也不能被 UI 当成可写缓存。
 - 事件 Payload 只包含稳定 ID、值、弱/受控对象句柄和世界信息，不携带 Widget、Sound、Animation、Texture 或 Material。
@@ -462,7 +462,7 @@ Input / Auto held
 
 ### 武器符文状态宿主
 
-Plan76 的晕眩、流血、短暂无敌和临时攻速/移速均通过 `UReEchoCombatantComponent` 的窄命令进入 Combat。`Z_Vertigo` 维护动作禁止边界；`Z_Bleeding` 每层每秒结算最大生命 0.5%，每层独立保存到期时间；临时属性层通过独立 GAS Effect Handle 应用和移除，非 GAS 兼容路径保持相同乘数语义。Weapons/主模块只能提交命令并读取查询，不能直接改生命、状态标签或最终属性。
+Plan76 的晕眩、流血、短暂无敌和临时攻速/移速均通过 `UReEchoCombatantComponent` 的窄命令进入 Combat。`Z_Vertigo` 维护动作禁止边界；Host 可在配置边界设置 `SetStunImmune`，启用时会拒绝后续 `Z_Vertigo`、清除既有/存档恢复的眩晕状态与 GAS 标签，供 `M_SHEEP` 的全来源眩晕免疫使用。`Z_Bleeding` 每层每秒结算最大生命 0.5%，每层独立保存到期时间；临时属性层通过独立 GAS Effect Handle 应用和移除，非 GAS 兼容路径保持相同乘数语义。Weapons/主模块只能提交命令并读取查询，不能直接改生命、状态标签或最终属性。
 
 - 新伤害类型：先扩 Intent/Resolved 的稳定枚举和值字段，再只在 Resolver 增加裁决分支和 focused tests。
 - 新元素/状态：由主模块 Data Adapter 编译 RuleSet；Combat 扩纯规则与 Combatant 状态，不读取 CSV。

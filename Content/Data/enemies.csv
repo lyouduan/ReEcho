@@ -3,6 +3,6 @@ M_Grunt,Grunt,Enemy.Grunt,Enemy.Grunt,true,18,0.452,51.84,183.6,9,1.3,85,75,0.22
 M_Shield,Shield,Enemy.Shield,Enemy.Shield,true,33,0.238,51.84,183.6,14,1.7,85,75,0.22,360,10,0,0,0,false,怪物体系M,5,正面减伤盾怪,false,0,0,0,,0,520
 M_Bomber,Bomber,Enemy.Bomber,Enemy.Bomber,true,10.5,0.833,51.84,183.6,22,0,0,0,0.22,360,10,260,180,1.2,false,怪物体系M,6,接近后引爆,false,0,0,0,,0,520
 M_SHEEP,Boss,Boss.TimeGuard,Enemy.TimeGuard,true,1000,1.2,60,183.6,6,2,85,75,0.22,140,10,0,0,0,true,怪物配置表,8,第八场羊Boss；平A+3技能，血条清空变身为黑色二阶段(500满血再战)，变身范围40m,true,0,0,1,HealthThreshold,0,0
-M_SLIME,Slime,Enemy.Slime,Enemy.Slime,true,3,0.8,45,90,2,1.3,100,90,0.22,360,10,0,0,0,false,怪物配置表,4,开普勒近战史莱姆；接触攻击,true,1200,2,1,,0,1200
+M_SLIME,Slime,Enemy.Slime,Enemy.Slime,true,5,0.8,45,90,2,1.3,100,90,0.22,360,10,0,0,0,false,怪物配置表,4,开普勒近战史莱姆；接触攻击,true,1200,2,1,,0,1200
 M_RABBIT,Ranged,Enemy.Ranged,Enemy.Rabbit,true,2,0.7,42,85,1,2,0,650,0.22,360,10,0,0,0,false,怪物配置表,5,开普勒远程兔子；锁定位置范围攻击,true,900,2,1,,0,900
-M_FOX,Elite,Enemy.Elite,Enemy.Fox,true,6,1.2,65,130,3,4,450,400,0.22,360,10,0,0,0,false,怪物配置表,6,开普勒精英狐狸；正面防御与直线突进,true,1200,2,1,,0,1200
+M_FOX,Elite,Enemy.Elite,Enemy.Fox,true,6,1.2,65,130,2,4,450,400,0.22,360,10,0,0,0,false,怪物配置表,6,开普勒精英狐狸；正面防御与直线突进,true,1200,2,1,,0,1200

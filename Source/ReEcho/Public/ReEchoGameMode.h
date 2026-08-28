@@ -103,6 +103,12 @@ public:
 	void GMBossSkill(const FString& Skill = TEXT("Skill01"));
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
+	/** Replays the birth-circle presentation on every living Echo without changing gameplay state. */
+	UFUNCTION(Exec)
+	void GMEchoBorn();
+	/** Replays the complete birth-circle then delayed Echo reveal on every living Echo. */
+	UFUNCTION(Exec)
+	void GMEchoSummon();
 	/** Locks every subsequent player hit to one element. Use None to restore weapon-authored elements. */
 	UFUNCTION(Exec)
 	void GMElement(const FString& Element = TEXT("Flame"));
@@ -112,7 +118,11 @@ public:
 	/** Directly previews one reaction VFX on the nearest living enemy without changing combat state. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
-	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id.
+	/** Switches the authoritative run build and live player weapon to any enabled production WeaponId. */
+	UFUNCTION(Exec)
+	void GMWeapon(FName WeaponId);
+	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv
+	 * Id.
 	 */
 	UFUNCTION(Exec)
 	void GMEquipRune(FName PartId);
@@ -258,6 +268,7 @@ private:
 	bool bContinueRunAfterShop = false;
 	bool bReturnToOpenShopAfterTraitChoice = false;
 	bool bPostTraitShopClosing = false;
+	bool bCardChoiceToShopBackgroundPrepared = false;
 	bool bPauseOpenedOverInventoryShop = false;
 
 	UPROPERTY()
@@ -275,6 +286,7 @@ private:
 		Stage01To02FocusPlayer,
 		Stage01To02HoldPlayer,
 		PlayingStage01To02Cg,
+		Stage01To02RevealEcho,
 		Stage01To02FocusEcho,
 		Stage01To02MoveToPlayer,
 		Completed
@@ -282,6 +294,7 @@ private:
 	EEncounterTransitionPresentationState EncounterTransitionPresentationState =
 	    EEncounterTransitionPresentationState::None;
 	float EncounterSequenceElapsedSeconds = 0.0f;
+	float Stage01To02EchoRevealElapsedSeconds = 0.0f;
 	bool bEncounterIntermissionPreparedForTransition = false;
 	bool bPreparedEncounterAwaitingActivation = false;
 	bool bEncounterTransitionPausedWorld = false;
@@ -314,13 +327,20 @@ private:
 	bool BeginEncounterEndSequence();
 	void CompleteEncounterEndSequence();
 	bool BeginCardChoiceToShopTransition();
+	void PrepareCardChoiceToShopBackground();
+	void UpdateCardChoiceToShopBackgroundBlend();
+	void UpdateCardChoiceToShopCollapseTarget();
 	void CompleteCardChoiceToShopTransition(bool bFailed);
 	void FinishCardChoiceToShopFade();
 	bool BeginStage01To02CameraSequence();
 	bool BeginStage01To02Cg();
-	void CompleteStage01To02Cg(bool bFailed);
+	void CompleteStage01To02Cg(bool bFailed, bool bSkipped = false);
+	UFUNCTION()
+	void HandleStage01To02CgSkipRequested();
 	void BeginStage01To02PostCgCameraSequence();
-	void AdvanceStage01To02CameraSequence();
+	void AdvanceStage01To02CameraSequence(float DeltaSeconds);
+	bool BeginStage01To02EchoReveal();
+	void CompleteStage01To02EchoReveal();
 	void ResetEncounterTransitionPresentation();
 	void SetEncounterTransitionWorldPaused(bool bPaused);
 	void SetEncounterTransitionCameraRefreshWhilePaused(bool bEnabled);
@@ -353,6 +373,9 @@ private:
 
 	UFUNCTION()
 	void HandleContinueGameRequested();
+
+	UFUNCTION()
+	void HandleSaveSlotRequested(int32 SlotIndex);
 
 	UFUNCTION()
 	void HandleStartSettingsRequested();
@@ -435,6 +458,7 @@ private:
 	void BeginNextEncounter();
 	bool PrepareNextEncounter(bool bDeferActivation);
 	void ActivatePreparedEncounter();
+	void CaptureActiveSaveSlotPreview();
 	void GrantPostEntryInvulnerability(int32 EncounterIndex);
 	float ResolvePostEntryInvulnerabilitySeconds() const;
 	static bool ShouldGrantPostEntryInvulnerability(int32 EncounterIndex, float DurationSeconds);
@@ -478,6 +502,9 @@ private:
 	                                                 bool bApplied,
 	                                                 bool bReturningToOpenShop);
 	static bool ShouldPlayStage01To02Cg(int32 CompletedEncounterIndex);
+	static float GetStage01To02EchoRevealDelaySeconds();
+	static float GetStage01To02EchoRevealTimeoutSeconds();
+	static bool ShouldOfferStage01To02CgSkip(bool bHasViewedCg, bool bPlayingStageCg);
 	void ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy);
 	UFUNCTION()
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);

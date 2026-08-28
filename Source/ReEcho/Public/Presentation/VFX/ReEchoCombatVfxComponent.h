@@ -82,6 +82,17 @@ public:
 	                                             const FVector& EndWorld,
 	                                             FVector& OutStartParameter,
 	                                             FVector& OutEndParameter);
+	/** Resolves the current rendered Flipbook bounds center in world space. */
+	static bool TryResolveFlipbookCenter(AActor* Target, FVector& OutCenterWorld);
+	/** Connection-line Path damage keeps target hurt feedback even when that hit is fatal. */
+	static bool ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner);
+	/** Raises the Boss hurt effect halfway from its authored hurt root toward the rendered Flipbook center. */
+	static FVector ResolveBossHurtEffectLocation(const FVector& HurtRootWorld, const FVector& FlipbookCenterWorld);
+	/** Builds finite effect-local bounds containing both moving world endpoints and a ribbon safety margin. */
+	static FBox ResolveConnectionLinkLocalBounds(const FTransform& EffectTransform,
+	                                             const FVector& StartWorld,
+	                                             const FVector& EndWorld,
+	                                             float PaddingCm);
 	static float ResolveConductPropagationDelaySeconds(FName WeaponId);
 	/** Converts the locked Boss beam contract into immutable world-space endpoints. */
 	static void ResolveBossBeamWorldEndpoints(
@@ -132,14 +143,43 @@ public:
 	void ConfigureWeaponAttackVfxRoot(USceneComponent* InWeaponAttackVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
 	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
+	/** Plays one independent world-space Echo birth circle at an already resolved actor-centered ground position. */
+	bool PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation, float DesiredWorldDiameterCm) const;
+	/** True while the most recently spawned Echo birth system is still simulating. */
+	bool IsEchoBornEffectActive() const;
+	static FVector ResolveEchoBornWorldScale(float DesiredWorldDiameterCm,
+	                                         const FBox& AuthoredSystemBounds,
+	                                         const FVector& FallbackScale);
+	/** Keeps one card-owned visual link from this owner to every requested living Echo. */
+	void SyncEchoConnectionLinks(bool bEnabled, const TArray<AActor*>& EchoActors);
+	void ClearEchoConnectionLinks();
 	/** Resolves the impact semantic recorded for one Boss attack without inferring from damage values. */
 	bool TryResolveBossImpactSemantic(int64 AttackSequence, uint8& OutSemanticValue) const;
 	/** Editor repair seam for attached Niagara systems that must follow their owning presentation root. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool SetNiagaraSystemEmittersLocalSpace(UNiagaraSystem* System);
+	/** Editor authoring seam that makes Beam particles consume moving emitter endpoints every Particle Update. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool EnsureNiagaraUpdateBeamModule(UNiagaraSystem* System);
 	/** Editor authoring seam for ground telegraphs whose sprite planes must use the owner's world-up axis. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool SetNiagaraSystemSpriteFacingOwnerUp(UNiagaraSystem* System);
+	/** Finalizes editor-authored Niagara changes before saving so first runtime activation cannot inherit pending work.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool CompileNiagaraSystemAndWait(UNiagaraSystem* System);
+	/** Rebinds the Echo birth-circle copy to its independently tinted material instances. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetEchoBornRendererMaterials(UNiagaraSystem* System);
+	/** Recolors embedded Niagara constants and color curves on the isolated Echo birth-circle copy. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetEchoBornParticleColors(UNiagaraSystem* System);
+	/** Flattens the source mesh thickness so the circle and its particles share the ground plane. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool SetEchoBornMeshHeightScale(UNiagaraSystem* System);
+	/** Restores the copied source sprite-facing contract while leaving the ground mesh flattened. */
+	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
+	static bool RestoreEchoBornSpriteFacing(UNiagaraSystem* System, UNiagaraSystem* SourceSystem);
 	/** Editor authoring seam for planar beam meshes that must remain camera-readable from every attack direction. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|VFX", meta = (DevelopmentOnly))
 	static bool SetNiagaraSystemMeshFacingCameraPlane(UNiagaraSystem* System);
@@ -173,6 +213,11 @@ public:
 	{
 		return ConductPropagationTimers.Num();
 	}
+
+	int32 GetEchoConnectionEffectCountForTests() const
+	{
+		return EchoConnectionEffects.Num();
+	}
 #endif
 
 protected:
@@ -187,8 +232,11 @@ private:
 	UTexture2D* ResolveRabbitProjectileTexture() const;
 	UMaterialInterface* ResolveRabbitProjectileMaterial() const;
 	TArray<UMaterialInterface*> ResolveRabbitProjectileGlowMaterials() const;
-	UNiagaraComponent*
-	SpawnWorld(uint8 SemanticValue, const FVector& Location, const FVector& Direction, bool bAutoDestroy = true) const;
+	UNiagaraComponent* SpawnWorld(uint8 SemanticValue,
+	                              const FVector& Location,
+	                              const FVector& Direction,
+	                              bool bAutoDestroy = true,
+	                              bool bActivateImmediately = true) const;
 	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent, const FVector& GroundOrigin) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
@@ -217,6 +265,7 @@ private:
 	void RefreshBurnStatus(bool bBurnActive);
 	UNiagaraComponent* SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
 	bool SpawnConductLink(const FReEchoElementReactionLink& Link) const;
+	void UpdateEchoConnectionEffect(AActor* EchoActor, UNiagaraComponent* Effect);
 	void CancelConductPropagation();
 	void ScheduleConductLinks(const FReEchoElementReactionResolvedEvent& Event);
 	void ScheduleConductLinksWithDelay(const FReEchoElementReactionResolvedEvent& Event, float DelaySeconds);
@@ -266,6 +315,9 @@ private:
 	TObjectPtr<UNiagaraComponent> BurnStatusEffect;
 
 	UPROPERTY(Transient)
+	TMap<TObjectPtr<AActor>, TObjectPtr<UNiagaraComponent>> EchoConnectionEffects;
+
+	UPROPERTY(Transient)
 	TMap<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>> ProjectileVisuals;
 
 	UPROPERTY(Transient)
@@ -300,6 +352,7 @@ private:
 	TObjectPtr<USceneComponent> EchoAuraVfxRoot;
 
 	mutable TSet<uint8> MissingSystemWarnings;
+	mutable TWeakObjectPtr<UNiagaraComponent> EchoBornEffect;
 	mutable TSet<FString> MissingElementSystemWarnings;
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;

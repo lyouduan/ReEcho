@@ -214,6 +214,24 @@ bool FReEchoRuneTimedStatusRuntimeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Vertigo command is accepted"), Combatant->ApplyTimedStatus(Stun));
 	TestTrue(TEXT("Vertigo disables actions before expiry"), Combatant->IsActionDisabled(0.999f));
 	TestFalse(TEXT("Vertigo expires exactly at its boundary"), Combatant->IsActionDisabled(1.0f));
+	Combatant->SetStunImmune(true);
+	TestTrue(TEXT("Stun immunity is reported after enabling"), Combatant->IsStunImmune());
+	TestFalse(TEXT("Stun-immune combatant rejects Vertigo"), Combatant->ApplyTimedStatus(Stun));
+	TestFalse(TEXT("Rejected Vertigo does not disable actions"), Combatant->IsActionDisabled(0.5f));
+	TestFalse(TEXT("Rejected Vertigo is absent from element state"),
+	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Vertigo")));
+	Combatant->SetStunImmune(false);
+	TestFalse(TEXT("Stun immunity can be reset for a reused host"), Combatant->IsStunImmune());
+	TestTrue(TEXT("Vertigo is accepted again after immunity resets"), Combatant->ApplyTimedStatus(Stun));
+	Combatant->SetStunImmune(true);
+	TestFalse(TEXT("Enabling immunity clears an active stun"), Combatant->IsActionDisabled(0.5f));
+	TestFalse(TEXT("Cleared Vertigo is removed from element state"),
+	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Vertigo")));
+	FReEchoElementState SavedStunnedState = Combatant->GetElementState();
+	SavedStunnedState.ActiveStatusUntilSeconds.Add(TEXT("Z_Vertigo"), 99.0f);
+	Combatant->RestoreElementState(SavedStunnedState);
+	TestFalse(TEXT("Stun immunity strips Vertigo restored from save state"),
+	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Vertigo")));
 	Combatant->GrantTimedInvulnerability(0.0f, 0.5f);
 	TestTrue(TEXT("Group-hit invulnerability is active before its boundary"), Combatant->IsTimedInvulnerable(0.499f));
 	FReEchoStatBlock RefreshedStats = Stats;

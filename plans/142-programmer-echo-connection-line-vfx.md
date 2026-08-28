@@ -6,7 +6,7 @@
 - Executor 负责人：当前对话程序 Executor（Codex）。
 - Plan 编写方（AI 侧）：`ReEcho teammate-side AI`。
 - 实现编写方（AI 侧）：`ReEcho teammate-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Executing`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@73030025dc262fe82fc4f530c5b1f9154c946a7d`。
 - 本地实现方式：独立 worktree `C:\tmp\ReEcho-plan142-echo-connection-vfx`，分支 `codex/plan142-echo-connection-vfx`。
@@ -53,7 +53,7 @@
 
 持有 `G_2_30「连接，连接！」` 时，角色本体与每个存活回响之间各维持一条 `NS_Echo_Chain` 链接；双方移动时端点连续跟随。双回响必须显示两条并与现有两条玩法伤害线一致。卡牌未生效、任一端死亡/失效、回响移除、遭遇结束或宿主 EndPlay 时，准确清理对应链接且无残留。资源缺失时玩法继续。
 
-每个回响仅在外观、录制、武器和战斗属性全部初始化成功后，于其 `GroundRoot` 当前世界位置播放一次独立 `NS_Echo_Born`。法阵平行并贴合地面、使用世界尺寸、生成后留在出生点且不跟随回响移动；双回响各播放一次。资源缺失时回响仍正常初始化和回放。Development `GMEchoBorn` 只在当前存活回响的地面位置重播表现，不生成回响或修改玩法状态。
+每个回响仅在外观、录制、武器和战斗属性全部初始化成功后，以其最终阴影组件 `GroundShadow` 的完整世界位置播放一次独立 `NS_Echo_Born`。法阵平行贴地并保持世界尺寸，生成后留在该出生点而不附着或跟随回响；双回响各播放一次。第一关转第二关的专用镜头流程在后台预置并隐藏回响，镜头定位后启动法阵，法阵建立 `0.4` 秒后显示回响及武器并继续镜头拉远，法阵本身仍播放到原生命周期结束；资源缺失则立即显示回响并继续镜头。Development `GMEchoBorn` 只在当前存活回响的阴影位置重播表现，不生成回响或修改玩法状态。
 
 ## 架构影响与设计决策
 
@@ -117,12 +117,57 @@
 
 ### 变化
 
+- 从 Goat Skill03 地面法阵复制独立 `/Game/VFX/Echo/Particle/NS_Echo_Born`，保持 Boss 原 System 与共享材质不变；副本继续使用显式世界 Up 地面朝向。
+- Catalog 新增 `EchoBorn`，VFX adapter 在 GroundRoot 世界位置播放并以 0.8 秒有限计时销毁；特效生成后不附着回响移动。
+- PIE 反馈确认法阵仍偏大，`EchoBorn` 以 PreserveWorldSize 策略把统一倍率从 `0.5` 调整为 `0.25`，即相对上一版再缩小 50%，位置、朝向与生命周期不变。
+- 按用户参考图确认的冰蓝配色复制 Inst15/21/22/23 为 4 个独立 `MI_Echo_Born_*`，并仅重绑 `NS_Echo_Born` 的 Sprite/Ribbon/Mesh Renderer。PIE 证明仅调材质会被 Niagara 内部紫色粒子曲线重新染紫，因此副本内嵌 Color Curve 与颜色 Rapid Iteration 常量按原强度统一映射；为增强短时可读性，粒子采用 HDR 冰蓝比例 `(0.75, 1.17, 1.50)`，独立材质使用 `1.35` 中性 HDR 增亮；Goat 原 System、曲线与材质实例不变。
+- 侧视 PIE 发现粒子均从 `Z=0` 生成，但 `0817_01` Mesh 本身高度约 `11.49`，且 Fountain004/006 使用 `Mesh Scale Z=40`，导致法阵形成高于粒子平面的厚层；仅在 EchoBorn 副本把两个 Mesh Scale Z 压平为 `0.1`，XY 仍为 `25`，不改共享 Mesh。
+- 压平 Mesh 后 PIE 显示上升粒子视觉高度不足；审计确认此前通用地面朝向工具把所有 Sprite Renderer 一并设为 OwnerUp。EchoBorn 改为从 Goat 源 System 按 Emitter/Renderer 索引恢复 Sprite Facing、Alignment 及绑定，仅 Mesh 法阵承担贴地平面，烟雾/光粒恢复源特效的相机朝向与视觉高度。
+- Echo 初始化成功后登记一次待播放状态；首次 `AdvanceEcho` 先应用录制位置，再触发出生法阵，初始化失败不播放。`GMEchoBorn` 只对当前存活回响复用同一表现入口。
+- 第一关转第二关的预加载路径改为延迟显形：先把所有回响推进到录制起点并隐藏本体/武器，镜头锁定并保持静止时播放各自法阵，使用暂停 Tick 累计完整 `0.8` 秒后统一显形并启动后续镜头；法阵生成失败、镜头流程降级、重置或正式激活均 fail-open 恢复可见性。
+- 出生 Niagara 只读取 Echo 最终阴影组件 `GroundShadow` 的世界中心作为生成位置，不附着任何 Echo 组件；它以未激活的独立世界组件创建，先设置暂停 Tick、排序和世界变换，再显式激活，避免继承隐藏 Echo 的可见性并保证暂停期间完成首帧初始化。
+- 新增 Development `GMEchoSummon`，对全部存活回响在当前位置复播“隐藏本体/武器 → 启动法阵 → 0.4 秒后显形”流程；既有 `GMEchoBorn` 保持只播法阵，便于分别检查资产和时序。
+- 第一关转第二关采用串行起播表现：镜头先瞬时定位隐藏 Echo 并保持静止，启动一次性法阵，0.4 秒后显示 Echo/武器并开始 1 秒镜头拉远及后续移向玩家；法阵继续播放到原生命周期结束，特效或镜头失败时 fail-open 显形并继续。
+- 出生法阵在最终 CG 画面仍遮挡世界时先激活，随后才关闭过渡界面，保证回到游戏画面的第一帧已经处于法阵播放中，而不是先露出空场再启动特效。
+- CG 遮罩下完成定位后解除全局 Pause，但保持 Prepared Encounter、输入、敌人模拟、Director、Recording 与 Echo 回放门禁；正式显形在法阵启动满 0.4 秒后执行，不再等待 Niagara 的完整生命周期，法阵生成失败则立即 fail-open 显形。
+- 法阵尺寸不再由固定 `0.25` 决定正常路径：Echo 复用当前 Flipbook 空间宽度，目标世界直径为角色宽度的 `1.2` 倍，再按 Niagara authored XY Bounds 换算统一缩放；Bounds 无效时才回退 Catalog `0.25`。全部启用 Sprite Renderer 绑定 `User.GroundNormal=(0,0,1)`，不再恢复 FaceCamera。
+- 镜头旋转复验表明 `GroundShadow` 的 XY 包含随镜头变化的 2D 脚点补偿，不能作为生成后固定的世界法阵中心；法阵改用 Echo Actor 的稳定世界 XY，并只读取 `GroundShadow` 的地面 Z。Sprite 除 `User.GroundNormal=(0,0,1)` 外再绑定 `CustomAlignment` 的 `User.GroundTangent=(1,0,0)`，同时锁定平面法线和面内方向，避免绕世界 Up 继续追随相机旋转。
+- PIE 首次加载曾因资产脚本 `RequestCompile` 后立即保存退出，把 Echo Born 的待处理 Niagara 编译遗留给运行时，产生约 23 秒主线程等待。新增统一 `CompileNiagaraSystemAndWait` authoring seam，两个 Echo Born 脚本均在保存前等待 CPU/GPU 编译完成并确认无 outstanding request；修复后 commandlet 内该 System 编译分别为 0.18 秒和 0.14 秒，编译结果随资产保存。
+- 精确导入 `NS_Echo_Chain`、`BaseVFX003_Inst25`、`Tur_C080`、`Tur_C090`；未复制外部目录中的 Water/Grass/LevelSequence 或其他无关材质、纹理。
+- Catalog 新增 `EchoConnectionLine`，Player VFX Component 按存活 Echo 集合差量维护持续 Niagara，并从双方当前 Flipbook 渲染 Bounds 中心更新世界端点。
+- 持续链条逐帧按两端的 effect-local 坐标更新有限 System Fixed Bounds（含 200cm Ribbon 安全边距），避免双方距离拉长后被 Niagara 资产 Bounds 错误剔除。
+- 连接线唯一使用的 `DamageSource::Path` 在实际造成正伤害时复用 `EnemyHurt`，改为在命中世界位置生成一次性受击特效；致死连接线命中也保留该表现，避免随目标死亡清理而立即消失。
+- Boss 作为受击目标时，`EnemyHurt` 的世界位置从作者 `HurtVfxRoot` 向当前 Flipbook 渲染中心抬高一半，避免特效下半部分埋入地面；普通怪物挂点和 Boss 攻击命中位置不变。
+- GameMode 在既有卡牌固定步投影 `bConnectionLineDamage` 与存活 Echo；普通清场和 Boss 阶段退休 Echo 均显式清理，组件 EndPlay 继续通过 `StopAllEffects` 兜底。
+- 自动化补充 Chain 路径、资产加载及两个 LWC Niagara Position 参数检查；模块文档同步运行时所有权和生命周期。
+- 根据 PIE 反馈，将持续链条端点刷新从仅固定步补充到 VFX Component 每帧 Tick；固定步继续只负责卡牌开关与 Echo 集合差量，避免角色最终 Transform 晚于固定步造成视觉停留旧位置。
+- 第二轮 PIE 反馈确认视觉仍未消费动态参数：链条端点改为双方当前 Flipbook 渲染 Bounds 中心，并在端点实际移动时重初始化该 Chain Niagara，使仅在粒子初始化阶段采样 Beam 参数的 Ribbon 取得新位置；导电保持本任务外，暂不修改。
+- 链条持续时间改由卡牌和双方存活状态持有；Niagara 自身完成后只要本体与对应回响仍存活便重新激活，死亡、回响消失或卡牌关闭才销毁。
+- 第三轮 PIE 的间歇消失由移动时反复 `ReinitializeSystem` 导致；移除端点缓存和重初始化，改为 Chain Niagara 依赖 VFX adapter Tick，同一持续实例在端点写入后再模拟。
+- 第四轮 PIE 确认仅调整 Tick 顺序仍不足：通过 UE 编辑接口为 `NS_Echo_Chain` 启用 Emitter 的 Particle Update 栈补齐 `Update Beam`，让已存在 Ribbon 每帧消费变化后的 Beam Start/End。
+
 ### 证据
 
+- `create_plan142_echo_born_vfx.py` 经 UE Commandlet 完成复制、世界 Up 朝向保存和依赖审计；日志 `PLAN142_ECHO_BORN_COMPLETE`，副本依赖现有 Goat Mesh `0817_01` 与 Inst15/21/22/23，原资源未修改。
+- 最终组合候选 Development FullRebuild：101 actions 全部通过，精选 7 模块预构建包刷新并由 `prebuilt_editor.py check` 验证，源码指纹 `6924612321f5`。
+- `ReEcho.Presentation.VFX.Catalog` 1 项通过，包含 `NS_Echo_Born` 加载、独立路径、世界尺寸和 0.8 秒生命周期契约；`ReEcho.Presentation.EchoAppearance` 2 项通过。
+- 最终 `validate_project.py`、LFS checkout/fsck 与 `git diff --check` 通过。
+- UE Plan142 资产审计：四个新资源全部加载；Chain 直接引用新 Inst25 和仓库已有 Electricity Inst1/27/28，Inst25 的新增依赖只有 Tur_C080/Tur_C090，其余依赖均已存在。
+- `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`：通过，98 actions；精选 7 模块预构建包已刷新。
+- `scripts\ue\Run-Automation.cmd -Filter ReEcho.Presentation.VFX.Catalog`：找到 1 项并通过；日志 Result=Success。日志同时报告既有 Echo Water Aura 的两个缺失依赖，不属于本次 Chain 闭包。
+- `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check`：通过；首次沙箱运行仅因 Content 临时目录权限被拒，授权后的同一校验完整通过。
+
 ### 剩余风险
+
+- `NS_Echo_Born` 已使用独立中性材质、冰蓝白粒子颜色曲线及 `0.5` 倍尺寸；实际饱和度、透明排序、0.8 秒截断和双回响叠加亮度仍需 PIE 人工验收后再调，不修改共享资源。
+- `-nullrhi` 自动化不能证明 Chain 的屏幕空间宽度、亮度、Ribbon 朝向或移动稳定性；仍需 PIE 验收单/双 Echo。
+- 当前 Chain 按其 Beam 模板契约使用绝对 Start + 相对 End；资产实机若采用不同渲染解释，应只在 VFX adapter 调整，不改连接线玩法几何。
 
 ### 人工验收结果/请求
 
 `PendingBeforeClose`：实现后请求用户在 PIE 验收持续链接的视觉质量和玩法线一致性。
 
 ### 架构文档审阅结果
+
+- 已更新 `MOD-ReEchoVFX.md` 与 `MOD-ReEcho.md`。
+- `ARCHITECTURE.md`、根 `README.md` 与 `MOD-ReEchoCards.md` 的模块拓扑、稳定 ID 和 Cards 规则所有权未变化，无需正文修改。

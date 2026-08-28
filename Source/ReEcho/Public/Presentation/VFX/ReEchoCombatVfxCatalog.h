@@ -15,9 +15,21 @@ enum class EReEchoCombatVfxSemantic : uint8
 	FoxImpact,
 	PlayerMeleeSlash,
 	PlayerScytheSlash,
+	PlayerMeleeSlashFlame,
+	PlayerMeleeSlashLightning,
+	PlayerMeleeSlashGrass,
+	PlayerMeleeSlashWater,
+	PlayerScytheSlashFlame,
+	PlayerScytheSlashLightning,
+	PlayerScytheSlashGrass,
+	PlayerScytheSlashWater,
 	PlayerLongSwordImpact,
 	PlayerScytheImpact,
 	PlayerBowFlight,
+	PlayerBowFlightFlame,
+	PlayerBowFlightLightning,
+	PlayerBowFlightGrass,
+	PlayerBowFlightWater,
 	PlayerBowImpact,
 	PlayerGunFlight,
 	PlayerGunFlightFlame,
@@ -28,6 +40,8 @@ enum class EReEchoCombatVfxSemantic : uint8
 	EnemyHurt,
 	EchoWaterAura,
 	EchoGrassAura,
+	EchoBorn,
+	EchoConnectionLine,
 	GoatSkill02Charging,
 	GoatSkill02Bullet,
 	GoatSkill02Impact,
@@ -74,12 +88,20 @@ struct REECHO_API FReEchoCombatVfxCatalog
 	static bool IsMeleeAttackPattern(FName AttackPatternId);
 	/** Resolves the dedicated one-shot Niagara semantic for a supported melee attack pattern. */
 	static bool ResolveMeleeAttackSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Resolves a Longsword attack's final combat element to its dedicated slash semantic. */
+	static bool ResolveLongSwordSlashSemantic(EReEchoElement Element, EReEchoCombatVfxSemantic& OutSemantic);
+	static bool IsLongSwordSlashSemantic(EReEchoCombatVfxSemantic Semantic);
+	/** Resolves a Scythe attack's final combat element to its dedicated slash semantic. */
+	static bool ResolveScytheSlashSemantic(EReEchoElement Element, EReEchoCombatVfxSemantic& OutSemantic);
+	static bool IsScytheSlashSemantic(EReEchoCombatVfxSemantic Semantic);
 	/** Resolves a successful weapon commit to its weapon-local release semantic. */
 	static bool ResolveAttackCommittedSemantic(FName AttackPatternId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Resolves a successful source-side weapon hit to its configured DamageApplied semantic. */
 	static bool ResolveWeaponDamageSemantic(FName WeaponId, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Resolves a Gun projectile's already-authoritative combat element to its dedicated flight semantic. */
 	static bool ResolveGunFlightSemantic(EReEchoElement Element, EReEchoCombatVfxSemantic& OutSemantic);
+	/** Resolves a Bow projectile's already-authoritative combat element to its dedicated flight semantic. */
+	static bool ResolveBowFlightSemantic(EReEchoElement Element, EReEchoCombatVfxSemantic& OutSemantic);
 	/** Visual-only delay used to release a melee slash after its weapon completes the authored motion. */
 	static float ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic Semantic);
 	/** Returns the measured authored center axis for a semantic asset. */

@@ -18,6 +18,8 @@ struct REECHOCOMBAT_API FReEchoAttackCommittedEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName AttackPatternId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName AttackStepId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 StepIndex = 0;
+	/** Final attack element after any development override; presentation consumes it without re-resolving gameplay. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Origin = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Direction = FVector::ForwardVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EffectiveRangeCm = 0.0f;

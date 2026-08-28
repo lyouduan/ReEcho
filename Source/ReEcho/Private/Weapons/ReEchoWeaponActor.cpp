@@ -710,6 +710,14 @@ void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCo
 	Event.AttackPatternId = Commit.AttackPatternId;
 	Event.AttackStepId = Commit.AttackStepId;
 	Event.StepIndex = Commit.StepIndex;
+	Event.Element = Commit.Element;
+#if !UE_BUILD_SHIPPING
+	if (const AReEchoPlayerPawn* PlayerOwner = Cast<AReEchoPlayerPawn>(WeaponOwner);
+	    PlayerOwner && ReEchoElementReaction::IsCombatElement(PlayerOwner->GetDebugOutgoingElementOverride()))
+	{
+		Event.Element = PlayerOwner->GetDebugOutgoingElementOverride();
+	}
+#endif
 	Event.Origin = Origin;
 	Event.Direction = Direction;
 	Event.EffectiveRangeCm = Commit.RangeCm;
