@@ -7,12 +7,37 @@
 #include "ReEchoRunSubsystem.generated.h"
 
 class UReEchoRunSaveGame;
+class UReEchoPlayerProgressSaveGame;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
 
 struct FReEchoCsvDataSnapshot;
 struct FReEchoCsvCardRow;
+
+USTRUCT(BlueprintType)
+struct REECHO_API FReEchoSaveSlotSummary
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 SlotIndex = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bOccupied = false;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 EncounterNumber = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 CardCount = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	FDateTime SavedAtUtc;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString PreviewScreenshotPath;
+};
 
 struct REECHO_API FReEchoStartRunResolveResult
 {
@@ -40,6 +65,8 @@ class REECHO_API UReEchoRunSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
 	UPROPERTY(BlueprintAssignable)
 	FReEchoRunPhaseChanged OnPhaseChanged;
 
@@ -90,6 +117,8 @@ public:
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
 	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
 	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
+	/** Read-only owned-card presentation shared by the shop and terminal result screens. */
+	TArray<FReEchoShopOffer> GetOwnedBuildCardView() const;
 	FReEchoWeaponPartShopView GetWeaponPartShopView();
 	/** Cash minus Curse Bank debt; presentation-only and never used for purchase authority. */
 	int32 GetDisplayedTimeShardBalance() const;
@@ -210,19 +239,35 @@ public:
 	UFUNCTION(BlueprintPure)
 	TArray<FReEchoRecording> GetEchoRecordings(int32 RequestedCount) const;
 
-	/** Returns true only when the persistent slot contains a compatible, resumable run. */
+	static constexpr int32 SaveSlotCount = 3;
+
+	/** Returns true when any of the three persistent slots contains a compatible, resumable run. */
 	bool HasSavedRun() const;
+	TArray<FReEchoSaveSlotSummary> GetSaveSlotSummaries() const;
+	bool SelectSaveSlot(int32 SlotIndex);
+	bool SelectFirstEmptySaveSlot();
+	int32 GetActiveSaveSlotIndex() const { return ActiveSaveSlotIndex; }
 	bool SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState = nullptr) const;
 	bool LoadSavedRun();
+	bool LoadSavedRunFromSlot(int32 SlotIndex);
 	void DeleteSavedRun() const;
+	FString GetActiveSaveSlotPreviewPath() const;
+	bool WriteActiveSaveSlotPreview(const TArray<uint8>& PngBytes) const;
 	bool HasPendingEncounterResume() const;
 	FReEchoEncounterRuntimeState ConsumePendingEncounterResume();
+	bool HasViewedStage01To02Cg() const { return bHasViewedStage01To02Cg; }
+	/** Persists the account-level watched flag. Returns false without granting it when persistence fails. */
+	bool MarkStage01To02CgViewed();
 
 	/** In-memory conversion used by persistence and deterministic automation. */
 	UReEchoRunSaveGame* CreateSaveSnapshot(const FReEchoEncounterRuntimeState* EncounterRuntimeState = nullptr) const;
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	void LoadPlayerProgress();
+	FString GetSaveSlotName(int32 SlotIndex) const;
+	FString GetSaveSlotPreviewPath(int32 SlotIndex) const;
+	const UReEchoRunSaveGame* LoadValidatedSaveForSlot(int32 SlotIndex, bool& bOutLegacy) const;
 	void CommitShopCost(int32 Cost);
 	void ApplyProjectedCardCurrency(int32 PreviousBalance, int32 ProjectedBalance);
 	void RefreshCurseBankOutcome();
@@ -232,6 +277,13 @@ private:
 
 	UPROPERTY()
 	bool bAutomaticAttackMode = true;
+
+	UPROPERTY()
+	bool bHasViewedStage01To02Cg = false;
+
+	/** All subsequent automatic saves target this slot. INDEX_NONE means no new run slot was selected yet. */
+	UPROPERTY()
+	int32 ActiveSaveSlotIndex = INDEX_NONE;
 
 	/** Finished encounter awaiting an explicit store-or-skip decision. */
 	UPROPERTY()
@@ -293,7 +345,11 @@ private:
 	UPROPERTY()
 	int32 WeaponRuneRefreshesUsed = 0;
 
-	/** Randomized once per run and persisted so reopening a card choice cannot reroll it. */
+	/** Unified random root generated once per run and persisted for every randomized content outlet. */
+	UPROPERTY()
+	int32 RunSeed = 0;
+
+	/** Run-scoped stream for card offers; persisted so reopening a card choice cannot reroll it. */
 	UPROPERTY()
 	int32 TraitOfferSeed = 0;
 

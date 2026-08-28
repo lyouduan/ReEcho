@@ -107,6 +107,7 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 
 ## 不变量与常见错误
 
+- 运行时逐帧角色纹理的透明/低 Alpha 边缘 RGB 必须由相邻有效轮廓色扩边，不能残留白底或清成黑底；源图保持 RGBA 与 Alpha，Texture 使用 `NoMipmaps + Clamp + Bilinear`、支持 Alpha 的运行时压缩和 2D/UI LOD 组。UE 5.8 当前使用 BC7；不得退回 DXT5、`TEXTUREGROUP_World`、默认 mip 或 `TC_EditorIcon`。狐狸 Born/Walk 由 `fix_fox_2d_texture_alpha.py` 确定性维护，并由 `audit_fox_2d_textures.py` 读回 Texture/Sprite/Flipbook/Profile 契约。
 - Catalog 不得引用主模块 Actor 或 Gameplay Blueprint Class。
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
 - 武器挂点只使用 Profile 的稳定参考高度；不得随 Move/Attack 的单帧 Bounds 重算。

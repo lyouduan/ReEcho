@@ -2,17 +2,21 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Run/ReEchoRunSubsystem.h"
 #include "ReEchoStartMenuWidget.generated.h"
 
 class SWidget;
 class UReEchoIndexedButton;
 class UTextBlock;
+class UTexture2D;
+class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoNewGameRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoContinueGameRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoGameSettingRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoStartAboutRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoStartQuitRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoSaveSlotRequested, int32, SlotIndex);
 
 /** Blocking pre-run panel that offers actions based on resumable-save availability. */
 UCLASS()
@@ -37,7 +41,10 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoStartQuitRequested OnQuitRequested;
 
-	void InitializeMenu(bool bInHasSavedRun);
+	UPROPERTY(BlueprintAssignable)
+	FReEchoSaveSlotRequested OnSaveSlotRequested;
+
+	void InitializeMenu(const TArray<FReEchoSaveSlotSummary>& InSaveSlots);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -47,6 +54,9 @@ private:
 	void BuildWidgetTree();
 	void EnsureOpaqueBackground();
 	void RefreshMenu();
+	void OpenSaveRollbackPanel();
+	void CloseSaveRollbackPanel();
+	void RefreshSaveRollbackPanel();
 
 	UFUNCTION()
 	void HandleMenuAction(int32 ActionIndex);
@@ -66,5 +76,10 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UReEchoIndexedButton> QuitButton;
 
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> SavePreviewTextures;
+
 	bool bHasSavedRun = false;
+	bool bShowingSaveRollback = false;
+	TArray<FReEchoSaveSlotSummary> SaveSlots;
 };

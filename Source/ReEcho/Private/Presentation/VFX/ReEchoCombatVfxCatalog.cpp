@@ -15,10 +15,18 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 	switch (Semantic)
 	{
 		case EReEchoCombatVfxSemantic::PlayerMeleeSlash:
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame:
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning:
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass:
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashWater:
 			VisualKey = TEXT("CrescentBlade");
 			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
 			break;
 		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashFlame:
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashLightning:
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashGrass:
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashWater:
 			VisualKey = TEXT("Scythe");
 			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
 			break;
@@ -87,12 +95,38 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return ResolveWeaponSlot(TEXT("CrescentBlade"), &UReEchoWeaponPresentationProfile::AttackCommitted);
 		case EReEchoCombatVfxSemantic::PlayerScytheSlash:
 			return ResolveWeaponSlot(TEXT("Scythe"), &UReEchoWeaponPresentationProfile::AttackCommitted);
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame:
+			return TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Fire.NS_People_Sword_Attack_Fire");
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning:
+			return TEXT(
+			    "/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Thunder.NS_People_Sword_Attack_Thunder");
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass:
+			return TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Grass.NS_People_Sword_Attack_Grass");
+		case EReEchoCombatVfxSemantic::PlayerMeleeSlashWater:
+			return TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Water.NS_People_Sword_Attack_Water");
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashFlame:
+			return TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Fire.NS_People_Sickle_Attack_Fire");
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashLightning:
+			return TEXT(
+			    "/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Thunder.NS_People_Sickle_Attack_Thunder");
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashGrass:
+			return TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Grass.NS_People_Sickle_Attack_Grass");
+		case EReEchoCombatVfxSemantic::PlayerScytheSlashWater:
+			return TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Water.NS_People_Sickle_Attack_Water");
 		case EReEchoCombatVfxSemantic::PlayerLongSwordImpact:
 			return ResolveWeaponSlot(TEXT("CrescentBlade"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerScytheImpact:
 			return ResolveWeaponSlot(TEXT("Scythe"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerBowFlight:
 			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::Travel);
+		case EReEchoCombatVfxSemantic::PlayerBowFlightFlame:
+			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Fire.NS_People_Bow_Attack_Fire");
+		case EReEchoCombatVfxSemantic::PlayerBowFlightLightning:
+			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Thunder.NS_People_Bow_Attack_Thunder");
+		case EReEchoCombatVfxSemantic::PlayerBowFlightGrass:
+			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Grass.NS_People_Bow_Attack_Grass");
+		case EReEchoCombatVfxSemantic::PlayerBowFlightWater:
+			return TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Water.NS_People_Bow_Attack_Water");
 		case EReEchoCombatVfxSemantic::PlayerBowImpact:
 			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::PlayerGunFlight:
@@ -113,6 +147,10 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Water.NS_Echo_Water");
 		case EReEchoCombatVfxSemantic::EchoGrassAura:
 			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Grass.NS_Echo_Grass");
+		case EReEchoCombatVfxSemantic::EchoBorn:
+			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Born.NS_Echo_Born");
+		case EReEchoCombatVfxSemantic::EchoConnectionLine:
+			return TEXT("/Game/VFX/Echo/Particle/NS_Echo_Chain.NS_Echo_Chain");
 		case EReEchoCombatVfxSemantic::GoatSkill02Charging:
 			return TEXT("/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill02_Charging.NS_Goat_Skill02_Charging");
 		case EReEchoCombatVfxSemantic::GoatSkill02Bullet:
@@ -237,14 +275,98 @@ bool FReEchoCombatVfxCatalog::ResolveGunFlightSemantic(const EReEchoElement Elem
 	}
 }
 
+bool FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(const EReEchoElement Element,
+                                                            EReEchoCombatVfxSemantic& OutSemantic)
+{
+	switch (Element)
+	{
+		case EReEchoElement::Flame:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame;
+			return true;
+		case EReEchoElement::Lightning:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning;
+			return true;
+		case EReEchoElement::Grass:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass;
+			return true;
+		case EReEchoElement::Water:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlashWater;
+			return true;
+		default:
+			return false;
+	}
+}
+
+bool FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(const EReEchoCombatVfxSemantic Semantic)
+{
+	return Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashWater;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(const EReEchoElement Element,
+                                                         EReEchoCombatVfxSemantic& OutSemantic)
+{
+	switch (Element)
+	{
+		case EReEchoElement::Flame:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlashFlame;
+			return true;
+		case EReEchoElement::Lightning:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlashLightning;
+			return true;
+		case EReEchoElement::Grass:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlashGrass;
+			return true;
+		case EReEchoElement::Water:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlashWater;
+			return true;
+		default:
+			return false;
+	}
+}
+
+bool FReEchoCombatVfxCatalog::IsScytheSlashSemantic(const EReEchoCombatVfxSemantic Semantic)
+{
+	return Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashFlame ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashLightning ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashGrass ||
+	       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashWater;
+}
+
+bool FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(const EReEchoElement Element,
+                                                       EReEchoCombatVfxSemantic& OutSemantic)
+{
+	switch (Element)
+	{
+		case EReEchoElement::Flame:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerBowFlightFlame;
+			return true;
+		case EReEchoElement::Lightning:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerBowFlightLightning;
+			return true;
+		case EReEchoElement::Grass:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerBowFlightGrass;
+			return true;
+		case EReEchoElement::Water:
+			OutSemantic = EReEchoCombatVfxSemantic::PlayerBowFlightWater;
+			return true;
+		default:
+			return false;
+	}
+}
+
 float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)
 {
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	if (IsLongSwordSlashSemantic(Semantic))
 	{
 		// Longsword is a forward 180-degree slash and releases its VFX at commit time.
 		return 0.0f;
 	}
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	if (IsScytheSlashSemantic(Semantic))
 	{
 		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
 		return Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.0f) : 0.0f;
@@ -269,7 +391,11 @@ void FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
 
 FVector FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(const EReEchoCombatVfxSemantic Semantic)
 {
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight)
+	if (Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+	    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightFlame ||
+	    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightLightning ||
+	    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightGrass ||
+	    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightWater)
 	{
 		// Side-on PIE confirmation identifies the delivered arrowhead's authored visual axis as local +Y.
 		return FVector::RightVector;
@@ -315,6 +441,12 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		// These systems describe a world-sized body charge. Their anchor follows the Boss, but its authored size
 		// must not be multiplied a second time by DA/Actor presentation scale.
 		Placement.ScalePolicy = EReEchoVfxScalePolicy::PreserveWorldSize;
+	}
+	else if (Semantic == EReEchoCombatVfxSemantic::EchoBorn)
+	{
+		Placement.ScalePolicy = EReEchoVfxScalePolicy::PreserveWorldSize;
+		Placement.Scale = FVector(0.25f);
+		Placement.PlaybackDurationSeconds = 0.8f;
 	}
 	return Placement;
 }

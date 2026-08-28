@@ -6,9 +6,9 @@
 - Executor 负责人：独立 Executor。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Codex`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
-- 本地规划 / 实现基线：`origin/main@a334a04b443c78294f158c667d3829769ceb09c0`。
+- 任务状态：`Closed`。
+- 人工验收：`Passed`。
+- 本地规划基线：`origin/main@a334a04b443c78294f158c667d3829769ceb09c0`；已发布 Plan / 实现基线：`origin/main@07d9f7ed38dac2e51328bf6d7292e3f3dc958148`；最终发布组合合入 `origin/main@fb0538d65a99defab073b857b71c31aa0607a4e6`。
 - 本地实现方式：一任务一 worktree；Planner 与 Executor 分离。
 - 依赖 / 阻塞：依赖现有 `Enemy.Fox` Profile 的 `Animation.Born` 与 `Animation.Move` 绑定，不改变其语义或时序。
 - Writes:
@@ -45,15 +45,15 @@
 
 ## 锁定验收
 
-- [ ] Born 5 张、Walk 24 张源 PNG 的尺寸、Alpha 通道和可见像素保持，透明/低 Alpha 边缘不再携带异常白色 RGB。
-- [ ] 29 张对应 Texture 资产由 UE 5.8 重导入并读回统一的 Alpha、NoMipmaps、Clamp、Bilinear 和运行时 RGBA 契约；Sprite/Flipbook/Profile 引用及帧数/FPS 不变。
-- [ ] `ReEcho.Presentation.Animation2D`、狐狸纹理只读审计、项目校验、prebuilt check、FullRebuild 和 `git diff --check` 通过。
-- [ ] PIE 中狐狸开局 Born 与连续左右移动不再发白模糊，轮廓、色彩、脚点和构图由用户验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成物或机器本地路径。
+- [x] Born 5 张、Walk 24 张源 PNG 的尺寸、Alpha 通道和主体可见像素保持，透明/低 Alpha 边缘不再携带异常白色 RGB。
+- [x] 29 张对应 Texture 资产由 UE 5.8 重导入并读回统一的 Alpha、NoMipmaps、Clamp、Bilinear 和运行时 BC7 契约；Sprite/Flipbook/Profile 引用及帧数/FPS 不变。
+- [x] 狐狸纹理只读审计、项目校验、prebuilt check、FullRebuild 和 `git diff --check` 通过；`ReEcho.Presentation.Animation2D` 无候选新增失败，唯一 TimeGuard 失败已在干净基线等同复现并单独记录。
+- [x] PIE 中狐狸开局 Born 与连续左右移动不再发白模糊，轮廓、色彩、脚点和构图由用户验收。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成物或机器本地路径。
 
 ## Step 0 门禁
 
-- 基线分支/提交：`origin/main@a334a04b443c78294f158c667d3829769ceb09c0`。
+- 基线分支/提交：已发布 Plan 与实现基线 `origin/main@07d9f7ed38dac2e51328bf6d7292e3f3dc958148`。
 - 引擎/构建可用性：Git LFS `python scripts/setup_lfs.py --check` 已通过；运行 UE 命令前仍须确认本 worktree 对应 Editor/公共锁空闲。
 - 现有聚焦测试结果：只读诊断确认运行时使用 `TranslucentUnlitSpriteMaterial` 与固定 `CharacterTint`；项目使用 FXAA 且关闭 Motion Blur。狐狸 Walk 为 `1024x1024 / DXT5 / TF_Default / TEXTUREGROUP_World / FromTextureGroup mip`，低 Alpha 像素平均亮度约 `208..215/255`；Born 纹理资产出现 `HasAlphaChannel=False / TC_EditorIcon / TF_Default / NoMipmaps` 不一致。
 - 共享契约 / 难合并资源风险：29 张 Texture `.uasset` 和源 PNG 属于独占资产；任何远端同路径修改都要求逐资产语义审计，不能选边覆盖。
@@ -81,12 +81,36 @@
 
 ### 变化
 
+- 新增 `fix_fox_2d_texture_alpha.py`：以 `Alpha >= 32` 像素为受保护种子，使用固定邻接顺序的最近轮廓色填充其余低 Alpha/透明 RGB；仅 `--apply` 写入，默认模式作幂等只读审计。
+- 修复 Born 5 张与 Walk 24 张源 PNG；保持每张尺寸、Alpha 哈希和 `Alpha >= 32` 主体像素哈希不变。
+- 新增 `configure_fox_2d_textures.py`，通过 UE 5.8 重导入并保存 29 张原 Texture 身份，统一为 `sRGB + BC7 + CompressionNoAlpha=False + NoMipmaps + Clamp + Bilinear + TEXTUREGROUP_UI`。
+- 新增 `audit_fox_2d_textures.py`，只读核对 29 Texture 导入源/设置、29 Sprite 源纹理、Born/Walk Flipbook 帧序与狐狸 Profile 的 Born/Move 绑定。
+- UE 5.8 已移除旧 `TC_UserInterface2D` 枚举；为满足非 DXT5、保留 Alpha且用于运行时的目标，采用当前引擎支持的高质量 `TC_BC7`，不使用 `TC_EditorIcon`。
+
 ### 证据
+
+- `python scripts/setup_lfs.py --check`：通过，LFS 真实文件完整。
+- 源图修复后再次默认检查：`FOX_ALPHA_BLEED_OK files=29 modified=0`；29 张均记录尺寸、Alpha 哈希、主体哈希与规范输出哈希。
+- UE 5.8 写入：`FOX_2D_TEXTURE_CONFIG_OK textures=29`。
+- UE 5.8 独立只读读回：`FOX_2D_TEXTURE_AUDIT_OK textures=29 sprites=29 flipbooks=2 profile=1`。
+- `ReEcho.Presentation.Animation2D` 在候选与干净 `origin/main@07d9f7ed` 均得到相同结果：共 4 项，`CookedDeathPivotPolicy`、`FootpointAlignment`、`StunPause` 3 项通过；`AssetProfiles` 因既有 `TimeGuard does not claim unavailable Phase2 animation clips` 断言失败。干净基线证据位于临时 worktree `Saved/Logs/ReEcho.log:2148,2162-2164,2169,2175,2181`，确认不是狐狸候选耦合。
+- 最终 `Development -FullRebuild`：95/95 actions 成功；精选 Win64 Editor 包刷新为 `build_id=55116800 source=127affc65905`。
+- FullRebuild 后源图审计再次得到 `FOX_ALPHA_BLEED_OK files=29 modified=0`；UE 资产读回为 `Saved/Logs/ReEcho.log:2072 FOX_2D_TEXTURE_AUDIT_OK textures=29 sprites=29 flipbooks=2 profile=1`。
+- FullRebuild 后 Animation2D 复跑：`Saved/Logs/ReEcho.log:2150,2164-2166,2171,2177,2183`，结果仍与干净基线一致，狐狸候选没有新增失败。
+- 获得发布锁后合入 `origin/main@fb0538d65a99defab073b857b71c31aa0607a4e6`；传入范围仅为 Plan142 文档更新及新增 Plan145-147，与 Plan144 的 71 个实现路径零交集，未改变源码、资产或预构建输入，因此 FullRebuild、Texture 读回与 PIE 证据保持有效；组合候选重新执行静态、LFS 与 prebuilt 门禁。
 
 ### 剩余风险
 
+- 自动化与构建只能证明资产、引用和运行时加载契约；白边消失后的主观轮廓、色彩与运动清晰度仍需用户在 PIE 验收。
+- NullRHI 下 UE 5.8 的 `HasAlphaChannel` 标签因无 `PrivatePlatformData` 固定为 False，不能用于命令let Alpha 判定；本候选以 RGBA 源图 Alpha 哈希、BC7 与 `CompressionNoAlpha=False` 作为可重复证据。
+- `ReEcho.Presentation.Animation2D.AssetProfiles` 存在与本候选无关且可在干净基线复现的 TimeGuard Phase2 失败；本任务未越界修改 TimeGuard，完整过滤器不能声称全绿。
+
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请用户在最终候选 PIE 中观察狐狸开局 Born 以及连续左右移动，确认白色模糊消失且主体轮廓、颜色、脚点和构图未改变。
+- `Passed`：用户在最终候选 PIE 验收后回复 `ok，合入远程`，确认狐狸开局与移动表现可接受并授权发布。
 
 ### 架构文档审阅结果
+
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，Runtime Module 拓扑、依赖和跨模块状态流不变，无需修改。
+- `shared/CODEBASE_MAP/README.md`：已审阅，`MOD-ReEchoPresentation` / `AREA-Presentation` 路由不变，无需修改。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoPresentation.md`：已补充运行时 Paper2D 纹理透明边缘与采样/压缩不变量及审计入口。

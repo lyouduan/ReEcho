@@ -573,6 +573,8 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	TestTrue(TEXT("Confirm label is independent from the button and freely draggable"),
 	         ConfirmLabel && ConfirmLabel->GetParent() && ConfirmLabel->GetParent()->GetName() == TEXT("RootPanel") &&
 	             Cast<UCanvasPanelSlot>(ConfirmLabel->Slot));
+	TestFalse(TEXT("Completed transition does not leave a retained media image in the card UI"),
+	          Choice->GetWidgetFromName(TEXT("EncounterTransitionBackgroundImage")) != nullptr);
 	return true;
 }
 
@@ -993,6 +995,60 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Equipped attachment icon remains layered above the persistent slot frame"),
 			          Attachment ? Attachment->GetVisibility() : ESlateVisibility::Collapsed,
 			          ESlateVisibility::HitTestInvisible);
+		}
+	}
+
+	FReEchoWeaponPartShopView DualSlotView = PartShopView;
+	DualSlotView.Slots.Reset();
+	DualSlotView.OwnedParts.Reset();
+	DualSlotView.EquippedParts.Reset();
+	const TArray<FName> DualSlotTypeIds = {TEXT("Core"), TEXT("Arrowhead"), TEXT("Bowstring")};
+	const TArray<int32> DualSlotCapacities = {1, 2, 2};
+	for (int32 SlotIndex = 0; SlotIndex < DualSlotTypeIds.Num(); ++SlotIndex)
+	{
+		FReEchoWeaponSlotShopView SlotView;
+		SlotView.SlotTypeId = DualSlotTypeIds[SlotIndex];
+		SlotView.DisplayName = FText::FromName(DualSlotTypeIds[SlotIndex]);
+		SlotView.Capacity = DualSlotCapacities[SlotIndex];
+		SlotView.bRequired = SlotIndex == 0;
+		DualSlotView.Slots.Add(SlotView);
+	}
+	for (int32 EquippedIndex = 0; EquippedIndex < 5; ++EquippedIndex)
+	{
+		const int32 SlotIndex = EquippedIndex == 0 ? 0 : (EquippedIndex - 1) % 2 + 1;
+		FReEchoShopOffer EquippedOffer = WeaponPart;
+		EquippedOffer.ContentId = FName(*FString::Printf(TEXT("TEST_DUAL_SLOT_PART_%d"), EquippedIndex));
+		EquippedOffer.ItemId = EquippedOffer.ContentId;
+		EquippedOffer.SlotTypeId = DualSlotTypeIds[SlotIndex];
+		EquippedOffer.DisplayName = FText::FromString(FString::Printf(TEXT("Dual slot part %d"), EquippedIndex));
+		EquippedOffer.IconTexturePath = WeaponPart.IconTexturePath;
+		DualSlotView.OwnedParts.Add(EquippedOffer);
+
+		FReEchoEquippedPartSnapshot EquippedSnapshot;
+		EquippedSnapshot.PartId = EquippedOffer.ContentId;
+		EquippedSnapshot.SlotTypeId = EquippedOffer.SlotTypeId;
+		DualSlotView.EquippedParts.Add(EquippedSnapshot);
+	}
+	Widget->SetWeaponPartShopView(DualSlotView);
+	UCanvasPanel* DualLayout =
+	    Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerDualAttachmentLayout")));
+	TestTrue(TEXT("G_3_22 capacity projection activates the authored five-slot layout"),
+	         DualLayout && DualLayout->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
+	for (int32 Index = 0; Index < 5; ++Index)
+	{
+		UButton* DualSlotButton = Cast<UButton>(
+		    Widget->GetWidgetFromName(*FString::Printf(TEXT("DesignerDualAttachmentSlot%d"), Index)));
+		const UCanvasPanelSlot* DualCanvasSlot =
+		    DualSlotButton ? Cast<UCanvasPanelSlot>(DualSlotButton->Slot) : nullptr;
+		TestNotNull(*FString::Printf(TEXT("Dual attachment slot %d is authored"), Index), DualSlotButton);
+		TestTrue(*FString::Printf(TEXT("Dual attachment slot %d displays its equipped occurrence"), Index),
+		         DualSlotButton && DualSlotButton->GetVisibility() == ESlateVisibility::Visible &&
+		             DualSlotButton->GetToolTip() != nullptr);
+		if (DualCanvasSlot)
+		{
+			TestEqual(*FString::Printf(TEXT("Dual attachment slot %d retains its authored size"), Index),
+			          DualCanvasSlot->GetSize(),
+			          Index == 0 ? FVector2D(89.0f, 175.0f) : FVector2D(89.0f, 89.0f));
 		}
 	}
 	return true;

@@ -4,7 +4,9 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/AudioComponent.h"
+#include "Components/Button.h"
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Materials/MaterialInterface.h"
@@ -18,6 +20,14 @@ namespace
 {
 constexpr float SequenceWidth = 1920.0f;
 constexpr float SequenceHeight = 1080.0f;
+constexpr float CardChoiceFrameLeft = 0.17f;
+constexpr float CardChoiceFrameTop = 87.0f / SequenceHeight;
+constexpr float CardChoiceFrameRight = 0.83f;
+constexpr float CardChoiceFrameBottom = CardChoiceFrameTop + 0.72f;
+constexpr double CardChoiceToShopCollapseStartSeconds = 10.0 / 40.0;
+constexpr double CardChoiceToShopCollapseEndSeconds = 62.0 / 40.0;
+constexpr double CardChoiceToShopBackgroundBlendEndSeconds = 20.0 / 40.0;
+constexpr float CardChoiceToShopFinalScale = 0.575f;
 constexpr double OpaqueMediaCompletionGraceSeconds = 5.0;
 constexpr float FirstFrameTimeoutSeconds = 5.0f;
 constexpr float PlaybackStallTimeoutSeconds = 5.0f;
@@ -27,7 +37,9 @@ UReEchoEncounterTransitionWidget::UReEchoEncounterTransitionWidget(const FObject
     : Super(ObjectInitializer)
 {
 	static ConstructorHelpers::FObjectFinder<UMediaSource> SourceFinder(
-	    TEXT("/Game/ReEcho/UI/EncounterTransition/FMS_EncounterTransition.FMS_EncounterTransition"));
+	    TEXT("/Game/ReEcho/UI/EncounterTransition/FMS_EncounterEndToCardChoiceV2.FMS_EncounterEndToCardChoiceV2"));
+	static ConstructorHelpers::FObjectFinder<UMediaSource> CardChoiceToShopSourceFinder(
+	    TEXT("/Game/ReEcho/UI/EncounterTransition/FMS_CardChoiceToShop.FMS_CardChoiceToShop"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> MaterialFinder(
 	    TEXT("/Game/ReEcho/UI/EncounterTransition/M_UI_EncounterTransition.M_UI_EncounterTransition"));
 	static ConstructorHelpers::FObjectFinder<UMediaSource> Stage01To02SourceFinder(
@@ -35,6 +47,7 @@ UReEchoEncounterTransitionWidget::UReEchoEncounterTransitionWidget(const FObject
 	static ConstructorHelpers::FObjectFinder<USoundBase> Stage01To02SoundFinder(
 	    TEXT("/Game/ReEcho/UI/EncounterTransition/S_Stage01To02.S_Stage01To02"));
 	MediaSource = SourceFinder.Object;
+	CardChoiceToShopMediaSource = CardChoiceToShopSourceFinder.Object;
 	Stage01To02MediaSource = Stage01To02SourceFinder.Object;
 	Stage01To02Sound = Stage01To02SoundFinder.Object;
 	MediaMaterial = MaterialFinder.Object;
@@ -55,7 +68,7 @@ void UReEchoEncounterTransitionWidget::NativeConstruct()
 	Super::NativeConstruct();
 	SetAnchorsInViewport(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	SetAlignmentInViewport(FVector2D::ZeroVector);
-	SetVisibility(ESlateVisibility::HitTestInvisible);
+	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	ResetPresentation();
 }
 
@@ -100,6 +113,22 @@ void UReEchoEncounterTransitionWidget::BuildFallbackTree()
 	SequenceImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SequenceImage"));
 	SequenceImage->SetVisibility(ESlateVisibility::Collapsed);
 	RootCanvas->AddChildToCanvas(SequenceImage);
+
+	StageCgSkipButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("StageCgSkipButton"));
+	StageCgSkipButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.5f));
+	StageCgSkipButton->SetVisibility(ESlateVisibility::Collapsed);
+	StageCgSkipButton->OnClicked.AddDynamic(this, &UReEchoEncounterTransitionWidget::HandleStageCgSkipClicked);
+	StageCgSkipLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StageCgSkipLabel"));
+	StageCgSkipLabel->SetText(FText::FromString(TEXT("跳过")));
+	StageCgSkipLabel->SetJustification(ETextJustify::Center);
+	StageCgSkipButton->AddChild(StageCgSkipLabel);
+	if (UCanvasPanelSlot* SkipSlot = RootCanvas->AddChildToCanvas(StageCgSkipButton))
+	{
+		SkipSlot->SetAnchors(FAnchors(1.0f, 0.0f));
+		SkipSlot->SetAlignment(FVector2D(1.0f, 0.0f));
+		SkipSlot->SetPosition(FVector2D(-48.0f, 36.0f));
+		SkipSlot->SetSize(FVector2D(140.0f, 54.0f));
+	}
 
 	if (!MediaSource || !MediaMaterial)
 	{
@@ -146,12 +175,44 @@ void UReEchoEncounterTransitionWidget::BuildFallbackTree()
 
 bool UReEchoEncounterTransitionWidget::StartSequence()
 {
-	return StartSequenceWithSource(MediaSource, false);
+	return StartSequenceWithSource(MediaSource, false, TEXT("EncounterEndToCardChoice"));
+}
+
+bool UReEchoEncounterTransitionWidget::StartCardChoiceToShopSequence()
+{
+	ResetPresentation();
+	return StartSequenceWithSource(CardChoiceToShopMediaSource, false, TEXT("CardChoiceToShop"));
 }
 
 bool UReEchoEncounterTransitionWidget::StartStage01To02Sequence()
 {
-	return StartSequenceWithSource(Stage01To02MediaSource, true);
+	return StartSequenceWithSource(Stage01To02MediaSource, true, TEXT("Stage01To02"));
+}
+
+void UReEchoEncounterTransitionWidget::SetStage01To02SkipAvailable(const bool bAvailable)
+{
+	BuildFallbackTree();
+	if (StageCgSkipButton)
+	{
+		StageCgSkipButton->SetIsEnabled(bAvailable);
+		StageCgSkipButton->SetVisibility(bAvailable ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+}
+
+bool UReEchoEncounterTransitionWidget::IsStage01To02SkipAvailable() const
+{
+	return StageCgSkipButton && StageCgSkipButton->GetVisibility() == ESlateVisibility::Visible &&
+	       StageCgSkipButton->GetIsEnabled();
+}
+
+void UReEchoEncounterTransitionWidget::HandleStageCgSkipClicked()
+{
+	if (!IsStage01To02SkipAvailable() || ActiveSequencePurpose != TEXT("Stage01To02"))
+	{
+		return;
+	}
+	StageCgSkipButton->SetIsEnabled(false);
+	OnStageCgSkipRequested.Broadcast();
 }
 
 UMediaPlayer* UReEchoEncounterTransitionWidget::GetMediaPlayer() const
@@ -159,7 +220,69 @@ UMediaPlayer* UReEchoEncounterTransitionWidget::GetMediaPlayer() const
 	return MediaPlayer;
 }
 
-bool UReEchoEncounterTransitionWidget::StartSequenceWithSource(UMediaSource* Source, const bool bOpaqueMedia)
+FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceFrameSize(const FVector2D& ViewSize)
+{
+	if (ViewSize.X <= 0.0f || ViewSize.Y <= 0.0f)
+	{
+		return FVector2D::ZeroVector;
+	}
+	const FVector2D FrameSize(ViewSize.X * (CardChoiceFrameRight - CardChoiceFrameLeft),
+	                          ViewSize.Y * (CardChoiceFrameBottom - CardChoiceFrameTop));
+	const float FitScale = FMath::Min(FrameSize.X / SequenceWidth, FrameSize.Y / SequenceHeight);
+	return FVector2D(SequenceWidth * FitScale, SequenceHeight * FitScale);
+}
+
+FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceFramePosition(const FVector2D& ViewSize)
+{
+	const FVector2D MediaSize = CalculateCardChoiceFrameSize(ViewSize);
+	const float FrameWidth = ViewSize.X * (CardChoiceFrameRight - CardChoiceFrameLeft);
+	return FVector2D(ViewSize.X * CardChoiceFrameLeft + (FrameWidth - MediaSize.X) * 0.5f,
+	                 ViewSize.Y * CardChoiceFrameTop);
+}
+
+float UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseAlpha(const double MediaTimeSeconds)
+{
+	const float LinearAlpha =
+	    static_cast<float>((MediaTimeSeconds - CardChoiceToShopCollapseStartSeconds) /
+	                       (CardChoiceToShopCollapseEndSeconds - CardChoiceToShopCollapseStartSeconds));
+	return FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LinearAlpha, 0.0f, 1.0f));
+}
+
+float UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopBackgroundBlendAlpha(const double MediaTimeSeconds)
+{
+	return FMath::SmoothStep(
+	    0.0f,
+	    1.0f,
+	    FMath::Clamp(static_cast<float>(MediaTimeSeconds / CardChoiceToShopBackgroundBlendEndSeconds), 0.0f, 1.0f));
+}
+
+FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseSize(const FVector2D& ViewSize,
+                                                                                  const float CollapseAlpha)
+{
+	const float Scale = FMath::Lerp(1.0f, CardChoiceToShopFinalScale, FMath::Clamp(CollapseAlpha, 0.0f, 1.0f));
+	return CalculateCardChoiceFrameSize(ViewSize) * Scale;
+}
+
+float UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseOpacity(const float CollapseAlpha)
+{
+	return 1.0f - FMath::Clamp(CollapseAlpha, 0.0f, 1.0f);
+}
+
+FVector2D UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapsePosition(const FVector2D& ViewSize,
+                                                                                      const float CollapseAlpha,
+                                                                                      const FVector2D& TargetCenter)
+{
+	const float ClampedAlpha = FMath::Clamp(CollapseAlpha, 0.0f, 1.0f);
+	const FVector2D InitialSize = CalculateCardChoiceFrameSize(ViewSize);
+	const FVector2D CurrentSize = CalculateCardChoiceToShopCollapseSize(ViewSize, ClampedAlpha);
+	const FVector2D InitialCenter = CalculateCardChoiceFramePosition(ViewSize) + InitialSize * 0.5f;
+	const FVector2D CurrentCenter = FMath::Lerp(InitialCenter, TargetCenter, ClampedAlpha);
+	return CurrentCenter - CurrentSize * 0.5f;
+}
+
+bool UReEchoEncounterTransitionWidget::StartSequenceWithSource(UMediaSource* Source,
+                                                               const bool bOpaqueMedia,
+                                                               const FName SequencePurpose)
 {
 	BuildFallbackTree();
 	if (bSequenceStarted)
@@ -170,6 +293,7 @@ bool UReEchoEncounterTransitionWidget::StartSequenceWithSource(UMediaSource* Sou
 	bSequenceFinished = false;
 	bSequenceFailed = false;
 	bOpaqueSequence = bOpaqueMedia;
+	ActiveSequencePurpose = SequencePurpose;
 	bMediaPlaybackStarted = false;
 	OpaquePlaybackElapsedSeconds = 0.0f;
 	FirstFrameWaitElapsedSeconds = 0.0f;
@@ -188,7 +312,8 @@ bool UReEchoEncounterTransitionWidget::StartSequenceWithSource(UMediaSource* Sou
 	}
 	UE_LOG(LogTemp,
 	       Display,
-	       TEXT("Encounter transition desired media player: %s"),
+	       TEXT("Encounter transition purpose=%s desired media player: %s"),
+	       *ActiveSequencePurpose.ToString(),
 	       bOpaqueMedia ? TEXT("WmfMedia/HAP opaque") : TEXT("WmfMedia/HAP alpha"));
 	return MediaPlayer && Source && MediaPlayer->OpenSource(Source);
 }
@@ -215,6 +340,7 @@ void UReEchoEncounterTransitionWidget::BeginSequenceFadeOut(const float Duration
 	bFadingOut = true;
 	FadeDurationSeconds = FMath::Max(DurationSeconds, KINDA_SMALL_NUMBER);
 	FadeElapsedSeconds = 0.0f;
+	FadeStartOpacity = SequenceImage ? SequenceImage->GetRenderOpacity() : 1.0f;
 }
 
 bool UReEchoEncounterTransitionWidget::IsSequenceFinished() const
@@ -225,6 +351,24 @@ bool UReEchoEncounterTransitionWidget::IsSequenceFinished() const
 bool UReEchoEncounterTransitionWidget::HasSequenceFailed() const
 {
 	return bSequenceFailed;
+}
+
+float UReEchoEncounterTransitionWidget::GetCardChoiceToShopBackgroundBlendAlpha() const
+{
+	return ActiveSequencePurpose == TEXT("CardChoiceToShop") && MediaPlayer
+	           ? CalculateCardChoiceToShopBackgroundBlendAlpha(MediaPlayer->GetTime().GetTotalSeconds())
+	           : 0.0f;
+}
+
+bool UReEchoEncounterTransitionWidget::HasCardChoiceToShopCollapseStarted() const
+{
+	return ActiveSequencePurpose == TEXT("CardChoiceToShop") && MediaPlayer &&
+	       MediaPlayer->GetTime().GetTotalSeconds() >= CardChoiceToShopCollapseStartSeconds;
+}
+
+void UReEchoEncounterTransitionWidget::SetCardChoiceToShopCollapseTargetAbsolute(const FVector2D& AbsoluteCenter)
+{
+	CardChoiceToShopCollapseTargetAbsolute = AbsoluteCenter;
 }
 
 bool UReEchoEncounterTransitionWidget::IsFadeOutFinished() const
@@ -244,8 +388,11 @@ void UReEchoEncounterTransitionWidget::ResetPresentation()
 	PlaybackStallElapsedSeconds = 0.0f;
 	LastObservedMediaTime = FTimespan::MinValue();
 	MediaState = EReEchoTransitionMediaState::Closed;
+	ActiveSequencePurpose = NAME_None;
+	CardChoiceToShopCollapseTargetAbsolute.Reset();
 	bFadingOut = false;
 	FadeElapsedSeconds = 0.0f;
+	FadeStartOpacity = 1.0f;
 	if (MediaPlayer)
 	{
 		MediaPlayer->Close();
@@ -260,6 +407,7 @@ void UReEchoEncounterTransitionWidget::ResetPresentation()
 		SequenceImage->SetRenderOpacity(1.0f);
 		SequenceImage->SetVisibility(ESlateVisibility::Collapsed);
 	}
+	SetStage01To02SkipAvailable(false);
 }
 
 void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -333,16 +481,18 @@ void UReEchoEncounterTransitionWidget::NativeTick(const FGeometry& MyGeometry, c
 			}
 		}
 	}
-	UpdateFillLayout(MyGeometry.GetLocalSize());
+	UpdateFillLayout(MyGeometry);
 	if (bFadingOut && SequenceImage)
 	{
 		FadeElapsedSeconds = FMath::Min(FadeElapsedSeconds + InDeltaTime, FadeDurationSeconds);
-		SequenceImage->SetRenderOpacity(1.0f - FadeElapsedSeconds / FadeDurationSeconds);
+		const float FadeAlpha = 1.0f - FadeElapsedSeconds / FadeDurationSeconds;
+		SequenceImage->SetRenderOpacity(FadeStartOpacity * FadeAlpha);
 	}
 }
 
-void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FVector2D& ViewSize)
+void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FGeometry& Geometry)
 {
+	const FVector2D ViewSize = Geometry.GetLocalSize();
 	if (!SequenceImage || ViewSize.X <= 0.0f || ViewSize.Y <= 0.0f)
 	{
 		return;
@@ -352,15 +502,38 @@ void UReEchoEncounterTransitionWidget::UpdateFillLayout(const FVector2D& ViewSiz
 	{
 		return;
 	}
-	const FVector2D FillSize = CalculateFillSize(ViewSize);
+	const bool bCardChoiceComposition =
+	    ActiveSequencePurpose == TEXT("EncounterEndToCardChoice") || ActiveSequencePurpose == TEXT("CardChoiceToShop");
+	const bool bCollapseToShop = ActiveSequencePurpose == TEXT("CardChoiceToShop");
+	const float CollapseAlpha = bCollapseToShop && MediaPlayer
+	                                ? CalculateCardChoiceToShopCollapseAlpha(MediaPlayer->GetTime().GetTotalSeconds())
+	                                : 0.0f;
+	if (bCollapseToShop && !bFadingOut)
+	{
+		SequenceImage->SetRenderOpacity(CalculateCardChoiceToShopCollapseOpacity(CollapseAlpha));
+	}
+	const FVector2D FillSize = bCollapseToShop ? CalculateCardChoiceToShopCollapseSize(ViewSize, CollapseAlpha)
+	                                           : (bCardChoiceComposition ? CalculateCardChoiceFrameSize(ViewSize)
+	                                                                     : CalculateFillSize(ViewSize));
 	CanvasSlot->SetAnchors(FAnchors(0.0f));
-	CanvasSlot->SetPosition((ViewSize - FillSize) * 0.5f);
+	const FVector2D CollapseTargetCenter =
+	    bCollapseToShop && CardChoiceToShopCollapseTargetAbsolute.IsSet()
+	        ? Geometry.AbsoluteToLocal(CardChoiceToShopCollapseTargetAbsolute.GetValue())
+	        : ViewSize * 0.5f;
+	CanvasSlot->SetPosition(
+	    bCollapseToShop
+	        ? CalculateCardChoiceToShopCollapsePosition(ViewSize, CollapseAlpha, CollapseTargetCenter)
+	        : (bCardChoiceComposition ? CalculateCardChoiceFramePosition(ViewSize) : (ViewSize - FillSize) * 0.5f));
 	CanvasSlot->SetSize(FillSize);
 }
 
 void UReEchoEncounterTransitionWidget::HandleMediaOpened(FString OpenedUrl)
 {
-	UE_LOG(LogTemp, Display, TEXT("Encounter transition media opened: %s"), *OpenedUrl);
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("Encounter transition purpose=%s media opened: %s"),
+	       *ActiveSequencePurpose.ToString(),
+	       *OpenedUrl);
 	if (!MediaPlayer || !MediaPlayer->Seek(FTimespan::Zero()))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Encounter transition media could not seek to frame zero."));
@@ -384,7 +557,11 @@ void UReEchoEncounterTransitionWidget::HandleMediaOpened(FString OpenedUrl)
 
 void UReEchoEncounterTransitionWidget::HandleMediaOpenFailed(FString FailedUrl)
 {
-	UE_LOG(LogTemp, Error, TEXT("Encounter transition media failed to open: %s"), *FailedUrl);
+	UE_LOG(LogTemp,
+	       Error,
+	       TEXT("Encounter transition purpose=%s media failed to open: %s"),
+	       *ActiveSequencePurpose.ToString(),
+	       *FailedUrl);
 	bSequenceFailed = true;
 	MediaState = EReEchoTransitionMediaState::Failed;
 }
@@ -393,7 +570,10 @@ void UReEchoEncounterTransitionWidget::HandleMediaEndReached()
 {
 	bSequenceFinished = true;
 	MediaState = EReEchoTransitionMediaState::Completed;
-	UE_LOG(LogTemp, Display, TEXT("Encounter transition media reached the final frame."));
+	UE_LOG(LogTemp,
+	       Display,
+	       TEXT("Encounter transition purpose=%s media reached the final frame."),
+	       *ActiveSequencePurpose.ToString());
 }
 
 void UReEchoEncounterTransitionWidget::StartStageCgAudio()
@@ -431,5 +611,9 @@ void UReEchoEncounterTransitionWidget::FailSequence(const TCHAR* Reason)
 		Stage01To02AudioComponent->Stop();
 		Stage01To02AudioComponent = nullptr;
 	}
-	UE_LOG(LogTemp, Error, TEXT("Encounter transition media failed: %s."), Reason);
+	UE_LOG(LogTemp,
+	       Error,
+	       TEXT("Encounter transition purpose=%s media failed: %s."),
+	       *ActiveSequencePurpose.ToString(),
+	       Reason);
 }

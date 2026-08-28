@@ -273,6 +273,63 @@ bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostSheepStunImmunityTest,
+                                 "ReEcho.Enemies.Host.SheepStunImmunity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostSheepStunImmunityTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads for sheep stun immunity"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+
+	FReEchoEnemyDefinition SheepDefinition;
+	FString CompileError;
+	if (!TestTrue(TEXT("Sheep definition compiles for stun immunity"),
+	              ReEchoEnemyDefinitionCompiler::Compile(
+	                  *LoadResult.Snapshot, TEXT("M_SHEEP"), SheepDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+
+	FReEchoEnemyHostWorldFixture Fixture;
+	AReEchoEnemyActor* Sheep = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	if (!TestNotNull(TEXT("Sheep host spawns for stun immunity"), Sheep))
+	{
+		return false;
+	}
+	Sheep->SetEnemyId(TEXT("M_SHEEP"));
+	if (!TestTrue(TEXT("Sheep accepts production definition for stun immunity"),
+	              Sheep->ConfigureFromDefinition(SheepDefinition, 31)))
+	{
+		return false;
+	}
+
+	UReEchoCombatantComponent* Combatant = Sheep->GetCombatantComponent();
+	if (!TestNotNull(TEXT("Sheep has combat authority"), Combatant))
+	{
+		return false;
+	}
+	TestTrue(TEXT("M_SHEEP configures combat stun immunity"), Combatant->IsStunImmune());
+
+	FReEchoTimedStatusCommand WeaponStun;
+	WeaponStun.StatusId = TEXT("Z_Vertigo");
+	WeaponStun.CurrentTimeSeconds = Fixture.World->GetTimeSeconds();
+	WeaponStun.DurationSeconds = 10.0f;
+	TestFalse(TEXT("M_SHEEP rejects weapon/status Vertigo"), Combatant->ApplyTimedStatus(WeaponStun));
+	Sheep->ApplyCardStun(10.0f);
+	TestFalse(TEXT("M_SHEEP remains action-enabled after card stun"),
+	          Combatant->IsActionDisabled(Fixture.World->GetTimeSeconds() + 1.0f));
+	TestFalse(TEXT("M_SHEEP never records Vertigo in element state"),
+	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Vertigo")));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostCrowdCollisionTest,
                                  "ReEcho.Enemies.Host.CrowdCollision",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

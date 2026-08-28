@@ -15,6 +15,18 @@ template <typename WidgetType> WidgetType* FindRestartWidget(UReEchoRestartWidge
 {
 	return Cast<WidgetType>(RestartWidget->GetWidgetFromName(Name));
 }
+
+FReEchoShopOffer MakeOwnedCardOffer(const FName CardId, const int32 Tier, const bool bUseExistingIcon = true)
+{
+	FReEchoShopOffer Offer;
+	Offer.ContentId = CardId;
+	Offer.Tier = Tier;
+	const FString AssetName = FString::Printf(TEXT("T_UI_CardIcon_%s"), *CardId.ToString());
+	Offer.IconTexturePath =
+	    bUseExistingIcon ? FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/%s.%s"), *AssetName, *AssetName)
+	                     : TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_Missing.T_UI_CardIcon_Missing");
+	return Offer;
+}
 } // namespace
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRestartWidgetPresentationTest,
@@ -87,6 +99,15 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	UTextBlock* VictoryContinueLabel = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("VictoryContinueLabel"));
 	UTextBlock* DefeatRestartLabel = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatRestartLabel"));
 	UTextBlock* DefeatMainMenuLabel = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatMainMenuLabel"));
+	TArray<UImage*> DefeatCardSlots;
+	TArray<UImage*> DefeatCardIcons;
+	for (int32 Index = 0; Index < 5; ++Index)
+	{
+		DefeatCardSlots.Add(
+		    FindRestartWidget<UImage>(RestartWidget, *FString::Printf(TEXT("DesignerDefeatCardSlot%d"), Index)));
+		DefeatCardIcons.Add(
+		    FindRestartWidget<UImage>(RestartWidget, *FString::Printf(TEXT("DesignerDefeatCardIcon%d"), Index)));
+	}
 
 	TestNotNull(TEXT("Pause title exists"), TitleText);
 	TestNotNull(TEXT("Pause root exists"), RootPanel);
@@ -118,6 +139,11 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Formal victory continue label exists"), VictoryContinueLabel);
 	TestNotNull(TEXT("Formal defeat restart label exists"), DefeatRestartLabel);
 	TestNotNull(TEXT("Formal defeat main-menu label exists"), DefeatMainMenuLabel);
+	for (int32 Index = 0; Index < DefeatCardSlots.Num(); ++Index)
+	{
+		TestNotNull(*FString::Printf(TEXT("Formal defeat card slot %d exists"), Index), DefeatCardSlots[Index]);
+		TestNotNull(*FString::Printf(TEXT("Formal defeat card icon %d exists"), Index), DefeatCardIcons[Index]);
+	}
 	if (!TitleText || !RootPanel || !ResumeButton || !RestartButton || !QuitButton || !PauseSettingsButton ||
 	    !ArtPauseDimmer || !ArtPausePrimaryButton || !ArtPauseSecondaryButton || !ArtPauseTertiaryButton ||
 	    !ArtRestartDialogPanel || !VictoryCanvas || !VictoryEncounterValue || !VictoryTimeShardsValue ||
@@ -126,7 +152,8 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	    !DefeatTimeShardsValue || !DefeatTraitCountValue || !DefeatRestartButton || !DefeatMainMenuButton ||
 	    !ArtDefeatCharacterFormal || !ArtVictoryContinueButtonFormal || !ArtDefeatRestartButtonFormal ||
 	    !ArtDefeatMainMenuButtonFormal ||
-	    !VictoryContinueLabel || !DefeatRestartLabel || !DefeatMainMenuLabel)
+	    !VictoryContinueLabel || !DefeatRestartLabel || !DefeatMainMenuLabel || DefeatCardSlots.Contains(nullptr) ||
+	    DefeatCardIcons.Contains(nullptr))
 	{
 		return false;
 	}
@@ -239,6 +266,73 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Legacy quit action is hidden during formal defeat"),
 	          QuitButton->GetVisibility(),
 	          ESlateVisibility::Collapsed);
+
+	const TArray<FReEchoShopOffer> OwnedCards = {
+	    MakeOwnedCardOffer(TEXT("G_1_03"), 1),
+	    MakeOwnedCardOffer(TEXT("G_3_22"), 3),
+	    MakeOwnedCardOffer(TEXT("G_2_04"), 2),
+	    MakeOwnedCardOffer(TEXT("G_3_17"), 3),
+	    MakeOwnedCardOffer(TEXT("G_1_04"), 1),
+	    MakeOwnedCardOffer(TEXT("G_2_05"), 2),
+	};
+	RestartWidget->SetDeathScreen(true, 4, 126, OwnedCards.Num(), TEXT("J_HEART"), OwnedCards);
+	const FName ExpectedCardIds[] = {TEXT("G_3_22"), TEXT("G_3_17"), TEXT("G_2_04"), TEXT("G_2_05"), TEXT("G_1_03")};
+	for (int32 Index = 0; Index < DefeatCardSlots.Num(); ++Index)
+	{
+		const FString AssetName = FString::Printf(TEXT("T_UI_CardIcon_%s"), *ExpectedCardIds[Index].ToString());
+		const FString ExpectedPath =
+		    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/%s.%s"), *AssetName, *AssetName);
+		TestEqual(*FString::Printf(TEXT("Ranked defeat card icon %d is visible"), Index),
+		          DefeatCardIcons[Index]->GetVisibility(),
+		          ESlateVisibility::HitTestInvisible);
+		TestNotNull(*FString::Printf(TEXT("Ranked defeat card icon %d loads a texture"), Index),
+		            DefeatCardIcons[Index]->GetBrush().GetResourceObject());
+		if (DefeatCardIcons[Index]->GetBrush().GetResourceObject())
+		{
+			TestEqual(*FString::Printf(TEXT("Ranked defeat card icon %d uses the expected texture"), Index),
+			          DefeatCardIcons[Index]->GetBrush().GetResourceObject()->GetPathName(),
+			          ExpectedPath);
+		}
+	}
+
+	const TArray<FReEchoShopOffer> MissingCard = {MakeOwnedCardOffer(TEXT("MISSING_CARD"), 3, false)};
+	RestartWidget->SetDeathScreen(true, 4, 126, 1, TEXT("J_HEART"), MissingCard);
+	TestNotNull(TEXT("Missing defeat card icon uses the shop fallback"),
+	            DefeatCardIcons[0]->GetBrush().GetResourceObject());
+	if (DefeatCardIcons[0]->GetBrush().GetResourceObject())
+	{
+		TestEqual(TEXT("Missing defeat card icon matches the shop fallback"),
+		          DefeatCardIcons[0]->GetBrush().GetResourceObject()->GetPathName(),
+		          FString(TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/"
+		                       "T_UI_Shop_CardIcon.T_UI_Shop_CardIcon")));
+	}
+	const FString EmptySlotPath =
+	    TEXT("/Game/ReEcho/Textures/UI/Formal/RoundDefeat/T_UI_Defeat_CardSlot.T_UI_Defeat_CardSlot");
+	for (int32 Index = 0; Index < DefeatCardSlots.Num(); ++Index)
+	{
+		TestNotNull(*FString::Printf(TEXT("Defeat card slot %d keeps its empty art"), Index),
+		            DefeatCardSlots[Index]->GetBrush().GetResourceObject());
+		if (DefeatCardSlots[Index]->GetBrush().GetResourceObject())
+		{
+			TestEqual(*FString::Printf(TEXT("Defeat card slot %d still matches empty art"), Index),
+			          DefeatCardSlots[Index]->GetBrush().GetResourceObject()->GetPathName(),
+			          EmptySlotPath);
+		}
+		if (Index > 0)
+		{
+			TestEqual(*FString::Printf(TEXT("Unused defeat card icon %d is hidden"), Index),
+			          DefeatCardIcons[Index]->GetVisibility(),
+			          ESlateVisibility::Hidden);
+		}
+	}
+
+	RestartWidget->SetDeathScreen(true, 4, 126, 0);
+	for (int32 Index = 0; Index < DefeatCardSlots.Num(); ++Index)
+	{
+		TestEqual(*FString::Printf(TEXT("Zero-card defeat icon %d is hidden"), Index),
+		          DefeatCardIcons[Index]->GetVisibility(),
+		          ESlateVisibility::Hidden);
+	}
 
 	RestartWidget->SetVictoryScreen(126, 5);
 	TestEqual(TEXT("Formal defeat canvas is hidden during victory"),

@@ -4,9 +4,9 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "Diagnostics/ReEchoBuildTrace.h"
 #include "ReEcho.h"
-#include "Run/ReEchoCharacterPromotion.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoRunSaveGame.h"
+#include "Run/ReEchoPlayerProgressSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "Cards/ReEchoCardRuntime.h"
 #include "Combat/ReEchoCombatantComponent.h"
@@ -29,7 +29,13 @@ const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
+const FString PlayerProgressSaveSlot = TEXT("ReEchoPlayerProgress");
 constexpr int32 RunSaveUserIndex = 0;
+
+FString MakeRunSaveSlotName(const int32 SlotIndex)
+{
+	return FString::Printf(TEXT("ReEchoRunSlot%d"), SlotIndex + 1);
+}
 
 bool IsValidResumableSave(const UReEchoRunSaveGame& SaveGame)
 {
@@ -342,9 +348,13 @@ FReEchoShopOffer MakeOwnedBuildCardOffer(const FReEchoCardDefinition& Card,
 	return Offer;
 }
 
-int32 BuildShopOfferSeed(const FName WeaponId, const int32 EncounterIndex, const int32 RefreshSequence)
+int32 BuildShopOfferSeed(const int32 RunSeed,
+                         const FName ContentId,
+                         const int32 EncounterIndex,
+                         const int32 RefreshSequence)
 {
-	uint32 Seed = HashCombine(GetTypeHash(WeaponId), GetTypeHash(EncounterIndex));
+	uint32 Seed = HashCombine(GetTypeHash(RunSeed), GetTypeHash(ContentId));
+	Seed = HashCombine(Seed, GetTypeHash(EncounterIndex));
 	Seed = HashCombine(Seed, GetTypeHash(RefreshSequence));
 	return static_cast<int32>(Seed);
 }
@@ -460,11 +470,17 @@ int32 BuildTraitOfferSeed(const int32 RunSeed, const int32 EncounterIndex, const
 	return static_cast<int32>(Seed);
 }
 
-int32 MakeNewTraitOfferSeed()
+int32 MakeNewRunSeed()
 {
 	const int64 UtcTicks = FDateTime::UtcNow().GetTicks();
 	const uint64 HighResolutionTicks = FPlatformTime::Cycles64();
 	const uint32 Seed = HashCombine(GetTypeHash(UtcTicks), GetTypeHash(HighResolutionTicks));
+	return Seed != 0 ? static_cast<int32>(Seed) : 1;
+}
+
+int32 BuildScopedRunSeed(const int32 RunSeed, const uint32 ScopeSalt)
+{
+	const uint32 Seed = HashCombine(GetTypeHash(RunSeed), ScopeSalt);
 	return Seed != 0 ? static_cast<int32>(Seed) : 1;
 }
 
@@ -477,10 +493,11 @@ int32 MigrateLegacyTraitOfferSeed(const UReEchoRunSaveGame& SaveGame)
 	return Seed != 0 ? static_cast<int32>(Seed) : 1;
 }
 
-int32 MakeNewEnemyShardDropSeed()
+int32 MigrateLegacyRunSeed(const UReEchoRunSaveGame& SaveGame)
 {
-	const int32 Seed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()));
-	return Seed != 0 ? Seed : 1;
+	const int32 LegacySeed =
+	    SaveGame.TraitOfferSeed != 0 ? SaveGame.TraitOfferSeed : MigrateLegacyTraitOfferSeed(SaveGame);
+	return BuildScopedRunSeed(LegacySeed, 0x52554E53u); // "RUNS": stable migration salt.
 }
 
 int32 MigrateLegacyEnemyShardDropSeed(const UReEchoRunSaveGame& SaveGame)
@@ -723,22 +740,63 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 	{
 		return false;
 	}
-
-	if (FString* BaseCharacterId = Build.RuleFlags.Find(TEXT("BaseCharacterId")))
+	auto ResolveEffectiveCharacterStats = [&Snapshot](const FReEchoCsvCharacterRow& Character)
 	{
-		const FName CanonicalBaseCharacterId = Snapshot.ResolveCharacterId(FName(**BaseCharacterId));
-		if (!Snapshot.FindCharacter(CanonicalBaseCharacterId))
+		FReEchoStatBlock Result = Character.BaseStats;
+		ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(Snapshot, Character.Id, Result);
+		return Result;
+	};
+	auto ApplyCharacterDelta = [](FReEchoStatBlock& Target,
+	                              const FReEchoStatBlock& From,
+	                              const FReEchoStatBlock& To)
+	{
+		Target.HpMax += To.HpMax - From.HpMax;
+		Target.HpPoint = FMath::Min(Target.HpPoint, Target.HpMax);
+		Target.PhysicalAttack += To.PhysicalAttack - From.PhysicalAttack;
+		Target.ElementalAttack += To.ElementalAttack - From.ElementalAttack;
+		Target.AttackSpeed += To.AttackSpeed - From.AttackSpeed;
+		Target.MovementSpeed += To.MovementSpeed - From.MovementSpeed;
+		Target.CriticalRate += To.CriticalRate - From.CriticalRate;
+		Target.CriticalEffect += To.CriticalEffect - From.CriticalEffect;
+		Target.EchoEfficiency += To.EchoEfficiency - From.EchoEfficiency;
+		Target.ReactionEfficiency += To.ReactionEfficiency - From.ReactionEfficiency;
+	};
+
+	// Plan125 retires the old four-card promotion system. BaseCharacterId was written on every run and
+	// identifies the player's original selection when an older save already changed CharacterId.
+	FString LegacyBaseCharacterId = Build.RuleFlags.FindRef(TEXT("BaseCharacterId"));
+	if (LegacyBaseCharacterId.IsEmpty())
+	{
+		LegacyBaseCharacterId = Build.EquipmentBaseRuleFlags.FindRef(TEXT("BaseCharacterId"));
+	}
+	const FName CanonicalBaseCharacterId =
+	    LegacyBaseCharacterId.IsEmpty() ? NAME_None : Snapshot.ResolveCharacterId(FName(*LegacyBaseCharacterId));
+	const FReEchoCsvCharacterRow* CurrentCharacter = Snapshot.FindCharacter(Build.CharacterId);
+	const FReEchoCsvCharacterRow* OriginalCharacter = Snapshot.FindCharacter(CanonicalBaseCharacterId);
+	if (CurrentCharacter && OriginalCharacter && CurrentCharacter->Id != OriginalCharacter->Id)
+	{
+		const FReEchoStatBlock CurrentCharacterStats = ResolveEffectiveCharacterStats(*CurrentCharacter);
+		const FReEchoStatBlock OriginalCharacterStats = ResolveEffectiveCharacterStats(*OriginalCharacter);
+		ApplyCharacterDelta(Build.Stats, CurrentCharacterStats, OriginalCharacterStats);
+		if (Build.bHasEquipmentBase)
 		{
-			return false;
+			ApplyCharacterDelta(Build.EquipmentBaseStats, CurrentCharacterStats, OriginalCharacterStats);
 		}
-		if (SaveVersion < 11)
+		Build.CharacterId = OriginalCharacter->Id;
+		CurrentCharacter = OriginalCharacter;
+	}
+	if (CurrentCharacter)
+	{
+		Build.Stats.RoleId = CurrentCharacter->RoleId == TEXT("None") ? NAME_None : CurrentCharacter->RoleId;
+		if (Build.bHasEquipmentBase)
 		{
-			*BaseCharacterId = CanonicalBaseCharacterId.ToString();
+			Build.EquipmentBaseStats.RoleId = Build.Stats.RoleId;
 		}
-		else if (CanonicalBaseCharacterId.ToString() != *BaseCharacterId)
-		{
-			return false;
-		}
+	}
+	for (const FName LegacyFlag : {FName(TEXT("BaseCharacterId")), FName(TEXT("Promoted")), FName(TEXT("Role"))})
+	{
+		Build.RuleFlags.Remove(LegacyFlag);
+		Build.EquipmentBaseRuleFlags.Remove(LegacyFlag);
 	}
 
 	if (!Snapshot.CardCatalog.IsValid())
@@ -1293,7 +1351,6 @@ FReEchoStartRunResolveResult ReEchoRunData::ResolveStartingBuildFromSnapshot(con
 	Result.Build.Stats = Character->BaseStats;
 	ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(*Snapshot, Character->Id, Result.Build.Stats);
 	Result.Build.Stats.RoleId = Character->RoleId == TEXT("None") ? NAME_None : Character->RoleId;
-	Result.Build.RuleFlags.Add(TEXT("BaseCharacterId"), Character->Id.ToString());
 	Result.Build.EquipmentBaseStats = Result.Build.Stats;
 	Result.Build.EquipmentBaseRuleFlags = Result.Build.RuleFlags;
 	Result.Build.bHasEquipmentBase = true;
@@ -1326,6 +1383,47 @@ bool ReEchoRunData::TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
 	    OutBuild);
 }
 
+void UReEchoRunSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	LoadPlayerProgress();
+}
+
+void UReEchoRunSubsystem::LoadPlayerProgress()
+{
+	bHasViewedStage01To02Cg = false;
+	const UReEchoPlayerProgressSaveGame* Progress =
+	    Cast<UReEchoPlayerProgressSaveGame>(UGameplayStatics::LoadGameFromSlot(PlayerProgressSaveSlot, RunSaveUserIndex));
+	if (!Progress)
+	{
+		return;
+	}
+	if (Progress->SaveVersion < 1 || Progress->SaveVersion > UReEchoPlayerProgressSaveGame::CurrentSaveVersion)
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("Player progress save version %d is unsupported; using defaults."), Progress->SaveVersion);
+		return;
+	}
+	bHasViewedStage01To02Cg = Progress->bHasViewedStage01To02Cg;
+}
+
+bool UReEchoRunSubsystem::MarkStage01To02CgViewed()
+{
+	if (bHasViewedStage01To02Cg)
+	{
+		return true;
+	}
+	UReEchoPlayerProgressSaveGame* Progress = NewObject<UReEchoPlayerProgressSaveGame>(GetTransientPackage());
+	Progress->bHasViewedStage01To02Cg = true;
+	if (!UGameplayStatics::SaveGameToSlot(Progress, PlayerProgressSaveSlot, RunSaveUserIndex))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] watched state could not be persisted; skip remains locked."));
+		return false;
+	}
+	bHasViewedStage01To02Cg = true;
+	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] natural completion persisted account watched state."));
+	return true;
+}
+
 void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
 {
 	Phase = NewPhase;
@@ -1336,8 +1434,9 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 {
 	EncounterIndex = 0;
 	TimeShards = 0;
-	TraitOfferSeed = MakeNewTraitOfferSeed();
-	EnemyShardDropSeed = MakeNewEnemyShardDropSeed();
+	RunSeed = MakeNewRunSeed();
+	TraitOfferSeed = BuildScopedRunSeed(RunSeed, 0x54524149u);     // "TRAI"
+	EnemyShardDropSeed = BuildScopedRunSeed(RunSeed, 0x53485244u); // "SHRD"
 	RewardedEnemyShardDropKeys.Reset();
 	InventoryItems.Reset();
 	OwnedPartIds.Reset();
@@ -1489,6 +1588,26 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("weapon=%s"), *WeaponId.ToString()));
 	return true;
+}
+
+TArray<FReEchoShopOffer> UReEchoRunSubsystem::GetOwnedBuildCardView() const
+{
+	TArray<FReEchoShopOffer> OwnedCards;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return OwnedCards;
+	}
+
+	OwnedCards.Reserve(CurrentBuild.CardState.OwnedCardIds.Num());
+	for (const FName CardId : CurrentBuild.CardState.OwnedCardIds)
+	{
+		if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
+		{
+			OwnedCards.Add(MakeOwnedBuildCardOffer(*Card, CurrentBuild.CardState, *Snapshot->CardCatalog));
+		}
+	}
+	return OwnedCards;
 }
 
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
@@ -1663,7 +1782,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 	const int32 WeaponPartRefreshSequence = WeaponRuneRefreshSequence;
 	const auto MakePartSlotOffer = [&](const FReEchoCsvPartRow& Part) -> FReEchoWeaponSlotOffer
 	{
-		FRandomStream PriceRand(BuildShopOfferSeed(Part.Id, EncounterIndex, WeaponPartRefreshSequence));
+		FRandomStream PriceRand(BuildShopOfferSeed(RunSeed, Part.Id, EncounterIndex, WeaponPartRefreshSequence));
 		FReEchoWeaponSlotOffer Offer;
 		Offer.Kind = EReEchoShopOfferKind::Part;
 		Offer.PartId = Part.Id;
@@ -1678,7 +1797,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 	};
 	const auto MakeWeaponSlotOffer = [&](const FReEchoCsvWeaponRow& CandidateWeapon) -> FReEchoWeaponSlotOffer
 	{
-		FRandomStream PriceRand(BuildShopOfferSeed(CandidateWeapon.Id, EncounterIndex, WeaponPartRefreshSequence));
+		FRandomStream PriceRand(
+		    BuildShopOfferSeed(RunSeed, CandidateWeapon.Id, EncounterIndex, WeaponPartRefreshSequence));
 		FReEchoWeaponSlotOffer Offer;
 		Offer.Kind = EReEchoShopOfferKind::Weapon;
 		Offer.WeaponId = CandidateWeapon.Id;
@@ -1734,14 +1854,15 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		WeaponPartShopOfferIds.Init(NAME_None, ReEchoShopOfferCountPerGroup);
 
 		// Slot 0: universal rune (deterministic by seed).
-		FRandomStream Slot0Rand(BuildShopOfferSeed(View.WeaponId, EncounterIndex, WeaponPartRefreshSequence));
+		FRandomStream Slot0Rand(BuildShopOfferSeed(RunSeed, View.WeaponId, EncounterIndex, WeaponPartRefreshSequence));
 		if (const FReEchoCsvPartRow* Chosen = PickPart(UniversalRuneCandidates, Slot0Rand))
 		{
 			WeaponPartShopOfferIds[0] = Chosen->Id;
 		}
 
 		// Slots 1 & 2: weighted 70/15/15 with fallbacks. Remove each result so one page never duplicates an item.
-		FRandomStream SlotRand(BuildShopOfferSeed(TEXT("SHOP_SLOTS"), EncounterIndex, WeaponPartRefreshSequence));
+		FRandomStream SlotRand(
+		    BuildShopOfferSeed(RunSeed, TEXT("SHOP_SLOTS"), EncounterIndex, WeaponPartRefreshSequence));
 		for (int32 SlotIndex = 1; SlotIndex <= 2; ++SlotIndex)
 		{
 			const float Roll = SlotRand.GetFraction();
@@ -1943,7 +2064,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 						continue;
 					}
 					const FName TierSeedKey(*FString::Printf(TEXT("SHOP_CARD_TIER_%d"), Tier));
-					FRandomStream CardRand(BuildShopOfferSeed(TierSeedKey, EncounterIndex, RefreshSequence));
+					FRandomStream CardRand(BuildShopOfferSeed(RunSeed, TierSeedKey, EncounterIndex, RefreshSequence));
 					ShuffleOffers(Eligible, CardRand);
 					const int32 CandidateCount = FMath::Min(ReEchoShopOfferCountPerGroup, Eligible.Num());
 					for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount; ++CandidateIndex)
@@ -1953,7 +2074,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 						Pack.SlotRefreshUses.Add(0);
 					}
 					const FName PriceSeedKey(*FString::Printf(TEXT("SHOP_CARD_PACK_TIER_%d"), Tier));
-					FRandomStream PriceRand(BuildShopOfferSeed(PriceSeedKey, EncounterIndex, RefreshSequence));
+					FRandomStream PriceRand(BuildShopOfferSeed(RunSeed, PriceSeedKey, EncounterIndex, RefreshSequence));
 					Pack.BasePrice =
 					    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, PriceRand);
 				}
@@ -1978,7 +2099,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				if (Pack.BasePrice <= 0)
 				{
 					const FName PriceSeedKey(*FString::Printf(TEXT("SHOP_CARD_PACK_TIER_%d"), Tier));
-					FRandomStream PriceRand(BuildShopOfferSeed(PriceSeedKey, EncounterIndex, RefreshSequence));
+					FRandomStream PriceRand(BuildShopOfferSeed(RunSeed, PriceSeedKey, EncounterIndex, RefreshSequence));
 					Pack.BasePrice =
 					    GetShopPriceInRange(*Snapshot, *FString::Printf(TEXT("Card_T%d"), Tier), Tier * 10, PriceRand);
 				}
@@ -2048,15 +2169,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 			}
 		}
 
-		for (const FName CardId : CurrentBuild.CardState.OwnedCardIds)
-		{
-			if (const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId))
-			{
-				FReEchoShopOffer OwnedCard =
-				    MakeOwnedBuildCardOffer(*Card, CurrentBuild.CardState, *Snapshot->CardCatalog);
-				View.OwnedCards.Add(MoveTemp(OwnedCard));
-			}
-		}
+		View.OwnedCards = GetOwnedBuildCardView();
 	}
 
 	// Backward-compatibility bridge for weapon/rune UI consumers. Card packs are deliberately not flattened:
@@ -2528,7 +2641,6 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        {
 			        BaseBuild.EquippedParts.Reset();
 		        }
-		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
 		        if (bApplyingBonusChoice)
 		        {
 			        const int32 Remaining = ExistingBonusChoices - 1;
@@ -2639,10 +2751,10 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 		        {
 			        BaseBuild.EquippedParts.Reset();
 		        }
-		        ReEchoCharacterPromotion::TryPromote(BaseBuild);
 		        UE_LOG(LogReEcho,
 		               Warning,
-		               TEXT("[DebugGrantCard] after promote: Cards=%d"),
+		               TEXT("[DebugGrantCard] identity preserved: Character=%s Cards=%d"),
+		               *BaseBuild.CharacterId.ToString(),
 		               BaseBuild.CardState.OwnedCardIds.Num());
 		        return true;
 	        },
@@ -3109,7 +3221,7 @@ bool UReEchoRunSubsystem::TryRefreshShopCardSlot(const int32 Tier, const int32 S
 
 	const int32 NextSequence = CurrentUses + 1;
 	const FName SlotSeedKey(*FString::Printf(TEXT("SHOP_CARD_TIER_%d_SLOT_%d"), Tier, SlotIndex));
-	FRandomStream CardRand(BuildShopOfferSeed(SlotSeedKey, EncounterIndex, NextSequence));
+	FRandomStream CardRand(BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, NextSequence));
 	ShuffleOffers(ReplacementPool, CardRand);
 	const FName PreviousCardId = Pack.CandidateCardIds[SlotIndex];
 	const FName ReplacementCardId = ReplacementPool[0].Id;
@@ -3324,7 +3436,8 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 		        Input.CardState = Build.CardState;
 		        Input.TimeShards = PendingTimeShards;
 		        Input.EncounterIndex = EncounterIndex;
-		        Input.RandomSeed = BuildShopOfferSeed(Choice.CardId, EncounterIndex, Choice.SlotRefreshSequence);
+		        Input.RandomSeed =
+		            BuildShopOfferSeed(RunSeed, Choice.CardId, EncounterIndex, Choice.SlotRefreshSequence);
 		        const FReEchoCardGrantResult Grant =
 		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, Choice.CardId, Input);
 		        if (!Grant.bSucceeded)
@@ -3347,7 +3460,6 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 			        return false;
 		        }
 		        Build.CardState.Runtime.ShopCardPackStates[PackIndex].bPurchased = true;
-		        ReEchoCharacterPromotion::TryPromote(Build);
 		        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build) > 0;
 		        PendingTimeShards = Grant.TimeShards;
 		        return true;
@@ -3893,36 +4005,182 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::GetEchoRecordings(const int32 Requ
 
 bool UReEchoRunSubsystem::HasSavedRun() const
 {
+	for (const FReEchoSaveSlotSummary& Summary : GetSaveSlotSummaries())
+	{
+		if (Summary.bOccupied)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FString UReEchoRunSubsystem::GetSaveSlotName(const int32 SlotIndex) const
+{
+	return MakeRunSaveSlotName(SlotIndex);
+}
+
+FString UReEchoRunSubsystem::GetSaveSlotPreviewPath(const int32 SlotIndex) const
+{
+	return FPaths::Combine(FPaths::ProjectSavedDir(),
+	                       TEXT("SaveScreenshots"),
+	                       FString::Printf(TEXT("ReEchoRunSlot%d.png"), SlotIndex + 1));
+}
+
+const UReEchoRunSaveGame* UReEchoRunSubsystem::LoadValidatedSaveForSlot(const int32 SlotIndex,
+	                                                                    bool& bOutLegacy) const
+{
+	bOutLegacy = false;
+	if (SlotIndex < 0 || SlotIndex >= SaveSlotCount)
+	{
+		return nullptr;
+	}
+	const FString SlotName = GetSaveSlotName(SlotIndex);
 	const UReEchoRunSaveGame* SaveGame =
-	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
+	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, RunSaveUserIndex));
+	if (!SaveGame && SlotIndex == 0 && !UGameplayStatics::DoesSaveGameExist(SlotName, RunSaveUserIndex))
+	{
+		SaveGame = Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
+		bOutLegacy = SaveGame != nullptr;
+	}
 	if (!SaveGame || !IsValidResumableSave(*SaveGame))
 	{
-		return false;
+		return nullptr;
 	}
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
 	return Snapshot.IsValid() &&
-	       ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame->CurrentBuild).IsEmpty();
+	               ReEchoWeaponRuntime::GetBuildConfigurationError(*Snapshot, SaveGame->CurrentBuild).IsEmpty()
+	           ? SaveGame
+	           : nullptr;
+}
+
+TArray<FReEchoSaveSlotSummary> UReEchoRunSubsystem::GetSaveSlotSummaries() const
+{
+	TArray<FReEchoSaveSlotSummary> Result;
+	Result.Reserve(SaveSlotCount);
+	for (int32 SlotIndex = 0; SlotIndex < SaveSlotCount; ++SlotIndex)
+	{
+		FReEchoSaveSlotSummary& Summary = Result.AddDefaulted_GetRef();
+		Summary.SlotIndex = SlotIndex;
+		bool bLegacy = false;
+		const UReEchoRunSaveGame* SaveGame = LoadValidatedSaveForSlot(SlotIndex, bLegacy);
+		if (!SaveGame)
+		{
+			continue;
+		}
+		Summary.bOccupied = true;
+		Summary.EncounterNumber = FMath::Max(1, SaveGame->EncounterIndex + 1);
+		Summary.CardCount = SaveGame->CurrentBuild.CardState.OwnedCardIds.Num();
+		if (Summary.CardCount == 0)
+		{
+			Summary.CardCount = SaveGame->CurrentBuild.Cards.Num();
+		}
+		if (SaveGame->SavedAtUtcTicks > 0)
+		{
+			Summary.SavedAtUtc = FDateTime(SaveGame->SavedAtUtcTicks);
+		}
+		Summary.PreviewScreenshotPath = SaveGame->PreviewScreenshotFileName.IsEmpty()
+		                                    ? GetSaveSlotPreviewPath(SlotIndex)
+		                                    : FPaths::Combine(FPaths::ProjectSavedDir(),
+		                                                      SaveGame->PreviewScreenshotFileName);
+		if (bLegacy && Summary.SavedAtUtc.GetTicks() == 0)
+		{
+			const FString LegacyPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames/ReEchoRun.sav"));
+			Summary.SavedAtUtc = IFileManager::Get().GetTimeStamp(*LegacyPath) - (FDateTime::Now() - FDateTime::UtcNow());
+		}
+	}
+	return Result;
+}
+
+bool UReEchoRunSubsystem::SelectSaveSlot(const int32 SlotIndex)
+{
+	if (SlotIndex < 0 || SlotIndex >= SaveSlotCount)
+	{
+		return false;
+	}
+	ActiveSaveSlotIndex = SlotIndex;
+	return true;
+}
+
+bool UReEchoRunSubsystem::SelectFirstEmptySaveSlot()
+{
+	for (const FReEchoSaveSlotSummary& Summary : GetSaveSlotSummaries())
+	{
+		if (!Summary.bOccupied)
+		{
+			ActiveSaveSlotIndex = Summary.SlotIndex;
+			return true;
+		}
+	}
+	return false;
 }
 
 bool UReEchoRunSubsystem::SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState) const
 {
+	if (ActiveSaveSlotIndex < 0 || ActiveSaveSlotIndex >= SaveSlotCount)
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("SaveRun rejected because no active save slot is selected."));
+		return false;
+	}
 	UReEchoRunSaveGame* SaveGame = CreateSaveSnapshot(EncounterRuntimeState);
-	return SaveGame && UGameplayStatics::SaveGameToSlot(SaveGame, RunSaveSlot, RunSaveUserIndex);
+	return SaveGame &&
+	       UGameplayStatics::SaveGameToSlot(SaveGame, GetSaveSlotName(ActiveSaveSlotIndex), RunSaveUserIndex);
 }
 
 bool UReEchoRunSubsystem::LoadSavedRun()
 {
-	const UReEchoRunSaveGame* SaveGame =
-	    Cast<UReEchoRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSaveSlot, RunSaveUserIndex));
-	return SaveGame && RestoreSaveSnapshot(*SaveGame);
+	for (const FReEchoSaveSlotSummary& Summary : GetSaveSlotSummaries())
+	{
+		if (Summary.bOccupied)
+		{
+			return LoadSavedRunFromSlot(Summary.SlotIndex);
+		}
+	}
+	return false;
+}
+
+bool UReEchoRunSubsystem::LoadSavedRunFromSlot(const int32 SlotIndex)
+{
+	bool bLegacy = false;
+	const UReEchoRunSaveGame* SaveGame = LoadValidatedSaveForSlot(SlotIndex, bLegacy);
+	if (!SaveGame || !RestoreSaveSnapshot(*SaveGame))
+	{
+		return false;
+	}
+	ActiveSaveSlotIndex = SlotIndex;
+	return true;
 }
 
 void UReEchoRunSubsystem::DeleteSavedRun() const
 {
-	if (UGameplayStatics::DoesSaveGameExist(RunSaveSlot, RunSaveUserIndex))
+	if (ActiveSaveSlotIndex < 0 || ActiveSaveSlotIndex >= SaveSlotCount)
 	{
-		UGameplayStatics::DeleteGameInSlot(RunSaveSlot, RunSaveUserIndex);
+		return;
 	}
+	const FString SlotName = GetSaveSlotName(ActiveSaveSlotIndex);
+	if (UGameplayStatics::DoesSaveGameExist(SlotName, RunSaveUserIndex))
+	{
+		UGameplayStatics::DeleteGameInSlot(SlotName, RunSaveUserIndex);
+	}
+	IFileManager::Get().Delete(*GetSaveSlotPreviewPath(ActiveSaveSlotIndex), false, true);
+}
+
+FString UReEchoRunSubsystem::GetActiveSaveSlotPreviewPath() const
+{
+	return ActiveSaveSlotIndex >= 0 && ActiveSaveSlotIndex < SaveSlotCount
+	           ? GetSaveSlotPreviewPath(ActiveSaveSlotIndex)
+	           : FString();
+}
+
+bool UReEchoRunSubsystem::WriteActiveSaveSlotPreview(const TArray<uint8>& PngBytes) const
+{
+	const FString Path = GetActiveSaveSlotPreviewPath();
+	if (Path.IsEmpty() || PngBytes.IsEmpty())
+	{
+		return false;
+	}
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true);
+	return FFileHelper::SaveArrayToFile(PngBytes, *Path);
 }
 
 bool UReEchoRunSubsystem::HasPendingEncounterResume() const
@@ -3941,6 +4199,11 @@ UReEchoRunSaveGame*
 UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* EncounterRuntimeState) const
 {
 	UReEchoRunSaveGame* SaveGame = NewObject<UReEchoRunSaveGame>(GetTransientPackage());
+	SaveGame->LogicalSlotIndex = FMath::Max(0, ActiveSaveSlotIndex);
+	SaveGame->SavedAtUtcTicks = FDateTime::UtcNow().GetTicks();
+	SaveGame->PreviewScreenshotFileName =
+	    FPaths::Combine(TEXT("SaveScreenshots"),
+	                    FString::Printf(TEXT("ReEchoRunSlot%d.png"), SaveGame->LogicalSlotIndex + 1));
 	SaveGame->EncounterIndex = EncounterIndex;
 	SaveGame->SavedPhase = Phase;
 	if (Phase == EReEchoRunPhase::Encounter && EncounterRuntimeState && EncounterRuntimeState->bValid)
@@ -3953,6 +4216,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 		SaveGame->SavedPhase = EReEchoRunPhase::Planning;
 	}
 	SaveGame->TimeShards = TimeShards;
+	SaveGame->RunSeed = RunSeed;
 	SaveGame->TraitOfferSeed = TraitOfferSeed;
 	SaveGame->PendingTraitCardOfferEncounterIndex = PendingTraitCardOfferEncounterIndex;
 	SaveGame->PendingTraitCardIds = PendingTraitCardIds;
@@ -4119,6 +4383,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 
 	EncounterIndex = FMath::Max(0, SaveGame.EncounterIndex);
 	TimeShards = FMath::Max(0, SaveGame.TimeShards);
+	RunSeed = SaveGame.SaveVersion >= 24 && SaveGame.RunSeed != 0 ? SaveGame.RunSeed : MigrateLegacyRunSeed(SaveGame);
 	TraitOfferSeed = SaveGame.SaveVersion >= 12 && SaveGame.TraitOfferSeed != 0 ? SaveGame.TraitOfferSeed
 	                                                                            : MigrateLegacyTraitOfferSeed(SaveGame);
 	EnemyShardDropSeed = SaveGame.SaveVersion >= 13 && SaveGame.EnemyShardDropSeed != 0

@@ -6,7 +6,7 @@
 - Executor 负责人：当前程序用户授权的 Executor（Codex）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`InProgress`（第二段收拢表现细化）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@bf40050cb66161a7abd441e8822f51bb19938853`。
 - 本地实现方式（可选，仅作交接说明）：Plan worktree `C:\tmp\ReEcho-plan143-card-shop-transition`；Plan 发布后继续在该任务专属 worktree 实施。
@@ -19,7 +19,7 @@
 
 ## 锁定目标
 
-1. Encounter 2 至 7 的普通关末在权威倒计时到 0 后，从第 0 帧播放由 `frame_0000.png` 至 `frame_0057.png` 生成的新 HAP Alpha 过渡；旧普通过渡文件继续保留但不再作为该路径的运行时播放源。新媒体完整结束并按既有淡出节奏揭示免费抽卡页，打开/首帧/播放停滞失败时 fail-open 到抽卡，不得卡住 Run。
+1. Encounter 2 至 7 的普通关末在权威倒计时到 0 后，从第 0 帧播放由 `F:\frames` 生成的新 HAP Alpha 过渡：先播放 `frame_0000.png`–`frame_0057.png` 的入场和第一轮完整摆动，再追加两遍 `frame_0027.png`–`frame_0057.png`，形成三轮“中心→左→右→中心”摆动；后两轮跳过与上一轮末尾中心姿态重复的26帧，避免接缝多停一帧，总计120帧。旧普通过渡文件继续保留但不再作为该路径的运行时播放源。新媒体完整结束后立即关闭转场Screen并进入抽卡，不保留钟表末帧背景；打开/首帧/播放停滞失败时 fail-open 到抽卡，不得卡住 Run。
 2. 玩家在免费抽卡页选择卡牌并点击确认后，必须先成功提交 `ApplyTraitCard()`。若提交失败则留在抽卡页且不播放；若本次关末仍有任何免费抽卡次数、Run 仍处于 `CardChoice`，则沿用现有下一轮抽卡流程且不播放。只有本次关末全部免费抽卡均已完成、最后一张免费卡提交成功、Run 已正式离开 `CardChoice` 并即将进入战后商店时，才从第 0 帧播放由 `frame_0058.png` 至 `frame_0120.png` 生成的新 HAP Alpha 过渡。
 3. 第二段播放期间确认按钮和卡牌交互不可再次触发，商店尚不可操作；已确认抽卡页保留为透明媒体的底层画面。媒体完成后在最上层覆盖仍存在时关闭抽卡页、打开 `PostTraitIntermission` 商店，再淡出媒体层并把焦点交给商店。媒体失败时直接完成相同页面切换；商店创建失败时沿用现有 fail-open 进入下一 Encounter，不得黑屏或卡死。
 4. 两段媒体均为 `1920x1080`、40 FPS、非循环、HAP Alpha MOV，并使用现有 Fill 等比居中裁切与 ZOrder 10000；第一段 58 帧（约 1.45 秒），第二段 63 帧（约 1.575 秒）。不使用视频内音轨，抽卡与商店间既有 `MusicShop` 连续播放，不重启音乐。
@@ -45,7 +45,7 @@
 
 ## 锁定验收
 
-- [ ] `frame_0000`–`0057` 与 `frame_0058`–`0120` 分别被准确编码为 58 帧和 63 帧的 40 FPS、1920x1080、带 Alpha、非循环 HAP MOV；审计脚本验证编码、帧数、时长、Alpha 和源区间，源 PNG 不改动。
+- [ ] 第一段按 `0–57 + 27–57 + 27–57` 准确编码为120帧，第二段按 `58–120` 编码为63帧；两者均为40 FPS、1920x1080、带 Alpha、非循环 HAP MOV，源 PNG 不改动。
 - [ ] Encounter 2–7 普通关末使用新第一段，从第 0 帧完整播放后才显示抽卡；旧媒体文件与旧 UE 媒体资产仍存在且未被覆盖。
 - [ ] 本次关末全部免费抽卡完成后才播放第二段：前序免费抽卡确认均只进入下一轮抽卡，最后一张免费卡提交使 Run 离开 `CardChoice` 后才启动；完整结束后才揭示并聚焦商店。视频期间无法重复确认或操作商店，MusicShop 连续。
 - [ ] 卡牌提交失败、仍有下一次免费抽卡、第一关特殊 CG、第八关结算和商店付费卡包均不触发第二段。
@@ -74,7 +74,7 @@
 
 | 层级 | 命令/检查 | 预期证据 |
 |---|---|---|
-| 源序列 | 帧清单、尺寸/Alpha/哈希审计 | 0–57 共58帧，58–120 共63帧，无交叉、缺帧或源改动 |
+| 源序列 | 帧清单、尺寸/Alpha/哈希审计 | 第一段 `0–57 + 27–57 + 27–57` 共120帧，第二段58–120共63帧，无缺帧或源改动 |
 | 编码媒体 | `ffprobe` 与首尾抽帧比较 | 两个 MOV 均为1920x1080、40 FPS、HAP Alpha、非循环，时长约1.45s/1.575s |
 | UE资产 | 幂等作者ing/审计脚本 | 两个新 MediaSource 指向新 Movies；旧 MOV 和旧资产仍存在且未覆盖 |
 | C++格式/构建 | `.clang-format`；`scripts\ue\Build-Editor.cmd -Configuration Development` | UHT/UBT成功，精选预构建包刷新 |
@@ -87,16 +87,27 @@
 
 ### 变化
 
-- Plan-only 阶段；尚未实现。
+- 第二段表现细化：保持 `frame_0058.png`–`frame_0120.png` 原媒体内容不变；从面具人首次进入画面的 `frame_0068.png`（第二段媒体时间 0.25 秒）开始，一边继续播放一边把媒体矩形平滑缩放并移动到 `ArtFormalLoadoutTree` 底图内小面具人的归一化锚点，同时把媒体透明度平滑降到 0。目标位置每帧从该 Widget 的 Slate 几何换算，随窗口和 DPI 缩放保持贴合；终点尺寸保留为初始媒体的 57.5%，使视频人物与底图中约 410px 高的小面具人一致，不再缩到 0；至 `frame_0120.png`（1.55 秒）融合完成。商店交互与揭示仍由既有媒体完成门控制。
+- 第二段开始时先关闭已确认的 TraitChoice，露出游戏场景，再按稳定 Guard 路径创建正常 Enabled、`HitTestInvisible`、初始 `RenderOpacity=0` 的商店。`frame_0058.png`–`frame_0078.png` 的20帧（0.5秒）期间商店按 SmoothStep 从0渐入到1，使底层从游戏场景平滑过渡到商店；第68帧收缩开始时商店约为50%透明度，但其 `ArtFormalLoadoutTree` 实际几何从第58帧起已可用于正确目标定位。商店创建后立即解除其菜单 Pause，保持 Run 阶段与菜单能力阻挡，确保 Wmf/HAP 时钟推进但不恢复玩法。媒体完成后恢复商店 `Visible`、焦点与 World Pause；全程不使用纯黑 Backdrop 或 Disabled Tint。
+- 已用 `scripts/ue/build_plan143_card_shop_media.ps1` 从 `F:\frames` 可复现生成 `EncounterEndToCardChoiceV2.mov`（0–57入场/首轮摆动，27–57追加两轮并去除接缝重复中心帧）和 `CardChoiceToShop.mov`（58–120），创建两个独立 FileMediaSource；旧 MOV 与旧 UE 资产未删除、未覆盖。
+- Transition Widget 复用单一运行时 MediaPlayer/MediaTexture/HAP 材质，新增显式 CardChoiceToShop 播放入口；普通关末运行时引用切换到 V2。
+- GameMode 新增 CardChoiceToShop Playing/Fading 状态：仅第2–7关最后一次免费卡牌成功提交且 Run Phase 已进入 Planning 时触发。媒体结束后在覆盖层下关闭抽卡并打开禁用态商店，淡出后启用和聚焦；媒体失败直接放行到同一目标。付费卡包、仍有免费卡、第一关和最终关不触发。
+- 第一段和第二段共用左右对称的归一化区域 `(0.17,0.0806)–(0.83,0.8006)`：完整1920×1080画布统一等比 Fit、水平居中并向上对齐；顶部对应战斗 HUD 设计面中 `ArtClockNeedle` 的 `Y=87`，区域高度仍保持 0.72，因此两段只整体下移而不改变大小。第一段完成后立即关闭媒体层，抽卡UI不再创建或保留钟表末帧底图；完成全部免费抽卡后，第二段重新打开同一位置的媒体Screen。第一关CG仍保持全屏 Fill。
 
 ### 证据
 
 - `F:\frames` 已只读确认共121张连续PNG，范围 `frame_0000.png`–`frame_0120.png`；用户确认第一段包含第0帧。关键边界帧为1920x1080、32-bit ARGB。
+- FFmpeg 9.0.1 HAP encoder确认支持 `rgba/hap_alpha/snappy`；ffprobe确认V2为Hap5、1920x1080、RGBA、40 FPS、120帧、3.000秒，CardChoiceToShop为Hap5、1920x1080、RGBA、40 FPS、63帧、1.575秒，均无音轨。
+- HAP解码 Alpha 审计确认第一段首帧全透明、末帧覆盖0–255；第二段首尾均保留0–255透明范围。当前第一段LFS SHA256为 `0D82A28BCFF6BCA89B9CC33E3F9FD6A3F9353D88870AD545546232E74D261611`，第二段为 `7D9519951F26337274D4DF0A127E7E83335278CBDBCEBF74B477C1BBA19679E9`。
+- UE作者ing与只读审计均通过，两个 FileMediaSource 分别解析到新 Movies；新 MOV 精确命中 Git LFS filter。
+- Editor Development构建成功并刷新预构建包；`ReEcho.UI.EncounterTransition.Policy` 1项成功，覆盖2–7关、剩余免费选择、第一/最终关、付费返回和失败事务边界。
+- 第一段末帧持有路径已移除；`ReEcho.UI.TraitCard.AuthoredPresentation` 验证抽卡UI不创建转场媒体底图，`ReEcho.UI.EncounterTransition.Policy` 验证两段共享同一框内Fit计算。实际两段位置与第一段结束隐藏表现仍由PIE验收。
+- `validate_project.py`、`prebuilt_editor.py check` 与 `git diff --check` 通过；首次沙箱内静态校验仅因 Content 临时目录写权限失败，授权复跑通过。
 
 ### 剩余风险
 
-- 需在实现环境定位可用 FFmpeg/HAP 编码器并验证真实 Alpha 解码；PNG 文件时间戳不作为 FPS 权威，FPS 已由用户确认的现有普通过渡契约锁为40。
 - 第二段透明内容对抽卡页和商店页的具体视觉遮挡仍需 PIE 判断；自动化不能替代透明合成观感。
+- 当前实现尚未获得用户PIE验收，特别需要确认两段都从第0帧连续播放、透明合成无黑底、第二段只在最后一次免费抽卡后出现、商店在动画结束前不可见/不可操作，以及Music.Shop没有重启。
 
 ### 人工验收结果/请求
 

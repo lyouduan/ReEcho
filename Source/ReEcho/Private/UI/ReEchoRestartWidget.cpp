@@ -16,6 +16,10 @@
 namespace
 {
 const FName DefaultSettlementCharacterId(TEXT("J_HEART"));
+constexpr int32 DefeatCardSlotCount = 5;
+
+const TCHAR* DefaultShopCardIconTexturePath =
+    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_CardIcon.T_UI_Shop_CardIcon");
 
 bool IsSupportedSettlementCharacter(const FName CharacterId)
 {
@@ -140,11 +144,34 @@ void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
                                           const int32 TraitCount,
                                           const FName InCharacterId)
 {
+	SetDeathScreen(bInDeathScreen, EncounterIndex, TimeShards, TraitCount, InCharacterId, {});
+}
+
+void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
+                                          const int32 EncounterIndex,
+                                          const int32 TimeShards,
+                                          const int32 TraitCount,
+                                          const FName InCharacterId,
+                                          const TArray<FReEchoShopOffer>& OwnedCards)
+{
 	ScreenMode = bInDeathScreen ? EReEchoRestartScreenMode::Death : EReEchoRestartScreenMode::Pause;
 	QuitPromptState = EReEchoQuitPromptState::None;
 	DefeatEncounterIndex = FMath::Max(0, EncounterIndex);
 	DefeatTimeShards = FMath::Max(0, TimeShards);
 	DefeatTraitCount = FMath::Max(0, TraitCount);
+	DefeatCardIconTexturePaths.Reset();
+	TArray<FReEchoShopOffer> RankedCards = OwnedCards;
+	RankedCards.StableSort(
+	    [](const FReEchoShopOffer& Left, const FReEchoShopOffer& Right)
+	    {
+		    return Left.Tier > Right.Tier;
+	    });
+	const int32 VisibleCardCount = FMath::Min(DefeatCardSlotCount, RankedCards.Num());
+	DefeatCardIconTexturePaths.Reserve(VisibleCardCount);
+	for (int32 Index = 0; Index < VisibleCardCount; ++Index)
+	{
+		DefeatCardIconTexturePaths.Add(RankedCards[Index].IconTexturePath);
+	}
 	SettlementCharacterId = InCharacterId;
 	RefreshMenuMode();
 	if (bInDeathScreen && DefeatRestartButton)
@@ -256,6 +283,7 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	const bool bSaveFailed = QuitPromptState == EReEchoQuitPromptState::SaveFailed;
 	const bool bFormalResult = bVictoryScreen || bDeathScreen;
 	RefreshSettlementCharacterImages();
+	RefreshDefeatCardSlots();
 
 	if (VictoryCanvas)
 	{
@@ -435,6 +463,50 @@ void UReEchoRestartWidget::RefreshSettlementCharacterImages()
 		if (CharacterImage)
 		{
 			CharacterImage->SetBrushFromTexture(CharacterTexture, false);
+		}
+	}
+}
+
+void UReEchoRestartWidget::RefreshDefeatCardSlots()
+{
+	UTexture2D* DefaultCardTexture = nullptr;
+	for (int32 Index = 0; Index < DefeatCardSlotCount; ++Index)
+	{
+		UImage* CardIcon = Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerDefeatCardIcon%d"), Index)));
+		if (!CardIcon)
+		{
+			continue;
+		}
+		if (!DefeatCardIconTexturePaths.IsValidIndex(Index))
+		{
+			CardIcon->SetVisibility(ESlateVisibility::Hidden);
+			continue;
+		}
+
+		UTexture2D* CardTexture = nullptr;
+		const FString& TexturePath = DefeatCardIconTexturePaths[Index];
+		if (!TexturePath.IsEmpty())
+		{
+			CardTexture = LoadObject<UTexture2D>(nullptr, *TexturePath);
+		}
+		if (!CardTexture)
+		{
+			if (!DefaultCardTexture)
+			{
+				DefaultCardTexture = LoadObject<UTexture2D>(nullptr, DefaultShopCardIconTexturePath);
+			}
+			CardTexture = DefaultCardTexture;
+		}
+
+		if (CardTexture)
+		{
+			CardIcon->SetBrushFromTexture(CardTexture, false);
+			CardIcon->SetColorAndOpacity(FLinearColor::White);
+			CardIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
+		else
+		{
+			CardIcon->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
 }

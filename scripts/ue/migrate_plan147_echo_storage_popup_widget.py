@@ -270,21 +270,34 @@ host = shop_widgets.get(HOST_NAME)
 if host is None:
     old_echo = shop_widgets.get("EchoPanelScale")
     old_confirm = shop_widgets.get("CloseConfirmWidget")
-    require(isinstance(old_echo, unreal.ScaleBox), "Missing source echo root")
-    require(isinstance(old_confirm, unreal.VerticalBox), "Missing source confirm root")
-    shop_parent = old_echo.get_parent()
-    require(isinstance(shop_parent, unreal.CanvasPanel), "Echo roots need Canvas parent")
+    if isinstance(old_echo, unreal.ScaleBox):
+        shop_parent = old_echo.get_parent()
+        require(isinstance(shop_parent, unreal.CanvasPanel), "Echo roots need Canvas parent")
+    else:
+        root_canvases = [
+            item.widget
+            for item in widget_infos(shop)
+            if isinstance(item.widget, unreal.CanvasPanel)
+            and item.widget.get_parent() is None
+        ]
+        require(
+            len(root_canvases) == 1,
+            "Shop without legacy echo roots needs exactly one root CanvasPanel",
+        )
+        shop_parent = root_canvases[0]
 
     host = add_widget(shop, popup_class, HOST_NAME, shop_parent)
     set_fullscreen_host_layout(host)
-    require(
-        toolset.call_method("RemoveWidget", args=(shop, old_confirm)),
-        "Unable to remove embedded close-confirm subtree",
-    )
-    require(
-        toolset.call_method("RemoveWidget", args=(shop, old_echo)),
-        "Unable to remove embedded echo-popup subtree",
-    )
+    if isinstance(old_confirm, unreal.VerticalBox):
+        require(
+            toolset.call_method("RemoveWidget", args=(shop, old_confirm)),
+            "Unable to remove embedded close-confirm subtree",
+        )
+    if isinstance(old_echo, unreal.ScaleBox):
+        require(
+            toolset.call_method("RemoveWidget", args=(shop, old_echo)),
+            "Unable to remove embedded echo-popup subtree",
+        )
 else:
     require(host.get_class() == popup_class, "Shop popup host uses the wrong WBP")
     set_fullscreen_host_layout(host)
