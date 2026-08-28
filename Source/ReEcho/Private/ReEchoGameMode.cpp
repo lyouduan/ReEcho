@@ -22,7 +22,10 @@
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "EngineUtils.h"
+#include "ImageUtils.h"
 #include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
@@ -1378,14 +1381,17 @@ void AReEchoGameMode::ShowStartMenu()
 	}
 	SetMusicState(FReEchoAudioEvents::MusicMenu);
 	StopAmbienceState();
-	const bool bHasSavedRun = RunSubsystem->HasSavedRun();
-	StartMenuWidget->InitializeMenu(bHasSavedRun);
+	const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
+	const bool bHasSavedRun = SaveSlots.ContainsByPredicate(
+	    [](const FReEchoSaveSlotSummary& Slot) { return Slot.bOccupied; });
+	StartMenuWidget->InitializeMenu(SaveSlots);
 	UE_LOG(LogTemp,
 	       Display,
 	       TEXT("[ReEchoStartFlow] Showing start menu. HasSavedRun=%s"),
 	       bHasSavedRun ? TEXT("true") : TEXT("false"));
 	StartMenuWidget->OnNewGameRequested.AddDynamic(this, &AReEchoGameMode::HandleNewGameRequested);
 	StartMenuWidget->OnContinueGameRequested.AddDynamic(this, &AReEchoGameMode::HandleContinueGameRequested);
+	StartMenuWidget->OnSaveSlotRequested.AddDynamic(this, &AReEchoGameMode::HandleSaveSlotRequested);
 	StartMenuWidget->OnGameSettingRequested.AddDynamic(this, &AReEchoGameMode::HandleStartSettingsRequested);
 	StartMenuWidget->OnAboutRequested.AddDynamic(this, &AReEchoGameMode::HandleStartAboutRequested);
 	StartMenuWidget->OnQuitRequested.AddDynamic(this, &AReEchoGameMode::HandleStartQuitRequested);
@@ -1401,7 +1407,12 @@ void AReEchoGameMode::HandleNewGameRequested()
 	{
 		return;
 	}
-	RunSubsystem->DeleteSavedRun();
+	if (!RunSubsystem->SelectFirstEmptySaveSlot())
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game rejected: all save slots are occupied."));
+		return;
+	}
 	ShowLoadoutSelection();
 }
 
@@ -1414,11 +1425,49 @@ void AReEchoGameMode::HandleContinueGameRequested()
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		if (StartMenuWidget)
 		{
-			StartMenuWidget->InitializeMenu(false);
+			StartMenuWidget->InitializeMenu(RunSubsystem ? RunSubsystem->GetSaveSlotSummaries()
+			                                               : TArray<FReEchoSaveSlotSummary>());
 		}
 		return;
 	}
 	RequestBeginSelectedRun();
+}
+
+void AReEchoGameMode::HandleSaveSlotRequested(const int32 SlotIndex)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	const TArray<FReEchoSaveSlotSummary> Summaries = RunSubsystem->GetSaveSlotSummaries();
+	const FReEchoSaveSlotSummary* Summary = Summaries.FindByPredicate(
+	    [SlotIndex](const FReEchoSaveSlotSummary& Candidate) { return Candidate.SlotIndex == SlotIndex; });
+	if (!Summary)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	if (Summary->bOccupied)
+	{
+		if (!RunSubsystem->LoadSavedRunFromSlot(SlotIndex))
+		{
+			PostUiEvent(FReEchoAudioEvents::UiError);
+			StartMenuWidget->InitializeMenu(RunSubsystem->GetSaveSlotSummaries());
+			return;
+		}
+		RequestBeginSelectedRun();
+		return;
+	}
+	// Every empty row represents the single safe "new save" action. Always
+	// allocate the first empty physical slot so an accidental click cannot
+	// create a hole or skip over an earlier available slot.
+	if (!RunSubsystem->SelectFirstEmptySaveSlot())
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	ShowLoadoutSelection();
 }
 
 void AReEchoGameMode::HandleStartSettingsRequested()
@@ -2344,6 +2393,7 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 	RestoreGameInput();
 	Director->StartEncounter();
 	ProcessScheduledSpawnEvents(0.0f);
+	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::CaptureActiveSaveSlotPreview);
 	UE_LOG(LogReEcho,
 	       Display,
 	       TEXT("[StageTransition] activated encounter=%d echoes=%d afterCamera=%s"),
@@ -2351,6 +2401,29 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 	       Echoes.Num(),
 	       EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed ? TEXT("true")
 	                                                                                                : TEXT("false"));
+}
+
+void AReEchoGameMode::CaptureActiveSaveSlotPreview()
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || RunSubsystem->GetActiveSaveSlotIndex() == INDEX_NONE || !GEngine ||
+	    !GEngine->GameViewport || !GEngine->GameViewport->Viewport)
+	{
+		return;
+	}
+	TArray<FColor> Bitmap;
+	if (!GetViewportScreenShot(GEngine->GameViewport->Viewport, Bitmap) || Bitmap.IsEmpty())
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("Save preview capture failed: viewport returned no pixels."));
+		return;
+	}
+	const FIntPoint Size = GEngine->GameViewport->Viewport->GetSizeXY();
+	TArray<uint8> PngBytes;
+	FImageUtils::CompressImageArray(Size.X, Size.Y, Bitmap, PngBytes);
+	if (!RunSubsystem->WriteActiveSaveSlotPreview(PngBytes))
+	{
+		UE_LOG(LogReEcho, Warning, TEXT("Save preview capture failed while writing PNG."));
+	}
 }
 
 FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() const

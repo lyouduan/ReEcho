@@ -343,6 +343,9 @@ private:
 	void HandleContinueGameRequested();
 
 	UFUNCTION()
+	void HandleSaveSlotRequested(int32 SlotIndex);
+
+	UFUNCTION()
 	void HandleStartSettingsRequested();
 
 	UFUNCTION()
@@ -423,6 +426,7 @@ private:
 	void BeginNextEncounter();
 	bool PrepareNextEncounter(bool bDeferActivation);
 	void ActivatePreparedEncounter();
+	void CaptureActiveSaveSlotPreview();
 	bool InitializeArenaSceneRegistry(FString& OutError);
 	bool PrepareArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);
 	bool ApplyArenaSceneForStage(const FReEchoCsvStageRow& Stage, FString& OutError);

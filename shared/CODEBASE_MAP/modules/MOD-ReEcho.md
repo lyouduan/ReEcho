@@ -79,7 +79,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 22 随 CardState 保存 Plan111 的债务、导电关内增幅、Echo三件套和已完成关卡武器历史，并保存当前免费三选一与各商店Tier卡组的已展示历史；v21及更早版本以当前候选重建最小展示历史，v20迁移采用零债务/零新历史并接纳追加式卡牌目录，不伪造已丢失的新机制收益。
+- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -251,13 +251,14 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 角色能力：`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是统一类型化入口。猎手静态能力在新 Run 与角色晋升时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通卡牌组成功领取计数达到配置间隔时追加选择。免费卡牌组与商店已付款卡牌组的最终领取都调用 Run 的同一计数入口；预付、取消、失败、刷新和额外选择自身不计数。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
 - 勇者缺血阶梯不写入 Run Save：Player Host 订阅 Combat 最终 `HealthChanged`，用当前/最大生命和能力表重算物攻/元攻加值，再通过 Combat 通用来源修正入口替换旧值。治疗、恢复和重生自然回退，不累计历史损血。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 22；BuildSnapshot 内的 CardState 语义由 Cards 定义。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous/Stored Echo、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。三槽摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
+- 三槽存档：新游戏先选择第一个空槽，此后所有既有 `SaveRun` 调用只写回该活动槽；点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。三槽全满时不覆盖、不删除、不伪造新建入口。
 - 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
   GameMode 只把该命令转交 Player Combatant。失败事务不得发布，Widget 不订阅该事件反向改生命。
 - 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 完整合法池生成三选一。初始免费页使用本局持久化种子对完整池等权洗牌、无放回取前三张，不再按已拥有叠层分桶；数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级卡组, 2级卡组, 3级卡组]` 三个固定入口，按真实关次读取 `ShopTiers` 逐级启用；每个启用卡组从同 Tier 资格池确定性缓存最多三张候选和一个同 Tier 基础价。入口底部购买键展示 Run 投影的实际卡组总价；付款事务一次扣费、对付款前已拥有卡牌触发一次 `OnPurchase`，立即保存并转为 `PaidPendingChoice` 后才进入三选一。返回商店不退款，入口变为“继续选择”，重进不收费、不重摇；最终领取只执行 `TryGrantCard`，成功才转 `Purchased`，不再次扣费或触发 `OnPurchase`，并通过统一普通卡组计数入口驱动智者奖励。领取失败保留已付款状态、余额、候选和刷新用量以便重试。候选不足只显示实际 1/2 张，零张售罄，禁止跨级补位。初始投放页按 `EncounterIndex` 稳定；若页面生成后经其他效果新获得二、三级候选，则投影即时剔除该卡但不补抽、不重摇。免费和已付款三选一的每个实际候选槽都独立拥有 `shop_refresh_rules` 配置的刷新次数和价格；免费选卡及已付候选领取本身不收费，只有刷新扣款。成功刷新只原位替换所点槽位，并只重播该槽位的卡牌揭示动画；其他候选保持可见且不重播页面指针。替换保持同级，并排除全部已获得卡、当前候选以及当前这一组三选一自生成起曾展示过的全部卡；各商店Tier卡组和免费三选一分别拥有独立展示历史，新开一组才重置。无合法替代、余额不足、次数耗尽或禁刷新均原子失败。商店主刷新不得重建卡组或清除付款/已购状态。初次免费与商店投放仍允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。SaveVersion 22 保存免费页和各Tier卡组的展示历史；旧版本只从当前候选重建最小历史。SaveVersion 20 新增卡组基础价与付款待选状态；v19 已购卡组迁移为已付款并按原页面身份惰性恢复稳定价格。SaveVersion 18 持久化当前免费投放页及逐槽用量，v17 持久化商店卡组和刷新用量；v16 自动补齐商店零用量，v15 及更早的单卡页缓存显式丢弃并确定性重建。
-- 免费投放的本局 `TraitOfferSeed` 在 `StartRun` 时由 UTC 实时时钟和高精度时钟共同取样一次，随后进入 SaveGame；同一局、重开页面和读档继续使用已保存种子，不得在展示时重新读取时钟。
+- 统一的本局 `RunSeed` 在 `StartRun` 时由 UTC 实时时钟和高精度时钟共同取样一次，随后进入 SaveGame；`TraitOfferSeed`、敌人奖励子流以及所有商店报价/刷新种子均由它派生。同一局、重开页面和读档继续使用已保存种子，不得在展示或刷新时重新读取时钟；v23 及更早存档从既有 `TraitOfferSeed` 确定性迁移，保证读档稳定。
 - 扩展：通过窄事务命令校验后一次更新；失败必须不产生部分状态。
 - 商店武器/符文：`parts.csv` 的 `ShopEnabled/ShopPrice` 生成报价；三个槽以独立的 `WeaponRuneRefreshSequence` 缓存稳定 ContentId 与确定性价格，购买只改变已购/已装备状态，不得用缩小后的资格池重算其余槽。Run 为武器、符文、兼容旧商品和卡牌组统一投影 `EffectivePrice/bCanPurchase`，其中当前关【喂，打劫！】把内容物实际价降为零；UI 不得再按原价、折扣或余额自行重算购买资格。主刷新每个商店关次受 `shop_refresh_rules` 限制并显示剩余次数，只推进武器/符文页；刷新行为本身仍按规则收费，不受免费内容物影响。卡牌 `FreeShopRefresh` 是独立免费额度，优先消费且不占用关次付费上限，免费用尽后才消费表中付费次数与价格，`NoShopRefresh` 阻断两类刷新。下一关重置付费预算，未用免费额度继续由 Card Runtime/SaveGame 持有；SaveVersion 17 持久化当前关次、序列和已用付费次数，读档不得重置。符文购买立即进入 `OwnedPartIds` 并装入对应槽，满槽时最早符文回背包。每次购买成功后 GameMode 都重取完整商店只读投影，使 `OwnedParts`、`EquippedParts`、武器、卡牌、货币和背包同步更新；`OwnedParts` 只投影与当前武器类型兼容的已拥有符文，不能因长剑与镰刀共享 `Grip` 槽而串包，`OwnedPartIds` 仍保留全部所有权。稳定缓存保证重取不会重摇未购买报价。初始武器和购买武器进入 `OwnedWeaponIds`；购买整把武器与背包换装都复用 `ReEchoWeaponRuntime::TrySelectWeapon`，只保留兼容符文，不兼容符文仍拥有但卸下。`TryEquipOwnedWeapon` 是不扣费、不刷新页面的窄事务，未知、禁用或未拥有武器不得改变构筑。诅咒银行把现金与债务分开存储并优先还债，商店/HUD 只读显示 `TimeShards - TimeShardDebt`，支付资格仍由原始现金与赊账规则裁决。SaveVersion 14 起持久化武器背包与稳定武器/符文商店页；v12 及更早存档以当前装备武器迁移最小拥有集合，v13 存档保留武器背包并重建商店页。
 - 商店购买事务：武器、符文和兼容旧商品继续由 `PurchaseShopItemDetailed` 处理；卡组改由 `PurchaseShopCardPackDetailed(Tier)` 付款、`ClaimPaidShopCardChoice(ItemId)` 领取，候选 ItemId 不能绕过付款直接购买。三个接口都返回交易 ID、结果码、说明与实际价格，并以同一交易 ID 输出 `BEFORE / RESULT / AFTER`；快照包含碎片、当前武器、已装备符文、已生效卡牌、武器背包、符文背包和普通背包。统一审计出口直接追加 `Saved/Logs/ShopPurchaseAudit.log`，不依赖 Shipping 会裁剪的 `UE_LOG`；Development 另镜像到普通 UE 日志，玩家可见反馈仍由 UI 负责。
