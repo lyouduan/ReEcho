@@ -734,8 +734,6 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 	{
 		return false;
 	}
-
-
 	auto ResolveEffectiveCharacterStats = [&Snapshot](const FReEchoCsvCharacterRow& Character)
 	{
 		FReEchoStatBlock Result = Character.BaseStats;
@@ -3422,7 +3420,6 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 			        return false;
 		        }
 		        Build.CardState.Runtime.ShopCardPackStates[PackIndex].bPurchased = true;
-		        ReEchoCharacterPromotion::TryPromote(Build);
 		        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build) > 0;
 		        PendingTimeShards = Grant.TimeShards;
 		        return true;

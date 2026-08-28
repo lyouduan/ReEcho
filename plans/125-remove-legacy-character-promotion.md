@@ -9,6 +9,7 @@
 - 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@ac9bb58dafdc8129e4bcaf5e65fb1d87caa9e422`。
+- 2026-08-28 恢复基线：`origin/main@409910aa89eaf55beaec57b0cfca2fe41db7187b`；旧候选未进入 main，本轮只前向移植运行时删除、存档迁移和回归测试，不覆盖后来更新的策划 XLSX/CSV。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `ReEcho-plan125-remove-promotion`，分支 `plan/125-remove-legacy-character-promotion`。
 - 依赖 / 阻塞：Plan122 构筑路径日志已进入主线；以策划源表 `策划数据源/【开普勒】回响数值与构筑体系.xlsx` 为产品权威。实现发布前仍需按最新 `origin/main` 审计传入变化。
 - Writes:
@@ -57,9 +58,9 @@
 
 - [ ] 新 Run 选择任一角色后，连续获得至少 8 张不同职业分类卡牌并跨越 Stage，`CharacterId`、外观和固定角色能力始终不变。
 - [x] 正常授卡、付费卡组领取和 `DebugGrantCard` 都不调用或间接重建晋升规则；代码库不再存在 `TryPromote`/`EvaluateRole` 生产入口。
-- [x] `cards.csv`/Card 类型不再含 `PromotionRoleId`；角色排序使用 `SelectionOrder` 或等价的非晋升字段；XLSX、CSV、Schema、生成器、fixture 与静态校验一致。
+- [ ] `cards.csv`/Card 类型不再含 `PromotionRoleId`；角色排序使用 `SelectionOrder` 或等价的非晋升字段；XLSX、CSV、Schema、生成器、fixture 与静态校验一致。本轮为保护后续策划数据，保留这些无运行时消费者的兼容列，后续另行迁移。
 - [x] 旧晋升存档迁移恢复可靠的原始角色，移除遗留 RuleFlags，正确修正当前/装备基线属性；无可靠原始 ID 时采用锁定回退且往返稳定。
-- [x] 角色固定能力、卡牌授予、装载选择、保存恢复聚焦自动化通过；Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。
+- [x] 角色固定能力、卡牌授予、保存恢复聚焦自动化通过；Development Editor FullRebuild、项目校验、预构建检查和 `git diff --check` 通过。本轮不修改装载 UI，已审阅无需重跑其聚焦测试。
 - [ ] 用户 PIE 验收：复现原路径，在第 4 张及后续卡牌、跨第 5→6 场时角色不再突然变化。
 - [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -100,6 +101,8 @@
 - 2026-08-26：删除 `ReEchoCharacterPromotion.*` 及正常/调试授卡调用；新 Run 不再写旧晋升 RuleFlags。SaveVersion 升至 23，v22 及更早数据在有可靠 `BaseCharacterId` 时恢复原角色并逆向修正角色差额，缺失可靠原始 ID 时保留当前角色并归一化 Role，两个路径均消费遗留标志。
 - 2026-08-26：生产 XLSX 的 `PromotionPriority` 改为纯 UI 语义 `SelectionOrder`，从 `tblCards` 删除 `PromotionRoleId`；同步更新 CSV、Schema、Reader、Catalog、fixture、校验器和装载 UI。工作簿原有保护、下拉验证和 Table 样式已保留。
 - 2026-08-26：旧 `ReEchoCharacterPromotionTests.cpp` 重命名为 `ReEchoCharacterAbilityTests.cpp`，把“四卡晋升”断言替换为混合八张卡下角色身份稳定，同时保留智者、猎手、诗人、勇者能力回归。
+- 2026-08-28：策划再次以超高频率复现勇者在第 4/5 关变为智者或猎手；最新 main 仍包含旧 `TryPromote`，达到 4 张卡后按 `PromotionRoleId` 改写 `CharacterId`，与复现时机和结果一致。本轮在最新主线删除三个授卡入口及整个晋升类型，身份回归扩展为四名角色各连续授予 8 张混合卡。
+- 2026-08-28：旧完整候选的 XLSX 会覆盖两天内新增策划数据，因此本轮保留当前 XLSX/CSV、`PromotionRoleId` 和 `PromotionPriority` 兼容列；这些列没有运行时消费者，数据 Schema 语义清理仍未完成，不影响换角缺陷修复。
 
 ### 证据
 
@@ -108,10 +111,13 @@
 - `python scripts/data/sync_xlsx_to_csv.py --check` 通过；同步工具 18/18 单元测试通过；artifact_tool 最终渲染核验 `tblCharacters A3:S7`、`tblCards A3:M68`，公式错误 0。
 - Development 增量构建通过；`ReEcho.Characters` 3/3、`ReEcho.Run.Save` 6/6 自动化通过，其中包含身份稳定、四角色能力、可靠/缺失原始 ID 的旧晋升存档迁移与往返。
 - 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功，精选 7 模块预构建包刷新为 `source=662cf04d78a9`；随后 XLSX 漂移、项目静态校验、预构建核验和 `git diff --check` 均通过。本机未发现 `clang-format` 可执行文件，未伪造格式化证据；编译和 diff 审阅无格式阻塞。
+- 2026-08-28 恢复候选：最新 `origin/main@409910aa` 上 FullRebuild 97/97 成功，精选 7 模块预构建包刷新为 `source=86da1bf61d1b`；`ReEcho.Characters` 4/4 和 `ReEcho.Run.Save` 6/6 通过，其中四名角色各连续获得 8 张混合卡均保持身份，v22 晋升存档迁移与 v23 往返通过。
+- 2026-08-28 恢复候选：`python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`git diff --check`、`git lfs fsck` 全部通过。系统和 UE 5.8 安装目录未找到 `clang-format`，未伪造格式化证据；FullRebuild 与差异审阅无格式阻塞。
 
 ### 剩余风险
 
 - 自动化已覆盖授予八张混合卡后身份稳定和旧档迁移，但跨第 5→6 场的角色形象、当前存档与角色固定能力组合仍需用户 PIE 按原复现路径验收。
+- 兼容数据列 `PromotionRoleId` / `PromotionPriority` 仍存在但无运行时消费者；完整 Schema/XLSX 清理不得通过回放旧二进制工作簿覆盖后续策划内容，需要单独执行结构化迁移。
 
 ### 人工验收结果/请求
 
@@ -121,6 +127,6 @@
 
 - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅；Runtime Module、依赖拓扑和跨模块数据流未变化，无需修改。
 - `shared/CODEBASE_MAP/README.md`：已审阅；`MOD-ReEcho`、`MOD-ReEchoCards`、`AREA-Run/Data/UI` 路由和代码根未变化，无需修改。
-- `MOD-ReEcho.md`：已更新整局固定角色身份、SaveVersion 23 迁移和角色能力边界。
-- `MOD-ReEchoCards.md`：已更新卡牌不携带职业计分、不改写角色身份的不变量。
-- `MOD-ReEchoUI.md`：已更新装载选择只消费 `SelectionOrder` 并只发送初始角色/武器选择的契约。
+- `MOD-ReEcho.md`：本轮已更新整局固定角色身份、SaveVersion 23 迁移和角色能力边界。
+- `MOD-ReEchoCards.md`：本轮未修改公共 Card Schema；兼容字段保留但无运行时换角消费者，待结构化数据迁移时再更新。
+- `MOD-ReEchoUI.md`：本轮不改角色展示顺序字段或 UI，已审阅、无需修改。

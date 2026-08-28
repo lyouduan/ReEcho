@@ -14,37 +14,30 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCharacterIdentityStabilityTest,
 
 bool FReEchoCharacterIdentityStabilityTest::RunTest(const FString& Parameters)
 {
-	UGameInstance* GameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	RunSubsystem->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
-	const FName SelectedCharacter = RunSubsystem->CurrentBuild.CharacterId;
-	const FName SelectedRole = RunSubsystem->CurrentBuild.Stats.RoleId;
-	const float HunterMovement = RunSubsystem->CurrentBuild.Stats.MovementSpeed;
-	const float HunterCriticalRate = RunSubsystem->CurrentBuild.Stats.CriticalRate;
-	const float HunterCriticalEffect = RunSubsystem->CurrentBuild.Stats.CriticalEffect;
+	const TArray<FName> CharacterIds = {TEXT("J_DIAMOND"), TEXT("J_CLOVER"), TEXT("J_HEART"), TEXT("J_SPADE")};
 	const TArray<FName> MixedRoleCards = {TEXT("G_1_01"), TEXT("G_1_02"), TEXT("G_1_03"), TEXT("G_1_04"),
 	                                      TEXT("G_1_05"), TEXT("G_1_06"), TEXT("G_1_07"), TEXT("G_1_03")};
-	for (const FName CardId : MixedRoleCards)
+	for (const FName CharacterId : CharacterIds)
 	{
-		TestTrue(*FString::Printf(TEXT("Debug grant succeeds for %s"), *CardId.ToString()),
-		         RunSubsystem->DebugGrantCard(CardId));
-		TestEqual(TEXT("Card grants preserve the selected character"),
-		          RunSubsystem->CurrentBuild.CharacterId,
-		          SelectedCharacter);
-		TestEqual(TEXT("Card grants preserve the selected role"), RunSubsystem->CurrentBuild.Stats.RoleId, SelectedRole);
+		UGameInstance* GameInstance = NewObject<UGameInstance>();
+		UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
+		RunSubsystem->StartRun(CharacterId, TEXT("W_J_01"));
+		const FName SelectedRole = RunSubsystem->CurrentBuild.Stats.RoleId;
+		for (const FName CardId : MixedRoleCards)
+		{
+			TestTrue(*FString::Printf(TEXT("%s can receive %s"), *CharacterId.ToString(), *CardId.ToString()),
+			         RunSubsystem->DebugGrantCard(CardId));
+			TestEqual(TEXT("Card grants preserve the selected character"),
+			          RunSubsystem->CurrentBuild.CharacterId,
+			          CharacterId);
+			TestEqual(
+			    TEXT("Card grants preserve the selected role"), RunSubsystem->CurrentBuild.Stats.RoleId, SelectedRole);
+		}
+		TestFalse(TEXT("New runs do not write BaseCharacterId"),
+		          RunSubsystem->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
+		TestFalse(TEXT("New runs do not write Promoted"),
+		          RunSubsystem->CurrentBuild.RuleFlags.Contains(TEXT("Promoted")));
 	}
-	TestEqual(TEXT("Hunter keeps configured movement ability plus the authored speed card"),
-	          RunSubsystem->CurrentBuild.Stats.MovementSpeed,
-	          HunterMovement + 0.1f);
-	TestEqual(TEXT("Hunter keeps configured critical-rate ability"),
-	          RunSubsystem->CurrentBuild.Stats.CriticalRate,
-	          HunterCriticalRate + 0.25f);
-	TestEqual(TEXT("Hunter keeps configured critical-effect ability plus the authored card"),
-	          RunSubsystem->CurrentBuild.Stats.CriticalEffect,
-	          HunterCriticalEffect + 0.25f);
-	TestFalse(TEXT("New runs do not write BaseCharacterId"),
-	          RunSubsystem->CurrentBuild.RuleFlags.Contains(TEXT("BaseCharacterId")));
-	TestFalse(TEXT("New runs do not write Promoted"), RunSubsystem->CurrentBuild.RuleFlags.Contains(TEXT("Promoted")));
 	return true;
 }
 

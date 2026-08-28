@@ -79,7 +79,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 22 随 CardState 保存 Plan111 的债务、导电关内增幅、Echo三件套和已完成关卡武器历史，并保存当前免费三选一与各商店Tier卡组的已展示历史；v21及更早版本以当前候选重建最小展示历史，v20迁移采用零债务/零新历史并接纳追加式卡牌目录，不伪造已丢失的新机制收益。
+- SaveVersion 23 删除卡牌驱动的旧角色晋升：新 Run 选择的 `CharacterId` 整局保持不变；旧存档存在可靠 `BaseCharacterId` 时恢复原角色并逆向修正角色属性差额，缺失可靠原始 ID 时保留当前角色，两个路径都消费遗留晋升标志。SaveVersion 22 随 CardState 保存 Plan111 的债务、导电关内增幅、Echo三件套和已完成关卡武器历史，并保存当前免费三选一与各商店Tier卡组的已展示历史；v21及更早版本以当前候选重建最小展示历史，v20迁移采用零债务/零新历史并接纳追加式卡牌目录，不伪造已丢失的新机制收益。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -249,10 +249,10 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 **设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、Echo 存储/回放选择和安全保存集中在 GameInstance Subsystem；卡牌内部状态与规则计算委托给 `MOD-ReEchoCards`。
 
 - 代码：`Source/ReEcho/Public/Run/`、`Source/ReEcho/Private/Run/`。
-- 角色能力：`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是统一类型化入口。猎手静态能力在新 Run 与角色晋升时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通卡牌组成功领取计数达到配置间隔时追加选择。免费卡牌组与商店已付款卡牌组的最终领取都调用 Run 的同一计数入口；预付、取消、失败、刷新和额外选择自身不计数。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
+- 角色身份与能力：`CurrentBuild.CharacterId` 是选角后整局唯一身份，免费选卡、调试授卡、付费卡组领取及跨 Encounter/Stage 都不得改写；`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是固定角色能力的统一类型化入口。猎手静态能力在新 Run 时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通卡牌组成功领取计数达到配置间隔时追加选择。免费卡牌组与商店已付款卡牌组的最终领取都调用 Run 的同一计数入口；预付、取消、失败、刷新和额外选择自身不计数。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
 - 勇者缺血阶梯不写入 Run Save：Player Host 订阅 Combat 最终 `HealthChanged`，用当前/最大生命和能力表重算物攻/元攻加值，再通过 Combat 通用来源修正入口替换旧值。治疗、恢复和重生自然回退，不累计历史损血。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 22；BuildSnapshot 内的 CardState 语义由 Cards 定义。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous/Stored Echo、稳定回放 ID、SaveVersion 23；BuildSnapshot 内的 CardState 语义由 Cards 定义。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。
 - 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
