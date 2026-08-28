@@ -714,6 +714,80 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.LongSwordCombo")));
 	TestTrue(TEXT("Scythe uses its dedicated melee Niagara"),
 	         FReEchoCombatVfxCatalog::IsMeleeAttackPattern(TEXT("Pattern.ScytheSweep")));
+
+	struct FLongSwordElementSlashCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FLongSwordElementSlashCase LongSwordElementSlashCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Fire.NS_People_Sword_Attack_Fire")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Thunder.NS_People_Sword_Attack_Thunder")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Grass.NS_People_Sword_Attack_Grass")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerMeleeSlashWater,
+	     TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Water.NS_People_Sword_Attack_Water")},
+	};
+	for (const FLongSwordElementSlashCase& SlashCase : LongSwordElementSlashCases)
+	{
+		EReEchoCombatVfxSemantic SlashSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+		TestTrue(TEXT("Longsword element resolves a dedicated slash semantic"),
+		         FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(SlashCase.Element, SlashSemantic));
+		TestEqual(TEXT("Longsword element selects the expected slash semantic"), SlashSemantic, SlashCase.Semantic);
+		TestTrue(TEXT("Resolved elemental slash remains in the Longsword semantic family"),
+		         FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(SlashSemantic));
+		TestEqual(TEXT("Longsword element selects the imported Niagara path"),
+		          FReEchoCombatVfxCatalog::ResolvePath(SlashSemantic),
+		          FString(SlashCase.ExpectedPath));
+	}
+	EReEchoCombatVfxSemantic NoneSlashSemantic = EReEchoCombatVfxSemantic::PlayerMeleeSlash;
+	TestFalse(TEXT("Physical Longsword keeps its configured default slash"),
+	          FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(EReEchoElement::None, NoneSlashSemantic));
+
+	struct FScytheElementSlashCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FScytheElementSlashCase ScytheElementSlashCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashFlame,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Fire.NS_People_Sickle_Attack_Fire")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashLightning,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Thunder.NS_People_Sickle_Attack_Thunder")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashGrass,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Grass.NS_People_Sickle_Attack_Grass")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerScytheSlashWater,
+	     TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Water.NS_People_Sickle_Attack_Water")},
+	};
+	for (const FScytheElementSlashCase& SlashCase : ScytheElementSlashCases)
+	{
+		EReEchoCombatVfxSemantic SlashSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlash;
+		TestTrue(TEXT("Scythe element resolves a dedicated slash semantic"),
+		         FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(SlashCase.Element, SlashSemantic));
+		TestEqual(TEXT("Scythe element selects the expected slash semantic"), SlashSemantic, SlashCase.Semantic);
+		TestTrue(TEXT("Resolved elemental slash remains in the Scythe semantic family"),
+		         FReEchoCombatVfxCatalog::IsScytheSlashSemantic(SlashSemantic));
+		TestEqual(TEXT("Scythe element selects the imported Niagara path"),
+		          FReEchoCombatVfxCatalog::ResolvePath(SlashSemantic),
+		          FString(SlashCase.ExpectedPath));
+	}
+	EReEchoCombatVfxSemantic NoneScytheSemantic = EReEchoCombatVfxSemantic::PlayerScytheSlash;
+	TestFalse(TEXT("Physical Scythe keeps its configured default slash"),
+	          FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(EReEchoElement::None, NoneScytheSemantic));
 	const FVector CameraRight = FVector::RightVector;
 	TestEqual(TEXT("Gun muzzle discards upward aim while retaining the right side"),
 	          UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(FVector(0.0f, 0.2f, 0.98f), CameraRight),
@@ -795,6 +869,49 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	const FVector RotatedBowAuthoredAxis = BowFlightRotation.RotateVector(BowAuthoredForwardAxis).GetSafeNormal2D();
 	TestTrue(TEXT("Bow authored arrow axis points from the shooter toward the target"),
 	         RotatedBowAuthoredAxis.Equals(BowTargetDirection, KINDA_SMALL_NUMBER));
+
+	struct FBowElementFlightCase
+	{
+		EReEchoElement Element;
+		EReEchoCombatVfxSemantic Semantic;
+		const TCHAR* ExpectedPath;
+	};
+
+	const FBowElementFlightCase BowElementFlightCases[] = {
+	    {EReEchoElement::Flame,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightFlame,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Fire.NS_People_Bow_Attack_Fire")},
+	    {EReEchoElement::Lightning,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightLightning,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Thunder.NS_People_Bow_Attack_Thunder")},
+	    {EReEchoElement::Grass,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightGrass,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Grass.NS_People_Bow_Attack_Grass")},
+	    {EReEchoElement::Water,
+	     EReEchoCombatVfxSemantic::PlayerBowFlightWater,
+	     TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Water.NS_People_Bow_Attack_Water")},
+	};
+	TSet<FString> BowElementFlightPaths;
+	for (const FBowElementFlightCase& FlightCase : BowElementFlightCases)
+	{
+		EReEchoCombatVfxSemantic ResolvedSemantic = EReEchoCombatVfxSemantic::PlayerBowFlight;
+		TestTrue(TEXT("Combat Bow element resolves a dedicated flight semantic"),
+		         FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(FlightCase.Element, ResolvedSemantic));
+		TestEqual(
+		    TEXT("Combat Bow element selects the expected flight semantic"), ResolvedSemantic, FlightCase.Semantic);
+		const FString FlightPath = FReEchoCombatVfxCatalog::ResolvePath(ResolvedSemantic);
+		TestEqual(
+		    TEXT("Combat Bow element selects the imported Niagara path"), FlightPath, FString(FlightCase.ExpectedPath));
+		TestFalse(TEXT("Each combat Bow element uses a distinct Niagara path"),
+		          BowElementFlightPaths.Contains(FlightPath));
+		BowElementFlightPaths.Add(FlightPath);
+		TestTrue(TEXT("Element Bow uses the same authored positive Y flight axis"),
+		         FReEchoCombatVfxCatalog::ResolveAuthoredForwardAxis(ResolvedSemantic)
+		             .Equals(FVector::RightVector, KINDA_SMALL_NUMBER));
+	}
+	EReEchoCombatVfxSemantic NoneBowSemantic = EReEchoCombatVfxSemantic::PlayerBowFlight;
+	TestFalse(TEXT("Non-element Bow projectile keeps the configured Travel fallback"),
+	          FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(EReEchoElement::None, NoneBowSemantic));
 	const FReEchoVfxPlacement FoxDirectionPlacement =
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::FoxDirection);
 	TestTrue(TEXT("Fox windup arrow keeps a visible non-degenerate component scale"),
@@ -857,9 +974,21 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::FoxImpact,
 	    EReEchoCombatVfxSemantic::PlayerMeleeSlash,
 	    EReEchoCombatVfxSemantic::PlayerScytheSlash,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass,
+	    EReEchoCombatVfxSemantic::PlayerMeleeSlashWater,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashFlame,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashLightning,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashGrass,
+	    EReEchoCombatVfxSemantic::PlayerScytheSlashWater,
 	    EReEchoCombatVfxSemantic::PlayerLongSwordImpact,
 	    EReEchoCombatVfxSemantic::PlayerScytheImpact,
 	    EReEchoCombatVfxSemantic::PlayerBowFlight,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightFlame,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightLightning,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightGrass,
+	    EReEchoCombatVfxSemantic::PlayerBowFlightWater,
 	    EReEchoCombatVfxSemantic::PlayerBowImpact,
 	    EReEchoCombatVfxSemantic::PlayerGunFlight,
 	    EReEchoCombatVfxSemantic::PlayerGunFlightFlame,
@@ -989,8 +1118,20 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashWater ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashWater ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightFlame ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightLightning ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightGrass ||
+		    Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightWater ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightFlame ||
 		    Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightLightning ||
@@ -1000,8 +1141,20 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		    Semantic == EReEchoCombatVfxSemantic::FoxDirection || Semantic == EReEchoCombatVfxSemantic::FoxDash ||
 		    Semantic == EReEchoCombatVfxSemantic::EchoWaterAura || Semantic == EReEchoCombatVfxSemantic::EchoGrassAura;
 		const bool bRequiresWeaponLocalSpace = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlashWater ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlashWater ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlight ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightFlame ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightLightning ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightGrass ||
+		                                       Semantic == EReEchoCombatVfxSemantic::PlayerBowFlightWater ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlight ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightFlame ||
 		                                       Semantic == EReEchoCombatVfxSemantic::PlayerGunFlightLightning ||

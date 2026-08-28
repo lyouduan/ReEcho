@@ -115,10 +115,10 @@ FVector ResolveProjectileSpawnLocation(const FVector& WeaponAnchorLocation,
 }
 
 EReEchoElement ResolveProjectileElement(const bool bUsesDeterministicRandomElement,
-	                                    const EReEchoElement AttackElement,
-	                                    const int64 AttackSequence,
-	                                    const int32 ProjectileIndex,
-	                                    const EReEchoElement DebugOverride)
+                                        const EReEchoElement AttackElement,
+                                        const int64 AttackSequence,
+                                        const int32 ProjectileIndex,
+                                        const EReEchoElement DebugOverride)
 {
 	const EReEchoElement ResolvedElement = ReEchoWeaponRuntime::ResolveProjectileElement(
 	    bUsesDeterministicRandomElement, AttackElement, AttackSequence, ProjectileIndex);
@@ -703,6 +703,14 @@ void AReEchoWeaponActor::PublishAttackCommittedEvent(const FReEchoWeaponAttackCo
 	Event.AttackPatternId = Commit.AttackPatternId;
 	Event.AttackStepId = Commit.AttackStepId;
 	Event.StepIndex = Commit.StepIndex;
+	Event.Element = Commit.Element;
+#if !UE_BUILD_SHIPPING
+	if (const AReEchoPlayerPawn* PlayerOwner = Cast<AReEchoPlayerPawn>(WeaponOwner);
+	    PlayerOwner && ReEchoElementReaction::IsCombatElement(PlayerOwner->GetDebugOutgoingElementOverride()))
+	{
+		Event.Element = PlayerOwner->GetDebugOutgoingElementOverride();
+	}
+#endif
 	Event.Origin = Origin;
 	Event.Direction = Direction;
 	Events->PublishAttackCommitted(Event);
@@ -1466,12 +1474,12 @@ bool AReEchoWeaponActor::FireProjectile(const FReEchoWeaponAttackCommit& Commit,
 			DebugElementOverride = PlayerOwner->GetDebugOutgoingElementOverride();
 		}
 #endif
-		const EReEchoElement ProjectileElement = ReEchoWeaponVisual::ResolveProjectileElement(
-		    EffectiveDefinition.bUsesDeterministicRandomElement,
-		    Commit.Element,
-		    Commit.Attack.Sequence,
-		    ProjectileIndex,
-		    DebugElementOverride);
+		const EReEchoElement ProjectileElement =
+		    ReEchoWeaponVisual::ResolveProjectileElement(EffectiveDefinition.bUsesDeterministicRandomElement,
+		                                                 Commit.Element,
+		                                                 Commit.Attack.Sequence,
+		                                                 ProjectileIndex,
+		                                                 DebugElementOverride);
 		const bool bHasWeaponAnchor = IsValid(WeaponAttackVfxRoot);
 		const FVector WeaponAnchorLocation =
 		    bHasWeaponAnchor ? WeaponAttackVfxRoot->GetComponentLocation() : FVector::ZeroVector;
@@ -1914,12 +1922,11 @@ bool AReEchoWeaponActor::CanCutRabbitProjectilesForTests(const FName AttackPatte
 	return ReEchoWeaponVisual::CanCutRabbitProjectiles(AttackPatternId);
 }
 
-EReEchoElement AReEchoWeaponActor::ResolveProjectileElementForTests(
-	const bool bUsesDeterministicRandomElement,
-	const EReEchoElement AttackElement,
-	const int64 AttackSequence,
-	const int32 ProjectileIndex,
-	const EReEchoElement DebugOverride)
+EReEchoElement AReEchoWeaponActor::ResolveProjectileElementForTests(const bool bUsesDeterministicRandomElement,
+                                                                    const EReEchoElement AttackElement,
+                                                                    const int64 AttackSequence,
+                                                                    const int32 ProjectileIndex,
+                                                                    const EReEchoElement DebugOverride)
 {
 	return ReEchoWeaponVisual::ResolveProjectileElement(
 	    bUsesDeterministicRandomElement, AttackElement, AttackSequence, ProjectileIndex, DebugOverride);

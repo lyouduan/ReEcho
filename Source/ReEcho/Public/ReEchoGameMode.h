@@ -118,7 +118,11 @@ public:
 	/** Directly previews one reaction VFX on the nearest living enemy without changing combat state. */
 	UFUNCTION(Exec)
 	void GMReaction(const FString& Reaction = TEXT("Burn"), float Damage = 10.0f);
-	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv Id.
+	/** Switches the authoritative run build and live player weapon to any enabled production WeaponId. */
+	UFUNCTION(Exec)
+	void GMWeapon(FName WeaponId);
+	/** Equips a weapon rune part directly onto the player's currently held weapon (debug). PartId matches parts.csv
+	 * Id.
 	 */
 	UFUNCTION(Exec)
 	void GMEquipRune(FName PartId);
