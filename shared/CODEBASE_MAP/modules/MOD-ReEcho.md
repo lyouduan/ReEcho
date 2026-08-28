@@ -394,11 +394,11 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ## 运行时 CSV 松散文件与 Shipping 打包契约
 
-`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的 28 张运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
+`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的全部生产运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
 
 - **cook 只枚举被资产引用的文件**。`Content/Data/*.csv` 没有任何 `.uasset`/`.umap` 引用（已用全量二进制扫描确认，连已进包的 `characters.csv`/`weapons.csv` 也不被任何资产内嵌），因此 cook 不会把它们作为资产依赖暂存进包。
 - 历史打包中出现了"部分 csv 进包、部分不进"的偶发结果（22 进、6 缺），这是 cook 内部行为的非确定性副作用，**不能作为数据齐备的保证**；缺表会在启动期触发 `ReEcho.cpp` 的 `LowLevelFatalError`（`...: File could not be read`，退出码 3）。
-- **确定化投递**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 拷贝进最终包 `ReEcho/Content/Data/`（见其 `stage_runtime_csvs`）。该函数排除 `Engine` 目录下的 `Content`，只写入游戏模块目录，保证 manifest 列示的 28 张 csv 全部就位，与已进包的 22 张走同一松散文件机制。
+- **确定化投递与验证**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 全部拷贝进最终包 `ReEcho/Content/Data/`，排除 `Engine` 目录下的 `Content`，再按 `reecho_data_manifest.csv` 逐项验证生产表及 manifest 存在；缺失任一生产源文件、目标文件或游戏 `Content` 目录都会使打包失败。
 - 修改 csv 集合时：保持 `reecho_data_manifest.csv` 为真源；`package_windows.py` 不写死表名，按目录通配拷贝，因此新增/删除运行时 csv 无需改脚本。
 - 此契约仅影响打包投递，不改变 Development/PIE 既有的松散文件读取路径，也不改变 CSV schema、稳定 ID 或 `ReEcho.cpp` 的启动校验逻辑。
 # Plan73 元素表现装配
