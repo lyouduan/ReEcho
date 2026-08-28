@@ -258,7 +258,8 @@ void AReEchoGameMode::GMHelp()
 	                   "GMGod [On|Off|Toggle] | "
 	                   "GMAddShards [amount] | GMSetShards [amount] | GMWeather "
 	                   "<Clear|Rain|Fog> | GMScene <SC01|SC02|SC03|SC04> | GMMoveSpeed <cm/s> | "
-	                   "GMEndEncounter | GMTransition4 | GMKillAll | GMSpawnFox <count> [distance] | GMGotoBoss | "
+	                   "GMEndEncounter | GMTransition4 | GMKillAll | GMSpawnFox <count> [distance] | "
+	                   "GMGotoEncounter <1-based index> | GMGotoBoss | "
 	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMEnemyElementAll <None|Grass|Water> | "
@@ -1122,6 +1123,55 @@ void AReEchoGameMode::GMGotoBoss()
 	                  ? FString::Printf(TEXT("Started Boss encounter %d."), BossEncounterIndex)
 	                  : FString::Printf(TEXT("Failed to start Boss encounter %d."), BossEncounterIndex),
 	              bStartedBossEncounter);
+}
+
+void AReEchoGameMode::GMGotoEncounter(const int32 EncounterNumber)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !Director || !Player || !Player->Combatant)
+	{
+		PrintGMResult(TEXT("Encounter jump cannot start because the active run is not initialized."), false);
+		return;
+	}
+	if (RunSubsystem->Phase != EReEchoRunPhase::Encounter || bAwaitingStartChoice || bEncounterTransitioning ||
+	    !Player->Combatant->IsAlive())
+	{
+		PrintGMResult(TEXT("GMGotoEncounter requires a living player in an active encounter."), false);
+		return;
+	}
+
+	const int32 TotalEncounterCount = GetTotalEncounterCount();
+	if (EncounterNumber < 1 || EncounterNumber > TotalEncounterCount)
+	{
+		PrintGMResult(FString::Printf(TEXT("GMGotoEncounter target must be between 1 and %d."), TotalEncounterCount),
+		              false);
+		return;
+	}
+
+	const int32 PreviousEncounter = RunSubsystem->EncounterIndex;
+	ClearEnemyRoster();
+	ClearEchoes();
+	RunSubsystem->EncounterIndex = EncounterNumber - 1;
+	BeginNextEncounter();
+	const bool bStartedTarget = RunSubsystem->Phase == EReEchoRunPhase::Encounter &&
+	                            RunSubsystem->EncounterIndex == EncounterNumber &&
+	                            Director->GetEncounterDuration() > 0.0f;
+	UE_LOG(LogReEcho,
+	       Warning,
+	       TEXT("[GMGotoEncounter] previous=%d requested=%d actual=%d active=%s"),
+	       PreviousEncounter,
+	       EncounterNumber,
+	       RunSubsystem->EncounterIndex,
+	       bStartedTarget ? TEXT("true") : TEXT("false"));
+	PrintGMResult(bStartedTarget
+	                  ? FString::Printf(TEXT("Started encounter %d of %d."), EncounterNumber, TotalEncounterCount)
+	                  : FString::Printf(TEXT("Failed to start encounter %d."), EncounterNumber),
+	              bStartedTarget);
 }
 
 void AReEchoGameMode::GMBossSkill(const FString& Skill)
@@ -4519,7 +4569,7 @@ void AReEchoGameMode::HandleEncounterEnded()
 		bEncounterIntermissionPreparedForTransition = true;
 		if (!BeginEncounterEndSequence())
 		{
-			CompleteEncounterEndSequence(false);
+			CompleteEncounterEndSequence();
 		}
 		else
 		{
@@ -4555,6 +4605,15 @@ bool AReEchoGameMode::ShouldCompleteEncounterTransition(const bool bTransitionin
 bool AReEchoGameMode::ShouldPlayStage01To02Cg(const int32 CompletedEncounterIndex)
 {
 	return CompletedEncounterIndex == 1;
+}
+
+bool AReEchoGameMode::ShouldPlayCardChoiceToShopTransition(const int32 CompletedEncounterIndex,
+                                                           const EReEchoRunPhase Phase,
+                                                           const bool bApplied,
+                                                           const bool bReturningToOpenShop)
+{
+	return bApplied && !bReturningToOpenShop && CompletedEncounterIndex >= 2 && CompletedEncounterIndex <= 7 &&
+	       Phase == EReEchoRunPhase::Planning;
 }
 
 UReEchoEncounterTransitionWidget* AReEchoGameMode::EnsureEncounterTransitionWidget()
@@ -4599,34 +4658,43 @@ bool AReEchoGameMode::BeginEncounterEndSequence()
 	return true;
 }
 
-void AReEchoGameMode::CompleteEncounterEndSequence(const bool bFadeToCards)
+void AReEchoGameMode::CompleteEncounterEndSequence()
 {
-	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::FadingToCardChoice ||
-	    EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed)
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::Completed)
 	{
 		return;
 	}
 	SetEncounterTransitionWorldPaused(false);
 	ProceedToPostEncounterUI();
-	if (bFadeToCards && EncounterTransitionWidget)
+	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 	{
-		EncounterTransitionWidget->BeginSequenceFadeOut(0.4f);
-		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::FadingToCardChoice;
+		UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
 	}
-	else
-	{
-		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
-		{
-			UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
-		}
-		EncounterTransitionWidget = nullptr;
-		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
-	}
+	EncounterTransitionWidget = nullptr;
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
 }
 
 void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSeconds)
 {
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::PlayingCardChoiceToShop)
+	{
+		const bool bFailed = !EncounterTransitionWidget || EncounterTransitionWidget->HasSequenceFailed();
+		const bool bFinished = EncounterTransitionWidget && EncounterTransitionWidget->IsSequenceFinished();
+		if (bFailed || bFinished)
+		{
+			CompleteCardChoiceToShopTransition(bFailed);
+		}
+		return;
+	}
+	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::FadingToShop)
+	{
+		if (!EncounterTransitionWidget || EncounterTransitionWidget->IsFadeOutFinished())
+		{
+			FinishCardChoiceToShopFade();
+		}
+		return;
+	}
 	if (!Director)
 	{
 		return;
@@ -4639,7 +4707,7 @@ void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSec
 		if (ShouldCompleteEncounterTransition(
 		        bEncounterTransitioning, bFailed, bFinished, EncounterSequenceElapsedSeconds))
 		{
-			CompleteEncounterEndSequence(!bFailed);
+			CompleteEncounterEndSequence();
 		}
 		return;
 	}
@@ -4659,10 +4727,6 @@ void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSec
 		{
 			CompleteStage01To02Cg(bFailed);
 		}
-		return;
-	}
-	if (EncounterTransitionPresentationState == EEncounterTransitionPresentationState::FadingToCardChoice)
-	{
 		return;
 	}
 	if (bEncounterTransitioning)
@@ -4693,6 +4757,75 @@ void AReEchoGameMode::UpdateEncounterTransitionPresentation(const float DeltaSec
 	{
 		ResetEncounterTransitionPresentation();
 	}
+}
+
+bool AReEchoGameMode::BeginCardChoiceToShopTransition()
+{
+	UReEchoEncounterTransitionWidget* TransitionWidget = EnsureEncounterTransitionWidget();
+	if (!TransitionWidget || !TransitionWidget->StartCardChoiceToShopSequence())
+	{
+		UE_LOG(LogReEcho, Error, TEXT("[CardChoiceToShop] media could not start; failing open to shop."));
+		return false;
+	}
+	if (TraitCardChoiceWidget)
+	{
+		TraitCardChoiceWidget->SetIsEnabled(false);
+	}
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::PlayingCardChoiceToShop;
+	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] final free-card choice committed; transition started."));
+	return true;
+}
+
+void AReEchoGameMode::CompleteCardChoiceToShopTransition(const bool bFailed)
+{
+	if (EncounterTransitionPresentationState != EEncounterTransitionPresentationState::PlayingCardChoiceToShop)
+	{
+		return;
+	}
+	if (TraitCardChoiceWidget)
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		}
+		TraitCardChoiceWidget = nullptr;
+	}
+	ShowPostTraitShop();
+	if (InventoryShopWidget)
+	{
+		InventoryShopWidget->SetIsEnabled(false);
+	}
+	if (!bFailed && EncounterTransitionWidget)
+	{
+		EncounterTransitionWidget->BeginSequenceFadeOut(0.4f);
+		EncounterTransitionPresentationState = EEncounterTransitionPresentationState::FadingToShop;
+		return;
+	}
+	FinishCardChoiceToShopFade();
+}
+
+void AReEchoGameMode::FinishCardChoiceToShopFade()
+{
+	if (GetGameInstance())
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
+			if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+			{
+				UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, true);
+			}
+		}
+	}
+	EncounterTransitionWidget = nullptr;
+	if (InventoryShopWidget)
+	{
+		InventoryShopWidget->SetIsEnabled(true);
+	}
+	EncounterTransitionPresentationState = EEncounterTransitionPresentationState::Completed;
+	UE_LOG(LogReEcho, Display, TEXT("[CardChoiceToShop] shop revealed and interaction enabled."));
 }
 
 void AReEchoGameMode::ResetEncounterTransitionPresentation()
@@ -5154,6 +5287,17 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		return;
 	}
 	RunSubsystem->SaveRun();
+
+	const bool bPlayCardChoiceToShop = ShouldPlayCardChoiceToShopTransition(
+	    RunSubsystem->EncounterIndex, RunSubsystem->Phase, bApplied, bReturnToOpenShopAfterTraitChoice);
+	if (bPlayCardChoiceToShop)
+	{
+		bContinueRunAfterShop = true;
+		if (BeginCardChoiceToShopTransition())
+		{
+			return;
+		}
+	}
 
 	if (TraitCardChoiceWidget)
 	{

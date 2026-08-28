@@ -1,6 +1,6 @@
 # ReEcho GM 指令手册
 
-本文档对应当前 `AReEchoGameMode` 中通过 `UFUNCTION(Exec)` 暴露的 GM 指令，共 19 条。
+本文档对应当前 `AReEchoGameMode` 中通过 `UFUNCTION(Exec)` 暴露的 GM 指令，共 20 条。
 
 ## 使用方式
 
@@ -16,7 +16,7 @@
 |---|---|
 | 帮助与状态 | `GMHelp`、`GMStatus` |
 | 玩家与资源 | `GMHeal`、`GMGod`、`GMAddShards`、`GMSetShards` |
-| 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoBoss`、`GMBossSkill`、`GMBossDamageRange`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
+| 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoEncounter`、`GMGotoBoss`、`GMBossSkill`、`GMBossDamageRange`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
 | 场景 | `GMWeather` |
 | 元素 | `GMElement`、`GMReaction` |
 | 构筑 | `GMGrantCard`、`GMEquipRune`、`GMUnequipRune` |
@@ -148,6 +148,18 @@ GMSpawnFox 600
 
 ```text
 GMGotoBoss
+```
+
+### `GMGotoEncounter <EncounterNumber>`
+
+清理当前战场并直接从指定关卡开始，关卡号从 `1` 起算，最大值取当前配置的总关卡数。指令复用正式的场景切换、玩家配置、回响生成、敌人波次、关卡计时、录制和音乐启动流程，不经过上一关结算、抽卡、商店或转场。
+
+要求当前运行、关卡导演和玩家均已初始化，玩家存活且正处于活动关卡；超出有效范围时不会改变当前关卡。
+
+```text
+GMGotoEncounter 1
+GMGotoEncounter 3
+GMGotoEncounter 8
 ```
 
 ### `GMBossSkill`
