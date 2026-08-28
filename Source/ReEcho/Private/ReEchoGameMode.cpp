@@ -40,6 +40,7 @@
 #include "Player/ReEchoPlayerController.h"
 #include "Player/ReEchoPlayerPawn.h"
 #include "Weapons/ReEchoWeaponActor.h"
+#include "Weapons/ReEchoWeaponRuntime.h"
 #include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "Presentation/Scene/ReEchoArenaSceneCatalog.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
@@ -279,6 +280,7 @@ void AReEchoGameMode::GMHelp()
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMEnemyElementAll <None|Grass|Water> | "
 	                   "GMReaction <Burn|Vaporize|Growth|Conduct|EnhanceGrass|EnhanceWater> | "
+	                   "GMWeapon <WeaponId> | GMEquipRune <PartId> | GMUnequipRune <SlotTypeId> | "
 	                   "GMShowEnemyHealth <On|Off|Toggle> | "
 	                   "GMShowEnemyRange <On|Off|Toggle> | "
 	                   "GMBossDamageRange <On|Off|Toggle>"));
@@ -604,6 +606,78 @@ void AReEchoGameMode::GMEquipRune(const FName PartId)
 	{
 		PrintGMResult(FString::Printf(TEXT("GMEquipRune %s failed: %s"), *PartId.ToString(), *OutError), false);
 	}
+}
+
+void AReEchoGameMode::GMWeapon(const FName WeaponId)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (WeaponId.IsNone())
+	{
+		PrintGMResult(TEXT("Usage: GMWeapon <WeaponId>  (e.g. W_J_01 / W_J_08 / W_J_09)"), false);
+		return;
+	}
+
+	AReEchoPlayerPawn* PlayerPawn = Player;
+	if (!PlayerPawn)
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PlayerPawn = Cast<AReEchoPlayerPawn>(PC->GetPawn());
+		}
+	}
+	AReEchoWeaponActor* LiveWeapon = PlayerPawn ? PlayerPawn->GetWeapon() : nullptr;
+	if (!PlayerPawn || !LiveWeapon)
+	{
+		PrintGMResult(TEXT("GMWeapon requires a live player weapon (start an encounter first)."), false);
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
+	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : FReEchoCsvDataRegistry::GetSnapshot();
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(WeaponId) : nullptr;
+	if (!Weapon)
+	{
+		PrintGMResult(
+		    FString::Printf(TEXT("GMWeapon failed: WeaponId '%s' is unknown or disabled."), *WeaponId.ToString()),
+		    false);
+		return;
+	}
+
+	if (RunSubsystem && !RunSubsystem->CurrentBuild.WeaponDomainRevision.IsEmpty())
+	{
+		const FReEchoBuildSnapshot PreviousBuild = RunSubsystem->CurrentBuild;
+		FReEchoBuildSnapshot CandidateBuild;
+		FString SelectError;
+		if (!ReEchoWeaponRuntime::TrySelectWeapon(*Snapshot, PreviousBuild, WeaponId, CandidateBuild, SelectError))
+		{
+			PrintGMResult(FString::Printf(TEXT("GMWeapon %s failed: %s"), *WeaponId.ToString(), *SelectError), false);
+			return;
+		}
+		if (!PlayerPawn->InitializeWeaponFromBuild(CandidateBuild, Snapshot))
+		{
+			PlayerPawn->InitializeWeaponFromBuild(PreviousBuild, Snapshot);
+			PrintGMResult(FString::Printf(TEXT("GMWeapon %s failed: live weapon rejected the candidate build."),
+			                              *WeaponId.ToString()),
+			              false);
+			return;
+		}
+		RunSubsystem->CurrentBuild = MoveTemp(CandidateBuild);
+	}
+	else if (!LiveWeapon->SelectWeaponById(WeaponId))
+	{
+		PrintGMResult(
+		    FString::Printf(TEXT("GMWeapon %s failed: live weapon could not select it."), *WeaponId.ToString()), false);
+		return;
+	}
+
+	PostUiEvent(FReEchoAudioEvents::UiEquip);
+	PrintGMResult(FString::Printf(TEXT("Switched weapon to %s (%s)."), *WeaponId.ToString(), *Weapon->DisplayName),
+	              true);
 }
 
 void AReEchoGameMode::GMUnequipRune(const FName SlotTypeId)
@@ -1508,7 +1582,10 @@ void AReEchoGameMode::ShowStartMenu()
 	StopAmbienceState();
 	const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
 	const bool bHasSavedRun = SaveSlots.ContainsByPredicate(
-	    [](const FReEchoSaveSlotSummary& Slot) { return Slot.bOccupied; });
+	    [](const FReEchoSaveSlotSummary& Slot)
+	    {
+		    return Slot.bOccupied;
+	    });
 	StartMenuWidget->InitializeMenu(SaveSlots);
 	UE_LOG(LogTemp,
 	       Display,
@@ -1551,7 +1628,7 @@ void AReEchoGameMode::HandleContinueGameRequested()
 		if (StartMenuWidget)
 		{
 			StartMenuWidget->InitializeMenu(RunSubsystem ? RunSubsystem->GetSaveSlotSummaries()
-			                                               : TArray<FReEchoSaveSlotSummary>());
+			                                             : TArray<FReEchoSaveSlotSummary>());
 		}
 		return;
 	}
@@ -1567,7 +1644,10 @@ void AReEchoGameMode::HandleSaveSlotRequested(const int32 SlotIndex)
 	}
 	const TArray<FReEchoSaveSlotSummary> Summaries = RunSubsystem->GetSaveSlotSummaries();
 	const FReEchoSaveSlotSummary* Summary = Summaries.FindByPredicate(
-	    [SlotIndex](const FReEchoSaveSlotSummary& Candidate) { return Candidate.SlotIndex == SlotIndex; });
+	    [SlotIndex](const FReEchoSaveSlotSummary& Candidate)
+	    {
+		    return Candidate.SlotIndex == SlotIndex;
+	    });
 	if (!Summary)
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
@@ -2540,8 +2620,8 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 void AReEchoGameMode::CaptureActiveSaveSlotPreview()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || RunSubsystem->GetActiveSaveSlotIndex() == INDEX_NONE || !GEngine ||
-	    !GEngine->GameViewport || !GEngine->GameViewport->Viewport)
+	if (!RunSubsystem || RunSubsystem->GetActiveSaveSlotIndex() == INDEX_NONE || !GEngine || !GEngine->GameViewport ||
+	    !GEngine->GameViewport->Viewport)
 	{
 		return;
 	}
@@ -2560,18 +2640,16 @@ void AReEchoGameMode::CaptureActiveSaveSlotPreview()
 	}
 }
 
-bool AReEchoGameMode::ShouldGrantPostEntryInvulnerability(const int32 EncounterIndex,
-                                                           const float DurationSeconds)
+bool AReEchoGameMode::ShouldGrantPostEntryInvulnerability(const int32 EncounterIndex, const float DurationSeconds)
 {
 	return EncounterIndex > 0 && DurationSeconds > 0.0f;
 }
 
 float AReEchoGameMode::ResolvePostEntryInvulnerabilitySeconds() const
 {
-	const UReEchoEncounterFlowSettings* Settings = EncounterFlowSettingsClass
-	                                                     ? EncounterFlowSettingsClass->GetDefaultObject<
-	                                                           UReEchoEncounterFlowSettings>()
-	                                                     : GetDefault<UReEchoEncounterFlowSettings>();
+	const UReEchoEncounterFlowSettings* Settings =
+	    EncounterFlowSettingsClass ? EncounterFlowSettingsClass->GetDefaultObject<UReEchoEncounterFlowSettings>()
+	                               : GetDefault<UReEchoEncounterFlowSettings>();
 	return Settings ? FMath::Max(0.0f, Settings->PostEntryInvulnerabilitySeconds) : 0.0f;
 }
 
