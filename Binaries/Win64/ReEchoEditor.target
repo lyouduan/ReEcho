@@ -30624,7 +30624,91 @@
       "Type": "UFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateCardEffectOrder/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateId/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateReactionPair/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateWeaponInputSlot/weapons.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/EchoEfficiencyEnabled/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/IllegalRange/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidCardEffectBehaviorPair/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidWeaponPartEffectBehaviorPair/part_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/MissingRequired/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ReactionValueChanged/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownBehavior/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownCardEffectTarget/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownEffectKind/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownFormulaId/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownReference/runtime_smoke_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownWeaponReference/characters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCanCrit/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCardEffectTrigger/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedVersion/reecho_data_manifest.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ValidAlt/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/attack_steps.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/attributes.csv",
       "Type": "NonUFS"
     },
     {
@@ -30644,6 +30728,10 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/character_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/character_aliases.csv",
       "Type": "NonUFS"
     },
@@ -30660,11 +30748,27 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/encounter_waves.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/encounters.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/enemies.csv",
       "Type": "NonUFS"
     },
     {
       "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_combat_stats.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_shard_drops.csv",
       "Type": "NonUFS"
     },
     {
@@ -30692,11 +30796,35 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/shop_drop_levels.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_price_ranges.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_refresh_rules.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/slot_profiles.csv",
       "Type": "NonUFS"
     },
     {
       "Path": "$(ProjectDir)/Content/Data/slot_types.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/spawn_policy.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/spawn_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/stages.csv",
       "Type": "NonUFS"
     },
     {
