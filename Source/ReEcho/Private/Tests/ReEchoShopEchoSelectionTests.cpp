@@ -1,11 +1,8 @@
-// Plan32 rework verification: the authoritative echo store/skip/replace/select
+// Echo-storage verification: the authoritative store/skip/replace
 // commands (owned by UReEchoRunSubsystem) and the presentation-only intermission
 // widget. The GameMode close-gate that consumes these commands is covered by the
 // Editor (UHT/UBT) build; its data dependency is exactly `bHasPendingRecording`,
 // which these tests exercise directly. No PIE / visual verification is performed.
-//
-// NOTE: This rework restores SHOP_REPLAY_UNLOCK as a shop purchase (Time Shards to max specific replay slot limit). It does NOT reuse
-// the rejected plan/31-shop-echo-selection-ui self-contained widget API.
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Core/ReEchoTypes.h"
@@ -48,43 +45,30 @@ bool FReEchoShopEchoSelectionPlan32Commands::RunTest(const FString& Parameters)
 	TestTrue(TEXT("A staged recording is reported as pending"),
 	         RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
 
-	// Storing the pending recording moves it into permanent storage.
-	TestEqual(TEXT("Storing the pending recording succeeds"),
-	          RunSubsystem->StorePendingRecording(),
+	// G_3_02 commits the pending encounter directly as the only time anchor.
+	TestEqual(TEXT("Setting the pending recording as time anchor succeeds"),
+	          RunSubsystem->StorePendingRecordingAsTimeAnchor(),
 	          EReEchoEchoStorageResult::Success);
-	TestFalse(TEXT("No pending recording remains after storing"),
+	TestFalse(TEXT("No pending recording remains after anchoring"),
 	          RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
 	const FReEchoEchoStorageSummary AfterStore = RunSubsystem->GetEchoStorageSummary();
-	const bool bStoredFirst = AfterStore.StoredEchoes.ContainsByPredicate(
-	    [&First](const FReEchoStoredEchoSummary& Stored) { return Stored.RecordingId == First.Id; });
-	TestTrue(TEXT("The stored echo snapshot contains the staged recording"), bStoredFirst);
+	TestTrue(TEXT("The time anchor is active"), AfterStore.bHasTimeAnchor);
+	TestEqual(TEXT("The anchor contains the staged recording"), AfterStore.TimeAnchorRecording.RecordingId, First.Id);
 
-	// Replacing: stage a second recording and replace the first stored echo with it.
+	// The next choice replaces the single anchor directly; there is no slot-selection step.
 	const FReEchoRecording Second = MakeRecording();
 	TestEqual(TEXT("Staging the replacement recording succeeds"),
 	          RunSubsystem->StagePendingRecording(Second),
 	          EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Replacing a stored echo with the pending recording succeeds"),
-	          RunSubsystem->StorePendingRecordingReplacing(First.Id),
+	TestEqual(TEXT("Replacing the time anchor succeeds"),
+	          RunSubsystem->StorePendingRecordingAsTimeAnchor(),
 	          EReEchoEchoStorageResult::Success);
 	TestFalse(TEXT("No pending recording remains after replacing"),
 	          RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
 	const FReEchoEchoStorageSummary AfterReplace = RunSubsystem->GetEchoStorageSummary();
-	TestEqual(TEXT("Storage still holds exactly one echo after replace"), AfterReplace.StoredEchoes.Num(), 1);
-	const bool bStoredSecond = AfterReplace.StoredEchoes.ContainsByPredicate(
-	    [&Second](const FReEchoStoredEchoSummary& Stored) { return Stored.RecordingId == Second.Id; });
-	TestTrue(TEXT("The stored echo snapshot now contains the replacement recording"), bStoredSecond);
-
-	// Replacing with an unknown target is rejected and leaves the pending recording intact.
-	const FReEchoRecording Third = MakeRecording();
-	TestEqual(TEXT("Staging the third recording succeeds"),
-	          RunSubsystem->StagePendingRecording(Third),
-	          EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Replacing with an unknown target is rejected"),
-	          RunSubsystem->StorePendingRecordingReplacing(FGuid::NewGuid()),
-	          EReEchoEchoStorageResult::InvalidReplacementTarget);
-	TestTrue(TEXT("The pending recording is preserved after a rejected replacement"),
-	         RunSubsystem->GetEchoStorageSummary().bHasPendingRecording);
+	TestTrue(TEXT("The replacement remains the only anchor"), AfterReplace.bHasTimeAnchor);
+	TestEqual(
+	    TEXT("The anchor now contains the second recording"), AfterReplace.TimeAnchorRecording.RecordingId, Second.Id);
 
 	// Skipping the pending recording drops permanent-storage eligibility.
 	UGameInstance* SkipGameInstance = NewObject<UGameInstance>();
@@ -98,33 +82,6 @@ bool FReEchoShopEchoSelectionPlan32Commands::RunTest(const FString& Parameters)
 	          EReEchoEchoStorageResult::Success);
 	TestFalse(TEXT("No pending recording remains after skipping"),
 	          SkipSubsystem->GetEchoStorageSummary().bHasPendingRecording);
-
-	// Selection: choosing replays is bounded by the specific-replay limit and must reference stored echoes.
-	UGameInstance* SelectGameInstance = NewObject<UGameInstance>();
-	UReEchoRunSubsystem* SelectSubsystem = NewObject<UReEchoRunSubsystem>(SelectGameInstance);
-	const FReEchoRecording Fifth = MakeRecording();
-	TestEqual(TEXT("Staging for the selection path succeeds"),
-	          SelectSubsystem->StagePendingRecording(Fifth),
-	          EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Storing the selection-path recording succeeds"),
-	          SelectSubsystem->StorePendingRecording(),
-	          EReEchoEchoStorageResult::Success);
-
-	SelectSubsystem->SetSpecificReplayLimit(0);
-	TestEqual(TEXT("Selecting any replay is rejected when the limit is zero"),
-	          SelectSubsystem->SetSelectedReplayIds({Fifth.Id}),
-	          EReEchoEchoStorageResult::ReplayLimitExceeded);
-
-	SelectSubsystem->SetSpecificReplayLimit(2);
-	TestEqual(TEXT("Selecting a stored echo succeeds within the limit"),
-	          SelectSubsystem->SetSelectedReplayIds({Fifth.Id}),
-	          EReEchoEchoStorageResult::Success);
-	TestTrue(TEXT("The chosen replay id is recorded in the summary"),
-	         SelectSubsystem->GetEchoStorageSummary().SelectedReplayIds.Contains(Fifth.Id));
-
-	TestEqual(TEXT("Selecting an unknown echo is rejected"),
-	          SelectSubsystem->SetSelectedReplayIds({FGuid::NewGuid()}),
-	          EReEchoEchoStorageResult::InvalidRecordingId);
 
 	return true;
 }
@@ -143,14 +100,10 @@ bool FReEchoShopEchoSelectionPlan32IntermissionWidget::RunTest(const FString& Pa
 	}
 
 	Widget->ShowInventory(0, {});
-	TestEqual(TEXT("Inventory has its own typed context"),
-	          Widget->GetMode(),
-	          EReEchoInventoryShopMode::Inventory);
+	TestEqual(TEXT("Inventory has its own typed context"), Widget->GetMode(), EReEchoInventoryShopMode::Inventory);
 
 	Widget->ShowShop(0, {});
-	TestEqual(TEXT("Manual shop has its own typed context"),
-	          Widget->GetMode(),
-	          EReEchoInventoryShopMode::ManualShop);
+	TestEqual(TEXT("Manual shop has its own typed context"), Widget->GetMode(), EReEchoInventoryShopMode::ManualShop);
 
 	FReEchoEchoStorageSummary Summary;
 	Summary.bHasPendingRecording = true;
@@ -162,51 +115,25 @@ bool FReEchoShopEchoSelectionPlan32IntermissionWidget::RunTest(const FString& Pa
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopReplayUnlockPurchase,
-                                 "ReEcho.Shop.EchoSelection.Plan32.ReplayUnlockPurchase",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDeprecatedReplayUnlockRemoved,
+                                 "ReEcho.Shop.EchoSelection.DeprecatedReplayUnlockRemoved",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FReEchoShopReplayUnlockPurchase::RunTest(const FString& Parameters)
+bool FReEchoDeprecatedReplayUnlockRemoved::RunTest(const FString& Parameters)
 {
-	// UReEchoRunSubsystem has ClassWithin=GameInstance, so it must be created with a
-	// valid GameInstance outer (a transient-package outer triggers a ClassWithin ensure).
+	const bool bCatalogContainsDeprecatedItem = GetReEchoShopCatalog().ContainsByPredicate(
+	    [](const FReEchoShopOffer& Offer)
+	    {
+		    return Offer.ItemId == TEXT("SHOP_REPLAY_UNLOCK");
+	    });
+	TestFalse(TEXT("Legacy replay unlock is absent from the catalog"), bCatalogContainsDeprecatedItem);
+
 	UGameInstance* GameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
-	TestNotNull(TEXT("Run subsystem is available via a GameInstance"), RunSubsystem);
-	if (!RunSubsystem)
-	{
-		return false;
-	}
-
-	// Seed enough Time Shards for the 30-shard unlock and start from a locked state.
 	RunSubsystem->TimeShards = 50;
-	RunSubsystem->SetSpecificReplayLimit(0);
-	TestEqual(TEXT("Specific replay limit starts locked at 0"),
-	          RunSubsystem->GetEchoStorageSummary().SpecificReplayLimit, 0);
-
-	const int32 BeforeShards = RunSubsystem->TimeShards;
-	TestTrue(TEXT("Purchasing SHOP_REPLAY_UNLOCK succeeds"),
-	         RunSubsystem->PurchaseShopItem(TEXT("SHOP_REPLAY_UNLOCK")));
-	TestEqual(TEXT("Time Shards are consumed by the 30-shard price"),
-	          RunSubsystem->TimeShards, BeforeShards - 30);
-	TestEqual(TEXT("Specific replay limit is raised to the max (3)"),
-	          RunSubsystem->GetEchoStorageSummary().SpecificReplayLimit,
-	          ReEchoEchoStorage::MaxSpecificReplayLimit);
-	TestTrue(TEXT("SHOP_REPLAY_UNLOCK is recorded in inventory"),
-	         RunSubsystem->InventoryItems.Contains(TEXT("SHOP_REPLAY_UNLOCK")));
-
-	// Repeat purchase is rejected and does not double-charge.
-	const int32 AfterFirst = RunSubsystem->TimeShards;
-	TestFalse(TEXT("A second purchase of SHOP_REPLAY_UNLOCK is rejected"),
+	TestFalse(TEXT("Legacy replay unlock cannot be purchased by id"),
 	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_REPLAY_UNLOCK")));
-	TestEqual(TEXT("Rejected repeat purchase does not consume shards"),
-	          RunSubsystem->TimeShards, AfterFirst);
-
-	// Insufficient shards are rejected without consuming (different, not-yet-owned item).
-	RunSubsystem->TimeShards = 10;
-	TestFalse(TEXT("Purchase is rejected when shards are insufficient"),
-	          RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
-
+	TestEqual(TEXT("Rejected legacy id does not consume shards"), RunSubsystem->TimeShards, 50);
 	return true;
 }
 

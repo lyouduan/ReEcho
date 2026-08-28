@@ -22,7 +22,7 @@
 - 启动/继续、装载选择、竞技场、八场表驱动遭遇、局间构筑、商店、Echo 选择和结束流程编排。
 - 玩家、敌人、Echo、武器、投射物、世界 UI 与表现 Actor 的创建和生命周期装配。
 - 将 XLSX 生成的 CSV 编译为类型化运行时快照。
-- 本局阶段、构筑、存档、Echo 存储与回放选择。
+- 本局阶段、构筑、存档与 G_3_02 单一时间锚点记录。
 - 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
 - 将卡牌 `G_2_30` 的只读规则与当前存活 Echo 集合投影给玩家 VFX 组件；连接线伤害仍由现有卡牌/Combat 路径结算，GameMode 不从 Niagara 状态反推玩法。
@@ -253,13 +253,13 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ### `AREA-Run`：`Run`本局状态与存档
 
-**设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、Echo 存储/回放选择和安全保存集中在 GameInstance Subsystem；卡牌内部状态与规则计算委托给 `MOD-ReEchoCards`。
+**设计意图：** 将跨遭遇但限于本局的阶段、构筑、背包、货币、商店、G_3_02 单一时间锚点和安全保存集中在 GameInstance Subsystem；卡牌内部状态与规则计算委托给 `MOD-ReEchoCards`。
 
 - 代码：`Source/ReEcho/Public/Run/`、`Source/ReEcho/Private/Run/`。
 - 角色身份与能力：`CurrentBuild.CharacterId` 是选角后整局唯一身份，免费选卡、调试授卡、付费卡组领取及跨 Encounter/Stage 都不得改写；`Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.*` 是固定角色能力的统一类型化入口。猎手静态能力在新 Run 时作用于有效 StatBlock；诗人在成功 Encounter 完成时永久增长；智者在普通卡牌组成功领取计数达到配置间隔时追加选择。免费卡牌组与商店已付款卡牌组的最终领取都调用 Run 的同一计数入口；预付、取消、失败、刷新和额外选择自身不计数。旧 Forge 阶段只作为旧存档迁移输入，并确定性转为普通 `CardChoice`，不再生成、展示或授予 Forge。
 - 勇者缺血阶梯不写入 Run Save：Player Host 订阅 Combat 最终 `HealthChanged`，用当前/最大生命和能力表重算物攻/元攻加值，再通过 Combat 通用来源修正入口替换旧值。治疗、恢复和重生自然回退，不累计历史损血。
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
-- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous/Stored Echo、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。三槽摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
+- 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous Echo、单条时间锚点记录与 `CardState.Runtime.AnchorRecordingId`、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。不存在运行时回响存储容量或可购买的扩容/“指定回放解锁”商品；旧 SaveGame 的 `StoredEchoes` 恢复时仅折叠到当前锚点，`StorageCapacity` / `SelectedReplayIds` / `SpecificReplayLimit` 只为反序列化兼容，新存档写零/空。三槽运行存档摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。`GetOwnedBuildCardView()` 从 `CardState.OwnedCardIds` 与卡牌目录生成保持获得顺序的已拥有卡牌只读投影，并与商店复用同一 `FReEchoShopOffer` 图标路径和通用卡图回退契约；失败结算只在该投影上按 `Tier` 选取最多五张，不反向修改构筑。
 - 三槽存档：新游戏先选择第一个空槽，此后所有既有 `SaveRun` 调用只写回该活动槽；点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。三槽全满时不覆盖、不删除、不伪造新建入口。
