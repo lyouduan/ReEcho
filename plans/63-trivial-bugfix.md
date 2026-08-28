@@ -224,6 +224,6 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **需求 / Need**：`Esc` 应与 `P` 产生完全相同的暂停菜单效果，包括打开暂停、再次按键恢复，以及复用暂停菜单对设置、属性页和商店覆盖层的既有处理。
 - **根因 / Root cause**：玩家代码已经把 `PauseMenu` Action 统一绑定到 `AReEchoGameMode::TogglePauseMenu()`，并允许暂停期间继续响应；但 `Config/DefaultInput.ini` 只把 `P` 映射到该 Action，缺少 `Escape` 映射，与 `MOD-ReEcho` 已声明的“Esc 进入暂停层”契约不一致。
 - **改动 / Changes**：仅在 `DefaultInput.ini` 为同一个 `PauseMenu` Action 增加 `Escape`；不新增输入回调，不修改暂停、恢复、菜单焦点、商店覆盖或存档逻辑。影响 `MOD-ReEcho / AREA-Player / AREA-UI`。
-- **验证 / Verification**：`python scripts/validate_project.py`、`git diff --check` 通过；额外静态断言确认 `PauseMenu` 恰有 `P` 与 `Escape` 两条目标映射。该变更仅涉及输入配置，因此按项目矩阵不要求 UHT/UBT；仍需 PIE 人工确认战斗中 `P`/`Esc` 均可打开和关闭暂停菜单，商店页面按 `Esc` 时沿用 `P` 的暂停层覆盖行为。
+- **验证 / Verification**：`python scripts/validate_project.py`、`git diff --check` 通过；额外静态断言确认 `PauseMenu` 恰有 `P` 与 `Escape` 两条目标映射。取得发布锁后的最终候选按程序发布门禁完成 Development Editor `-FullRebuild`（95/95），精选预构建包刷新为源码指纹 `6ee071709d39`；仍未宣称 PIE 人工按键测试，发布后可继续确认战斗中 `P`/`Esc` 均可打开和关闭暂停菜单，以及商店页面按 `Esc` 时沿用 `P` 的暂停层覆盖行为。
 - **文档审阅 / Documentation review**：`shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已审阅且无需修改，因为正文已准确声明 `Esc` 进入暂停层；`MOD-ReEchoUI.md` 已审阅且无需修改，因为屏幕层级、焦点和生命周期契约未改变；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 无模块拓扑或稳定路由变化，无需修改。
-- **状态 / Status**：Review。等待客观门禁与用户 PIE 验收。
+- **状态 / Status**：Review。客观发布门禁已通过并按用户授权发布；PIE 人工按键确认尚未执行。
