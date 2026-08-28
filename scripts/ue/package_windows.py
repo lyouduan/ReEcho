@@ -8,6 +8,7 @@ import csv
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import locale
 import os
 from pathlib import Path
 import platform
@@ -83,6 +84,21 @@ def command_text(command: list[str]) -> str:
     return subprocess.list2cmdline([str(item) for item in command])
 
 
+def configure_console_streams(*streams: object) -> None:
+    for stream in streams:
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(errors="replace")
+
+
+def decode_process_output(raw: bytes, fallback_encoding: str | None = None) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        encoding = fallback_encoding or locale.getpreferredencoding(False) or "utf-8"
+        return raw.decode(encoding, errors="replace")
+
+
 def run_capture(command: list[str], cwd: Path) -> str:
     completed = subprocess.run(
         [str(item) for item in command],
@@ -113,12 +129,10 @@ def run_streamed(command: list[str], cwd: Path, log_path: Path, heading: str) ->
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
         )
         assert process.stdout is not None
-        for line in process.stdout:
+        for raw_line in process.stdout:
+            line = decode_process_output(raw_line)
             print(line, end="", flush=True)
             log.write(line)
             log.flush()
@@ -682,6 +696,7 @@ def write_failure_summary(
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_console_streams(sys.stdout, sys.stderr)
     args = parse_args(argv)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     configuration = configuration_for(args)

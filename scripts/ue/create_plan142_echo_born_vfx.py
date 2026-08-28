@@ -6,8 +6,9 @@ import unreal
 SOURCE_PATH = "/Game/VFX/Monster/Goat/Particle/NS_Goat_Skill03_Alarming"
 DESTINATION_PATH = "/Game/VFX/Echo/Particle/NS_Echo_Born"
 SOURCE_MATERIALS = ("BaseVFX003_Inst15", "BaseVFX003_Inst21", "BaseVFX003_Inst22", "BaseVFX003_Inst23")
-# Niagara particle curves own the ice-blue hue. A mild neutral HDR multiplier makes the circle materials readable.
-ECHO_CYAN = unreal.LinearColor(1.35, 1.35, 1.35, 1.0)
+# Niagara particle curves own the ice-blue hue. The stronger neutral HDR multiplier keeps the
+# lower cross-stitch/circle pattern readable beneath the enlarged short-lived light particles.
+ECHO_CYAN = unreal.LinearColor(1.65, 1.65, 1.65, 1.0)
 
 
 source = unreal.EditorAssetLibrary.load_asset(SOURCE_PATH)

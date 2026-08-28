@@ -28,8 +28,7 @@ enum class EReEchoShopPurchaseResult : uint8
 	DataUnavailable,
 	GrantRejected,
 	MutationRejected,
-	WeaponSelectionRejected,
-	ReplayUnlockRejected
+	WeaponSelectionRejected
 };
 
 /** Structured result returned by the unified purchase transaction interface. */
@@ -177,26 +176,21 @@ struct REECHO_API FReEchoWeaponPartShopView
 
 inline const TArray<FReEchoShopOffer>& GetReEchoShopCatalog()
 {
-	static const TArray<FReEchoShopOffer> Offers = {
-	    {TEXT("SHOP_RUSTED_SCISSORS"),
-	     NSLOCTEXT("ReEcho", "ShopRustedScissors", "生锈剪刀"),
-	     NSLOCTEXT("ReEcho", "ShopRustedScissorsEffect", "物理攻击 +2"),
-	     15},
-	    {TEXT("SHOP_DREAM_FRUIT"),
-	     NSLOCTEXT("ReEcho", "ShopDreamFruit", "噩梦果实"),
-	     NSLOCTEXT("ReEcho", "ShopDreamFruitEffect", "最大生命 +10"),
-	     20},
-	    {TEXT("SHOP_BLACK_FEATHER"),
-	     NSLOCTEXT("ReEcho", "ShopBlackFeather", "黑羽毛"),
-	     NSLOCTEXT("ReEcho", "ShopBlackFeatherEffect", "移动速度 +10%"),
-	     20},
-	    {TEXT("SHOP_OLD_COIN"),
-	     NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
-	     NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
-	     25},
-	    {TEXT("SHOP_REPLAY_UNLOCK"),
-	     NSLOCTEXT("ReEcho", "ShopReplayUnlock", "指定回放解锁"),
-	     NSLOCTEXT("ReEcho", "ShopReplayUnlockEffect", "在收藏的回响中选择最多 3 场自动回放"),
-	     30}};
+	static const TArray<FReEchoShopOffer> Offers = {{TEXT("SHOP_RUSTED_SCISSORS"),
+	                                                 NSLOCTEXT("ReEcho", "ShopRustedScissors", "生锈剪刀"),
+	                                                 NSLOCTEXT("ReEcho", "ShopRustedScissorsEffect", "物理攻击 +2"),
+	                                                 15},
+	                                                {TEXT("SHOP_DREAM_FRUIT"),
+	                                                 NSLOCTEXT("ReEcho", "ShopDreamFruit", "噩梦果实"),
+	                                                 NSLOCTEXT("ReEcho", "ShopDreamFruitEffect", "最大生命 +10"),
+	                                                 20},
+	                                                {TEXT("SHOP_BLACK_FEATHER"),
+	                                                 NSLOCTEXT("ReEcho", "ShopBlackFeather", "黑羽毛"),
+	                                                 NSLOCTEXT("ReEcho", "ShopBlackFeatherEffect", "移动速度 +10%"),
+	                                                 20},
+	                                                {TEXT("SHOP_OLD_COIN"),
+	                                                 NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
+	                                                 NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
+	                                                 25}};
 	return Offers;
 }

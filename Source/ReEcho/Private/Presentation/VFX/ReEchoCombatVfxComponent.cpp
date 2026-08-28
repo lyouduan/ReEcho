@@ -361,8 +361,9 @@ bool UReEchoCombatVfxComponent::TryResolveFlipbookCenter(AActor* Target, FVector
 
 bool UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner)
 {
+	const bool bTargetIsEnemy = Cast<AReEchoEnemyActor>(Owner) != nullptr;
 	return Event.Target == Owner && Event.AppliedDamage > 0.0f &&
-	       (!Event.bFatal || Event.DamageSource == EReEchoDamageSource::Path);
+	       (!Event.bFatal || bTargetIsEnemy || Event.DamageSource == EReEchoDamageSource::Path);
 }
 
 FVector UReEchoCombatVfxComponent::ResolveBossHurtEffectLocation(const FVector& HurtRootWorld,
@@ -1310,6 +1311,21 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
 }
 
+FVector UReEchoCombatVfxComponent::ResolveAttackRangeScale(const FVector& AuthoredScale,
+                                                           const FVector& ScaleMask,
+                                                           const float RangeMultiplier,
+                                                           const float MinMultiplier,
+                                                           const float MaxMultiplier)
+{
+	const float SafeMin = FMath::Max(0.01f, FMath::Min(MinMultiplier, MaxMultiplier));
+	const float SafeMax = FMath::Max(SafeMin, FMath::Max(MinMultiplier, MaxMultiplier));
+	const float ClampedMultiplier = FMath::Clamp(RangeMultiplier, SafeMin, SafeMax);
+	const FVector SafeMask(FMath::Clamp(ScaleMask.X, 0.0f, 1.0f),
+	                       FMath::Clamp(ScaleMask.Y, 0.0f, 1.0f),
+	                       FMath::Clamp(ScaleMask.Z, 0.0f, 1.0f));
+	return AuthoredScale * (FVector::OneVector + SafeMask * (ClampedMultiplier - 1.0f));
+}
+
 FVector UReEchoCombatVfxComponent::ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection,
                                                                        const FVector& CameraRight)
 {
@@ -1558,29 +1574,18 @@ FRotator UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(const FV
 	return FRotationMatrix::MakeFromZX(Normal, PlaneDirection).Rotator();
 }
 
-FRotator UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(const FVector& Direction,
-                                                                      const FVector& CameraFacingNormal)
+FRotator UReEchoCombatVfxComponent::ResolveGroundPlaneDirectionRotation(const FVector& Direction)
 {
-	const FVector Normal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
-	FVector PlaneDirection = Direction - FVector::DotProduct(Direction, Normal) * Normal;
-	PlaneDirection = PlaneDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
-	// The delivered 0811_01 Niagara mesh is authored in its local YZ plane: local X is the surface normal and
-	// local Y is the in-plane attack axis. The DA Roll correction therefore rotates the slash inside the view plane.
-	return FRotationMatrix::MakeFromXY(Normal, PlaneDirection).Rotator();
+	FVector GroundDirection(Direction.X, Direction.Y, 0.0f);
+	GroundDirection = GroundDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	// The delivered 0811_01 slash mesh is authored in its local YZ plane. Map its local X surface normal to
+	// world-up and its local Y attack axis to the committed direction so the full ring stays parallel to ground.
+	return FRotationMatrix::MakeFromXY(FVector::UpVector, GroundDirection).Rotator();
 }
 
-FRotator UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation,
-                                                                const FVector& CameraFacingNormal)
+FRotator UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(const FVector& Direction)
 {
-	const FVector CameraNormal = CameraFacingNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
-	const FQuat ComposedQuat = ComposedRotation.Quaternion();
-	const FVector SurfaceNormal = ComposedQuat.RotateVector(FVector::ForwardVector);
-	if (FVector::DotProduct(SurfaceNormal, CameraNormal) >= 0.0f)
-	{
-		return ComposedRotation;
-	}
-	const FVector AttackAxis = ComposedQuat.RotateVector(FVector::RightVector).GetSafeNormal();
-	return (FQuat(AttackAxis, PI) * ComposedQuat).Rotator();
+	return ResolveGroundPlaneDirectionRotation(Direction);
 }
 
 float UReEchoCombatVfxComponent::ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight)
@@ -1671,7 +1676,8 @@ FVector UReEchoCombatVfxComponent::ResolveBossTargetGroundLocation(const FReEcho
 UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 SemanticValue,
                                                             const FVector& Direction,
                                                             USceneComponent* AttachmentRoot,
-                                                            const bool bAutoDestroy) const
+                                                            const bool bAutoDestroy,
+                                                            const float AttackRangeMultiplier) const
 {
 	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
@@ -1689,30 +1695,35 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                    ? ResolveGunMuzzleHorizontalDirection(Direction, CameraRight)
 	                                    : Direction;
 	FRotator DirectionRotation = FReEchoCombatVfxCatalog::ResolveRotation(Semantic, VisualDirection);
-	FVector SwordCameraFacingNormal = FVector::UpVector;
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 	{
-		SwordCameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveSwordMeshDirectionRotation(VisualDirection, SwordCameraFacingNormal);
+		DirectionRotation = ResolveSwordMeshDirectionRotation(VisualDirection);
 	}
-	else if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+	else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
 	{
-		const FVector CameraFacingNormal = Camera ? -Camera->GetCameraRotation().Vector() : FVector::UpVector;
-		DirectionRotation = ResolveCameraPlaneDirectionRotation(VisualDirection, CameraFacingNormal);
+		// The scythe owns a full 360-degree ground sweep. Keep its authored local YZ effect plane parallel to the arena
+		// so the slash cannot stand vertically and intersect the floor as the camera pitch changes.
+		DirectionRotation = ResolveGroundPlaneDirectionRotation(VisualDirection);
 	}
-	FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, Placement.LocalRotation);
-	if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
-	{
-		RelativeRotation = EnsureSwordFrontFacesCamera(RelativeRotation, SwordCameraFacingNormal);
-	}
+	const FRotator LocalRotationCorrection = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic)
+	                                             ? FRotator(0.0f, 0.0f, Placement.LocalRotation.Roll)
+	                                             : Placement.LocalRotation;
+	const FRotator RelativeRotation = ComposeAttachedRotation(DirectionRotation, LocalRotationCorrection);
+	const FVector DesiredScale = Placement.bScaleWithAttackRange
+	                                 ? ResolveAttackRangeScale(Placement.Scale,
+	                                                           Placement.AttackRangeScaleMask,
+	                                                           AttackRangeMultiplier,
+	                                                           Placement.MinAttackRangeMultiplier,
+	                                                           Placement.MaxAttackRangeMultiplier)
+	                                 : Placement.Scale;
 	const FVector RelativeScale =
-	    ResolveAttachedScale(Placement.Scale,
+	    ResolveAttachedScale(DesiredScale,
 	                         AttachmentRoot->GetComponentTransform().GetScale3D(),
 	                         Placement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	const float PlayDirection = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash
+	const float PlayDirection = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic)
 	                                ? ResolveMeleePlayDirection(VisualDirection, CameraRight)
 	                                : 1.0f;
-	const bool bReverseMelee = Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && PlayDirection < 0.0f;
+	const bool bReverseMelee = FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic) && PlayDirection < 0.0f;
 	const bool bHasPlayDirectionParameter = HasMeleePlayDirectionParameter(System);
 	UNiagaraComponent* Effect =
 	    UNiagaraFunctionLibrary::SpawnSystemAttached(System,
@@ -1750,8 +1761,12 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 			Effect->SetAbsolute(false, true, false);
 			Effect->SetWorldRotation(RelativeRotation);
 		}
-		if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 		{
+			Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
+			const FVector GroundTangent = FVector(VisualDirection.X, VisualDirection.Y, 0.0f)
+			                                  .GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+			Effect->SetVariableVec3(TEXT("User.GroundTangent"), GroundTangent);
 			if (bHasPlayDirectionParameter)
 			{
 				Effect->SetVariableFloat(TEXT("User.PlayDirection"), PlayDirection);
@@ -1764,6 +1779,15 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 				       TEXT("[VFX] Sword slash '%s' lacks User.PlayDirection; using right-side DesiredAge fallback"),
 				       *System->GetPathName());
 			}
+		}
+		else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+		{
+			// Sprite renderers consume the same world-space ground basis as the component-oriented mesh renderers.
+			// This applies to the default slash and every element-specific scythe system.
+			Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
+			const FVector GroundTangent = FVector(VisualDirection.X, VisualDirection.Y, 0.0f)
+			                                  .GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+			Effect->SetVariableVec3(TEXT("User.GroundTangent"), GroundTangent);
 		}
 		Effect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
 		Effect->Activate(true);
@@ -2338,6 +2362,15 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 	{
 		return;
 	}
+	const EReEchoCombatVfxSemantic DefaultSemantic = Semantic;
+	if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
+	{
+		FReEchoCombatVfxCatalog::ResolveLongSwordSlashSemantic(Event.Element, Semantic);
+	}
+	else if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+	{
+		FReEchoCombatVfxCatalog::ResolveScytheSlashSemantic(Event.Element, Semantic);
+	}
 	const float DelaySeconds = FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(Semantic);
 	if (UWorld* World = GetWorld(); World && DelaySeconds > 0.0f)
 	{
@@ -2347,19 +2380,46 @@ void UReEchoCombatVfxComponent::HandleAttackCommitted(const FReEchoAttackCommitt
 		FTimerHandle MeleeSlashTimer;
 		World->GetTimerManager().SetTimer(
 		    MeleeSlashTimer,
-		    [WeakThis, Semantic, LockedDirection = Event.Direction]()
+		    [WeakThis,
+		     Semantic,
+		     DefaultSemantic,
+		     LockedDirection = Event.Direction,
+		     LockedRangeMultiplier = Event.RangeMultiplierFromBase]()
 		    {
 			    if (const UReEchoCombatVfxComponent* Component = WeakThis.Get())
 			    {
-				    Component->SpawnAttached(
-				        static_cast<uint8>(Semantic), LockedDirection, Component->ResolveWeaponAttackVfxRoot());
+				    if (!Component->SpawnAttached(static_cast<uint8>(Semantic),
+				                                  LockedDirection,
+				                                  Component->ResolveWeaponAttackVfxRoot(),
+				                                  true,
+				                                  LockedRangeMultiplier) &&
+				        Semantic != DefaultSemantic)
+				    {
+					    Component->SpawnAttached(static_cast<uint8>(DefaultSemantic),
+					                             LockedDirection,
+					                             Component->ResolveWeaponAttackVfxRoot(),
+					                             true,
+					                             LockedRangeMultiplier);
+				    }
 			    }
 		    },
 		    DelaySeconds,
 		    false);
 		return;
 	}
-	SpawnAttached(static_cast<uint8>(Semantic), Event.Direction, ResolveWeaponAttackVfxRoot());
+	if (!SpawnAttached(static_cast<uint8>(Semantic),
+	                   Event.Direction,
+	                   ResolveWeaponAttackVfxRoot(),
+	                   true,
+	                   Event.RangeMultiplierFromBase) &&
+	    Semantic != DefaultSemantic)
+	{
+		SpawnAttached(static_cast<uint8>(DefaultSemantic),
+		              Event.Direction,
+		              ResolveWeaponAttackVfxRoot(),
+		              true,
+		              Event.RangeMultiplierFromBase);
+	}
 }
 
 void UReEchoCombatVfxComponent::HandleHit(const FReEchoDamageEvent& Event)
@@ -2397,10 +2457,10 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 			BossHurtLocation = ResolveBossHurtEffectLocation(HurtRoot->GetComponentLocation(), FlipbookCenterWorld);
 		}
 	}
-	if (Event.DamageSource == EReEchoDamageSource::Path && Cast<AReEchoEnemyActor>(GetOwner()))
+	if (TargetEnemy && (Event.bFatal || Event.DamageSource == EReEchoDamageSource::Path))
 	{
-		// Connection-line damage has no weapon impact semantic. Spawn the existing enemy hurt effect in world
-		// space so a fatal hit remains visible after the target's presentation is torn down.
+		// Fatal enemy hits cannot remain attached to presentation that death tears down. Connection-line damage
+		// has no weapon impact semantic either, so both paths use a world instance that survives target cleanup.
 		const FVector ImpactLocation = bTargetIsBoss ? BossHurtLocation : Event.WorldLocation;
 		const FVector ImpactDirection = ImpactLocation - Event.SourceWorldLocation;
 		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt), ImpactLocation, ImpactDirection);

@@ -49,7 +49,7 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
   → Spawn Resolver 以玩家预测/Echo 录制路径双锚确定出生点
   → 玩家位置与成功主动技能按 20 Hz 录制
   → 普通战 30 秒完成；同 Stage 保留存活敌人，跨 Stage 清理；Boss 由胜负完成
-  → 特质构筑 → Time Shard 商店 → Echo 存储/回放选择
+  → 特质构筑 → Time Shard 商店 → Echo 存储/单一时间锚点
   → 下一场遭遇；最终 Boss 结束整局
 ```
 

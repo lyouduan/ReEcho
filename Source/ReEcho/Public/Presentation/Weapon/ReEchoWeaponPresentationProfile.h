@@ -59,6 +59,23 @@ struct REECHO_API FReEchoWeaponVfxSlot
 	/** Cancel attachment-root scale while retaining Offset.Scale as the authored world-size multiplier. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	bool bPreserveWorldSize = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX|Range", meta = (EditCondition = "bEnabled"))
+	bool bScaleWithAttackRange = false;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "VFX|Range",
+	          meta = (EditCondition = "bEnabled && bScaleWithAttackRange"))
+	FVector AttackRangeScaleMask = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "VFX|Range",
+	          meta = (ClampMin = "0.01", EditCondition = "bEnabled && bScaleWithAttackRange"))
+	float MinAttackRangeMultiplier = 0.5f;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "VFX|Range",
+	          meta = (ClampMin = "0.01", EditCondition = "bEnabled && bScaleWithAttackRange"))
+	float MaxAttackRangeMultiplier = 2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
 	int32 SortPriorityOffset = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (EditCondition = "bEnabled"))
@@ -121,6 +138,25 @@ public:
 	          Category = "Held Visual",
 	          meta = (ClampMin = "1.0", EditCondition = "bOverrideHeldLength", EditConditionHides))
 	float HeldLengthOverrideCm = 100.0f;
+	/** Scale the held weapon itself from the authoritative final/base attack-range ratio. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Held Visual|Attack Range")
+	bool bScaleHeldVisualWithAttackRange = false;
+	/** Local plane axes that consume the range multiplier. Values are clamped to 0..1. */
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Held Visual|Attack Range",
+	          meta = (EditCondition = "bScaleHeldVisualWithAttackRange"))
+	FVector HeldVisualAttackRangeScaleMask = FVector::ZeroVector;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Held Visual|Attack Range",
+	          meta = (ClampMin = "0.01", EditCondition = "bScaleHeldVisualWithAttackRange"))
+	float MinHeldVisualAttackRangeMultiplier = 0.5f;
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Held Visual|Attack Range",
+	          meta = (ClampMin = "0.01", EditCondition = "bScaleHeldVisualWithAttackRange"))
+	float MaxHeldVisualAttackRangeMultiplier = 2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Motion")
 	EReEchoWeaponMotionMode MotionMode = EReEchoWeaponMotionMode::None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Motion", meta = (ClampMin = "0.0"))

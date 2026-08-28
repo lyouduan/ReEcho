@@ -1,6 +1,6 @@
 # ReEcho GM 指令手册
 
-本文档对应当前 `AReEchoGameMode` 中通过 `UFUNCTION(Exec)` 暴露的 GM 指令，共 20 条。
+本文档对应当前 `AReEchoGameMode` 中通过 `UFUNCTION(Exec)` 暴露的 GM 指令，共 28 条。
 
 ## 使用方式
 
@@ -19,7 +19,7 @@
 | 关卡与敌人 | `GMEndEncounter`、`GMKillAll`、`GMSpawnFox`、`GMGotoEncounter`、`GMGotoBoss`、`GMBossSkill`、`GMBossDamageRange`、`GMShowEnemyHealth`、`GMShowEnemyRange` |
 | 场景 | `GMWeather` |
 | 元素 | `GMElement`、`GMReaction` |
-| 构筑 | `GMGrantCard`、`GMEquipRune`、`GMUnequipRune` |
+| 构筑 | `GMGrantCard`、`GMWeapon`、`GMEquipRune`、`GMUnequipRune` |
 
 ## 帮助与状态
 
@@ -27,7 +27,7 @@
 
 显示常用 GM 指令和元素反应组合。
 
-> 当前内置帮助文本没有列出 `GMGrantCard`、`GMEquipRune` 和 `GMUnequipRune`，完整指令以本文档和源码为准。
+> `GMHelp` 显示常用指令；完整参数说明以本文档和源码为准。
 
 ### `GMStatus`
 
@@ -303,6 +303,23 @@ GMReaction EnhanceWater
 ```text
 GMGrantCard G_1_01
 GMGrantCard G_2_17
+```
+
+### `GMWeapon <WeaponId>`
+
+把当前玩家立即切换到指定的已启用生产武器。
+
+- `WeaponId` 必填，来源为 `Content/Data/weapons.csv` 的 `Id` 列。
+- 有活动 Run 时先生成候选构筑，自动保留与新武器兼容的插件，再同步当前局权威构筑和实时武器。
+- 实时武器初始化失败时恢复原构筑，不留下半切换状态。
+- 不要求该武器已经通过商店解锁；这是 Development 测试入口，不改变正常商店所有权规则。
+- 没有活动玩家武器时提示先进入 Encounter。
+
+```text
+GMWeapon W_J_01
+GMWeapon W_J_04
+GMWeapon W_J_08
+GMWeapon W_J_09
 ```
 
 ### `GMEquipRune <PartId>`

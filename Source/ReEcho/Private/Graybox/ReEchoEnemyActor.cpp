@@ -912,6 +912,25 @@ int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeArc(const FVector& Origi
 	return RemovedCount;
 }
 
+int32 AReEchoEnemyActor::DestroyRabbitProjectilesInMeleeSphere(const FVector& Origin, const float RangeCm)
+{
+	int32 RemovedCount = 0;
+	for (int32 ProjectileIndex = BossProjectiles.Num() - 1; ProjectileIndex >= 0; --ProjectileIndex)
+	{
+		const FReEchoEnemyProjectileRuntimeState& Projectile = BossProjectiles[ProjectileIndex];
+		if (Projectile.VolleyBallIndex == INDEX_NONE ||
+		    !ReEchoWeaponGeometry::IsInsideMeleeSphere(
+		        Origin, Projectile.Snapshot.Location, RangeCm + Projectile.CollisionRadiusCm))
+		{
+			continue;
+		}
+		PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+		BossProjectiles.RemoveAtSwap(ProjectileIndex, 1, EAllowShrinking::No);
+		++RemovedCount;
+	}
+	return RemovedCount;
+}
+
 void AReEchoEnemyActor::RefreshBornGameplayGate()
 {
 	if (bBornGameplayGateActive && (!EnemyPresentation || !EnemyPresentation->IsBornPlaying()))
@@ -2023,10 +2042,16 @@ void AReEchoEnemyActor::HandleCombatDeath(const FReEchoDamageEvent& Event)
 		EnemyLogic->NotifyDeath();
 	}
 	SetActorEnableCollision(false);
+	FVector DeathKnockbackDirection = (Event.WorldLocation - Event.SourceWorldLocation).GetSafeNormal2D();
+	if (DeathKnockbackDirection.IsNearlyZero())
+	{
+		DeathKnockbackDirection = -GetFacingDirection().GetSafeNormal2D();
+	}
 	float ExpectedDurationSeconds = 0.0f;
 	const bool bPlayingDeath =
 	    EnemyPresentation &&
 	    EnemyPresentation->BeginTerminalDeath(
+	        DeathKnockbackDirection,
 	        FSimpleDelegate::CreateUObject(this, &AReEchoEnemyActor::CompleteDeathSequence), ExpectedDurationSeconds);
 	if (!bPlayingDeath)
 	{

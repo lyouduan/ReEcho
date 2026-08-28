@@ -38,12 +38,45 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Longsword Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01.NS_People_Sword_Attack_01"))));
+	const TCHAR* LongSwordElementSlashPaths[] = {
+	    TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Fire.NS_People_Sword_Attack_Fire"),
+	    TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Thunder.NS_People_Sword_Attack_Thunder"),
+	    TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Grass.NS_People_Sword_Attack_Grass"),
+	    TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_Water.NS_People_Sword_Attack_Water"),
+	};
+	for (const TCHAR* LongSwordElementSlashPath : LongSwordElementSlashPaths)
+	{
+		TestTrue(TEXT("Element-specific Longsword slash Niagara is preloaded"),
+		         UniquePaths.Contains(FSoftObjectPath(LongSwordElementSlashPath)));
+	}
 	TestTrue(TEXT("Scythe Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01.NS_People_Sickle_Attack_01"))));
+	const TCHAR* ScytheElementSlashPaths[] = {
+	    TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Fire.NS_People_Sickle_Attack_Fire"),
+	    TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Thunder.NS_People_Sickle_Attack_Thunder"),
+	    TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Grass.NS_People_Sickle_Attack_Grass"),
+	    TEXT("/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_Water.NS_People_Sickle_Attack_Water"),
+	};
+	for (const TCHAR* ScytheElementSlashPath : ScytheElementSlashPaths)
+	{
+		TestTrue(TEXT("Element-specific Scythe slash Niagara is preloaded"),
+		         UniquePaths.Contains(FSoftObjectPath(ScytheElementSlashPath)));
+	}
 	TestTrue(TEXT("Bow flight Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_01.NS_People_Bow_Attack_01"))));
+	const TCHAR* BowElementFlightPaths[] = {
+	    TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Fire.NS_People_Bow_Attack_Fire"),
+	    TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Thunder.NS_People_Bow_Attack_Thunder"),
+	    TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Grass.NS_People_Bow_Attack_Grass"),
+	    TEXT("/Game/VFX/People/Bow/Particle/NS_People_Bow_Attack_Water.NS_People_Bow_Attack_Water"),
+	};
+	for (const TCHAR* BowElementFlightPath : BowElementFlightPaths)
+	{
+		TestTrue(TEXT("Element-specific Bow flight Niagara is preloaded"),
+		         UniquePaths.Contains(FSoftObjectPath(BowElementFlightPath)));
+	}
 	TestTrue(TEXT("Gun muzzle Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_spark.NS_People_Bullet_spark"))));

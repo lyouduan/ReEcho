@@ -89,11 +89,19 @@ public:
 	                                                      const FVector& Direction,
 	                                                      bool bHasWeaponAnchor);
 	static bool CanCutRabbitProjectilesForTests(FName AttackPatternId);
+	static FVector ResolveSelfCenteredSpinRootLocationForTests(const FVector& HandAnchor,
+	                                                           const FVector& VisualOffset,
+	                                                           const FQuat& SpinRotation);
+	static FVector ResolveHeldVisualAttackRangeScaleForTests(const FVector& AuthoredScale,
+	                                                         const FVector& ScaleMask,
+	                                                         float RangeMultiplier,
+	                                                         float MinMultiplier,
+	                                                         float MaxMultiplier);
 	static EReEchoElement ResolveProjectileElementForTests(bool bUsesDeterministicRandomElement,
-	                                                     EReEchoElement AttackElement,
-	                                                     int64 AttackSequence,
-	                                                     int32 ProjectileIndex,
-	                                                     EReEchoElement DebugOverride);
+	                                                       EReEchoElement AttackElement,
+	                                                       int64 AttackSequence,
+	                                                       int32 ProjectileIndex,
+	                                                       EReEchoElement DebugOverride);
 
 	float GetStepLockRemaining() const
 	{
@@ -171,6 +179,8 @@ private:
 	                UReEchoCombatantComponent* Combatant,
 	                const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
 	void PublishAttackCommittedEvent(const FReEchoWeaponAttackCommit& Commit) const;
+	FReEchoWeaponAttackCommit BuildEffectiveAttackCommit(const FReEchoWeaponAttackCommit& Commit) const;
+	float ResolveBaseAttackRangeCm(FName AttackStepId, float FallbackRangeCm) const;
 	TSharedPtr<FReEchoWeaponRuneAttackContext> BuildRuneAttackContext(const FReEchoWeaponAttackCommit& Commit,
 	                                                                  UReEchoCombatantComponent* Combatant) const;
 	void ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context,
@@ -186,6 +196,7 @@ private:
 	float GetRuneParam(FName BehaviorId, FName ParamName, float DefaultValue) const;
 	float GetRuneEffectValue(FName BehaviorId, FName ParamName, float DefaultValue) const;
 	float GetTimedRangeMultiplier() const;
+	float ResolveCurrentAttackRangeMultiplier() const;
 	void BeginScytheThrow(const TSharedPtr<FReEchoWeaponRuneAttackContext>& Context);
 	void RecallScythe();
 	void AdvanceScytheThrow(float DeltaSeconds);
@@ -212,7 +223,7 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> ElementIndicator;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UBillboardComponent> ScytheSprite;
+	TObjectPtr<UStaticMeshComponent> ScytheSprite;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> BowSprite;
 	UPROPERTY(VisibleAnywhere)

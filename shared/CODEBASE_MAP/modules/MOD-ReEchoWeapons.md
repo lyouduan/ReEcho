@@ -119,7 +119,7 @@ Commit
 
 可见 Projectile/Wave Actor 不是飞行真相源；即使没有美术资源，逻辑载体也必须完成移动、命中和过期。
 
-长剑的 `Pattern.LongSwordCombo` 与镰刀的 `Pattern.ScytheSweep` 在提交近战命中时复用同一 Origin、AimDirection、RangeCm 与 ArcDegrees 查询兔子 Host 持有的逻辑球：长剑保留前方 180°，镰刀使用自身 360°范围。弧内球由 EnemyHost 发布 `Ended` 并移除，VFX 只消费结束事件。弓、枪及非兔子敌方投射物不进入该斩弹路径，禁止只删除视觉代理或用刀光 Bounds 充当玩法碰撞。
+长剑的 `Pattern.LongSwordCombo` 与镰刀的 `Pattern.ScytheSweep` 共用 RangeCm，但显式选择不同几何与 Origin：长剑使用 WeaponOwner 和 `Dist2D + AimDirection + ArcDegrees=180` 的地面前向扇形；镰刀使用 Plan126 最终武器中心 `WeaponAttackVfxRoot` 与 `FVector::DistSquared` 的真三维球，挂点不可用时才回退 WeaponOwner。镰刀敌人命中、外环距离和兔子 Host 逻辑弹丸必须消费同一攻击提交瞬间的 Origin，球内弹丸由 EnemyHost 发布 `Ended` 并移除；VFX 只消费结束事件。弓、枪及非兔子敌方投射物不进入该斩弹路径，禁止只删除视觉代理或用刀光 Bounds 充当玩法碰撞。
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。生产武器清单固定为长剑、镰刀、弓和枪；`MoonStaff` 与 `StaffLightWave` 只服务贤者独立动画辅助，不是可选、可装备或可入商店的生产武器。
 

@@ -150,10 +150,11 @@
 - 2026-08-28：`ReEcho.Trait` 11/11、`ReEcho.Shop` 16/16、`ReEcho.Cards` 20/20、`ReEcho.Run.SaveSnapshot` 1/1 通过；SaveSnapshot 覆盖 v25 彩蛋持有/运行状态/商店缓存页及 v23 中性迁移。
 - 2026-08-28：Development `-FullRebuild` 104/104 action 成功，精选预构建包已刷新（`source=16d37203dead`）。
 - 2026-08-28：扩大回归发现两个不属于 Plan152 修改面的基线失败：敌人碎片投放测试的硬编码期望与当前生产数据不一致；`ElementReactionWorld` 的导电世界测试未形成伤害。其余 `ReEcho.Run` 18/20、`ReEcho.Combat` 12/13 通过，Plan152 聚焦套件无失败。
+- 2026-08-28：发布候选已组合 `origin/main@bbf6c22e`；在组合结果上重新执行 Development `-FullRebuild`，119/119 action 成功，精选预构建包刷新为 `source=70317c57463b`。随后 `sync_xlsx_to_csv.py --check`、`validate_project.py`、`setup_lfs.py --check`、`git diff --check` 通过，`ReEcho.Cards` 20/20、`ReEcho.Trait` 11/11、`ReEcho.Shop` 16/16、`ReEcho.Run.SaveSnapshot` 1/1 全部通过。
 
 ### 剩余风险
 
-- 当前任务分支较最新 `origin/main` 落后；发布前需按规则变基/组合最新 main 并重跑最终构建与聚焦套件。
+- 发布候选已组合并验证 `origin/main@bbf6c22e`；推送阶段仍需按发布锁规则再次确认远端 main 未前移。
 - 1% 人工复现不稳定；PIE 重点验证真实时间种子下页面稳定、刷新只影响单槽，以及九张效果的可观察表现。
 
 ### 人工验收结果/请求

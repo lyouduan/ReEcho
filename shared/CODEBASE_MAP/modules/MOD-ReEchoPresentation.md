@@ -112,5 +112,6 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
 - 武器挂点只使用 Profile 的稳定参考高度；不得随 Move/Attack 的单帧 Bounds 重算。
 - Player/Echo 的武器释放类特效使用 WeaponActor 持有的 `WeaponAttackVfxRoot`；该根节点是当前武器视觉组件的子节点，必须继承最终手持偏移、尺寸、朝向镜像和动作 Transform。角色通用 `AttackVfxRoot` 只作为缺少有效武器根时的安全回退，Boss 继续使用独立 `BossWeaponVfxRoot`。
+- 长剑/镰刀 `AttackCommitted` 刀光可通过 Weapon Profile 的轴遮罩把事件中已锁定的范围倍率叠加到作者 Scale；无符文倍率为 1，延迟镰刀捕获提交值。只缩放生成的 Niagara Component，不缩放武器根或重新计算符文。
 - 不允许 SpawnIndex、EnemyKind 或生成顺序替代稳定 PresentationId。
 - 移动类路径必须保留精确 Core Redirect，旧资产通过 Editor 保存后完成升级。
