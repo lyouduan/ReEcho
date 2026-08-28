@@ -8,7 +8,7 @@
 - 实现编写方（AI 侧）：`Codex`。
 - 任务状态：`Closed`。
 - 人工验收：`Passed`。
-- 本地规划基线：`origin/main@a334a04b443c78294f158c667d3829769ceb09c0`；已发布 Plan / 实现基线：`origin/main@07d9f7ed38dac2e51328bf6d7292e3f3dc958148`。
+- 本地规划基线：`origin/main@a334a04b443c78294f158c667d3829769ceb09c0`；已发布 Plan / 实现基线：`origin/main@07d9f7ed38dac2e51328bf6d7292e3f3dc958148`；最终发布组合合入 `origin/main@fb0538d65a99defab073b857b71c31aa0607a4e6`。
 - 本地实现方式：一任务一 worktree；Planner 与 Executor 分离。
 - 依赖 / 阻塞：依赖现有 `Enemy.Fox` Profile 的 `Animation.Born` 与 `Animation.Move` 绑定，不改变其语义或时序。
 - Writes:
@@ -97,6 +97,7 @@
 - 最终 `Development -FullRebuild`：95/95 actions 成功；精选 Win64 Editor 包刷新为 `build_id=55116800 source=127affc65905`。
 - FullRebuild 后源图审计再次得到 `FOX_ALPHA_BLEED_OK files=29 modified=0`；UE 资产读回为 `Saved/Logs/ReEcho.log:2072 FOX_2D_TEXTURE_AUDIT_OK textures=29 sprites=29 flipbooks=2 profile=1`。
 - FullRebuild 后 Animation2D 复跑：`Saved/Logs/ReEcho.log:2150,2164-2166,2171,2177,2183`，结果仍与干净基线一致，狐狸候选没有新增失败。
+- 获得发布锁后合入 `origin/main@fb0538d65a99defab073b857b71c31aa0607a4e6`；传入范围仅为 Plan142 文档更新及新增 Plan145-147，与 Plan144 的 71 个实现路径零交集，未改变源码、资产或预构建输入，因此 FullRebuild、Texture 读回与 PIE 证据保持有效；组合候选重新执行静态、LFS 与 prebuilt 门禁。
 
 ### 剩余风险
 
