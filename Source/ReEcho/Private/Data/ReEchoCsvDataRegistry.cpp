@@ -2,52 +2,12 @@
 
 #include "Cards/ReEchoCardCatalog.h"
 #include "Combat/ReEchoElementRuntime.h"
-#include "HAL/PlatformFilemanager.h"
-#include "Misc/Crc.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
+#include "Data/ReEchoDataAssets.h"
 #include "Misc/ScopeLock.h"
-#include "ReEcho.h"
-#include "ReEchoCharacterBuildCsvReader.h"
-#include "ReEchoCsvDataReader.h"
-#include "ReEchoElementReactionCsvReader.h"
-#include "ReEchoEncounterCsvReader.h"
-#include "ReEchoEnemyCsvReader.h"
-#include "ReEchoWeaponCsvReader.h"
+#include "ReEchoDataAssetCompiler.h"
 
 namespace
 {
-constexpr const TCHAR* RuntimeSmokeTableId = TEXT("RuntimeSmoke");
-constexpr const TCHAR* RuntimeSmokeEffectsTableId = TEXT("RuntimeSmokeEffects");
-constexpr const TCHAR* CharactersTableId = TEXT("Characters");
-constexpr const TCHAR* CharacterAliasesTableId = TEXT("CharacterAliases");
-constexpr const TCHAR* CharacterAbilitiesTableId = TEXT("CharacterAbilities");
-constexpr const TCHAR* CardsTableId = TEXT("Cards");
-constexpr const TCHAR* CardEffectsTableId = TEXT("CardEffects");
-constexpr const TCHAR* ElementsTableId = TEXT("Elements");
-constexpr const TCHAR* StatusesTableId = TEXT("Statuses");
-constexpr const TCHAR* ReactionsTableId = TEXT("Reactions");
-constexpr const TCHAR* WeaponTypesTableId = TEXT("WeaponTypes");
-constexpr const TCHAR* WeaponsTableId = TEXT("Weapons");
-constexpr const TCHAR* AttackStepsTableId = TEXT("AttackSteps");
-constexpr const TCHAR* SlotTypesTableId = TEXT("SlotTypes");
-constexpr const TCHAR* SlotProfilesTableId = TEXT("SlotProfiles");
-constexpr const TCHAR* PartsTableId = TEXT("Parts");
-constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
-constexpr const TCHAR* ShopPriceRangesTableId = TEXT("shop_price_ranges");
-constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
-constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
-constexpr const TCHAR* EnemiesTableId = TEXT("Enemies");
-constexpr const TCHAR* EnemyAbilitiesTableId = TEXT("EnemyAbilities");
-constexpr const TCHAR* BossPhasesTableId = TEXT("BossPhases");
-constexpr const TCHAR* EnemyCombatStatsTableId = TEXT("EnemyCombatStats");
-constexpr const TCHAR* EnemyShardDropsTableId = TEXT("EnemyShardDrops");
-constexpr const TCHAR* StagesTableId = TEXT("Stages");
-constexpr const TCHAR* EncountersTableId = TEXT("Encounters");
-constexpr const TCHAR* EncounterWavesTableId = TEXT("EncounterWaves");
-constexpr const TCHAR* SpawnProfilesTableId = TEXT("SpawnProfiles");
-constexpr const TCHAR* SpawnPolicyTableId = TEXT("SpawnPolicy");
-constexpr const TCHAR* AttributesTableId = TEXT("Attributes");
 
 constexpr const TCHAR* BehaviorNone = TEXT("None");
 constexpr const TCHAR* DefaultBehaviorId = TEXT("RuntimeSmoke.LogValue");
@@ -64,93 +24,6 @@ TSet<FName> RegisteredEffectKinds;
 TSet<FName> RegisteredFormulaIds;
 TSet<FName> RegisteredAttackPatternIds;
 bool bDefaultRegistrationsReady = false;
-
-EReEchoCardValueOperation ToCardValueOperation(const EReEchoCsvValueOp Operation)
-{
-	switch (Operation)
-	{
-		case EReEchoCsvValueOp::Add:
-			return EReEchoCardValueOperation::Add;
-		case EReEchoCsvValueOp::Multiply:
-			return EReEchoCardValueOperation::Multiply;
-		case EReEchoCsvValueOp::Override:
-			return EReEchoCardValueOperation::Override;
-		default:
-			return EReEchoCardValueOperation::Add;
-	}
-}
-
-bool CompileCardCatalog(const FString& DataDirectory,
-                        const TMap<FString, ReEchoCsv::FManifestEntry>& ManifestEntries,
-                        FReEchoCsvDataSnapshot& Snapshot,
-                        TArray<FReEchoCsvIssue>& Issues)
-{
-	TArray<uint8> RevisionBytes;
-	for (const TCHAR* TableId : {CardsTableId, CardEffectsTableId})
-	{
-		TArray<uint8> TableBytes;
-		const FString Path = FPaths::Combine(DataDirectory, ManifestEntries[TableId].FileName);
-		if (!FFileHelper::LoadFileToArray(TableBytes, *Path))
-		{
-			ReEchoCsv::AddIssue(Issues, Path, 1, TEXT("Revision"), TEXT("Cannot read card domain bytes"));
-			return false;
-		}
-		RevisionBytes.Append(TableBytes);
-	}
-	Snapshot.CardDomainRevision =
-	    FString::Printf(TEXT("cards-v1-%08x"), FCrc::MemCrc32(RevisionBytes.GetData(), RevisionBytes.Num()));
-
-	TArray<FReEchoCardDefinition> Definitions;
-	for (const FName CardId : Snapshot.CardOrder)
-	{
-		const FReEchoCsvCardRow* Row = Snapshot.Cards.Find(CardId);
-		if (!Row)
-		{
-			continue;
-		}
-		FReEchoCardDefinition Definition;
-		Definition.Id = Row->Id;
-		Definition.Tier = Row->Tier;
-		Definition.DisplayName = Row->DisplayName;
-		Definition.Description = Row->Description;
-		Definition.Tags = Row->Tags;
-		Definition.PromotionRoleId = Row->PromotionRoleId;
-		Definition.OfferGroup = Row->OfferGroup;
-		Definition.StackPolicy = Row->StackPolicy;
-		Definition.ConflictPolicy = Row->ConflictPolicy;
-		Definition.bEnabled = Row->bEnabled;
-		Definition.bOfferable = Row->bOfferable;
-		for (const FReEchoCsvCardEffectRow& EffectRow : Row->Effects)
-		{
-			FReEchoCardEffectDefinition Effect;
-			Effect.Id = EffectRow.Id;
-			Effect.Order = EffectRow.Order;
-			Effect.Trigger = EffectRow.Trigger;
-			Effect.BehaviorId = EffectRow.BehaviorId;
-			Effect.Target = EffectRow.Target;
-			Effect.Operation = ToCardValueOperation(EffectRow.ValueOp);
-			Effect.Value = EffectRow.Value;
-			Effect.ParamName = EffectRow.ParamName;
-			Effect.ParamValue = EffectRow.ParamValue;
-			Definition.Effects.Add(MoveTemp(Effect));
-		}
-		Definitions.Add(MoveTemp(Definition));
-	}
-
-	TSharedRef<FReEchoCardCatalog> Catalog = MakeShared<FReEchoCardCatalog>();
-	FString Error;
-	if (!Catalog->Initialize(Definitions, Snapshot.CardDomainRevision, Error))
-	{
-		ReEchoCsv::AddIssue(Issues,
-		                    FPaths::Combine(DataDirectory, ManifestEntries[CardsTableId].FileName),
-		                    1,
-		                    TEXT("CardCatalog"),
-		                    Error);
-		return false;
-	}
-	Snapshot.CardCatalog = Catalog;
-	return true;
-}
 
 TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDataSnapshot& Snapshot)
 {
@@ -198,211 +71,6 @@ TSharedRef<const FReEchoElementRuleSet> CompileElementRuleSet(const FReEchoCsvDa
 	return Rules;
 }
 
-TArray<FString> GetRequiredTableIds()
-{
-	return {RuntimeSmokeTableId,
-	        RuntimeSmokeEffectsTableId,
-	        CharactersTableId,
-	        CharacterAliasesTableId,
-	        CharacterAbilitiesTableId,
-	        CardsTableId,
-	        CardEffectsTableId,
-	        ElementsTableId,
-	        StatusesTableId,
-	        ReactionsTableId,
-	        WeaponTypesTableId,
-	        WeaponsTableId,
-	        AttackStepsTableId,
-	        SlotTypesTableId,
-	        SlotProfilesTableId,
-	        PartsTableId,
-	        PartEffectsTableId,
-	        ShopPriceRangesTableId,
-	        ShopDropLevelsTableId,
-	        ShopRefreshRulesTableId,
-	        EnemiesTableId,
-	        EnemyAbilitiesTableId,
-	        BossPhasesTableId,
-	        EnemyCombatStatsTableId,
-	        EnemyShardDropsTableId,
-	        StagesTableId,
-	        EncountersTableId,
-	        EncounterWavesTableId,
-	        SpawnProfilesTableId,
-	        SpawnPolicyTableId,
-	        AttributesTableId};
-}
-
-bool ReadRuntimeSmokeTable(const FString& DataDirectory,
-                           const ReEchoCsv::FManifestEntry& Entry,
-                           FReEchoCsvDataSnapshot& Snapshot,
-                           TArray<FReEchoCsvIssue>& Issues)
-{
-	ReEchoCsv::FTable Table;
-	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
-	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
-	{
-		return false;
-	}
-
-	ReEchoCsv::HasExactColumns(Table,
-	                           {TEXT("Id"),
-	                            TEXT("DisplayNameKey"),
-	                            TEXT("Enabled"),
-	                            TEXT("TestScalar"),
-	                            TEXT("TestPercent"),
-	                            TEXT("DistanceCm"),
-	                            TEXT("DurationSeconds"),
-	                            TEXT("BehaviorId"),
-	                            TEXT("EffectKind"),
-	                            TEXT("ModifierOp")},
-	                           Issues);
-
-	TSet<FName> SeenIds;
-	for (const ReEchoCsv::FRow& Row : Table.Rows)
-	{
-		FReEchoRuntimeSmokeRow RuntimeRow;
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), RuntimeRow.Id, Issues);
-		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayNameKey"), RuntimeRow.DisplayNameKey, Issues);
-		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), RuntimeRow.bEnabled, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("TestScalar"), 0.0f, 100000.0f, RuntimeRow.TestScalar, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("TestPercent"), 0.0f, 1.0f, RuntimeRow.TestPercent, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("DistanceCm"), 0.0f, 1000000.0f, RuntimeRow.DistanceCm, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("DurationSeconds"), 0.0f, 3600.0f, RuntimeRow.DurationSeconds, Issues);
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), RuntimeRow.BehaviorId, Issues);
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("EffectKind"), RuntimeRow.EffectKind, Issues);
-		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ModifierOp"), RuntimeRow.ModifierOp, Issues);
-
-		if (RuntimeRow.Id.IsNone())
-		{
-			continue;
-		}
-		if (SeenIds.Contains(RuntimeRow.Id))
-		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
-		}
-		if (!FReEchoCsvDataRegistry::IsBehaviorIdRegistered(RuntimeRow.BehaviorId))
-		{
-			ReEchoCsv::AddIssue(
-			    Issues, Table.File, Row.Line, TEXT("BehaviorId"), TEXT("Unknown registered C++ behavior id"));
-		}
-		if (!FReEchoCsvDataRegistry::IsEffectKindRegistered(RuntimeRow.EffectKind))
-		{
-			ReEchoCsv::AddIssue(
-			    Issues, Table.File, Row.Line, TEXT("EffectKind"), TEXT("Unknown registered C++ effect kind"));
-		}
-		SeenIds.Add(RuntimeRow.Id);
-		Snapshot.RuntimeSmokeRows.Add(RuntimeRow.Id, RuntimeRow);
-	}
-	return Issues.Num() == 0;
-}
-
-bool ReadAttributesTable(const FString& DataDirectory,
-                         const ReEchoCsv::FManifestEntry& Entry,
-                         FReEchoCsvDataSnapshot& Snapshot,
-                         TArray<FReEchoCsvIssue>& Issues)
-{
-	ReEchoCsv::FTable Table;
-	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
-	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
-	{
-		return false;
-	}
-
-	ReEchoCsv::HasExactColumns(Table,
-	                           {TEXT("Id"),
-	                            TEXT("DisplayName"),
-	                            TEXT("Tier"),
-	                            TEXT("IconName"),
-	                            TEXT("ValueKind"),
-	                            TEXT("DisplayOrder"),
-	                            TEXT("Explanation")},
-	                           Issues);
-
-	TSet<FName> SeenIds;
-	for (const ReEchoCsv::FRow& Row : Table.Rows)
-	{
-		FReEchoCsvAttributeRow Attr;
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), Attr.Id, Issues);
-		ReEchoCsv::RequireCell(Table, Row, TEXT("DisplayName"), Attr.DisplayName, Issues);
-		ReEchoCsv::RequireInt(Table, Row, TEXT("Tier"), Attr.Tier, Issues);
-		ReEchoCsv::RequireCell(Table, Row, TEXT("IconName"), Attr.IconName, Issues);
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("ValueKind"), Attr.ValueKind, Issues);
-		ReEchoCsv::RequireInt(Table, Row, TEXT("DisplayOrder"), Attr.DisplayOrder, Issues);
-		ReEchoCsv::ReadOptionalCell(Row, TEXT("Explanation"), Attr.Explanation);
-
-		if (Attr.Id.IsNone())
-		{
-			continue;
-		}
-		if (SeenIds.Contains(Attr.Id))
-		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
-		}
-		SeenIds.Add(Attr.Id);
-		Snapshot.Attributes.Add(Attr.Id, Attr);
-		Snapshot.AttributeOrder.Add(Attr.Id);
-	}
-
-	Snapshot.AttributeOrder.Sort(
-	    [&Snapshot](const FName& A, const FName& B)
-	    {
-		    const FReEchoCsvAttributeRow* RA = Snapshot.Attributes.Find(A);
-		    const FReEchoCsvAttributeRow* RB = Snapshot.Attributes.Find(B);
-		    const int32 OA = RA ? RA->DisplayOrder : 0;
-		    const int32 OB = RB ? RB->DisplayOrder : 0;
-		    return OA < OB;
-	    });
-
-	return Issues.Num() == 0;
-}
-
-bool ReadRuntimeSmokeEffectsTable(const FString& DataDirectory,
-                                  const ReEchoCsv::FManifestEntry& Entry,
-                                  FReEchoCsvDataSnapshot& Snapshot,
-                                  TArray<FReEchoCsvIssue>& Issues)
-{
-	ReEchoCsv::FTable Table;
-	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
-	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
-	{
-		return false;
-	}
-
-	ReEchoCsv::HasExactColumns(
-	    Table, {TEXT("Id"), TEXT("RuntimeRowId"), TEXT("ParamName"), TEXT("ValueOp"), TEXT("Value")}, Issues);
-
-	TSet<FName> SeenIds;
-	for (const ReEchoCsv::FRow& Row : Table.Rows)
-	{
-		FReEchoRuntimeSmokeEffectRow EffectRow;
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("Id"), EffectRow.Id, Issues);
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("RuntimeRowId"), EffectRow.RuntimeRowId, Issues);
-		ReEchoCsv::RequireStableId(Table, Row, TEXT("ParamName"), EffectRow.ParamName, Issues);
-		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ValueOp"), EffectRow.ValueOp, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, EffectRow.Value, Issues);
-
-		if (EffectRow.Id.IsNone())
-		{
-			continue;
-		}
-		if (SeenIds.Contains(EffectRow.Id))
-		{
-			ReEchoCsv::AddIssue(Issues, Table.File, Row.Line, TEXT("Id"), TEXT("Duplicate id"));
-		}
-		if (FReEchoRuntimeSmokeRow* Parent = Snapshot.RuntimeSmokeRows.Find(EffectRow.RuntimeRowId))
-		{
-			Parent->Effects.Add(EffectRow);
-		}
-		else
-		{
-			ReEchoCsv::AddIssue(
-			    Issues, Table.File, Row.Line, TEXT("RuntimeRowId"), TEXT("Unknown RuntimeSmoke.Id reference"));
-		}
-		SeenIds.Add(EffectRow.Id);
-	}
-	return Issues.Num() == 0;
-}
 
 }
 
@@ -908,78 +576,20 @@ bool FReEchoCsvDataRegistry::IsAttackPatternIdRegistered(const FName AttackPatte
 	return RegisteredAttackPatternIds.Contains(AttackPatternId);
 }
 
-FString FReEchoCsvDataRegistry::GetDefaultDataDirectory()
+FString FReEchoCsvDataRegistry::GetDefaultDataCatalogPath()
 {
-	return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data"));
+	return TEXT("/Game/ReEcho/DataAsset/Gameplay/DA_ReEchoGameDataCatalog.DA_ReEchoGameDataCatalog");
 }
 
-FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(const FString& DataDirectory)
+
+FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadSnapshotFromCatalog(const UReEchoGameDataCatalog& Catalog)
 {
-	EnsureDefaultRegistrations();
-
-	FReEchoCsvLoadResult Result;
-	TSharedRef<FReEchoCsvDataSnapshot> MutableSnapshot = MakeShared<FReEchoCsvDataSnapshot>();
-	MutableSnapshot->SchemaVersion = SupportedSchemaVersion;
-
-	TMap<FString, ReEchoCsv::FManifestEntry> ManifestEntries;
-	ReEchoCsv::ReadManifest(DataDirectory, GetRequiredTableIds(), ManifestEntries, Result.Issues);
-	if (Result.Issues.Num() == 0)
-	{
-		ReadRuntimeSmokeTable(DataDirectory, ManifestEntries[RuntimeSmokeTableId], *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReadRuntimeSmokeEffectsTable(
-		    DataDirectory, ManifestEntries[RuntimeSmokeEffectsTableId], *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReEchoCharacterBuildCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		CompileCardCatalog(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReEchoElementReactionCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReEchoWeaponCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReEchoEnemyCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReEchoEncounterCsv::ReadTables(DataDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0)
-	{
-		ReadAttributesTable(DataDirectory, ManifestEntries[AttributesTableId], *MutableSnapshot, Result.Issues);
-	}
-	if (Result.Issues.Num() == 0 && MutableSnapshot->RuntimeSmokeRows.Num() == 0)
-	{
-		ReEchoCsv::AddIssue(Result.Issues,
-		                    FPaths::Combine(DataDirectory, ManifestEntries[RuntimeSmokeTableId].FileName),
-		                    1,
-		                    TEXT("Id"),
-		                    TEXT("RuntimeSmoke must contain at least one row"));
-	}
-
-	if (Result.Issues.Num() == 0)
-	{
-		Result.bSuccess = true;
-		Result.Snapshot = MutableSnapshot;
-	}
-	return Result;
+	return ReEchoDataAssetCompiler::Compile(Catalog);
 }
 
-FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(const FString& DataDirectory)
+FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishFromCatalog(const UReEchoGameDataCatalog& Catalog)
 {
-	FReEchoCsvLoadResult Result = LoadSnapshotFromDirectory(DataDirectory);
+	FReEchoCsvLoadResult Result = LoadSnapshotFromCatalog(Catalog);
 	if (Result.bSuccess)
 	{
 		{
@@ -993,7 +603,17 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(const F
 
 FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishDefault()
 {
-	return LoadAndPublishFromDirectory(GetDefaultDataDirectory());
+	UReEchoGameDataCatalog* Catalog = LoadObject<UReEchoGameDataCatalog>(nullptr, *GetDefaultDataCatalogPath());
+	if (!Catalog)
+	{
+		FReEchoCsvLoadResult Result;
+		FReEchoCsvIssue& Issue = Result.Issues.AddDefaulted_GetRef();
+		Issue.File = GetDefaultDataCatalogPath();
+		Issue.Field = TEXT("Catalog");
+		Issue.Message = TEXT("Blueprint data catalog could not be loaded");
+		return Result;
+	}
+	return LoadAndPublishFromCatalog(*Catalog);
 }
 
 TSharedPtr<const FReEchoCsvDataSnapshot> FReEchoCsvDataRegistry::GetSnapshot()

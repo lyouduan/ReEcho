@@ -174,7 +174,7 @@ bool FReEchoWeaponConfigurationTest::RunTest(const FString& Parameters)
 			bHasGenericCore = true;
 		}
 	}
-	TestEqual(TEXT("Four-weapon slot audit keeps 48 source rows"), Snapshot->Parts.Num(), 48);
+	TestEqual(TEXT("Four-weapon slot audit keeps 49 source rows"), Snapshot->Parts.Num(), 49);
 	TestEqual(TEXT("Retained four-weapon audit has no unnamed rows"), DisabledUnnamedCount, 0);
 	TestTrue(TEXT("At least six generic cores are enabled"), EnabledCoreCount >= 6);
 	TestTrue(TEXT("A generic core is enabled"), bHasGenericCore);

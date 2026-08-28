@@ -39,7 +39,7 @@
 | 架构标识 | 领域 | 代码主目录 | 首读章节 |
 |---|---|---|---|
 | `AREA-Core` | 公共类型与兼容契约 | `Source/ReEcho/{Public,Private}/Core/` | [Core](modules/MOD-ReEcho.md#area-corecore公共类型与兼容契约) |
-| `AREA-Data` | XLSX/CSV 运行时适配 | `Source/ReEcho/{Public,Private}/Data/` | [Data](modules/MOD-ReEcho.md#area-datadata生产数据适配) |
+| `AREA-Data` | 蓝图数据资产校验与运行时快照 | `Source/ReEcho/{Public,Private}/Data/`、`Content/ReEcho/DataAsset/` | [Data](modules/MOD-ReEcho.md#area-datadata生产数据适配) |
 | `AREA-Cards` | 卡牌目录、构筑状态与规则计算 | `Source/ReEchoCards/`；主模块 `Run/` 负责流程适配 | [Cards](modules/MOD-ReEchoCards.md) |
 | `AREA-AbilityCombat` | GAS、攻击控制、战斗与元素结算 | `Source/ReEchoCombat/`；主模块 `Combat/` 仅适配 | [Combat](modules/MOD-ReEchoCombat.md#代码位置与阅读路线) |
 | `AREA-Weapons` | 武器定义、步骤与逻辑载体 | `Source/ReEchoWeapons/`；主模块 `Weapons/` 负责数据/表现适配 | [Weapons](modules/MOD-ReEchoWeapons.md#代码位置与阅读路线) |

@@ -21,7 +21,7 @@
 
 - 启动/继续、装载选择、竞技场、八场表驱动遭遇、局间构筑、商店、Echo 选择和结束流程编排。
 - 玩家、敌人、Echo、武器、投射物、世界 UI 与表现 Actor 的创建和生命周期装配。
-- 将 XLSX 生成的 CSV 编译为类型化运行时快照。
+- 将策划编辑的类型化蓝图 DataAsset 原子编译为运行时快照。
 - 本局阶段、构筑、存档、Echo 存储与回放选择。
 - 当前 GAS/Combat、Weapons、Recording 和 UI Framework 的宿主与跨领域适配。
 - 把玩法语义转换为 `ReEchoAudio` 请求以及 Animation/VFX/UI 的只读表现输入。
@@ -30,8 +30,8 @@
 
 - 不让 `AReEchoGameMode` 保存各领域的第二份可写状态。
 - 不让 Widget、动画、VFX、音频或资产加载结果决定命中、伤害、死亡、攻击节奏或流程成功。
-- 不在 C++ 中复制已经进入 XLSX/CSV 权威链的平衡常量。
-- 不从运行时读取 XLSX 或执行表格自由文本。
+- 不在 C++ 中复制已经进入蓝图 DataAsset 权威链的平衡常量。
+- 不从运行时读取旧 XLSX/CSV，也不执行自由文本逻辑。
 - 不要求底层独立模块反向 include `ReEcho` 具体类型。
 
 ## 权威状态
@@ -341,7 +341,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 **设计意图：** 证明数据、领域算法和跨领域契约的确定性，防止目录重构或模块拆分改变行为。
 
 - 主位置：`Source/ReEcho/Private/Tests/`；独立模块测试位于各自 `Private/Tests/`。
-- 分层：纯规则单元测试 → World/GAS 集成 → Save/CSV/兼容 → 完整 `ReEcho.*` 自动化。
+- 分层：纯规则单元测试 → World/GAS 集成 → Save/DataAsset/兼容 → 完整 `ReEcho.*` 自动化。
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development`。
 - 自动化：`scripts/ue/Run-Automation.cmd -Filter <focused>`。
 - 静态：`python scripts/validate_project.py`、`git diff --check`、预构建包检查。
@@ -352,8 +352,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 | 任务 | 先读 | 再读 |
 |---|---|---|
 | 启动/继续/遭遇切换 | `ReEchoGameMode.*`、`RunSubsystem.*` | UI Framework、EncounterDirector、SaveGame |
-| 自动/手动攻击 | `PlayerPawn.*`、AbilitySystem、`WeaponActor.*` | AttackMode/Weapon/Combat 测试与 `weapons.csv` |
-| 武器/部件/元素 | Data Reader、`WeaponRuntime.*`、`ElementReaction.*` | 生产 CSV、Run build snapshot、世界载体 |
+| 自动/手动攻击 | `PlayerPawn.*`、AbilitySystem、`WeaponActor.*` | AttackMode/Weapon/Combat 测试与 `DA_ReEchoWeapons` |
+| 武器/部件/元素 | DataAsset Compiler、`WeaponRuntime.*`、`ElementReaction.*` | 蓝图数据资产、Run build snapshot、世界载体 |
 | 商店/特质/Echo 管理 | `RunSubsystem.*`、Shop/Trait/Echo 摘要 | 对应 Widget、GameMode 类型化端点和测试 |
 | 保存/继续 | `RunSaveGame.h`、`RunSubsystem.*` | Encounter、Recording、存活敌人快照测试 |
 | 新 UI 屏幕 | UI Framework、UI Manager | GameMode 快照/命令端点、WBP 注册 |
@@ -371,7 +371,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 修改单一领域时，先运行该领域的 focused automation，再运行受公共契约影响的相邻领域测试。
 - 修改模块装配、公共类型或跨领域消息时，必须完成 Editor Development 构建和完整 `ReEcho.*` 自动化。
-- 修改 CSV/XLSX 数据契约时，同时运行静态数据校验、导入/往返测试和对应运行时测试。
+- 修改 DataAsset 反射结构或数据契约时，同时运行静态校验、`ReEcho.Data.Asset` 和对应领域运行时测试。
 - UI、视觉、音频可听性和战斗手感由用户在 PIE 中验收；自动化负责证明命令、快照和领域结果，不替代人工体验判断。
 - 统一静态门禁为 `python scripts/validate_project.py` 与 `git diff --check`。
 
@@ -388,15 +388,9 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - `RestoreRuntimeState` 恢复的是已提交敌人：即使恢复流程先执行配置，也必须同步取消该配置启动的 Born 表现与 Gameplay Gate，活着的恢复敌人立即回到基础表现并可受伤，不重播出生动画。
 - 不从旧 JSON、描述文本、Widget 缓存或 Actor 表现字段恢复第二份事实来源。
 
-## 运行时 CSV 松散文件与 Shipping 打包契约
+## 蓝图数据资产与 Shipping 打包契约
 
-`Content/Data/*.csv`（由 `reecho_data_manifest.csv` 列示的 28 张运行时表，含 `stages/attributes/encounters/encounter_waves/spawn_policy/spawn_profiles` 等）是**纯松散文件**，运行时由 `ReEchoCsvDataRegistry` 经 `FFileHelper` 按物理路径直接读取，不经由 UE 资产系统。这带来一项打包约束：
-
-- **cook 只枚举被资产引用的文件**。`Content/Data/*.csv` 没有任何 `.uasset`/`.umap` 引用（已用全量二进制扫描确认，连已进包的 `characters.csv`/`weapons.csv` 也不被任何资产内嵌），因此 cook 不会把它们作为资产依赖暂存进包。
-- 历史打包中出现了"部分 csv 进包、部分不进"的偶发结果（22 进、6 缺），这是 cook 内部行为的非确定性副作用，**不能作为数据齐备的保证**；缺表会在启动期触发 `ReEcho.cpp` 的 `LowLevelFatalError`（`...: File could not be read`，退出码 3）。
-- **确定化投递**：`scripts/ue/package_windows.py` 在 `BuildCookRun` 的 archive 完成后，显式把 `Content/Data/*.csv` 拷贝进最终包 `ReEcho/Content/Data/`（见其 `stage_runtime_csvs`）。该函数排除 `Engine` 目录下的 `Content`，只写入游戏模块目录，保证 manifest 列示的 28 张 csv 全部就位，与已进包的 22 张走同一松散文件机制。
-- 修改 csv 集合时：保持 `reecho_data_manifest.csv` 为真源；`package_windows.py` 不写死表名，按目录通配拷贝，因此新增/删除运行时 csv 无需改脚本。
-- 此契约仅影响打包投递，不改变 Development/PIE 既有的松散文件读取路径，也不改变 CSV schema、稳定 ID 或 `ReEcho.cpp` 的启动校验逻辑。
+玩法总目录 `/Game/ReEcho/DataAsset/Gameplay/DA_ReEchoGameDataCatalog` 引用七个领域资产；音频目录位于 `/Game/ReEcho/DataAsset/Audio/DA_ReEchoAudioEvents`。`DefaultGame.ini` 将两个目录设为 `DirectoriesToAlwaysCook`，因此 PIE 与 Shipping 使用同一份 Cooked 资产。运行时先完整校验引用、稳定 ID 和注册行为，成功后才原子发布不可变快照；失败不得发布半成品。仓库、打包脚本和最终包均不得包含 CSV 松散文件。
 # Plan73 元素表现装配
 
 运行时 Host 通过 `UReEchoCombatVfxComponent` 订阅元素状态与反应完成事件；玩法保持权威，Host 只按敌人 Definition 的稳定 `PresentationId` 选择、生成和清理 Niagara。旧元素状态表现三件套 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 及其更新、朝向和脉冲契约已整体删除，元素附着与反应表现只走 Niagara。

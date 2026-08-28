@@ -1,8 +1,0 @@
-Id,CharacterId,Order,Trigger,EffectKind,Target,ValueOp,Value,BehaviorId,Interval,Enabled,DisabledReason
-HUNTER_MOVE,J_DIAMOND,1,OnBuildInitialized,StatModifier,MovementSpeed,Add,0.2,Character.StaticStat,0,true,
-HUNTER_CRIT_RATE,J_DIAMOND,2,OnBuildInitialized,StatModifier,CriticalRate,Add,0.2,Character.StaticStat,0,true,
-HUNTER_CRIT_EFFECT,J_DIAMOND,3,OnBuildInitialized,StatModifier,CriticalEffect,Add,0.3,Character.StaticStat,0,true,
-POET_REACTION_GROWTH,J_CLOVER,1,OnEncounterCompleted,StatModifier,ReactionEfficiency,Add,0.1,Character.PersistentGrowth,0,true,
-SAGE_BONUS_CHOICE,J_SPADE,1,OnTraitChoiceApplied,ExtraCardChoice,TraitCardChoice,Add,1,Character.EveryNth,5,true,
-BRAVE_PHYSICAL,J_HEART,1,OnHealthChanged,StatModifier,PhysicalAttack,Add,1,Character.MissingHealthSteps,0.1,true,
-BRAVE_ELEMENTAL,J_HEART,2,OnHealthChanged,StatModifier,ElementalAttack,Add,1,Character.MissingHealthSteps,0.1,true,

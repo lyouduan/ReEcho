@@ -1,9 +1,8 @@
 #include "CoreMinimal.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 
+#include "ReEchoAudioDataAsset.h"
 #include "ReEchoAudioTypes.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioCatalog.h"
@@ -504,7 +503,7 @@ bool FReEchoAudioRandomIsolationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// ---- Catalog reload is quote-aware and atomic ----
+// ---- DataAsset catalog reload is validated and atomic ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCatalogAtomicLoadTest,
                                  "ReEcho.Audio.Catalog.AtomicLoad",
@@ -512,29 +511,33 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoAudioCatalogAtomicLoadTest,
 
 bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 {
-	const FString Header = TEXT("EventId,VariantId,AssetPath,Bus,EventType,Spatial3D,BaseVolume,PitchMin,PitchMax,"
-	                            "CooldownSeconds,MaxConcurrency,Priority,PausePolicy,AttenuationMin,AttenuationMax,"
-	                            "StartTimeSeconds\n");
-	const FString ValidPath =
-	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogValid"), TEXT(".csv"));
-	const FString InvalidPath =
-	    FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("AudioCatalogInvalid"), TEXT(".csv"));
-	FFileHelper::SaveStringToFile(
-	    Header +
-	        TEXT("\"Combat.Attack\",,,CombatSfx,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000,0.125\n"),
-	    *ValidPath);
-	FFileHelper::SaveStringToFile(
-	    Header + TEXT("Combat.Attack,,,InvalidBus,OneShot,true,0.8,0.9,1.1,0.05,4,20,PauseWithGame,200,2000,0\n"),
-	    *InvalidPath);
+	UReEchoAudioDataAsset* ValidAsset = NewObject<UReEchoAudioDataAsset>();
+	FReEchoAudioEventDefinition& Definition = ValidAsset->Events.AddDefaulted_GetRef();
+	Definition.EventId = FReEchoAudioEvents::CombatAttack;
+	Definition.Bus = EReEchoAudioBus::CombatSfx;
+	Definition.Type = EReEchoAudioEventType::OneShot;
+	Definition.bSpatial3D = true;
+	Definition.BaseVolume = 0.8f;
+	Definition.PitchMin = 0.9f;
+	Definition.PitchMax = 1.1f;
+	Definition.CooldownSeconds = 0.05f;
+	Definition.MaxConcurrency = 4;
+	Definition.Priority = 20;
+	Definition.PausePolicy = EReEchoAudioPausePolicy::PauseWithGame;
+	Definition.AttenuationMin = 200.0f;
+	Definition.AttenuationMax = 2000.0f;
+	Definition.StartTimeSeconds = 0.125f;
 
 	FReEchoAudioCatalog Catalog;
-	TestTrue(TEXT("valid quoted CSV loads"), Catalog.LoadCatalog(ValidPath));
+	TestTrue(TEXT("valid Blueprint data asset loads"), Catalog.LoadCatalog(*ValidAsset));
 	TestEqual(TEXT("one definition committed"), Catalog.Num(), 1);
 	const FReEchoAudioEventDefinition* Before = Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack);
 	TestNotNull(TEXT("stable event is available"), Before);
 	TestEqual(TEXT("catalog parses configured start time"), Before ? Before->StartTimeSeconds : -1.0f, 0.125f);
-	AddExpectedError(TEXT("unsupported bus; preserving previous catalog"), EAutomationExpectedErrorFlags::Contains, 1);
-	TestFalse(TEXT("invalid enum rejects reload"), Catalog.LoadCatalog(InvalidPath));
+	UReEchoAudioDataAsset* InvalidAsset = DuplicateObject<UReEchoAudioDataAsset>(ValidAsset, GetTransientPackage());
+	InvalidAsset->Events[0].BaseVolume = 2.0f;
+	AddExpectedError(TEXT("preserving previous catalog"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestFalse(TEXT("invalid asset value rejects reload"), Catalog.LoadCatalog(*InvalidAsset));
 	TestEqual(TEXT("failed reload preserves previous catalog"), Catalog.Num(), 1);
 	TestNotNull(TEXT("previous definition remains available"),
 	            Catalog.FindDefinition(FReEchoAudioEvents::CombatAttack));
@@ -550,8 +553,6 @@ bool FReEchoAudioCatalogAtomicLoadTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("unknown variant falls back to base event"), Fallback);
 	TestTrue(TEXT("fallback has no variant id"), Fallback && Fallback->VariantId.IsNone());
 
-	IFileManager::Get().Delete(*ValidPath);
-	IFileManager::Get().Delete(*InvalidPath);
 	return true;
 }
 

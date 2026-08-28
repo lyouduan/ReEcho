@@ -7,7 +7,7 @@
 - 代码根：`Source/ReEcho/{Public,Private}/Presentation/VFX/`。
 - 宿主装配：`AReEchoPlayerPawn`、`AReEchoEchoActor`、`AReEchoEnemyActor`。
 - 资产根：`Content/VFX/`、`Content/Mat/`、`Content/00_Textures/`、`Content/01_Textures/`。
-- 导入清单：`Design/Art/VFX/combat_vfx_import_manifest.csv`。
+- 当前资产清单由 Unreal 内容浏览器和 `FReEchoCombatVfxCatalog` 路径审计共同维护，不再保留独立 CSV。
 
 ## 存在原因
 
@@ -31,7 +31,7 @@
 **不负责：**
 
 - 攻击频率、前摇/恢复计时、伤害、碰撞、阵营、元素、死亡和投射物轨迹；
-- 读取 XLSX/CSV 决定玩法，或把 Niagara User Parameter 当作玩法输入；
+- 读取 DataAsset 决定玩法，或把 Niagara User Parameter 当作玩法输入；
 - 用粒子碰撞、Notify、播放完成回调或自动销毁控制 HitIntent；
 - 扫描整包美术资源、按短名猜资产、静默覆盖已有 `.uasset`；
 - 保存瞬时粒子实例。继续游戏时由权威逻辑快照重新发布在途载体事实。
@@ -95,7 +95,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 交付的 `/Game/VFX/Monster/Rabbit/Particle/NS_Rabbit_Attack_02` 仍保留为原始美术资产和依赖清单根，但不再承担运行时三球位移。它内部自行模拟三颗粒子，历史实现同时移动 Niagara Component 与本地粒子，造成“画面覆盖却不命中 / 看不到球却受伤”；禁止恢复这条独立运动链。若未来要恢复尾迹或更复杂表现，必须制作读取逐球逻辑位置的单球适配资产，不能让粒子位置反向驱动玩法。
 
-当前两条兔子能力的 `ProjectileSpeedCmPerSecond == 0`，兼容路径分别按各自 `MaxRangeCm / CooldownSeconds` 推导弹速，使旧表能够生成可见飞行载体；一旦策划填写正数，显式表值立即成为权威。当前 `ReEchoEnemyData.xlsx → enemy_abilities.csv` 的兔子能力伤害为 `1`；VFX 仍不拥有伤害、碰撞或禁伤开关。
+当前两条兔子能力的 `ProjectileSpeedCmPerSecond == 0`，兼容路径分别按各自 `MaxRangeCm / CooldownSeconds` 推导弹速，使旧数据能够生成可见飞行载体；一旦策划在 `DA_ReEchoEnemies` 填写正数，显式资产值立即成为权威。当前兔子能力伤害为 `1`；VFX 仍不拥有伤害、碰撞或禁伤开关。
 
 旧 `AReEchoHitImpactActor / ReEchoAttackEffects / HitStarburst` 已删除；玩家和敌人受击只能走本模块的 `PlayerHurt / EnemyHurt` Niagara 语义，禁止再生成独立火焰星爆 Actor。
 
@@ -135,7 +135,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 
 PIE 测试默认只初始化为 Ready；测试专用 Slate Overlay 与 Space 主动 Release，每次重建瞬时目标后重新运行 resolver，避免旧 VFX/状态无界叠加。Overlay 同时提供 Restart、Reset Targets、Clear、Reset Camera。测试相机复制正式倾斜正交默认参数到瞬时 `AReEchoArenaCameraActor`，WASD/QE/滚轮只修改测试 Rig 的 Camera Pan/Rotation/OrthoWidth，不写生产配置。
 
-Conduct 蔓延延迟是纯表现配置：`FReEchoAttackIdentity.WeaponId` 在正式武器 Commit 时快照，VFX adapter 经 CSV Weapon VisualKey 解析 `UReEchoWeaponPresentationProfile.ConductLinkPropagationDelaySeconds`。resolver/伤害/完整 ReactionLinks 立即完成；adapter 保留 BFS Link 顺序，以 `index * delay` 调度。新 Event、解绑和 EndPlay 取消旧 timer batch；延迟触发时以 weak actors 重新读取当前 CombatTargetLocation，死亡/失效目标跳过。正式 Electricity 的两个 emitter 都是 World Space；端点的精确 Niagara Position 类型由资产自动化锁定。组件以世界原点和 identity rotation、`autoActivate=false` 生成，先用 LWC-safe `SetVariablePosition` 填当前世界坐标，再激活。长度与方向只由这两个端点决定，禁止叠加组件平移、旋转、Vec3 写入或未声明参数。delay=0 保持原同时播放。
+Conduct 蔓延延迟是纯表现配置：`FReEchoAttackIdentity.WeaponId` 在正式武器 Commit 时快照，VFX adapter 经 DataAsset Weapon VisualKey 解析 `UReEchoWeaponPresentationProfile.ConductLinkPropagationDelaySeconds`。resolver/伤害/完整 ReactionLinks 立即完成；adapter 保留 BFS Link 顺序，以 `index * delay` 调度。新 Event、解绑和 EndPlay 取消旧 timer batch；延迟触发时以 weak actors 重新读取当前 CombatTargetLocation，死亡/失效目标跳过。正式 Electricity 的两个 emitter 都是 World Space；端点的精确 Niagara Position 类型由资产自动化锁定。组件以世界原点和 identity rotation、`autoActivate=false` 生成，先用 LWC-safe `SetVariablePosition` 填当前世界坐标，再激活。长度与方向只由这两个端点决定，禁止叠加组件平移、旋转、Vec3 写入或未声明参数。delay=0 保持原同时播放。
 
 ## 不变量与常见错误
 

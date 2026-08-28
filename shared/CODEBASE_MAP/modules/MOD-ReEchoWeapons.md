@@ -26,7 +26,7 @@
 
 **不负责：**
 
-- XLSX/CSV 读取、Schema 校验、构筑/商店/存档；
+- DataAsset 加载与引用校验、构筑/商店/存档；
 - 最终伤害、格挡、元素、生命、击杀或死亡；
 - Sprite/Mesh、动画、VFX、材质、音频、镜头和 Widget；
 - Pawn 输入、自动目标筛选、攻击模式 held 状态、Enemy AI。
@@ -45,7 +45,7 @@
 
 ### 输入
 
-- 主模块 `ReEchoWeaponRuntime::CompileLogicDefinition` 把 CSV/构筑结果编译为无资源引用的 `FReEchoWeaponDefinition`。
+- 主模块 `ReEchoWeaponRuntime::CompileLogicDefinition` 把 DataAsset/构筑结果编译为无资源引用的 `FReEchoWeaponDefinition`。
 - 主模块装备适配在编译前消费 Cards 的只读规则快照；`G_3_22` 只扩大非 `Core` 槽容量，并把已经校验的装备结果交给 Weapons。
 - Attack host 提供 Source、`FReEchoStatBlock`、目标/世界上下文并调用 `TryCommitBasicAttack` 或主动攻击入口。
 - 逻辑投射物初始化接收已快照的 `FReEchoLogicalProjectileSpec`，之后不回读 WeaponActor 的可写字段。
@@ -79,7 +79,7 @@ Weapons 不拥有阵营规则，但所有候选载体必须消费 Combat 的 `Re
 ### Definition 编译与装配
 
 ```text
-XLSX → CSV → ReEcho Data Reader
+DA_ReEchoWeapons → ReEcho DataAsset Compiler
   → FReEchoEffectiveWeaponDefinition（主模块）
   → CompileLogicDefinition
   → FReEchoWeaponDefinition（资源无关）
@@ -87,7 +87,7 @@ XLSX → CSV → ReEcho Data Reader
   → WeaponActor 仅组合逻辑与表现
 ```
 
-CSV Row 和资源 key 不能进入逻辑模块，避免数据加载器或表现层成为第二个规则解释器。
+DataAsset Row 和资源 key 不能进入逻辑模块，避免数据加载器或表现层成为第二个规则解释器。
 
 武器 Definition 和每个 AttackStep 只暴露一个有效倍率 `DamageCoefficient`。`FReEchoWeaponLogic` 先由 `DamageChannelId` 解析伤害类型：物理通道使用 `PhysicalAttack × DamageCoefficient`，任一元素通道（含确定性随机元素）使用 `ElementalAttack × DamageCoefficient`。不得恢复物理/元素双倍率，也不得用两者最大值做兼容选择；宝石只负责属性来源和伤害类型。
 
@@ -149,7 +149,7 @@ Plan126 为每个 Weapon Profile 增加中心化局部 `AttackVfxAnchorRatio` �
 | 近战/投射几何 | `ReEchoWeaponGeometry.*` | 无 Actor 资源依赖的空间算法 |
 | 逻辑 Projectile/Wave | `ReEchoProjectileLogicComponent.*` | 飞行、范围、生命周期、去重和 HitIntent |
 | 模块测试 | `Private/Tests/ReEchoWeaponLogicTests.cpp` | cadence、步骤、投射物、来源生命周期 |
-| 数据编译适配 | `Source/ReEcho/Public/Weapons/ReEchoWeaponRuntime.h` → Private 实现 | CSV/Build → Logic Definition |
+| 数据编译适配 | `Source/ReEcho/Public/Weapons/ReEchoWeaponRuntime.h` → Private 实现 | DataAsset/Build → Logic Definition |
 | 世界/表现宿主 | `Source/ReEcho/Public/Weapons/ReEchoWeaponActor.h` → Private 实现 | 组合 Logic、Actor、Sprite/Mesh/VFX；不拥有规则 |
 | 构筑/Commit 诊断关联 | `Source/ReEcho/Public/Diagnostics/ReEchoBuildTrace.h` → Private 实现 | 主模块只读适配；不进入 `ReEchoWeapons` 公共契约 |
 | 表现资源目录/预热 | `Source/ReEcho/Public/Weapons/ReEchoWeaponVisualCatalog.h` → Private 实现 | 主模块资源适配；`ReEchoWeapons` 不依赖它 |

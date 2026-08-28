@@ -51,7 +51,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoStageTransitionPolicyTest,
 bool FReEchoStageTransitionPolicyTest::RunTest(const FString& Parameters)
 {
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production encounter catalog loads"), LoadResult.bSuccess) || !LoadResult.Snapshot.IsValid())
 	{
 		AddError(LoadResult.FormatIssues());

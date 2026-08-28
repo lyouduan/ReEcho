@@ -1,2 +1,0 @@
-Id,PartId,Order,Trigger,EffectKind,Target,ValueOp,Value,BehaviorId,FormulaId,AttackPatternId,ParamName,ParamValue,DurationSeconds,CooldownSeconds,StackPolicy,Enabled,DisabledReason,SourceSheet,SourceRow
-PE_CORE_PRIMORDIAL_CHANNEL,P_CORE_PRIMORDIAL,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part.StatModifier,None,None,Physical,0,0,0,Unique,true,,WeaponFixture,2

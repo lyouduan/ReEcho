@@ -18,7 +18,7 @@
 **负责：**
 
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
-- 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
+- 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从 `DA_ReEchoEnemies` 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
 - Host 负责应用外部眩晕门和移动倍率，并为当步 Sense 选择存活嘲讽 Echo；首次进入眩晕时通过窄命令取消旧目标锁定动作；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
@@ -32,7 +32,7 @@
 
 - 玩家或 Echo 武器、自动/手动攻击、最终伤害、格挡、元素、生命和死亡结算；
 - GameMode、出生规则、遭遇结束、世界扫描、Actor Transform/Collision 的实际修改；
-- XLSX/CSV 读取、资源路径、Sprite、动画、VFX、血条、伤害数字、音频和 UI；
+- DataAsset 加载、资源路径、Sprite、动画、VFX、血条、伤害数字、音频和 UI；
 - 表现播放完成、Actor 延迟销毁或资源加载结果。
 
 ## 权威状态
@@ -54,7 +54,7 @@
 
 ### 输入
 
-- `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从 CSV 编译后注入。
+- `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从蓝图数据资产编译后注入。
 - `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
 - `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。狐狸 Active 冲撞另由 Host 调用 `ResolveSpecialDashStep`，只反馈实际 Sweep 是否遇阻与本次路径是否已消费首次接触，不传世界对象或伤害结果。
@@ -167,7 +167,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 
 ### 当前远程伤害权威（2026-08-25）
 
-敌方远程能力仍由 EnemyLogic 正常产生意图、由 Host 转换并交给 Combat；数值只消费 `ReEchoEnemyData.xlsx → enemy_abilities.csv`，不得在 Logic、Host、Combat 或 VFX 复制伤害常量或增加第二份禁伤开关。Plan109 当前两条兔子能力每球伤害均为 `1`；羊 Boss Skill02/03/04 一阶段分别为 `4/24/16`，二阶段继续由 `BossPhases.PhysicalAttackMultiplier=1.5` 得到 `6/36/24`。这些当前值是配表审计事实而非模块常量，后续平衡只更新工作簿并重新发布 CSV；空间判定和最终扣血边界不变。
+敌方远程能力仍由 EnemyLogic 正常产生意图、由 Host 转换并交给 Combat；数值只消费 `DA_ReEchoEnemies`，不得在 Logic、Host、Combat 或 VFX 复制伤害常量或增加第二份禁伤开关。Plan109 当前两条兔子能力每球伤害均为 `1`；羊 Boss Skill02/03/04 一阶段分别为 `4/24/16`，二阶段继续由 `BossPhases.PhysicalAttackMultiplier=1.5` 得到 `6/36/24`。这些当前值是数据资产审计事实而非模块常量，后续平衡只更新对应 DataAsset；空间判定和最终扣血边界不变。
 
 - `ReEcho.Enemies.Logic.LegacyDefinitions`：四类怪物现有数值等价。
 - `ReEcho.Enemies.Logic.ContactCadence`：移动与同帧攻击意图可共存，冷却按现有语义推进。

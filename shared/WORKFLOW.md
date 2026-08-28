@@ -48,7 +48,7 @@ Fetch 是安全边界的第一步。有他人新提交时，在集成或发布�
 ## 难合并资源
 
 - `.gitattributes` 声明的 LFS 文件在任何角色打开 UE 或验证前都必须由 `scripts/setup_lfs.py` 还原；Git 指针进入远端不等于大文件对象已经完成发布。
-- 权威 `Design/Data/ReEchoData.xlsx` 与生成 CSV 是一个发布单元。多个本地尝试可以并行，进入 main 前按当前远端权威表审计并组合，禁止静默整块覆盖。
+- 蓝图数据总目录与受影响的领域 DataAsset 是一个发布单元。多个本地尝试可以并行，进入 main 前按当前远端权威资产审计并组合，禁止静默整块覆盖。
 - Unreal Editor 锁只串行化同一 Git common directory 下的 Editor/命令，不是远端所有权。
 - `.uasset`、`.umap` 和其他二进制资产可本地独立尝试；程序集成时必须明确比较路径和语义，必要时由用户选择保留哪一份。
 

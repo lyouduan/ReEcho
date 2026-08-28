@@ -23,7 +23,7 @@
 
 **不负责：**
 
-- XLSX/CSV 文件读取、屏幕路由、商店界面、玩家/敌人/Echo Actor；
+- DataAsset 文件加载、屏幕路由、商店界面、玩家/敌人/Echo Actor；
 - 最终伤害、生命、元素或死亡裁决；
 - 武器槽位装配、敌人 AI、音频和表现资源；
 - 保存文件 IO 和旧版本迁移编排。
@@ -58,12 +58,12 @@ ReEcho ─────────→ ReEchoCards ─────────→
 ReEchoCards ─/─→ ReEcho / ReEchoWeapons / ReEchoEnemies / ReEchoAudio / UI / Presentation
 ```
 
-`ReEchoCards` 依赖 Combat 仅复用稳定战斗值类型；CSV Reader 和工作簿适配留在 `ReEcho`。其他领域通过主模块适配，不反向成为 Cards 的依赖。
+`ReEchoCards` 依赖 Combat 仅复用稳定战斗值类型；DataAsset 编译适配留在 `ReEcho`。其他领域通过主模块适配，不反向成为 Cards 的依赖。
 
 ## 运行时流程
 
 ```text
-ReEchoData.xlsx → cards.csv + card_effects.csv
+/Game/ReEcho/DataAsset/Gameplay/DA_ReEchoCards
   → ReEcho 数据适配器校验并编译 FReEchoCardCatalog
   → Run 以本局固定目录生成候选并提交授予
   → Cards 原子返回 BuildState / StatBlock / TimeShards / RuleSnapshot / HealthAdjustment
@@ -81,7 +81,7 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 | 类型化状态与结果 | `Public/Cards/ReEchoCardTypes.h` |
 | 不可变目录和白名单 | `Public/Cards/ReEchoCardCatalog.h`、`Private/Cards/ReEchoCardCatalog.cpp` |
 | 候选、授予和规则 | `Public/Cards/ReEchoCardRuntime.h`、`Private/Cards/ReEchoCardRuntime.cpp` |
-| CSV 编译适配 | `Source/ReEcho/Private/Data/ReEchoCsvDataRegistry.cpp` |
+| DataAsset 编译适配 | `Source/ReEcho/Private/Data/ReEchoDataAssetCompiler.cpp` |
 | 自动化 | `Source/ReEchoCards/Private/Tests/` 与主模块 Run/Save 集成测试 |
 
 ## 扩展
@@ -94,9 +94,9 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 ## 验证
 
 - 数据测试覆盖 39 张卡的精确集合、Tier 数量和全部行为注册；纯规则覆盖属性/层级赠卡原子性、阈值、伤害资源、经济、跨关余数和精确暴击次数。
-- 数据校验覆盖工作簿、CSV Schema、精确 ID 集合、Tier 数量和行为白名单。
+- 数据校验覆盖 DataAsset、精确 ID 集合、Tier 数量和行为白名单。
 - 集成自动化覆盖 Run、Shop、Combat、Echo、Weapons、Enemies 与 Save v8→v9。
-- 候选发布前执行项目校验、CSV 漂移检查、编辑器编译和 ReEcho 自动化。
+- 候选发布前执行项目校验、DataAsset 自动化、编辑器编译和 ReEcho 自动化。
 
 ## 不变量与常见错误
 

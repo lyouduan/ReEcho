@@ -29,8 +29,8 @@
 - 修改：
   - `UI.CardReveal` StartTimeSeconds：`'0'` → `'1.28'`（源 wav 实测前置静音 1.28027s，ffmpeg silencedetect）
   - RangedCount 每波 -7：E3 16/12/18→9/5/11、E4 16/16/22→9/9/15、E5 18/16/22→11/9/15、E6 16/18/18→9/11/11、E7 22/18/26→15/11/19、E8 16/18/22→9/11/15（共 18 格，无负值）
-- 刷新方式：`python scripts/data/sync_xlsx_to_csv.py`（重生成 `Content/Data/audio_events.csv`、`encounter_waves.csv`）→ `python scripts/validate_project.py`（PASS）
-- 验证入口：`audio_events.csv` 第 16 列 StartTimeSeconds、`encounter_waves.csv` 第 6 列 RangedCount；新局进战斗 3–8 与卡牌刷新点
+- 刷新方式：在 Unreal Editor 保存 `DA_ReEchoAudioEvents` 或 `DA_ReEchoEncounters`，重新开始 PIE 或重启项目；不需要编译 C++ 或运行表格同步。
+- 验证入口：音频资产的 `StartTimeSeconds`、遭遇资产的波次 `RangedCount`；新局进战斗 3–8 与卡牌刷新点。
 - 策划确认：chenglexi 明确「不是总投放，是每一波的投放均减 7」；2026-08-27 已确认提交 `59a5cf03` 并交由项目秘书集成
 - 限制与踩坑：
   - 音效入点纯数据层（`StartTimeSeconds` 由 `ReEchoAudioBackend` 运行时消费），无需动 C++；`UI.CardReveal` 触发点 = `ReEchoGameMode.cpp:4715` `PostUiEvent(UiCardReveal)`

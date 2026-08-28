@@ -1,5 +1,0 @@
-Id,SourceWorkbookId,Role,DisplayName,Description,DisplayNameKey,ColorHex,VisualKey,Enabled,DisabledReason
-Flame,Y_Flame,Trigger,Flame,效果：单位受到火元素伤害时，如其身上本身有草/水元素，则会触发对应元素反应,Element.Flame,#FF1F06,Fire,true,
-Lightning,Y_Lightning,Trigger,Lightning,效果：单位受到雷元素伤害时，如其身上本身有草/水元素，则会触发对应元素反应,Element.Lightning,#B455FF,Lightning,true,
-Grass,Y_Grass,Attachment,Grass,效果：单位受到草元素伤害时，其身上会附着草元素，持续至战斗结束或触发元素反应后清除,Element.Grass,#29D933,Grass,true,
-Water,Y_Water,Attachment,Water,效果：单位受到水元素伤害时，其身上会附着水元素，持续至战斗结束或触发元素反应后清除,Element.Water,#146BFF,Water,true,

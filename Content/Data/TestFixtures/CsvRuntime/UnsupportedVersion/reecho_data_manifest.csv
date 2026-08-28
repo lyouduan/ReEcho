@@ -1,7 +1,0 @@
-SchemaVersion,TableId,FileName,PrimaryKey
-2,RuntimeSmoke,runtime_smoke.csv,Id
-2,RuntimeSmokeEffects,runtime_smoke_effects.csv,Id
-2,Characters,characters.csv,Id
-2,CharacterAliases,character_aliases.csv,Id
-2,Cards,cards.csv,Id
-2,CardEffects,card_effects.csv,Id

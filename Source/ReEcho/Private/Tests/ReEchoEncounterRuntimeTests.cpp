@@ -12,7 +12,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEncounterWaveSchedulerTest,
 bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 {
 	const FReEchoCsvLoadResult Load =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production data loads"), Load.bSuccess) || !Load.Snapshot.IsValid())
 	{
 		AddError(Load.FormatIssues());
@@ -108,7 +108,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoSpawnResolverTest,
 bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 {
 	const FReEchoCsvLoadResult Load =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!Load.bSuccess || !Load.Snapshot.IsValid())
 	{
 		AddError(Load.FormatIssues());

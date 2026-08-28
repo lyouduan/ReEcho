@@ -5,6 +5,7 @@
 #include "ReEchoAudioTypes.h"
 
 struct FStreamableHandle;
+class UReEchoAudioDataAsset;
 
 /** Catalog provider seam consumed by the policy engine. */
 class REECHOAUDIO_API IReEchoAudioCatalogProvider
@@ -41,7 +42,7 @@ enum class EReEchoAudioCatalogPreloadState : uint8
 /**
  * Atomic, data-driven audio event catalog.
  *
- * CSV is parsed and validated into temporary storage. The active catalog is
+ * Blueprint data is validated into temporary storage. The active catalog is
  * replaced only after every row succeeds, so a bad reload preserves the last
  * known-good definitions. Asset references remain soft and missing assets are
  * safe no-ops at playback time.
@@ -54,8 +55,11 @@ public:
 	virtual const FReEchoAudioEventDefinition* FindDefinition(FName EventId,
 	                                                          FName VariantId = NAME_None) const override;
 
-	/** Atomically load the locked Plan34 CSV schema. Returns false without mutating the active catalog on failure. */
-	bool LoadCatalog(const FString& CsvPath);
+	/** Atomically validate and load the designer-authored UE data asset. */
+	bool LoadCatalog(const UReEchoAudioDataAsset& DataAsset);
+
+	/** Deterministic export used by the one-time Plan 146 migration and audits. */
+	void GetAllDefinitions(TArray<FReEchoAudioEventDefinition>& OutDefinitions) const;
 
 	/** Start or retry asynchronous preload of all non-empty soft references. */
 	void PreloadSoftAssets(FStreamableManager& StreamableManager);

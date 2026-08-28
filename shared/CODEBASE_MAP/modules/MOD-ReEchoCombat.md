@@ -29,7 +29,7 @@
 
 **不负责：**
 
-- 武器 CSV/XLSX 读取、武器 Definition 编译、步骤游标、普通攻击间隔或逻辑投射物；
+- 武器 DataAsset 加载、武器 Definition 编译、步骤游标、普通攻击间隔或逻辑投射物；
 - Pawn 移动/相机/输入键位绑定，Enemy AI，Echo/Recording，Run/Save；
 - Sprite、Mesh、动画、VFX、伤害数字、Widget、音频资产和播放；
 - 商店、抽卡或局外流程。
@@ -66,7 +66,7 @@ UI 和属性面板只订阅最终通知或读取快照，不得在回调中反�
 - `IReEchoAttackControllerHost` / `IReEchoAttackHost` 是主模块宿主与 Combat 的窄桥，Combat 不 include 具体 Pawn 或 WeaponActor。
 - Weapons、敌人接触攻击或合法环境来源提交完整 `FReEchoHitIntent`；Intent 只描述候选，不宣称最终伤害或死亡。
 - 来源宿主可在 Resolver 内通过 `ModifyOutgoingHit` 对候选执行一次类型化规则变换；元素内部伤害必须携带 `bSourceRulesApplied`，防止同一 Hit 重复扣资源或增伤。
-- 主模块把已校验 CSV 编译为不可变 `FReEchoElementRuleSet` 后发布；Combat 不认识 CSV Row、工作簿或资源字段。
+- 主模块把已校验 DataAsset 编译为不可变 `FReEchoElementRuleSet` 后发布；Combat 不认识编辑器资产或资源字段。
 
 ### 结果、事件与快照
 
@@ -181,7 +181,7 @@ GAS 在本模块中主要做三件事：
 
 | 带读问题 | 对照本文档位置 | 关键判断 |
 |---|---|---|
-| 这一步是不是 Combat 模块职责？ | “职责与排除项” | 只要涉及武器 CSV、可见 Actor、UI、音频、Enemy AI，就属于外部适配或消费者。 |
+| 这一步是不是 Combat 模块职责？ | “职责与排除项” | 只要涉及武器 DataAsset、可见 Actor、UI、音频、Enemy AI，就属于外部适配或消费者。 |
 | 哪个状态是唯一真相？ | “权威状态” | 生命/元素看 `Combatant + ASC`；held/目标看 `AttackController/Targeting`；最终伤害看 `HitResolver`。 |
 | 外部应该如何调用 Combat？ | “输入、输出与公共契约” | 上游提交命令或 `HitIntent`，下游只读事件或 Snapshot。 |
 | 结算顺序是否正确？ | “运行时流程 / 命中与结算” | 一次 Intent 必须只进一次 Resolver，不能在外部重复扣血。 |
@@ -464,7 +464,7 @@ Input / Auto held
 Plan76 的晕眩、流血、短暂无敌和临时攻速/移速均通过 `UReEchoCombatantComponent` 的窄命令进入 Combat。`Z_Vertigo` 维护动作禁止边界；`Z_Bleeding` 每层每秒结算最大生命 0.5%，每层独立保存到期时间；临时属性层通过独立 GAS Effect Handle 应用和移除，非 GAS 兼容路径保持相同乘数语义。Weapons/主模块只能提交命令并读取查询，不能直接改生命、状态标签或最终属性。
 
 - 新伤害类型：先扩 Intent/Resolved 的稳定枚举和值字段，再只在 Resolver 增加裁决分支和 focused tests。
-- 新元素/状态：由主模块 Data Adapter 编译 RuleSet；Combat 扩纯规则与 Combatant 状态，不读取 CSV。
+- 新元素/状态：由主模块 DataAsset Compiler 编译 RuleSet；Combat 扩纯规则与 Combatant 状态，不读取编辑器资产。
 - 新 Combat 消费者：优先订阅事件或读取 Snapshot；若需要改变状态，新增窄 Command，不公开可写组件字段。
 - 新目标类型：实现 `IReEchoCombatTarget`，不要让 Targeting/Resolver include 具体 Actor 类。
 - 新攻击载体不放在 Combat；载体属于 Weapons，只向 Combat 提交 Intent。

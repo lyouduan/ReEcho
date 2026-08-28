@@ -76,25 +76,27 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
 ## 数据权威流
 
 ```text
-Design/Data/ReEchoData.xlsx + ReEchoEnemyData.xlsx + ReEchoEncounterData.xlsx + ReEchoAudioEvents.xlsx
-  → scripts/data/sync_xlsx_to_csv.py
-  → Content/Data/*.csv
-  → 类型化 CSV Reader / FReEchoCsvDataRegistry
+/Game/ReEcho/DataAsset/Gameplay/DA_ReEchoGameDataCatalog
+  → 七个类型化玩法 DataAsset
+  → DataAsset Compiler / FReEchoCsvDataRegistry
   → 本局固定的不可变运行时快照
+
+/Game/ReEcho/DataAsset/Audio/DA_ReEchoAudioEvents
+  → FReEchoAudioCatalog
 ```
 
-- XLSX 是已迁移领域的策划编辑源；CSV 是可 diff、可打包的运行时源。
-- 角色基础行与角色能力子表分离：`tblCharacters → characters.csv`，`tblCharacterAbilities → character_abilities.csv`；能力逻辑只允许注册行为，旧 Forge 不属于生产契约。
-- Unreal 运行时不读取 XLSX，也不执行表格自由文本。
+- 蓝图数据资产是玩法与音频配置的唯一生产事实来源；策划在 Unreal Editor 中直接编辑并保存。
+- 角色基础行与角色能力数组分离；能力逻辑只允许选择已注册行为，旧 Forge 不属于生产契约。
+- 仓库和 Shipping 包禁止 CSV；旧 XLSX 只作为 Git 历史迁移证据，不参与生成或运行时读取。
 - Behavior、Formula、Effect 与 AttackPattern 通过稳定 ID 映射到注册实现。
-- 已迁移领域的旧玩法 JSON 已从 `Content/Data` 删除并由校验器禁止回归；历史快照只从 Git 读取，不能成为第二事实来源。
+- 已迁移领域的旧玩法 JSON 与 CSV 已从 `Content/Data` 删除并由校验器禁止回归；历史快照只从 Git 读取，不能成为第二事实来源。
 
 ## 跨模块不变量
 
 - 依赖指向权威逻辑或底层服务，底层模块不得反向依赖主流程或表现。
 - 每种运行时状态只有一个权威拥有者；其他模块只读快照、订阅事件或发送受控命令。
 - 逻辑产生结果；Animation、VFX、Audio 和 UI 只消费结果，表现完成回调不控制玩法。
-- 稳定 ID、存档格式、CSV Schema、公共 API 和生成器属于共享契约，破坏性修改必须显式协调。
+- 稳定 ID、存档格式、DataAsset 反射结构、公共 API 和运行时编译器属于共享契约，破坏性修改必须显式协调。
 - `.uasset`/`.umap` 承载宿主地图和资产引用，不保存可以由 C++ 或权威数据明确表达的第二份玩法规则。
 - 模块缺失可选资源或外部设备时必须安全降级，不得导致确定性玩法失败。
 

@@ -6,6 +6,7 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Components/SceneComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Data/ReEchoDataAssets.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -15,11 +16,9 @@
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoProjectileActor.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
-#include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
-#include "Misc/Paths.h"
+#include "Tests/ReEchoDataAssetTestUtils.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "Player/ReEchoPlayerPawn.h"
@@ -160,32 +159,6 @@ void TickProjectiles(UWorld* World, const float Seconds)
 	}
 }
 
-FString AssembleModifiedCsvDirectory(const TCHAR* FileName, const TCHAR* SearchText, const TCHAR* ReplacementText)
-{
-	const FString SourceDataDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data"));
-	const FString AssembledDirectory = FPaths::Combine(FPaths::ProjectSavedDir(),
-	                                                   TEXT("Automation"),
-	                                                   TEXT("WeaponRuntime"),
-	                                                   FGuid::NewGuid().ToString(EGuidFormats::Digits));
-	IFileManager& FileManager = IFileManager::Get();
-	FileManager.MakeDirectory(*AssembledDirectory, true);
-
-	TArray<FString> ProductionCsvFiles;
-	FileManager.FindFiles(ProductionCsvFiles, *FPaths::Combine(SourceDataDirectory, TEXT("*.csv")), true, false);
-	for (const FString& CsvFileName : ProductionCsvFiles)
-	{
-		FileManager.Copy(*FPaths::Combine(AssembledDirectory, CsvFileName),
-		                 *FPaths::Combine(SourceDataDirectory, CsvFileName));
-	}
-
-	const FString TargetPath = FPaths::Combine(AssembledDirectory, FileName);
-	FString Contents;
-	check(FFileHelper::LoadFileToString(Contents, *TargetPath));
-	check(Contents.Contains(SearchText));
-	Contents = Contents.Replace(SearchText, ReplacementText);
-	check(FFileHelper::SaveStringToFile(Contents, *TargetPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
-	return AssembledDirectory;
-}
 } // namespace
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponMeleeStepRuntimeTest,
@@ -698,13 +671,15 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	Weapon->SetOwner(Owner);
 	Weapon->InitializeWeapon(&ActorBuild, Run->GetRunDataSnapshot());
 
-	const FString ModifiedDir = AssembleModifiedCsvDirectory(TEXT("weapons.csv"),
-	                                                         TEXT("Pattern.BowShot,1.00,1.00,1000,0,1,0,0,"
-	                                                              "1,true,RuntimeCompatibility,8,"),
-	                                                         TEXT("Pattern.BowShot,1.01,1.00,1000,0,1,0,0,"
-	                                                              "1,true,RuntimeCompatibility,8,"));
-	const FReEchoCsvLoadResult PublishResult = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(ModifiedDir);
-	if (!TestTrue(TEXT("Modified CSV publishes"), PublishResult.bSuccess))
+	UReEchoGameDataCatalog* ModifiedCatalog = ReEchoDataAssetTestUtils::DuplicateCatalog();
+	if (!TestNotNull(TEXT("Blueprint data catalog duplicates"), ModifiedCatalog))
+	{
+		return false;
+	}
+	ModifiedCatalog->Weapons->Weapons[0].DamageCoefficient += 0.01f;
+	ModifiedCatalog->Weapons->DomainRevision = OldRevision + TEXT("-weapon-edit");
+	const FReEchoCsvLoadResult PublishResult = FReEchoCsvDataRegistry::LoadAndPublishFromCatalog(*ModifiedCatalog);
+	if (!TestTrue(TEXT("Modified Blueprint weapon data publishes"), PublishResult.bSuccess))
 	{
 		AddError(PublishResult.FormatIssues());
 		return false;
@@ -754,15 +729,22 @@ bool FReEchoWeaponDomainRevisionRuntimeTest::RunTest(const FString& Parameters)
 	          RestoreRun->Phase,
 	          EReEchoRunPhase::CharacterSelect);
 
-	const FString ModifiedEffectsDir = AssembleModifiedCsvDirectory(
-	    TEXT("part_effects.csv"),
-	    TEXT("PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,0,Part."
-	         "CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5"),
-	    TEXT("PE_CORE_FLAME_CHANNEL,P_CORE_FLAME,1,OnEquip,WeaponDamageChannel,DamageChannel,Override,1,Part."
-	         "CoreDamageChannel,None,None,Flame,0,0,0,Unique,true,,武器插槽C,5"));
+	ModifiedCatalog = ReEchoDataAssetTestUtils::DuplicateCatalog();
+	bool bEditedPartEffect = false;
+	for (FReEchoCsvPartRow& Part : ModifiedCatalog->Weapons->Parts)
+	{
+		if (!Part.Effects.IsEmpty())
+		{
+			Part.Effects[0].Value += 1.0f;
+			bEditedPartEffect = true;
+			break;
+		}
+	}
+	TestTrue(TEXT("Editable part effect exists"), bEditedPartEffect);
+	ModifiedCatalog->Weapons->DomainRevision = OldRevision + TEXT("-part-edit");
 	const FReEchoCsvLoadResult EffectsPublishResult =
-	    FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(ModifiedEffectsDir);
-	TestTrue(TEXT("Modified part effects publish"), EffectsPublishResult.bSuccess);
+	    FReEchoCsvDataRegistry::LoadAndPublishFromCatalog(*ModifiedCatalog);
+	TestTrue(TEXT("Modified Blueprint part effect publishes"), EffectsPublishResult.bSuccess);
 	TestNotEqual(TEXT("Weapon domain revision changes after part_effects edit"),
 	             FReEchoCsvDataRegistry::GetSnapshot()->WeaponDomainRevision,
 	             OldRevision);

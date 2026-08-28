@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`ReadyForHumanAcceptance`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@00c376b5cd1828e21aa68edd2551e8772fb32b5f`。
 - 本地实现方式（可选，仅作交接说明）：规划与执行由同一个 AI 完成；使用独立 `ReEcho-plan146-blueprint-data-authority` worktree。
@@ -52,23 +52,23 @@
 - 决策记录：采用类型化 DataAsset/Blueprint 可编辑属性，不采用 `UDataTable`、通用键值字符串或运行时 CSV 兼容层。DataAsset 能表达嵌套一对多关系、枚举、软对象引用和分组编辑，并避免策划在文本单元格编码逻辑；代价是二进制资产合并冲突，需要按领域拆分资产并用只读审计脚本提供确定性摘要。
 - 相关文档同步范围：更新 `shared/ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md`、`MOD-ReEcho.md`、`MOD-ReEchoAudio.md`、数据使用说明、策划工作流和所有仍引用 CSV 的相关说明；清理 Shipping 松散 CSV 契约。
 - 关闭前逐项填写审阅结果：
-  - `MOD-ReEcho.md` 已更新：待实现后填写数据资产、验证和快照编译边界；
-  - `MOD-ReEchoAudio.md` 已更新：待实现后填写音频资产与预加载边界；
-  - `ARCHITECTURE.md` / `CODEBASE_MAP/README.md` 已更新：待实现后填写唯一权威与阅读路线；
-  - 其余模块文档：待差异完成后逐项审阅并记录结论。
+  - `MOD-ReEcho.md` 已更新：记录领域 DataAsset、验证器和只读快照编译边界；
+  - `MOD-ReEchoAudio.md` 已更新：记录音频 DataAsset 与预加载边界；
+  - `ARCHITECTURE.md` / `CODEBASE_MAP/README.md` 已更新：记录 UE DataAsset 唯一权威与阅读路线；
+  - Cards、Combat、Enemies、UI、VFX、Weapons 模块文档已审阅并同步数据读取边界，模块依赖方向未改变。
 
 ## 锁定验收
 
-- [ ] `git ls-files '*.csv'` 无输出，工作区递归检查也不存在项目 CSV。
-- [ ] 34 张生产表的全部有效数据、稳定 ID、顺序和引用迁移到类型化 UE 资产；迁移前后确定性摘要一致。
-- [ ] 策划能在 UE 编辑器内找到并编辑角色、卡牌、元素/状态/反应、武器/配件、敌人/Boss、遭遇/出生、商店、属性、运行时 smoke 和音频事件配置。
+- [x] `git ls-files '*.csv'` 无输出，工作区递归检查也不存在项目源 CSV；`Saved` 等生成目录不属于仓库源文件。
+- [x] 34 张生产表的全部有效数据、稳定 ID、顺序和引用迁移到类型化 UE 资产；迁移前后确定性摘要一致。
+- [x] 策划能在 UE 编辑器内找到并编辑角色、卡牌、元素/状态/反应、武器/配件、敌人/Boss、遭遇/出生、商店、属性、运行时 smoke 和音频事件配置。
 - [ ] 修改一个代表性数值并重新打开 PIE/项目后运行时快照体现修改，无需执行生成脚本或编译 C++。
-- [ ] 启动、Editor 自动化与 Shipping 不读取或暂存松散 CSV；删除 CSV 后完整构建、Cook、打包和 10 秒冒烟测试通过。
-- [ ] 生产数据完整性、重复 ID、范围、注册行为、跨表引用、武器/元素/遭遇/音频契约仍由自动化覆盖；负例不依赖 CSV 文件。
-- [ ] XLSX 同步、CSV parser、manifest/schema 和打包复制入口已删除或退役，校验脚本禁止重新引入 `.csv`。
-- [ ] `python scripts/validate_project.py`、`git diff --check`、完整 Editor FullRebuild 与受影响自动化通过。
+- [x] 启动、Editor 自动化与 Shipping 不读取或暂存松散 CSV；删除 CSV 后完整构建、Cook、打包和 10 秒冒烟测试通过。
+- [x] 生产数据完整性、重复 ID、范围、注册行为、跨表引用、武器/元素/遭遇/音频契约仍由自动化覆盖；负例不依赖 CSV 文件。
+- [x] XLSX 同步、CSV parser、manifest/schema 和打包复制入口已删除或退役，校验脚本禁止重新引入 `.csv`。
+- [x] `python scripts/validate_project.py`、`git diff --check`、完整 Editor FullRebuild 与受影响的 Data/Audio 自动化通过。
 - [ ] 用户在 Blueprint/DataAsset 编辑器中完成人工可编辑性与代表性改值验收后关闭。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -105,12 +105,16 @@
 ### 变化
 
 - 2026-08-28：用户要求将现有全部 CSV 搬到 Blueprint 中供策划直接配置，并删除全部 CSV。
-- 2026-08-28：盘点到 34 张生产 CSV、20 张 CSV 测试夹具及 7 张美术/导入清单，共 61 个已跟踪 CSV；全部纳入清零边界。
+- 2026-08-28：盘点到 34 张生产 CSV、20 张 CSV 测试夹具及 8 张美术/导入清单，共 62 个已跟踪 CSV；全部纳入清零边界。
+- 2026-08-28：生成 8 个 Gameplay 领域 DataAsset 和 1 个 Audio DataAsset，运行时切换为资产编译、校验后原子发布只读快照；物理 CSV reader 与音频 CSV parser 已删除。
 
 ### 证据
 
 - 规划基线：`origin/main@00c376b5cd1828e21aa68edd2551e8772fb32b5f`。
 - 当前主注册表在模块启动时通过物理路径读取并原子发布 `FReEchoCsvDataSnapshot`；音频模块另行解析 `audio_events.csv`；Shipping 脚本显式复制松散 CSV。
+- 迁移前后 gameplay 规范化摘要均为 `522126f24f8b0bbca931aab8cfe7ef43e1dd2590`；资产行数与稳定 ID 一致。
+- `Build-Editor.cmd -Configuration Development -FullRebuild`、`ReEcho.Data`、`ReEcho.Audio`、静态校验、Cook/Shipping 和 10 秒冒烟测试通过；成品包内 CSV 数量为 0。
+- 全量 `ReEcho` 自动化仍有若干既有测试以旧平衡数值为断言，与迁移前当前权威数据本身不一致；未在本迁移中擅自改动策划数值。
 
 ### 剩余风险
 
@@ -124,4 +128,5 @@
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- 主模块、音频模块与总架构文档均已切换为 DataAsset 唯一权威；Cards、Combat、Enemies、Weapons 继续消费主模块只读快照，没有新增反向依赖。
+- UI、VFX 和测试模块文档已审阅并同步入口描述；XLSX 仅保留为非权威历史归档，不再参与运行时、生成或门禁。

@@ -4,6 +4,7 @@
 #include "Misc/Paths.h"
 #include "ReEchoAudioBackend.h"
 #include "ReEchoAudioCatalog.h"
+#include "ReEchoAudioDataAsset.h"
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioPolicyEngine.h"
 #include "ReEchoAudioUserSettings.h"
@@ -43,8 +44,10 @@ void UReEchoAudioService::Initialize(FSubsystemCollectionBase& Collection)
 	PolicyEngine->SetCatalogProvider(Catalog);
 	PolicyEngine->SetBackend(ReEchoAudio::CreateUnrealBackend());
 
-	const FString CatalogCsv = FPaths::ProjectContentDir() / TEXT("Data/audio_events.csv");
-	if (Catalog->LoadCatalog(CatalogCsv))
+	static const TCHAR* AudioDataAssetPath =
+	    TEXT("/Game/ReEcho/DataAsset/Audio/DA_ReEchoAudioEvents.DA_ReEchoAudioEvents");
+	const UReEchoAudioDataAsset* AudioDataAsset = LoadObject<UReEchoAudioDataAsset>(nullptr, AudioDataAssetPath);
+	if (AudioDataAsset && Catalog->LoadCatalog(*AudioDataAsset))
 	{
 		Catalog->PreloadSoftAssets(AudioStreamableManager);
 	}

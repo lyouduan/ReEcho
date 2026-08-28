@@ -93,7 +93,7 @@ Plan45 的运行时美术消费保持在 WBP 表现层：Start Menu、Settings�
 - Plan99 构筑卡牌表现回归：`scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.TraitCard`；验证正式卡图绑定保留、六个废弃标签/占位节点不存在、全部正式文字为可拖动 Canvas 子项、确认按钮使用浅色暂停按钮纹理且文案为“确定”。
 - 静态检查：`python scripts/validate_project.py`、`git diff --check`。
 - Plan47 商店回归：折扣显示与实际扣款同舍入、免费刷新优先消费且无零价无限刷新、永久代价禁用状态可见；不修改 Plan45 WBP/纹理资产。
-- Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `slot_profiles.csv` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
+- Plan47 配件回归：兼容配件可购买、普通背包与配件所有权分离、三类槽位从 `DA_ReEchoWeapons` 生成、必需 Core 不可留空、保存前后装备效果与存档一致。
 - Plan110 正式商店回归：`scripts/ue/Run-Automation.cmd -Filter ReEcho.UI.Shop.AuthoredLayoutHosts` 验证正式 authored 报价/装配槽绑定、现有背包与回响入口以及购买后即时投影；`scripts/ue/Run-EditorPythonLocked.ps1 -ScriptPath scripts/ue/audit_plan110_formal_shop_ui.py` 验证正式控件仍可在 Designer 调整且整屏参考图未成为运行时纹理。
 - 卡牌商店投影固定为1/2/3级三个卡组入口；入口不显示具体卡牌 icon，底部按钮按状态显示“购买 · 折扣后卡组价 / 继续选择 / 已购”。可购买入口发布 Tier 命令后，GameMode 先调用 Run 的卡组付款事务并立即 `SaveRun`，成功才在 ZOrder 98 的 `BuildChoice` 层打开复用的选择页；已付款待选入口不检查余额或额外购卡门槛，直接继续同一候选页且不重复收费。页内最多三张同级候选，不显示单卡价格，并提供“返回商店”；最终选择调用独立领取事务。商店已付款与战后免费三选一都在每张实际候选下方显示独立刷新按钮、该槽剩余次数和价格，并通过统一 `OnCardSlotRefreshRequested(SlotIndex)` 发送稳定槽位；GameMode 按当前页面调用对应 Run 原子命令后重注入同一层，Widget 不自行抽牌或扣费。成功逐槽刷新只将该稳定槽位映射到当前可见卡牌并重播它的揭示，另外两张卡与页面指针保持已揭示状态。领取/刷新失败恢复原选择；取消仅关闭页面，已付款状态不退款且可继续。
 - Plan91 武器背包扩展：Widget 不持有武器所有权，也不把换装伪装成购买；`OnWeaponEquipRequested` 交给 GameMode 调用 Run 事务。成功后整页重取只读投影，使当前武器图、武器名和兼容符文槽同时更新，但独立的武器/符文与卡牌刷新序列都不变，因此报价不重摇。

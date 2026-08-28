@@ -87,7 +87,7 @@ Plan-only 发布前必须 fetch 最新 `origin/main`，完成 Plan 编号、外�
 
 本门禁适用于程序路线的每一次 `origin/main` 推送，包括 Plan、Markdown、规则、源码、内容或混合候选。Planner-Executor 模式选择本身不能豁免；跳过构建或远端协作检查的具名步骤必须按 `shared/PROJECT_RULES.md` 提醒风险、建议问程序并取得准确人工确认。
 
-**纯文档性质例外（豁免 `-FullRebuild`）**：若本次候选仅新增或修改文档性质内容（仅 `.md` 规则、Plan、工作流、说明/架构文档，且不改动任何 C++、二进制、预构建包、CSV schema 或 UE 内容），则**不需要** `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`，可直接提交并推送。此类候选仍须满足：按 `shared/PROJECT_RULES.md` 验证矩阵执行 `python scripts/validate_project.py` 与 `git diff --check`；推送前完成远端基线 `git fetch` 与冲突/重叠审计；以及本文件「提交文本编码」对标题 UTF-8 的约束。一旦候选混入任何代码/二进制/内容变更，即回到完整 `-FullRebuild` 门禁。
+**纯文档性质例外（豁免 `-FullRebuild`）**：若本次候选仅新增或修改文档性质内容（仅 `.md` 规则、Plan、工作流、说明/架构文档，且不改动任何 C++、二进制、预构建包、DataAsset 反射契约或 UE 内容），则**不需要** `scripts\ue\Build-Editor.cmd -Configuration Development -FullRebuild`，可直接提交并推送。此类候选仍须满足：按 `shared/PROJECT_RULES.md` 验证矩阵执行 `python scripts/validate_project.py` 与 `git diff --check`；推送前完成远端基线 `git fetch` 与冲突/重叠审计；以及本文件「提交文本编码」对标题 UTF-8 的约束。一旦候选混入任何代码/二进制/内容变更，即回到完整 `-FullRebuild` 门禁。
 
 程序路线每次推送 `origin/main` 前（纯文档例外不适用时），必须使用项目标准 UE 5.8 安装版/发行版完整构建最新、准确的最终集成候选：
 

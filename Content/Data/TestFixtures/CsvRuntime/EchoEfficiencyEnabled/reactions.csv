@@ -1,7 +1,0 @@
-Id,DisplayName,Description,TriggerElementId,AttachmentElementId,BehaviorId,FormulaId,DamageMultiplier,DamageIncrease,RadiusCm,StatusId,StatusDurationSeconds,EnhancementMultiplier,CanCrit,AffectedByEchoEfficiency,ClearsAttachment,Enabled,DisabledReason
-Y_ER_F_G,Burn,Burn test reaction,Flame,Grass,Reaction.Burn,Element.ElementAttackDot,1,0,0,Z_Burn,3,1,false,false,true,true,
-Y_ER_F_W,Vaporize,Echo efficiency rejection test,Flame,Water,Reaction.Vaporize,Element.ElementAttackSquared,1,0.25,150,None,0,1,false,true,true,true,
-Y_ER_L_G,Growth,Growth test reaction,Lightning,Grass,Reaction.Growth,Element.AttachInRadius,1,0,200,None,0,1,false,false,true,true,
-Y_ER_L_W,Conduct,Conduct test reaction,Lightning,Water,Reaction.Conduct,Element.ChainElementAttack,1,2,100,None,0,1,false,false,true,true,
-Y_ER_G_W,Grass over Water Enhance,Grass over water test reaction,Grass,Water,Reaction.Enhance,Element.EnhanceNextReaction,1,0,0,None,0,2,false,false,true,true,
-Y_ER_W_G,Water over Grass Enhance,Water over grass test reaction,Water,Grass,Reaction.Enhance,Element.EnhanceNextReaction,1,0,0,None,0,2,false,false,true,true,

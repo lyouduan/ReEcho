@@ -21,13 +21,13 @@ public:
 		const FReEchoCsvLoadResult LoadResult = FReEchoCsvDataRegistry::LoadAndPublishDefault();
 		if (!LoadResult.bSuccess)
 		{
-			UE_LOG(LogReEcho, Fatal, TEXT("ReEcho CSV data failed to load:\n%s"), *LoadResult.FormatIssues());
+			UE_LOG(LogReEcho, Fatal, TEXT("ReEcho Blueprint data failed to load:\n%s"), *LoadResult.FormatIssues());
 		}
 		UE_LOG(LogReEcho,
 		       Log,
-		       TEXT("ReEcho CSV data loaded from %s with %d runtime smoke rows, %d characters, %d cards, %d elements "
+		       TEXT("ReEcho Blueprint data loaded from %s with %d runtime smoke rows, %d characters, %d cards, %d elements "
 		            "and %d reactions"),
-		       *FReEchoCsvDataRegistry::GetDefaultDataDirectory(),
+		       *FReEchoCsvDataRegistry::GetDefaultDataCatalogPath(),
 		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->RuntimeSmokeRows.Num() : 0,
 		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Characters.Num() : 0,
 		       LoadResult.Snapshot.IsValid() ? LoadResult.Snapshot->Cards.Num() : 0,

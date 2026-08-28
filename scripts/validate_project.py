@@ -2020,7 +2020,7 @@ def validate_workflow() -> None:
         ),
         "DESIGNER_RULES.md": (
             "策划用户路线",
-            "ReEchoData.xlsx",
+            "/Game/ReEcho/DataAsset/Gameplay/",
             "不得修改代码、生成器、Schema、构建配置",
             "issue/<策划身份>/<简述>",
             "request/<策划身份>/<简述>",
@@ -2530,8 +2530,8 @@ def validate_workflow() -> None:
     ]
     if duplicate_tag_sources:
         fail(f"AI commit-tag rules must live only in GIT_RULES.md, duplicated in: {', '.join(duplicate_tag_sources)}")
-    if "Design/Data/ReEchoData.xlsx" not in readme_text or "generated into validated CSV" not in readme_text:
-        fail("README.md must describe the current XLSX-to-CSV authority")
+    if "Content/Data/README.md" not in readme_text or "/Game/ReEcho/DataAsset" not in readme_text:
+        fail("README.md must describe the current Blueprint DataAsset authority")
     if "Project Secretary route" not in readme_text or "SECRETARY_RULES.md" not in readme_text:
         fail("README.md must index the Project Secretary route")
     if "not a workflow authority" not in docs_workflow_text or "`shared/` is the collaboration control plane" not in docs_workflow_text:
@@ -2543,8 +2543,8 @@ def validate_workflow() -> None:
         "## 跨模块状态流",
         "## 跨模块不变量",
         "## 当前候选状态",
-        "Design/Data/ReEchoData.xlsx",
-        "旧玩法 JSON 已从 `Content/Data` 删除",
+        "/Game/ReEcho/DataAsset/Gameplay/DA_ReEchoGameDataCatalog",
+        "旧玩法 JSON 与 CSV 已从 `Content/Data` 删除",
     )
     missing_architecture_markers = [marker for marker in architecture_markers if marker not in architecture_text]
     if missing_architecture_markers:
@@ -2725,32 +2725,12 @@ def validate_build_dependencies() -> None:
     ]
     if len(presentation_modules) != 1 or presentation_modules[0].get("Type") != "Runtime":
         fail("ReEcho.uproject must declare exactly one ReEchoPresentation Runtime module")
-    for file_name in (
-        "reecho_data_manifest.csv",
-        "csv_schema.csv",
-        "runtime_smoke.csv",
-        "runtime_smoke_effects.csv",
-        "characters.csv",
-        "character_aliases.csv",
-        "cards.csv",
-        "card_effects.csv",
-        "elements.csv",
-        "statuses.csv",
-        "reactions.csv",
-        "weapon_types.csv",
-        "weapons.csv",
-        "attack_steps.csv",
-        "slot_types.csv",
-        "slot_profiles.csv",
-        "parts.csv",
-        "part_effects.csv",
-        "enemies.csv",
-        "enemy_abilities.csv",
-        "boss_phases.csv",
-        "audio_events.csv",
+    for data_asset_directory in (
+        "/Game/ReEcho/DataAsset/Gameplay",
+        "/Game/ReEcho/DataAsset/Audio",
     ):
-        if f"Content/Data/{file_name}" not in build_cs:
-            fail(f"ReEcho.Build.cs does not stage production CSV {file_name}")
+        if f'+DirectoriesToAlwaysCook=(Path="{data_asset_directory}")' not in default_game:
+            fail(f"Config/DefaultGame.ini must always cook Blueprint data assets from {data_asset_directory}")
 
 
 def validate_combat_module_boundaries() -> None:
@@ -2979,49 +2959,61 @@ def validate_xlsx_authoring_sync() -> None:
         fail("XLSX authoring sync check failed:\n" + result.stdout.strip())
 
 
+def validate_blueprint_data_authority() -> None:
+    generated_roots = {".git", "Binaries", "DerivedDataCache", "Intermediate", "Saved"}
+    csv_files = sorted(
+        path
+        for path in ROOT.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() == ".csv"
+        and not generated_roots.intersection(path.relative_to(ROOT).parts)
+    )
+    if csv_files:
+        fail("CSV files are forbidden after Plan 146: " + ", ".join(rel(path) for path in csv_files))
+
+    expected_assets = (
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoCoreData.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoCards.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoElements.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoWeapons.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoEnemies.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoEncounters.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoShop.uasset",
+        "Content/ReEcho/DataAsset/Gameplay/DA_ReEchoGameDataCatalog.uasset",
+        "Content/ReEcho/DataAsset/Audio/DA_ReEchoAudioEvents.uasset",
+    )
+    missing_assets = [path for path in expected_assets if not (ROOT / path).is_file()]
+    if missing_assets:
+        fail("missing Blueprint data authority assets: " + ", ".join(missing_assets))
+
+    registry = (ROOT / "Source/ReEcho/Private/Data/ReEchoCsvDataRegistry.cpp").read_text(encoding="utf-8")
+    audio_service = (ROOT / "Source/ReEchoAudio/Private/ReEchoAudioService.cpp").read_text(encoding="utf-8")
+    package_script = (ROOT / "scripts/ue/package_windows.py").read_text(encoding="utf-8")
+    if "DA_ReEchoGameDataCatalog" not in registry:
+        fail("gameplay runtime must load DA_ReEchoGameDataCatalog")
+    if "DA_ReEchoAudioEvents" not in audio_service:
+        fail("audio runtime must load DA_ReEchoAudioEvents")
+    if "stage_runtime_csvs" in package_script:
+        fail("Shipping packaging must not stage loose CSV files")
+    for retired_script in (
+        "scripts/data/sync_xlsx_to_csv.py",
+        "scripts/data/test_sync_xlsx_to_csv.py",
+        "scripts/data/author_audio_events.py",
+    ):
+        if (ROOT / retired_script).exists():
+            fail(f"retired table generation script still exists: {retired_script}")
+
+
 def main() -> int:
     validate_no_legacy_data_json()
-    validate_csv_schema()
-    validate_csv_package(DATA)
-    with tempfile.TemporaryDirectory(prefix="reecho_csv_valid_alt_") as temp:
-        validate_csv_package(assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "ValidAlt", Path(temp)))
-    with tempfile.TemporaryDirectory(prefix="reecho_csv_reaction_changed_") as temp:
-        validate_csv_package(
-            assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "ReactionValueChanged", Path(temp))
-        )
-    with tempfile.TemporaryDirectory(prefix="reecho_csv_echo_efficiency_") as temp:
-        validate_csv_package(
-            assemble_fixture_package(DATA / "TestFixtures" / "CsvRuntime" / "EchoEfficiencyEnabled", Path(temp))
-        )
-    for name, token in {
-        "DuplicateId": "duplicate id",
-        "MissingRequired": "required value",
-        "UnknownReference": "unknown reference",
-        "UnknownWeaponReference": "DefaultWeaponId",
-        "UnknownBehavior": "behavior id",
-        "UnknownEffectKind": "effect kind",
-        "IllegalRange": "exceeds",
-        "UnsupportedVersion": "SchemaVersion",
-        "DuplicateCardEffectOrder": "duplicate CardId/Order",
-        "UnsupportedCardEffectTrigger": "Trigger",
-        "UnknownCardEffectTarget": "Target",
-        "InvalidCardEffectBehaviorPair": "EffectKind/BehaviorId",
-        "UnknownFormulaId": "FormulaId",
-        "DuplicateReactionPair": "duplicate ordered pair",
-        "UnsupportedCanCrit": "CanCrit",
-        "DuplicateWeaponInputSlot": "four-weapon input slot mapping",
-        "InvalidWeaponPartEffectBehaviorPair": "EffectKind/BehaviorId",
-    }.items():
-        expect_fixture_failure(name, token)
+    validate_blueprint_data_authority()
     validate_build_dependencies()
     validate_combat_module_boundaries()
     validate_prebuilt_editor()
-    validate_xlsx_authoring_sync()
     validate_workflow()
 
-    print("[PASS] retired Content/Data gameplay JSON files are absent; production authority remains XLSX/CSV")
-    print("[PASS] CSV schema, production character/build/element/weapon tables, fixtures, IDs, references, behavior/effect/formula/attack-pattern allowlists, UTF-8 and staging deps")
-    print("[PASS] XLSX authoring workbook check matches generated production CSV bytes")
+    print("[PASS] Blueprint DataAssets are the gameplay and audio data authority; all CSV files are absent")
+    print("[PASS] DataAsset runtime paths, cook directories, and retired table-generation entry points")
     print("[PASS] workflow memory, token guards, and Unreal project descriptor present")
     print("Evidence level: static verified only (no UHT/UBT/PIE claim)")
     return 0

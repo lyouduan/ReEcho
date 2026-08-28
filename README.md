@@ -13,12 +13,12 @@ UE 5.8 installed-build graybox prototype for the Time Echo vertical slice.
 - 项目全局架构：[`shared/CODEBASE_MAP/ARCHITECTURE.md`](shared/CODEBASE_MAP/ARCHITECTURE.md)
 - UE MCP: [`docs/UE_MCP.md`](docs/UE_MCP.md)
 - Validation commands: [`scripts/README.md`](scripts/README.md)
-- Designer XLSX workflow and acceptance: [`Design/Data/ReEchoData使用说明.md`](Design/Data/ReEchoData使用说明.md), [`Design/Data/ReEchoData策划验收清单.md`](Design/Data/ReEchoData策划验收清单.md)
+- 策划蓝图数据配置入口：[`Content/Data/README.md`](Content/Data/README.md)
 - Designer Bug / request report template: [`issues/TEMPLATE.md`](issues/TEMPLATE.md)
 
 ## Current prototype
 
-The project runtime-generates a Basic Shapes arena with a manually controlled player, four enemy archetypes, damage feedback, deterministic encounter recording, translucent echo playback and a six-encounter loop. Migrated character/build, element/reaction and weapon/slot domains are authored in `Design/Data/ReEchoData.xlsx`, generated into validated CSV under `Content/Data`, and loaded into immutable runtime snapshots; remaining JSON is migration-only until its domain moves.
+The project runtime-generates a Basic Shapes arena with a manually controlled player, four enemy archetypes, damage feedback, deterministic encounter recording, translucent echo playback and an eight-encounter loop. Gameplay and audio configuration is authored directly in typed Unreal Blueprint DataAssets under `/Game/ReEcho/DataAsset`, validated atomically, and loaded into immutable runtime snapshots. CSV is no longer part of the repository or Shipping runtime.
 
 On Win64, a normal checkout includes the UE 5.8 Editor module bundle required to open `ReEcho.uproject` directly. It is tied to the exact installed-engine Build ID in `Binaries/Win64/ReEchoEditor.prebuilt.json`; programmers refresh it through the repository Editor build before every publication.
 

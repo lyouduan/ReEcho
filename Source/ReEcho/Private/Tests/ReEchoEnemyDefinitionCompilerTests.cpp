@@ -13,7 +13,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDefinitionCompilerTest,
 bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 {
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production CSV snapshot loads"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());
@@ -30,7 +30,7 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestEqual(TEXT("Boss archetype compiles"), Boss.Archetype, EReEchoEnemyArchetype::Boss);
-	TestEqual(TEXT("Boss health compiles from the one-phase maximum"), Boss.MaxHealth, 1300.0f);
+	TestEqual(TEXT("Boss health compiles from the current first-form maximum"), Boss.MaxHealth, 1000.0f);
 	TestEqual(
 	    TEXT("Boss has five configured behaviors (melee + volley + spread + blink + beam)"), Boss.Abilities.Num(), 5);
 	TestEqual(TEXT("Deterministic rotation starts with the melee basic attack"),
@@ -44,7 +44,7 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Phase two refills to its blood-depleted maximum"),
 	          Boss.BossPhases[1].RefillHealthPolicy,
 	          EReEchoBossRefillHealthPolicy::RefillToMaximum);
-	TestEqual(TEXT("Phase two maximum health is the black-form ceiling"), Boss.BossPhases[1].PhaseMaxHealth, 650.0f);
+	TestEqual(TEXT("Phase two maximum health is the current black-form ceiling"), Boss.BossPhases[1].PhaseMaxHealth, 500.0f);
 	UReEchoEnemyLogicComponent* BossLogic = NewObject<UReEchoEnemyLogicComponent>();
 	TestTrue(TEXT("Compiled production Boss definition initializes runtime policy"), BossLogic->Initialize(Boss, 1));
 
@@ -55,10 +55,10 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	FReEchoEnemyDefinition Rabbit;
 	TestTrue(TEXT("Rabbit definition compiles"),
 	         ReEchoEnemyDefinitionCompiler::Compile(*LoadResult.Snapshot, TEXT("M_RABBIT"), Rabbit, Error));
-	TestFalse(TEXT("Rabbit dual forms remain presentation-only in authoritative data"), Rabbit.Phase2.bEnabled);
+	TestTrue(TEXT("Rabbit second phase is enabled in authoritative data"), Rabbit.Phase2.bEnabled);
 	TestEqual(TEXT("Rabbit phase two animation set"), Rabbit.Phase2.AnimationSetId, FName(TEXT("Phase2")));
 	TestEqual(TEXT("Rabbit phase two attack threshold from data"), Rabbit.Phase2.RequiredAttackCount, 2);
-	TestEqual(TEXT("Rabbit phase two aggro range from data"), Rabbit.Phase2.TriggerRangeCm, 1500.0f);
+	TestEqual(TEXT("Rabbit phase two aggro range from data"), Rabbit.Phase2.TriggerRangeCm, 900.0f);
 	TestEqual(TEXT("Rabbit phase two transform seconds from data"), Rabbit.Phase2.TransformSeconds, 1.0f);
 	TestTrue(TEXT("Boss blood-depleted phase two is enabled by authoritative data"), Boss.Phase2.bEnabled);
 	TestEqual(TEXT("Boss phase two uses the health-threshold trigger"),

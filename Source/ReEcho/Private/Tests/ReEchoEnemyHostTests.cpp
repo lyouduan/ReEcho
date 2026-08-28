@@ -173,7 +173,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostStunRetargetTest,
 bool FReEchoEnemyHostStunRetargetTest::RunTest(const FString& Parameters)
 {
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production enemy CSV loads for stun retarget"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());
@@ -374,7 +374,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostFoxDashCollisionTest,
 bool FReEchoEnemyHostFoxDashCollisionTest::RunTest(const FString& Parameters)
 {
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production enemy CSV loads for Fox dash"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());
@@ -594,7 +594,7 @@ bool FReEchoEnemyHostRabbitProjectileTest::RunTest(const FString& Parameters)
 {
 	FReEchoEnemyHostWorldFixture Fixture;
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production enemy CSV loads"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());
@@ -990,7 +990,7 @@ bool FReEchoEnemyHostSheepProjectileTest::RunTest(const FString& Parameters)
 {
 	FReEchoEnemyHostWorldFixture Fixture;
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production enemy CSV loads"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());

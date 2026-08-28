@@ -33,9 +33,9 @@
 
 - 引擎：Unreal Engine 5.8 安装版/发行版，优先 Windows 桌面。不得使用独立源码检出构建或打开本项目。
 - 项目描述符：`ReEcho.uproject`；运行时模块：`Source/ReEcho`。
-- `Design/Data/ReEchoData.xlsx` 是已迁移生产表的权威策划可编辑来源。`Content/Data/` 下生成的 CSV 是可 diff、可打包的运行时来源。已迁移的角色、卡牌、武器、元素、反应、状态、Encounter、全局平衡和敌人旧 JSON 已删除并禁止回归；历史审阅使用 Git，不在生产数据目录保留第二份快照。
-- 不得手改生成的生产 CSV 形成第二事实来源，也不得在 JSON、C++、DeveloperSettings、Actor 或 Widget 中复制已迁移平衡常量。
-- 读取 `.xlsx`（尤其是策划真源 `Design/Data/ReEchoData.xlsx`）时，必须按 Excel 实际可见视图过滤：被隐藏的行或列（即 `ws.row_dimensions[r].hidden` / `ws.column_dimensions[c].hidden` 为 `True`）视为不存在，读取逻辑须显式跳过；`openpyxl` 的 `iter_rows()` 默认返回含隐藏行在内的所有行，不得仅凭其返回内容判定某行/列"可见"，必须以隐藏标记与 Excel 可见视图为准。同步脚本 `scripts/data/sync_xlsx_to_csv.py` 及任何 xlsx 解析工具均须落实此过滤，避免把策划已隐藏（如废案/未启用）的数据误读为有效内容。
+- `/Game/ReEcho/DataAsset/Gameplay/` 与 `/Game/ReEcho/DataAsset/Audio/` 下的类型化蓝图数据资产是玩法和音频配置的唯一生产事实来源。已迁移领域的旧 XLSX 只作 Git 历史证据；CSV 与旧 JSON 已删除并禁止回归。
+- 不得在 JSON、CSV、XLSX、C++、DeveloperSettings、Actor 或 Widget 中复制已迁移平衡常量，也不得在 Unreal Editor 外手改 `.uasset`。
+- 旧 XLSX 已退出生产数据权威链。任务若明确要求审阅历史 `.xlsx`，读取时仍须按 Excel 实际可见视图过滤：隐藏的行或列视为不存在，解析工具必须检查 `row_dimensions` / `column_dimensions` 的 `hidden` 标记。
 - 保留确定性语义：模拟 60 Hz、录制 20 Hz、遭遇时长 30 秒；暂停时录制和回放都不推进。
 - 自动攻击绝不序列化进录制。Echo 回放历史位置和成功主动技能事件；目标选择与命中结算使用当前世界。
 - 不得在 Unreal Editor 外手改 `.uasset` 或 `.umap`。优先使用可合并 C++、数据源和生成工具。
@@ -57,7 +57,7 @@
 - 策划/美术推送协作分支前必须先 fetch `origin/main` 及目标远端分支，审计同路径物理冲突、逻辑冲突和耦合；提交身份遵循 `GIT_RULES.md`。已发布的策划协作分支通过 merge 同步主线，不得 rebase 或强推。程序接管现有 Issue 分支时执行 `PROGRAMMER_RULES.md` 的同名分支修复与验收流程。禁止覆盖或删除他人远端历史；身份已提供且事项精确匹配时的旧格式分支迁移，以及程序或项目秘书在候选完整集成并核验后的准确删除，是 `DESIGNER_RULES.md` 定义的正常生命周期操作。
 - **所有大任务都必须先有正式 Plan**：无论是否采用 Planner-Executor 模式、是否存在独立执行者，均须按 `PLANNER_RULES.md` 创建、编号并发布 Plan 到 `origin/main`，再开始实质实现。小型、边界清晰的修复、只读审计或用户明确豁免的工作可不建 Plan，但仍须记录结果和执行适用验证。
 - Plan 的 `Writes`、`Stable Reads` 和影响模式用于说明影响面、契约和集成风险，不是跨机器写锁。不同克隆可以本地并行；真正取舍发生在 pull/push 的远端边界审计。
-- `Design/Data/ReEchoData.xlsx` 与其生成的生产 CSV 必须作为一个完整发布单元。允许多个本地尝试；进入 main 前以当前权威 XLSX 为准审计语义差异，禁止整块静默覆盖他人表格修改。
+- 蓝图数据总目录及受影响的领域 DataAsset 必须作为一个完整发布单元。允许多个本地尝试；进入 main 前以当前远端 DataAsset 为准审计语义差异，禁止整块静默覆盖他人资产修改。
 - 同克隆 Unreal 锁位于 Git common directory 下的 `reecho-locks/unreal-editor.lock`。它只串行化同一克隆的 Editor/命令，不代表远端所有权；仅在确认没有进程使用本项目后移除过期锁。
 - 远端状态可能变化时，唯一允许自动执行的第一步是 `git fetch`。发现当前已批准本地基线之外的他人提交后必须先审计物理/Git 冲突、逻辑冲突和集成耦合；清晰、范围不变且符合已批准契约的快进、merge 和物理冲突处理可继续执行，真实逻辑冲突、产品取舍、不可逆覆盖或范围扩张才停止并等待用户明确选择。发布 main 时还必须遵循 `GIT_RULES.md` 的 `main-publish-lock` 协议。
 - 完成适用门禁后可继续，不需要额外询问。默认工作模式是：**能合并就合并、能推送就推送、能删除就删除**；这里的“能”表示范围、验证、人工验收、远端审计、发布锁和清理安全门禁均已满足。主观验收、产品取舍、外部提交语义选择和可能丢失工作的清理必须提醒并等待人决定。
@@ -94,7 +94,7 @@
 |---|---|
 | 仅 Markdown/工作流 | `python scripts/validate_project.py`、`git diff --check` |
 | Python 数据工具/XLSX 契约 | 聚焦 Python 测试、权威 `--check`、项目校验、`git diff --check` |
-| 仅 JSON/配置/CSV | 项目校验和 `git diff --check` |
+| 仅 JSON/配置/DataAsset | 项目校验、对应 DataAsset 自动化和 `git diff --check` |
 | Git LFS / 大二进制 | `python scripts/setup_lfs.py --check`、`git lfs status`、`git lfs fsck`，以及 `GIT_RULES.md` 的远端对象核验 |
 | C++ | `.clang-format`、`Build-Editor.cmd`（刷新跟踪的预构建包）、`python scripts/validate_project.py`、`git diff --check` |
 | 纹理/导入脚本 | 导入/加载和资产存在性检查 |

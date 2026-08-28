@@ -105,10 +105,10 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 
 - 位置：`Public/ReEchoAudioCatalog.h`、`Private/ReEchoAudioCatalog.cpp`。
 - 角色：提供稳定 `(EventId, VariantId)` 到 `FReEchoAudioEventDefinition` 的类型化查询；精确变体不存在时回退同 EventId 的空变体。
-- 数据：`Design/Data/ReEchoAudioEvents.xlsx` 独立拥有 `audio_events.csv`，不耦合 `ReEchoData.xlsx` / `ReEchoEnemyData.xlsx`。
-- 加载：运行时对锁定 16 列 CSV 做 quote-aware 严格解析，复合键必须唯一；`StartTimeSeconds` 必须非负并由一次性/循环后端消费；仅在整表成功后原子替换，失败保留上一份有效目录。
+- 数据：`/Game/ReEcho/DataAsset/Audio/DA_ReEchoAudioEvents` 是音频事件配置的唯一权威，策划可在 Unreal Editor 中直接编辑。
+- 加载：运行时严格校验类型化事件数组，复合键必须唯一；`StartTimeSeconds` 必须非负并由一次性/循环后端消费；仅在整个资产成功后原子替换，失败保留上一份有效目录。
 - 预载：soft asset 异步预载暴露 `NotStarted/Loading/Ready/Failed` 状态，失败可重试且播放仍安全 no-op。
-- 打包：`DefaultGame.ini` 的 `DirectoriesToAlwaysCook=/Game/ReEcho/Audio` 显式包含所有 CSV 文本软引用资产，不依赖地图偶然硬引用。
+- 打包：`DefaultGame.ini` 同时显式 Cook 音频资源目录与音频 DataAsset 目录，不依赖地图偶然硬引用。
 
 ### `FReEchoAudioPolicyEngine`
 
@@ -135,7 +135,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 
 | 目的 | Public 首读 | Private 实现 | 相关数据/资产 |
 |---|---|---|---|
-| 发送一次性音效 | `ReEchoAudioService.h`、`ReEchoAudioEvents.h` | `ReEchoAudioService.cpp` | `ReEchoAudioEvents.xlsx` -> `audio_events.csv` |
+| 发送一次性音效 | `ReEchoAudioService.h`、`ReEchoAudioEvents.h` | `ReEchoAudioService.cpp` | `DA_ReEchoAudioEvents` |
 | 维护目录音频资源 | `ReEchoAudioCatalog.h` | `ReEchoAudioCatalog.cpp`、`scripts/audio/*.py` | `Design/Audio/**` -> `Content/ReEcho/Audio/**` |
 | 增加语义总线 | `ReEchoAudioTypes.h`、`ReEchoAudioService.h` | Service/Policy Engine | `UReEchoAudioUserSettings` + 设置页 Apply/Cancel |
 | 修改冷却/并发/优先级 | `ReEchoAudioCatalog.h`、Events/Types | `ReEchoAudioPolicyEngine.*` | 目录定义 |
@@ -170,7 +170,7 @@ MOD-ReEchoAudio ─/─→ MOD-ReEcho / Combat / Weapons / UI / Presentation
 - 不得用零 `VolumeMultiplier` 模拟淡入；UE 的 fader 与组件基础音量相乘，不会替换它。
 - 不得在后端用 `LoadSynchronous()` 补救未完成的预载；状态启动失败必须保留现有状态并允许重试。
 - 玩法不应为异步预载而重复发状态；Service 持有期望状态并负责重试，World 替换后不能用旧句柄误判为仍在播放。
-- CSV 中的 SoundWave 软路径必须由显式 Cook 目录覆盖，不能依赖当前地图是否引用资源。
+- DataAsset 中的 SoundWave 软引用必须由显式 Cook 目录覆盖，不能依赖当前地图是否引用资源。
 - 变体只由稳定 WeaponId、ElementId 或 StageId 选择；资产路径仍只存在于目录，未知/空变体回退基础事件时允许得到显式静音，不能重新引入通用占位音。
 - 玩法调用点只认识稳定语义 ID，不认识资产路径。
 - next-world 队列只跨现有 World 生命周期投递声音，不得创建复活规则、延迟 `OpenLevel` 或用播放结果确认重开成功。

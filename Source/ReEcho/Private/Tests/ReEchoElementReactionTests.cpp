@@ -4,47 +4,38 @@
 #include "Combat/ReEchoCombatContracts.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Data/ReEchoDataAssets.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "GameFramework/Actor.h"
-#include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/Guid.h"
-#include "Misc/Paths.h"
+#include "Tests/ReEchoDataAssetTestUtils.h"
 
 namespace
 {
-FString AssembleElementCsvFixture(const TCHAR* FixtureName)
+FReEchoCsvLoadResult PublishReactionOverride(const FName ReactionId,
+                                             const float DamageIncrease,
+                                             const float RadiusCm,
+                                             const bool bAffectedByEchoEfficiency)
 {
-	const FString SourceDataDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data"));
-	const FString FixtureDirectory =
-	    FPaths::Combine(SourceDataDirectory, TEXT("TestFixtures"), TEXT("CsvRuntime"), FixtureName);
-	const FString AssembledDirectory =
-	    FPaths::Combine(FPaths::ProjectSavedDir(),
-	                    TEXT("Automation"),
-	                    TEXT("CsvRuntime"),
-	                    FString::Printf(TEXT("%s_%s"), FixtureName, *FGuid::NewGuid().ToString(EGuidFormats::Digits)));
-
-	IFileManager& FileManager = IFileManager::Get();
-	FileManager.MakeDirectory(*AssembledDirectory, true);
-
-	TArray<FString> ProductionCsvFiles;
-	FileManager.FindFiles(ProductionCsvFiles, *FPaths::Combine(SourceDataDirectory, TEXT("*.csv")), true, false);
-	for (const FString& FileName : ProductionCsvFiles)
+	UReEchoGameDataCatalog* Catalog = ReEchoDataAssetTestUtils::DuplicateCatalog();
+	if (!Catalog)
 	{
-		FileManager.Copy(*FPaths::Combine(AssembledDirectory, FileName),
-		                 *FPaths::Combine(SourceDataDirectory, FileName));
+		return {};
 	}
-
-	TArray<FString> OverrideCsvFiles;
-	FileManager.FindFiles(OverrideCsvFiles, *FPaths::Combine(FixtureDirectory, TEXT("*.csv")), true, false);
-	for (const FString& FileName : OverrideCsvFiles)
+	for (FReEchoCsvReactionRow& Row : Catalog->Elements->Reactions)
 	{
-		FileManager.Copy(*FPaths::Combine(AssembledDirectory, FileName), *FPaths::Combine(FixtureDirectory, FileName));
+		if (Row.Id == ReactionId)
+		{
+			Row.DamageIncrease = DamageIncrease;
+			Row.RadiusCm = RadiusCm;
+			Row.bAffectedByEchoEfficiency = bAffectedByEchoEfficiency;
+			break;
+		}
 	}
-	return AssembledDirectory;
+	return FReEchoCsvDataRegistry::LoadAndPublishFromCatalog(*Catalog);
 }
 
 struct FReEchoElementWorldFixture
@@ -262,8 +253,7 @@ bool FReEchoElementReactionTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Enhancement clears after damaging reaction"), State.bEnhancedNextReaction);
 	TestEqual(TEXT("Next reaction clears attachment block"), State.BlockedAttachment, EReEchoElement::None);
 
-	const FReEchoCsvLoadResult ChangedValueLoad =
-	    FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(AssembleElementCsvFixture(TEXT("ReactionValueChanged")));
+	const FReEchoCsvLoadResult ChangedValueLoad = PublishReactionOverride(TEXT("Y_ER_L_W"), 3.0f, 75.0f, false);
 	if (!TestTrue(TEXT("Reaction value changed fixture loads"), ChangedValueLoad.bSuccess))
 	{
 		AddError(ChangedValueLoad.FormatIssues());
@@ -727,8 +717,8 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		const FReEchoCsvLoadResult SmallRadiusLoad = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(
-		    AssembleElementCsvFixture(TEXT("ReactionValueChanged")));
+		const FReEchoCsvLoadResult SmallRadiusLoad =
+		    PublishReactionOverride(TEXT("Y_ER_L_W"), 3.0f, 75.0f, false);
 		if (!TestTrue(TEXT("Small conduct radius fixture loads"), SmallRadiusLoad.bSuccess))
 		{
 			AddError(SmallRadiusLoad.FormatIssues());
@@ -811,8 +801,8 @@ bool FReEchoElementReactionWorldTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		const FReEchoCsvLoadResult EchoEfficiencyLoad = FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(
-		    AssembleElementCsvFixture(TEXT("EchoEfficiencyEnabled")));
+		const FReEchoCsvLoadResult EchoEfficiencyLoad =
+		    PublishReactionOverride(TEXT("Y_ER_F_W"), 0.25f, 150.0f, true);
 		if (!TestTrue(TEXT("Echo efficiency fixture loads"), EchoEfficiencyLoad.bSuccess))
 		{
 			AddError(EchoEfficiencyLoad.FormatIssues());

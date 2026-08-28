@@ -125,7 +125,7 @@ bool FReEchoFoxDirectionRuntimeTest::RunTest(const FString& Parameters)
 	const FVector ViewRight = ViewRotation.GetUnitAxis(EAxis::Y);
 	const FVector ViewUp = ViewRotation.GetUnitAxis(EAxis::Z);
 	const FReEchoCsvLoadResult LoadResult =
-	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	    FReEchoCsvDataRegistry::LoadAndPublishDefault();
 	if (!TestTrue(TEXT("Production enemy CSV loads for Fox Direction"), LoadResult.bSuccess))
 	{
 		AddError(LoadResult.FormatIssues());

@@ -16,7 +16,7 @@
 ## 可修改范围与代码边界
 
 - 策划 AI 可以修改策划电脑能够用现有脚本、配置重载或重启 `ReEcho.uproject` 直接刷新并验证的数据、配置和通过 Unreal Editor 正常保存的策划资产。
-- 可以运行仓库已有的数据同步、校验、导入或作者脚本；`Design/Data/ReEchoData.xlsx` 与其完整生成 CSV 始终作为一个变更单元。不得手改生成 CSV 形成第二事实来源，也不得在 Unreal Editor 外手改 `.uasset` 或 `.umap`。
+- 玩法与音频配置的唯一权威是 `/Game/ReEcho/DataAsset/Gameplay/` 和 `/Game/ReEcho/DataAsset/Audio/` 下的类型化蓝图数据资产。策划可在 Unreal Editor 中修改并保存；重新开始 PIE 或重启项目即可验证，不需要编译 C++，也不需要运行表格同步脚本。不得在 Unreal Editor 外手改 `.uasset` 或 `.umap`。
 - 可以读取和检索 C++、Python、Build 配置、Schema、生成器和验证器以定位已有能力，但策划电脑不能完成程序编译，所以策划 AI **不得修改代码、生成器、Schema、构建配置、插件实现或其他需要程序编译/实现验证的文件**。
 - 现有 `BehaviorId`、`EffectKind`、`FormulaId`、`AttackPatternId` 和外键选项是可选择的契约，不是策划路线发明运行时逻辑的位置。若目标必须新增行为、字段、契约或代码，完成对应 Issue/Request 登记后交给程序，不由策划 AI 补实现。
 

@@ -1,29 +1,5 @@
-# ReEcho XLSX to CSV authoring
+# 数据工具状态
 
-策划配表请先阅读 [`Design/Data/ReEchoData使用说明.md`](../../Design/Data/ReEchoData使用说明.md)。首次拉仓库和正式验收另见 [`Design/Data/ReEchoData策划验收清单.md`](../../Design/Data/ReEchoData策划验收清单.md)。本文只保留生成工具的快速命令。
+Plan 146 起，玩法与音频配置直接在 Unreal Editor 的类型化 DataAsset 中维护。旧 XLSX→CSV 生成、校验和作者脚本已退役；本目录不再提供生产数据同步入口。
 
-Canonical authoring workbooks:
-
-```powershell
-Design\Data\ReEchoData.xlsx
-Design\Data\ReEchoEnemyData.xlsx
-Design\Data\ReEchoEncounterData.xlsx
-```
-
-怪物和 Encounter 分别编辑独立工作簿；说明与验收清单见 `Design/Data/*使用说明.md` 和 `*策划验收清单.md`。统一同步入口会联合验证所有权威工作簿的独立 ExportMap。
-
-Install the locked XLSX dependency once in the Python environment used for repository tooling:
-
-```powershell
-python -m pip install -r scripts\data\requirements.txt
-```
-
-Fixed commands:
-
-```powershell
-python scripts\data\sync_xlsx_to_csv.py
-python scripts\data\sync_xlsx_to_csv.py --check
-python scripts\data\sync_xlsx_to_csv.py --sheet "武器体系W"
-```
-
-Unreal runtime reads only generated UTF-8 CSV under `Content/Data`; it never reads XLSX and never requires Excel, COM, Office, or Codex runtimes.
+数据资产位置与策划操作方式见 [`Content/Data/README.md`](../../Content/Data/README.md)。
