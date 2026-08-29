@@ -68,12 +68,30 @@ G_2_31,G_2_27,2,烈火之心,你或回响施加的【灼烧】持续时间变成
 G_2_32,G_2_28,2,水火不容,每当你或回响对敌方单位造成“汽化”，令其周围的敌人附着水元素,Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
 G_2_33,G_2_29,2,雷鸣之心,每有一个敌方单位受到“导电”，你获得3%伤害增幅，直至本关卡结束,Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
 G_2_34,G_2_30,2,生命虹吸,你的任何生命回复效果，能溢出血量上限，直至最大生命值的30%,Survival|Healing,Brave,Trait,true,true,Unique,None,Approved,
-G_4_1,G_4_1,0,策法爆培嘉,每关结束后，你的时间碎片余额随机+150%或-50%；然后获得30时间碎片,EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_2,G_4_2,0,你觉得这个怎么样,随机获得以下任意数量项效果：1、暴击率+30%；2、物理攻击力+15；3、生命值调整为3,EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_3,G_4_3,0,恋爱小脑,回响接触到敌方单位时，对其造成12点物理伤害；接触到玩家时，为玩家回复6点生命值,EasterEgg|Echo,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_4,G_4_4,0,呕人？哕人？,失去所有时间碎片；每15时间碎片随机获得一项：生命值+1、物攻+1、元攻+1、暴击率+5%、暴击效果+10%、回响效能+5%、元素反应效能+5%；不足15的余数只会失去,EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_5,G_4_5,0,帅气T傥,每0.5秒，令自身4m范围内随机1个敌方单位眩晕1秒；范围内没有敌人时不触发,EasterEgg|Control,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_6,G_4_6,0,“野狗”的荣耀,累计受到55点实际伤害后，随机获得5张尚未拥有的普通卡牌；卡池不足时获得实际剩余数量，只触发一次,EasterEgg|Cards,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_7,G_4_7,0,绝不迟到之人！,玩家与回响造成的物理伤害最终固定为0/10/100/1000/10000，对应概率15%/35%/40%/8%/2%,EasterEgg|Damage|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_8,G_4_8,0,【粥粥】之力,本关获得的时间碎片总量与上一关相比：每多5点，下一关获得量-1%；每少5点，下一关获得量+5%；每关结束重新结算,EasterEgg|Economy,None,EasterEgg,true,true,Unique,None,Approved,
-G_4_9,G_4_9,0,按时上课！,每关结束时，生命值与生命上限+10、元素攻击力+1、物理攻击力+1,EasterEgg|Growth,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_1,G_4_1,0,策法爆培嘉,"每关结束后，你的时间碎片随机+200%或-50%；然后获得50时间碎片
+
+——策划 爆培嘉 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_2,G_4_2,0,你觉得这个怎么样,"随机获得任意数量项效果：1、暴击率+50%；2、物理攻击力+15；3、生命值调整为5
+
+——策划 斑 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_3,G_4_3,0,恋爱小脑,"回响触碰到敌方单位，会对其造成15物理伤害；触碰到你，转而回复10生命值。
+
+——策划 麦麦熊 敬上",EasterEgg|Echo,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_4,G_4_4,0,呕人？哕人？,"失去所有时间碎片。每失去15时间碎片，随机获得一些属性！
+
+——策划 呕乐兮 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_5,G_4_5,0,帅气T傥,"每0.5秒，令身边4m内的随机1名敌人【眩晕】至本关结束
+
+——特别鸣谢 程序 T爷",EasterEgg|Control,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_6,G_4_6,0,“野狗”的荣耀,"你累计承受55伤害后，随机获得5张卡牌
+
+——特别鸣谢 程序 Jo爷",EasterEgg|Cards,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_7,G_4_7,0,绝不迟到之人！,"造成的所有物理伤害，随机被修正为可能带有很多0的数字！
+
+——特别鸣谢 美术 00",EasterEgg|Damage|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_8,G_4_8,0,【粥粥】之力,"你的时间碎片获取方式，被赋予“ELO”机制
+
+——特别鸣谢 美术 子涵",EasterEgg|Economy,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_9,G_4_9,0,按时上课！,"每一关卡结束后，获得15生命值&2元攻&2物攻
+
+——特别鸣谢 美术 雯雯",EasterEgg|Growth,None,EasterEgg,true,true,Unique,None,Approved,
