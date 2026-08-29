@@ -46,4 +46,12 @@
   - 布局写值：`slot.set_editor_property("layout_data", unreal.AnchorData(offsets=unreal.Margin(x,y,w,h), anchors=unreal.Anchors(minimum=Vector2D(0,0), maximum=Vector2D(0,0)), alignment=Vector2D(0,0)))`；再 `slot.set_editor_property("auto_size", False)`。
   - 执行脚本用项目自带 `scripts/ue/Run-EditorPythonLocked.ps1 -ScriptPath <py>`（自带 reecho-locks 互斥锁、自动定位 UE_5.8、用 `-ExecutePythonScript=` + `-NullRHI`）。**不要**自己拼 `UnrealEditor-Cmd` 命令行，也**不要**用 `-run=pythonscript`（参数名错误，正确是 `-ExecutePythonScript=`）。
   - 脚本先 `DRY_RUN=True` 试算（打印坐标与"缺失/复用"判断、写 `_local_backup/layout_plan.txt），确认无越界与误判标签后再设 `False` 应用；应用后务必再跑一次只读复核确认控件真的建出来（防 `BindWidgetOptional` 静默失败）。
+## 2026-08-30（修订）- 结算界面字号/坐标修正的两个致命坑
+
+- 结果：成功（已推送 `merge/cadmanwwang/settlement-stats`）
+- 问题：首次应用后字号没变、文字仍溢出。根因：
+  1. `GetWidgets` 返回的是 `UMGWidgetInfo` 列表，**不是** Widget，也没有 `get_name()`。正确取法是 `info.widget_name`（名字）与 `info.widget`（真实控件）。用 `w.get_name()` 会整个脚本在构建 wmap 时崩溃，导致一个控件都没改（`git status` 不显示 M、mtime 却变，极具迷惑性）。
+  2. 控件命名不统一：v2 新增的 5 项统计控件名是 `{Panel}{Key}Value` / `{Panel}{Key}ValueLabel`（如 `VictoryEchoDamageValue`、`VictoryEchoDamageValueLabel`，**无下划线**）；而 WBP 原有 3 项（Encounter/TraitCount/TimeShards）是 `{Panel}{Key}Label`（如 `VictoryEncounterLabel`）。误写成 `Victory_EchoDamageLabel`（加下划线）会全部 MISSING。
+- 修正：字号标签 18 / 数值 20；标签宽 240、数值宽 170、列间距 10；三列 X=295/755/1215，行 Y 起点 420、行高 52（420/472/524），控件高 40。字体大小字段用 `SlateFontInfo.size`（探测确认 `SIZE_FIELD='size'`）。
+- 验证：`APPLIED=32 MISSING=[]`，抽检验证 6 控件字号与坐标全部正确，已 Compile+Save。
 - 报告交接：本轮为直接修改，未建 Issue/Request 报告。
