@@ -9,6 +9,8 @@ public:
 
 	const FReEchoCardDefinition* Find(FName CardId) const;
 	TArray<FReEchoCardDefinition> GetOfferable(FName OfferGroup, int32 Tier = INDEX_NONE) const;
+	/** All enabled cards, optionally restricted to a tier (ignores offerable/ownership flags). */
+	TArray<FReEchoCardDefinition> GetAll(int32 Tier = INDEX_NONE) const;
 
 	const FString& GetDomainRevision() const
 	{

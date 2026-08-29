@@ -4036,6 +4036,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
 	InventoryShopWidget->OnCardPackRequested.AddUObject(this, &AReEchoGameMode::HandleShopCardPackRequested);
 	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
+	InventoryShopWidget->OnOwnedPartEquipRequested.AddUObject(
+	    this, &AReEchoGameMode::HandleShopOwnedPartEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
@@ -4113,6 +4115,41 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	}
 }
 
+void AReEchoGameMode::HandleShopOwnedPartEquipRequested(const FName PartId, const int32 OccurrenceIndex)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	// 背包重装：从符文背包点选已拥有的配件，只切换装备，不扣钱、不走购买事务。
+	// 独立通道，避免与"重复购买 I 级符文以合成"的购买意图混淆。
+	const bool bWasEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	    [PartId](const FReEchoEquippedPartSnapshot& Part)
+	    {
+		    return Part.PartId == PartId;
+	    });
+	FString EquipError;
+	// Equip into the exact occurrence the player clicked so the twin slot stays untouched.
+	if (!RunSubsystem->TryEquipPurchasedPartAt(PartId, OccurrenceIndex, EquipError))
+	{
+		UE_LOG(LogTemp,
+		       Warning,
+		       TEXT("[ReEchoShop] Owned part '%s' could not be re-equipped: %s"),
+		       *PartId.ToString(),
+		       *EquipError);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	if (!bWasEquipped)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiEquip);
+	}
+	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -4123,7 +4160,9 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	}
 
 	// 背包重装：点击“拥有但未装备”的配件 → 直接重新装备，不扣钱、不走购买防重复。
-	if (RunSubsystem->OwnedPartIds.Contains(ItemId))
+	// 例外：I 级武器符文可以重复购买来合成更高级，必须走真正的购买事务（扣碎片、累计份数、触发合成），
+	// 不能被这里的免费重装分支吞掉。
+	if (!RunSubsystem->IsShopOfferRepeatPurchasable(ItemId) && RunSubsystem->OwnedPartIds.Contains(ItemId))
 	{
 		const bool bWasEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
 		    [ItemId](const FReEchoEquippedPartSnapshot& Part)
@@ -4271,9 +4310,13 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 		return;
 	}
 	ActiveShopCardPackTier = Tier;
+	// Cadence abilities can let this pack hand out two cards; set it before the offers are revealed.
+	TraitCardChoiceWidget->SetSelectableCount(RunSubsystem->GetPaidShopCardPackSelectableCount());
 	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
 	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
+	TraitCardChoiceWidget->OnShopCardChoicesSelected.AddDynamic(
+	    this, &AReEchoGameMode::HandleShopCardChoicesSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleShopCardRefreshRequested);
 	TraitCardChoiceWidget->OnShopChoiceCancelled.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoiceCancelled);
@@ -4289,6 +4332,34 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	                                                *TraitCardChoiceWidget->GetName(),
 	                                                EffectiveChoices.Num(),
 	                                                *FString::Join(CandidateIds, TEXT(","))));
+}
+
+void AReEchoGameMode::HandleShopCardChoicesSelected(const TArray<FName>& ItemIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget || !TraitCardChoiceWidget || ActiveShopCardPackTier <= 0)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	const FReEchoShopPurchaseOutcome Outcome = RunSubsystem->ClaimPaidShopCardChoices(ItemIds);
+	if (!Outcome.IsSuccess())
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Card-pack multi-claim rejected tx=%s tier=%d code=%d detail=%s"),
+		       *Outcome.TransactionId,
+		       ActiveShopCardPackTier,
+		       static_cast<int32>(Outcome.Result),
+		       *Outcome.Detail);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
+		return;
+	}
+	RunSubsystem->SaveRun();
+	// Every pick was already granted inside the claim, so no bonus follow-up choice can be pending here.
+	CloseShopCardChoice(true);
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
 void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
@@ -5708,9 +5779,12 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	SetMusicState(FReEchoAudioEvents::MusicShop);
 	StopAmbienceState();
 
+	// Cadence abilities can let this pack hand out two cards; set it before the offers are revealed.
+	TraitCardChoiceWidget->SetSelectableCount(RunSubsystem->GetPendingTraitCardSelectableCount());
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
 	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
+	TraitCardChoiceWidget->OnCardChoicesSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardsSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleTraitCardRefreshRequested);
 	SetPlayerMenuAbilityBlocked(true);
@@ -5770,6 +5844,87 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	                                                Offers.Num(),
 	                                                RunSubsystem->TimeShards));
 	PostUiEvent(FReEchoAudioEvents::UiPurchase);
+}
+
+void AReEchoGameMode::HandleTraitCardsSelected(const TArray<FName>& CardIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || CardIds.Num() <= 0)
+	{
+		return;
+	}
+	// Cadence ability: every picked card is granted in one transaction, so the pack closes at once and the
+	// phase returns to planning. No deferred follow-up choice is ever opened.
+	const bool bApplied = RunSubsystem->ApplyTraitCards(CardIds);
+	if (!bApplied)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		if (TraitCardChoiceWidget)
+		{
+			TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
+		}
+		return;
+	}
+	RunSubsystem->SaveRun();
+
+	const bool bPlayCardChoiceToShop = ShouldPlayCardChoiceToShopTransition(
+	    RunSubsystem->EncounterIndex, RunSubsystem->Phase, bApplied, bReturnToOpenShopAfterTraitChoice);
+	if (bPlayCardChoiceToShop)
+	{
+		bContinueRunAfterShop = true;
+		if (BeginCardChoiceToShopTransition())
+		{
+			return;
+		}
+	}
+
+	if (TraitCardChoiceWidget)
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		}
+		TraitCardChoiceWidget = nullptr;
+	}
+	if (bReturnToOpenShopAfterTraitChoice)
+	{
+		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+			return;
+		}
+		bReturnToOpenShopAfterTraitChoice = false;
+		if (ArenaCameraActor)
+		{
+			ArenaCameraActor->ResetEncounterCountdownPostProcess();
+		}
+		if (InventoryShopWidget)
+		{
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+				{
+					UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, true);
+				}
+			}
+			SetPlayerMenuAbilityBlocked(true);
+			return;
+		}
+	}
+	ResumeWorldForMenuTransition();
+
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+	}
+	else
+	{
+		bContinueRunAfterShop = true;
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+	}
 }
 
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)

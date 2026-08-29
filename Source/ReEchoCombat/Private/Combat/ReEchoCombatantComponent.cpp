@@ -92,7 +92,17 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	}
 	if (BoundAbilitySystem)
 	{
+		// Initialization overrides health before physical/elemental attack. Suppress that intermediate health
+		// notification: otherwise a health-dependent modifier (Brave's missing-health attack bonus) can be
+		// recorded between those writes, then be overwritten by the later attack override while its map entry
+		// incorrectly still says the bonus is applied. SyncFromAbilitySystem broadcasts once after every base
+		// attribute is final, letting observers restore their persistent state from the committed health value.
+		bDeferHealthNotifications = true;
 		ReEchoGameplayEffects::ApplyInitialization(*BoundAbilitySystem, InStats, bFillHealth);
+		// Keep the bookkeeping aligned with the just-overridden GAS bases even if another observer ran
+		// during initialization. SyncFromAbilitySystem below will rebuild persistent health-dependent bonuses.
+		AdditiveAttackModifiers.Reset();
+		bDeferHealthNotifications = false;
 		SyncFromAbilitySystem();
 		HealthChangeReason = NAME_None;
 		return;

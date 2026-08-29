@@ -30,7 +30,7 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestEqual(TEXT("Boss archetype compiles"), Boss.Archetype, EReEchoEnemyArchetype::Boss);
-	TestEqual(TEXT("Boss health compiles from the one-phase maximum"), Boss.MaxHealth, 1300.0f);
+	TestEqual(TEXT("Boss health compiles from the one-phase maximum"), Boss.MaxHealth, 3000.0f);
 	TestEqual(
 	    TEXT("Boss has five configured behaviors (melee + volley + spread + blink + beam)"), Boss.Abilities.Num(), 5);
 	TestEqual(TEXT("Deterministic rotation starts with the melee basic attack"),
@@ -44,7 +44,7 @@ bool FReEchoEnemyDefinitionCompilerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Phase two refills to its blood-depleted maximum"),
 	          Boss.BossPhases[1].RefillHealthPolicy,
 	          EReEchoBossRefillHealthPolicy::RefillToMaximum);
-	TestEqual(TEXT("Phase two maximum health is the black-form ceiling"), Boss.BossPhases[1].PhaseMaxHealth, 650.0f);
+	TestEqual(TEXT("Phase two maximum health is the black-form ceiling"), Boss.BossPhases[1].PhaseMaxHealth, 2000.0f);
 	UReEchoEnemyLogicComponent* BossLogic = NewObject<UReEchoEnemyLogicComponent>();
 	TestTrue(TEXT("Compiled production Boss definition initializes runtime policy"), BossLogic->Initialize(Boss, 1));
 
