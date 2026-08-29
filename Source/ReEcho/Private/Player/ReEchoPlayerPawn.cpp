@@ -532,9 +532,17 @@ float AReEchoPlayerPawn::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent)
 		       static_cast<int32>(Intent.DamageSource),
 		       static_cast<int32>(Intent.Element));
 	}
+	FName AttackerDefinitionId = NAME_None;
+	if (const AActor* SourceActor = Intent.Attack.Source.Get())
+	{
+		if (const IReEchoCombatTarget* SourceRules = Cast<IReEchoCombatTarget>(SourceActor))
+		{
+			AttackerDefinitionId = SourceRules->GetCombatTargetDefinitionId();
+		}
+	}
 	if (UReEchoRunSubsystem* Run = GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
 	{
-		return Run->ModifyCardIncomingHit(Intent.RawDamage);
+		return Run->ModifyCardIncomingHit(Intent.RawDamage, AttackerDefinitionId);
 	}
 	return Intent.RawDamage;
 }
@@ -926,6 +934,13 @@ void AReEchoPlayerPawn::ActivateSkill()
 
 bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 {
+	// 攻击发起前用当前血量重算“依赖当前血量”的增益（如【勇者】MissingHealthSteps 损血加攻），
+	// 确保加成在每一次攻击都持续生效，直到血量回复到阈值以上。该重算幂等：若 OnHealthChanged
+	// 路径已正确设置，此处为同值重写（SetAdditiveAttackModifier 会因 Delta≈0 跳过），不会叠加。
+	if (Combatant)
+	{
+		HandleCharacterAbilityHealthChanged(Combatant->GetEffectiveCurrentHealth(), Combatant->Stats.HpMax);
+	}
 	const bool bAttacked = Weapon && Weapon->TryBasicAttack(Combatant);
 	if (bAttacked)
 	{
@@ -1028,6 +1043,11 @@ float AReEchoPlayerPawn::GetEffectiveAttackSpeed() const
 
 bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 {
+	// 主动攻击与普攻共用当前生命相关的角色增益，避免勇者在技能攻击时遗漏损血加攻重算。
+	if (Combatant)
+	{
+		HandleCharacterAbilityHealthChanged(Combatant->GetEffectiveCurrentHealth(), Combatant->Stats.HpMax);
+	}
 	if (!Weapon || !Weapon->TryActiveAttack(Combatant))
 	{
 		return false;

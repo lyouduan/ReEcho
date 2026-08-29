@@ -152,18 +152,25 @@ FReEchoShopOffer MakeWeaponPartOffer(const FReEchoCsvPartRow& Part)
 	return Offer;
 }
 
-int32 RecordNormalTraitGroupSelection(const FReEchoCsvDataSnapshot& Snapshot, FReEchoBuildSnapshot& Build)
+int32 RecordNormalTraitGroupSelection(const FReEchoCsvDataSnapshot& Snapshot,
+                                       FReEchoBuildSnapshot& Build,
+                                       const int32 CardPackTier)
 {
+	// Tier-gated cadence abilities (for example the Sage counting only non-tier-1 card packs) must not be
+	// advanced by packs below their configured tier, so those packs leave the counter untouched.
+	if (!ReEchoCharacterAbilityRuntime::DoesCardPackTierAdvanceTraitBonus(Snapshot, Build.CharacterId, CardPackTier))
+	{
+		return 0;
+	}
 	const int32 NormalTraitSelections =
 	    FMath::Max(0, FCString::Atoi(*Build.RuleFlags.FindRef(NormalTraitSelectionsFlag))) + 1;
 	Build.RuleFlags.Add(NormalTraitSelectionsFlag, FString::FromInt(NormalTraitSelections));
-	const int32 NewBonusChoices =
-	    ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoices(Snapshot, Build.CharacterId, NormalTraitSelections);
-	if (NewBonusChoices > 0)
-	{
-		Build.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(NewBonusChoices));
-	}
-	return NewBonusChoices;
+	// Cadence abilities no longer queue a deferred "extra choice". That follow-up state lived in RuleFlags,
+	// survived the encounter boundary, and popped an empty, un-interactable card choice during combat. The
+	// bonus is now granted up front as extra picks inside the qualifying pack itself (see
+	// ResolvePackSelectableCardCount). Clear any legacy value so old saves stop carrying it.
+	Build.RuleFlags.Remove(BonusTraitChoicesRemainingFlag);
+	return 0;
 }
 
 FName MakeShopCardOfferId(const int32 EncounterIndex, const int32 RefreshSequence, const FName CardId)
@@ -1642,6 +1649,65 @@ bool UReEchoRunSubsystem::TryEquipPurchasedPart(const FName PartId, FString& Out
 	return TryEquipParts(DesiredPartIds, OutError);
 }
 
+bool UReEchoRunSubsystem::TryEquipPurchasedPartAt(const FName PartId,
+                                                  const int32 TargetOccurrenceIndex,
+                                                  FString& OutError)
+{
+	// Same validation as TryEquipPurchasedPart, but the new part replaces the entry at the requested
+	// occurrence of its slot type instead of squeezing the oldest one.
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoCsvWeaponRow* Weapon =
+	    Snapshot.IsValid() ? Snapshot->FindEnabledWeapon(CurrentBuild.WeaponId) : nullptr;
+	if (!Snapshot.IsValid() || !Weapon)
+	{
+		OutError = TEXT("Cannot equip purchased part: weapon data is unavailable");
+		return false;
+	}
+	if (!OwnedPartIds.Contains(PartId))
+	{
+		OutError = FString::Printf(TEXT("Cannot equip purchased part: part '%s' is not owned"), *PartId.ToString());
+		return false;
+	}
+	const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(PartId);
+	if (!Part || !IsPartCompatibleWithWeapon(*Snapshot, *Part, *Weapon))
+	{
+		OutError = FString::Printf(TEXT("Cannot equip purchased part: part '%s' is incompatible"), *PartId.ToString());
+		return false;
+	}
+
+	TArray<FName> DesiredPartIds;
+	DesiredPartIds.Reserve(CurrentBuild.EquippedParts.Num() + 1);
+	for (const FReEchoEquippedPartSnapshot& EquippedPart : CurrentBuild.EquippedParts)
+	{
+		DesiredPartIds.Add(EquippedPart.PartId);
+	}
+	if (DesiredPartIds.Contains(PartId))
+	{
+		return true;
+	}
+
+	// Collect the equipped entries of the same slot type in order; occurrence N maps to the Nth of them.
+	TArray<int32> SameSlotIndices;
+	for (int32 Index = 0; Index < DesiredPartIds.Num(); ++Index)
+	{
+		const FReEchoCsvPartRow* EquippedRow = Snapshot->Parts.Find(DesiredPartIds[Index]);
+		if (EquippedRow && EquippedRow->SlotTypeId == Part->SlotTypeId)
+		{
+			SameSlotIndices.Add(Index);
+		}
+	}
+	if (SameSlotIndices.IsValidIndex(TargetOccurrenceIndex))
+	{
+		DesiredPartIds[SameSlotIndices[TargetOccurrenceIndex]] = PartId;
+	}
+	else
+	{
+		// That occurrence is still empty, so the slot is free: just take it.
+		DesiredPartIds.Add(PartId);
+	}
+	return TryEquipParts(DesiredPartIds, OutError);
+}
+
 bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& OutError)
 {
 	if (WeaponId.IsNone() || !OwnedWeaponIds.Contains(WeaponId))
@@ -1694,6 +1760,27 @@ TArray<FReEchoShopOffer> UReEchoRunSubsystem::GetOwnedBuildCardView() const
 		}
 	}
 	return OwnedCards;
+}
+
+namespace
+{
+	int32 GetRuneTierFromPartId(FName PartId)
+	{
+		const FString S = PartId.ToString();
+		if (S.EndsWith(TEXT("_III"))) return 3;
+		if (S.EndsWith(TEXT("_II"))) return 2;
+		if (S.EndsWith(TEXT("_I"))) return 1;
+		return 0;
+	}
+
+	FName GetRuneFamilyFromPartId(FName PartId)
+	{
+		const FString S = PartId.ToString();
+		if (S.EndsWith(TEXT("_III"))) return FName(*S.LeftChop(4));
+		if (S.EndsWith(TEXT("_II"))) return FName(*S.LeftChop(3));
+		if (S.EndsWith(TEXT("_I"))) return FName(*S.LeftChop(2));
+		return PartId;
+	}
 }
 
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
@@ -1814,8 +1901,42 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 	{
 		EquippedPartIds.Add(Eq.PartId);
 	}
+	// Rune upgrade context: families that participate in I->II->III synthesis, and each family's highest tier.
+	TSet<FName> UpgradeFamilies;
+	TMap<FName, FName> FamilyMaxTierPart; // family -> terminal (highest) tier part id
+	if (Snapshot->RuneUpgrades.Num() > 0)
+	{
+		TSet<FName> FromParts;
+		for (const TPair<FName, FReEchoCsvRuneUpgradeRow>& Pair : Snapshot->RuneUpgrades)
+		{
+			UpgradeFamilies.Add(GetRuneFamilyFromPartId(Pair.Key));
+			FromParts.Add(Pair.Key);
+		}
+		for (const TPair<FName, FReEchoCsvRuneUpgradeRow>& Pair : Snapshot->RuneUpgrades)
+		{
+			// A ToPartId that is never a FromPartId is the highest tier of its family.
+			if (!FromParts.Contains(Pair.Value.ToPartId))
+			{
+				FamilyMaxTierPart.FindOrAdd(GetRuneFamilyFromPartId(Pair.Value.ToPartId)) = Pair.Value.ToPartId;
+			}
+		}
+	}
+	const auto IsRuneTierIPart = [&](const FName& PartId) -> bool
+	{
+		return UpgradeFamilies.Contains(GetRuneFamilyFromPartId(PartId)) && GetRuneTierFromPartId(PartId) == 1;
+	};
+	const auto OwnsFamilyMaxTier = [&](const FName& PartId) -> bool
+	{
+		const FName* MaxPart = FamilyMaxTierPart.Find(GetRuneFamilyFromPartId(PartId));
+		return MaxPart && (OwnedPartIds.Contains(*MaxPart) || EquippedPartIds.Contains(*MaxPart));
+	};
 	const auto IsPartExcluded = [&](const FName& PartId) -> bool
 	{
+		// Tier-I runes keep refreshing in the shop even after the player owns them (repeat-purchase to upgrade).
+		if (IsRuneTierIPart(PartId))
+		{
+			return false;
+		}
 		return OwnedPartIds.Contains(PartId) || EquippedPartIds.Contains(PartId) || InventoryItems.Contains(PartId);
 	};
 	const auto IsPartCompatible = [&](const FReEchoCsvPartRow& Part) -> bool
@@ -1833,6 +1954,20 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		if (!Part.bShopEnabled)
 		{
 			continue;
+		}
+		// Rune-upgrade parts: only the tier-I version is ever sold; higher tiers come from synthesis.
+		// Once the player owns the highest tier of a family, stop offering its tier-I version.
+		const FName Family = GetRuneFamilyFromPartId(Part.Id);
+		if (UpgradeFamilies.Contains(Family))
+		{
+			if (GetRuneTierFromPartId(Part.Id) != 1)
+			{
+				continue; // II/III never appear in the shop
+			}
+			if (OwnsFamilyMaxTier(Part.Id))
+			{
+				continue; // highest tier owned -> stop refreshing tier I
+			}
 		}
 		if (Part.WeaponTypeId.IsNone() || Part.WeaponTypeId == TEXT("Any"))
 		{
@@ -1938,42 +2073,44 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		WeaponPartShopOfferEncounterIndex = EncounterIndex;
 		WeaponPartShopOfferRefreshSequence = WeaponPartRefreshSequence;
 		WeaponPartShopOfferIds.Init(NAME_None, ReEchoShopOfferCountPerGroup);
+		// A regenerated page may offer runes again; only the current page tracks what was already bought.
+		PurchasedWeaponPartOfferIds.Reset();
 
-		// Slot 0: universal rune (deterministic by seed).
-		FRandomStream Slot0Rand(BuildShopOfferSeed(RunSeed, View.WeaponId, EncounterIndex, WeaponPartRefreshSequence));
-		if (const FReEchoCsvPartRow* Chosen = PickPart(UniversalRuneCandidates, Slot0Rand))
+		// Weighted pick with fallbacks. Both weapon-rune slots (middle slot 1 and right slot 2) use
+		// 90/5/5 per v1.1:
+		//   90% current weapon's runes (excluding universal), 5% a whole other weapon,
+		//   5% another weapon's runes.
+		// Reused as the universal-slot fallback (tracks the same distribution) once every universal
+		// rune has already been bought.
+		const auto PickWeightedSlotId = [&](FRandomStream& Rand,
+		                                    float CurrentRuneChance,
+		                                    float OtherWeaponChance) -> FName
 		{
-			WeaponPartShopOfferIds[0] = Chosen->Id;
-		}
-
-		// Slots 1 & 2: weighted 70/15/15 with fallbacks. Remove each result so one page never duplicates an item.
-		FRandomStream SlotRand(
-		    BuildShopOfferSeed(RunSeed, TEXT("SHOP_SLOTS"), EncounterIndex, WeaponPartRefreshSequence));
-		for (int32 SlotIndex = 1; SlotIndex <= 2; ++SlotIndex)
+			const float Roll = Rand.GetFraction();
+			if (Roll < CurrentRuneChance && CurrentWeaponRuneCandidates.Num() > 0)
+			{
+				return PickPart(CurrentWeaponRuneCandidates, Rand)->Id;
+			}
+			if (Roll < CurrentRuneChance + OtherWeaponChance && OtherWeaponCandidates.Num() > 0)
+			{
+				return PickWeapon(OtherWeaponCandidates, Rand)->Id;
+			}
+			if (OtherWeaponRuneCandidates.Num() > 0)
+			{
+				return PickPart(OtherWeaponRuneCandidates, Rand)->Id;
+			}
+			if (CurrentWeaponRuneCandidates.Num() > 0)
+			{
+				return PickPart(CurrentWeaponRuneCandidates, Rand)->Id;
+			}
+			if (OtherWeaponCandidates.Num() > 0)
+			{
+				return PickWeapon(OtherWeaponCandidates, Rand)->Id;
+			}
+			return NAME_None;
+		};
+		const auto ConsumeChosenId = [&](const FName ChosenId)
 		{
-			const float Roll = SlotRand.GetFraction();
-			FName ChosenId = NAME_None;
-			if (Roll < 0.70f && CurrentWeaponRuneCandidates.Num() > 0)
-			{
-				ChosenId = PickPart(CurrentWeaponRuneCandidates, SlotRand)->Id;
-			}
-			else if (Roll < 0.85f && OtherWeaponCandidates.Num() > 0)
-			{
-				ChosenId = PickWeapon(OtherWeaponCandidates, SlotRand)->Id;
-			}
-			else if (OtherWeaponRuneCandidates.Num() > 0)
-			{
-				ChosenId = PickPart(OtherWeaponRuneCandidates, SlotRand)->Id;
-			}
-			else if (CurrentWeaponRuneCandidates.Num() > 0)
-			{
-				ChosenId = PickPart(CurrentWeaponRuneCandidates, SlotRand)->Id;
-			}
-			else if (OtherWeaponCandidates.Num() > 0)
-			{
-				ChosenId = PickWeapon(OtherWeaponCandidates, SlotRand)->Id;
-			}
-			WeaponPartShopOfferIds[SlotIndex] = ChosenId;
 			CurrentWeaponRuneCandidates.RemoveAll(
 			    [&](const FReEchoCsvPartRow* Candidate)
 			    {
@@ -1989,12 +2126,42 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 			    {
 				    return Candidate && Candidate->Id == ChosenId;
 			    });
+		};
+
+		// Slot 0: universal rune (deterministic by seed).
+		FRandomStream Slot0Rand(BuildShopOfferSeed(RunSeed, View.WeaponId, EncounterIndex, WeaponPartRefreshSequence));
+		if (const FReEchoCsvPartRow* Chosen = PickPart(UniversalRuneCandidates, Slot0Rand))
+		{
+			WeaponPartShopOfferIds[0] = Chosen->Id;
+		}
+		else if (UniversalRuneCandidates.Num() == 0)
+		{
+			// Every universal rune is already owned: the slot keeps selling, but switches to the same
+			// weighted logic the middle slot uses instead of going empty.
+			WeaponPartShopOfferIds[0] = PickWeightedSlotId(Slot0Rand, 0.90f, 0.05f);
+			ConsumeChosenId(WeaponPartShopOfferIds[0]);
+		}
+
+		// Slots 1 & 2: weighted 90/5/5 pick with fallbacks (v1.1) — both the middle and right
+		// weapon-rune slots. Remove each result so one page never duplicates an item.
+		FRandomStream SlotRand(
+		    BuildShopOfferSeed(RunSeed, TEXT("SHOP_SLOTS"), EncounterIndex, WeaponPartRefreshSequence));
+		for (int32 SlotIndex = 1; SlotIndex <= 2; ++SlotIndex)
+		{
+			const FName ChosenId = PickWeightedSlotId(SlotRand, 0.90f, 0.05f);
+			WeaponPartShopOfferIds[SlotIndex] = ChosenId;
+			ConsumeChosenId(ChosenId);
 		}
 	}
 
 	for (int32 SlotIndex = 0; SlotIndex < WeaponPartShopOfferIds.Num(); ++SlotIndex)
 	{
 		const FName OfferId = WeaponPartShopOfferIds[SlotIndex];
+		if (PurchasedWeaponPartOfferIds.Contains(OfferId))
+		{
+			// Already bought on this page: leave the slot empty so the purchase feels consumed.
+			continue;
+		}
 		if (const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(OfferId))
 		{
 			View.SlotOffers[SlotIndex] = MakePartSlotOffer(*Part);
@@ -2010,7 +2177,12 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 			const bool bOwned = ProjectedOffer.Kind == EReEchoShopOfferKind::Weapon
 			                        ? OwnedWeaponIds.Contains(ProjectedOffer.WeaponId)
 			                        : OwnedPartIds.Contains(ProjectedOffer.PartId);
-			ProjectedOffer.bCanPurchase = !bOwned && CanPayShopCost(ProjectedOffer.EffectivePrice);
+			// A tier-I rune stays purchasable while already owned: repeat purchases are the only way to
+			// gather the copies that I->II->III synthesis consumes.
+			ProjectedOffer.bRepeatPurchasable =
+			    ProjectedOffer.Kind == EReEchoShopOfferKind::Part && IsRuneTierIPart(ProjectedOffer.PartId);
+			ProjectedOffer.bCanPurchase =
+			    (!bOwned || ProjectedOffer.bRepeatPurchasable) && CanPayShopCost(ProjectedOffer.EffectivePrice);
 		}
 	}
 
@@ -2031,20 +2203,23 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		// Card packs no longer share the weapon/rune refresh sequence. Their initial page is stable for the encounter;
 		// only TryRefreshShopCardSlot may replace one indexed candidate.
 		constexpr int32 RefreshSequence = 0;
-		// Build-card shop: fixed [Tier1, Tier2, Tier3] packs. ShopTiers only enables matching packs.
+		// Build-card shop: fixed [Tier1, Tier2, Tier3] packs. ShopTiers enables matching packs with optional counts (Tier:Count).
 		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
-			TSet<int32> ConfiguredCardTiers;
+			TMap<int32, int32> ConfiguredCardTierQuantities; // tier -> remaining purchase count
 			if (!DropLevel->ShopTiers.IsEmpty())
 			{
 				TArray<FString> TierTokens;
 				DropLevel->ShopTiers.ParseIntoArray(TierTokens, TEXT("|"));
 				for (const FString& Tok : TierTokens)
 				{
-					const int32 Tier = FCString::Atoi(*Tok);
-					if (Tier >= 1 && Tier <= ReEchoShopOfferCountPerGroup)
+					TArray<FString> Parts;
+					Tok.ParseIntoArray(Parts, TEXT(":"));
+					const int32 Tier = FCString::Atoi(*(Parts.Num() > 0 ? Parts[0] : Tok));
+					const int32 Count = Parts.Num() > 1 ? FCString::Atoi(*Parts[1]) : 1;
+					if (Tier >= 1 && Tier <= ReEchoShopOfferCountPerGroup && Count > 0)
 					{
-						ConfiguredCardTiers.Add(Tier);
+						ConfiguredCardTierQuantities.Add(Tier, Count);
 					}
 				}
 			}
@@ -2069,7 +2244,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					{
 						return false;
 					}
-					if (!ConfiguredCardTiers.Contains(Tier))
+					if (!ConfiguredCardTierQuantities.Contains(Tier))
 					{
 						if (!Pack.CandidateCardIds.IsEmpty() || Pack.bPaymentCommitted || Pack.bPurchased)
 						{
@@ -2134,10 +2309,13 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					Pack.BasePrice = 0;
 					Pack.bPaymentCommitted = false;
 					Pack.bPurchased = false;
-					if (!ConfiguredCardTiers.Contains(Tier))
+					Pack.RemainingPurchases = 0;
+					Pack.ClaimCount = 0;
+					if (!ConfiguredCardTierQuantities.Contains(Tier))
 					{
 						continue;
 					}
+					Pack.RemainingPurchases = ConfiguredCardTierQuantities[Tier];
 					for (int32 CandidateIndex = 0; CandidateIndex < ReEchoShopOfferCountPerGroup; ++CandidateIndex)
 					{
 						const FName SlotSeedKey(
@@ -2179,7 +2357,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				const int32 Tier = PackIndex + 1;
 				FReEchoShopCardPackRuntimeState& Pack = CardRuntime.ShopCardPackStates[PackIndex];
 				CardPack.ItemId = MakeShopCardPackOfferId(EncounterIndex, RefreshSequence, Tier);
-				if (!ConfiguredCardTiers.Contains(Tier))
+				if (!ConfiguredCardTierQuantities.Contains(Tier))
 				{
 					continue;
 				}
@@ -2198,12 +2376,43 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				}
 				CardPack.Price = Pack.BasePrice;
 				CardPack.EffectivePrice = GetDiscountedShopPrice(CardPack.Price);
+				const bool bHasRemaining = Pack.RemainingPurchases > 0;
+				CardPack.RemainingPurchases = Pack.RemainingPurchases;
+				CardPack.TotalPurchases = ConfiguredCardTierQuantities.Contains(Tier)
+				                              ? ConfiguredCardTierQuantities[Tier]
+				                              : (bHasRemaining ? 1 : 0);
 				CardPack.Status = Pack.bPurchased          ? EReEchoShopCardPackStatus::Purchased
 				                  : Pack.bPaymentCommitted ? EReEchoShopCardPackStatus::PaidPendingChoice
-				                                           : EReEchoShopCardPackStatus::Available;
-				CardPack.StatusText = Pack.bPurchased          ? NSLOCTEXT("ReEcho", "ShopCardPackPurchased", "已购")
-				                      : Pack.bPaymentCommitted ? NSLOCTEXT("ReEcho", "ShopCardPackPending", "待选卡")
-				                                               : NSLOCTEXT("ReEcho", "ShopCardPackAvailable", "可购买");
+				                  : bHasRemaining           ? EReEchoShopCardPackStatus::Available
+				                                           : EReEchoShopCardPackStatus::SoldOut;
+				if (Pack.bPurchased)
+				{
+					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackPurchased", "已购");
+				}
+				else if (Pack.bPaymentCommitted)
+				{
+					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackPending", "待选卡");
+				}
+				else if (bHasRemaining)
+				{
+					const int32 TotalQty = ConfiguredCardTierQuantities.Contains(Tier)
+					                       ? ConfiguredCardTierQuantities[Tier] : 1;
+					if (TotalQty > 1)
+					{
+						CardPack.StatusText = FText::Format(
+						    NSLOCTEXT("ReEcho", "ShopCardPackAvailableCount", "可购买 ({0}/{1})"),
+						    FText::AsNumber(TotalQty - Pack.RemainingPurchases + 1),
+						    FText::AsNumber(TotalQty));
+					}
+					else
+					{
+						CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackAvailable", "可购买");
+					}
+				}
+				else
+				{
+					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackSoldOut", "售罄");
+				}
 				for (int32 CandidateIndex = 0; CandidateIndex < Pack.CandidateCardIds.Num(); ++CandidateIndex)
 				{
 					const FName CardId = Pack.CandidateCardIds[CandidateIndex];
@@ -2238,24 +2447,9 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 						Choice.RemainingRefreshes =
 						    FMath::Max(0, RefreshRule->CardSlotRefreshLimit - SlotRefreshSequence);
 						Choice.RefreshCost = RefreshRule->CardSlotRefreshCost;
-						if (Choice.RemainingRefreshes > 0 && !GetCardRules().bDisableShopRefresh &&
-						    TimeShards >= Choice.RefreshCost)
-						{
-							const FName PreviewSeedKey(
-							    *FString::Printf(TEXT("SHOP_CARD_TIER_%d_SLOT_%d_PREVIEW"), Tier, CandidateIndex));
-							Choice.bCanRefresh = !SelectCardForOfferSlot(
-							                          *Snapshot->CardCatalog,
-							                          CurrentBuild.CardState,
-							                          Tier,
-							                          EncounterIndex,
-							                          Pack.OfferHistoryCardIds,
-							                          BuildShopOfferSeed(RunSeed,
-							                                             PreviewSeedKey,
-							                                             EncounterIndex,
-							                                             SlotRefreshSequence + 1),
-							                          true)
-							                          .IsNone();
-						}
+					// 只要还有刷新次数、未被全局禁用、且碎片足够，按钮即可用；替换卡在点击时再校验。
+					Choice.bCanRefresh = Choice.RemainingRefreshes > 0 && !GetCardRules().bDisableShopRefresh &&
+					                     TimeShards >= Choice.RefreshCost;
 					}
 					CardPack.Choices.Add(MoveTemp(Choice));
 				}
@@ -2288,6 +2482,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		Offer.Price = Slot.Price;
 		Offer.EffectivePrice = Slot.EffectivePrice;
 		Offer.bCanPurchase = Slot.bCanPurchase;
+		Offer.bRepeatPurchasable = Slot.bRepeatPurchasable;
 		Offer.SlotTypeId = Slot.SlotTypeId;
 		Offer.WeaponTypeId = Slot.WeaponTypeId;
 		Offer.Type = (Slot.Kind == EReEchoShopOfferKind::Weapon) ? EReEchoShopOfferType::Weapon
@@ -2568,24 +2763,16 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 			}
 			FReEchoTraitCardOffer Offer = MakeTraitOffer(*Card, FreeTier);
 			Offer.SlotIndex = SlotIndex;
-			if (RefreshRule)
-			{
-				const int32 Uses = PendingTraitCardRefreshUses[SlotIndex];
-				Offer.RemainingRefreshes = FMath::Max(0, RefreshRule->CardSlotRefreshLimit - Uses);
-				Offer.RefreshCost = RefreshRule->CardSlotRefreshCost;
-				uint32 PreviewSeed = HashCombine(GetTypeHash(TraitOfferSeed), GetTypeHash(EncounterIndex));
-				PreviewSeed = HashCombine(PreviewSeed, GetTypeHash(SlotIndex));
-				PreviewSeed = HashCombine(PreviewSeed, GetTypeHash(Uses + 1));
-				const FName PreviewReplacement = SelectCardForOfferSlot(*Snapshot->CardCatalog,
-				                                                           CurrentBuild.CardState,
-				                                                           FreeTier,
-				                                                           EncounterIndex,
-				                                                           PendingTraitCardOfferHistoryIds,
-				                                                           static_cast<int32>(PreviewSeed),
-				                                                           true);
-				Offer.bCanRefresh = Uses < RefreshRule->CardSlotRefreshLimit && !GetCardRules().bDisableShopRefresh &&
-				                    TimeShards >= Offer.RefreshCost && !PreviewReplacement.IsNone();
-			}
+		if (RefreshRule)
+		{
+			const int32 Uses = PendingTraitCardRefreshUses[SlotIndex];
+			Offer.RemainingRefreshes = FMath::Max(0, RefreshRule->CardSlotRefreshLimit - Uses);
+			Offer.RefreshCost = RefreshRule->CardSlotRefreshCost;
+			// 只要还有刷新次数、未被全局禁用、且碎片足够，按钮即可用；具体替换卡在点击时再校验，
+			// 不再要求“当前已存在未拥有的替换卡”，避免玩家仍有碎片却被错误置灰。
+			Offer.bCanRefresh = Uses < RefreshRule->CardSlotRefreshLimit && !GetCardRules().bDisableShopRefresh &&
+			                    TimeShards >= Offer.RefreshCost;
+		}
 			Projected.Add(MoveTemp(Offer));
 		}
 		return Projected;
@@ -2629,12 +2816,15 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	}
 	TArray<FReEchoTraitCardOffer> Result;
 	Result.Reserve(RequestedCount);
+	// Generate one mutually compatible offer set. For Sage's 3-choose-2 cadence, each subsequently selected
+	// candidate is simulated as owned so conflicting cards never appear together and every displayed pair is valid.
+	FReEchoCardBuildState CandidateState = CurrentBuild.CardState;
 	for (int32 OfferIndex = 0; OfferIndex < RequestedCount; ++OfferIndex)
 	{
 		uint32 Seed = GetTypeHash(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
 		Seed = HashCombine(Seed, GetTypeHash(OfferIndex));
 		const FName SelectedCardId = SelectCardForOfferSlot(*Snapshot->CardCatalog,
-		                                                     CurrentBuild.CardState,
+		                                                     CandidateState,
 		                                                     FreeTier,
 		                                                     EncounterIndex,
 		                                                     PendingTraitCardOfferHistoryIds,
@@ -2652,6 +2842,7 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 			return {};
 		}
 		Result.Add(MakeTraitOffer(*Selected, FreeTier));
+		CandidateState.OwnedCardIds.Add(SelectedCardId);
 		PendingTraitCardOfferHistoryIds.Add(SelectedCardId);
 	}
 
@@ -2662,6 +2853,10 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	}
 	PendingTraitCardRefreshUses.Init(0, PendingTraitCardIds.Num());
 	PendingTraitCardOfferEncounterIndex = EncounterIndex;
+	// Cadence abilities (for example the Sage) can let this pack hand out more than one card, turning the
+	// usual 3-choose-1 into 3-choose-2. Resolved here so the choice screen knows how many picks to require.
+	PendingTraitCardSelectableCount = FMath::Max(1, ResolvePackSelectableCardCount(FreeTier));
+	PendingTraitCardPicksRemaining = PendingTraitCardSelectableCount;
 	return ProjectPendingOffers();
 }
 
@@ -2711,7 +2906,7 @@ bool UReEchoRunSubsystem::TryRefreshTraitCardSlot(const int32 SlotIndex, FString
 	                                                        EncounterIndex,
 	                                                        PendingTraitCardOfferHistoryIds,
 	                                                        static_cast<int32>(Seed),
-	                                                        true);
+	                                                        false);
 	if (ReplacementCardId.IsNone())
 	{
 		OutError = TEXT("No legal unowned same-tier or Easter post-encounter replacement remains");
@@ -2738,7 +2933,10 @@ bool UReEchoRunSubsystem::TryRefreshTraitCardSlot(const int32 SlotIndex, FString
 
 bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 {
-	if (Phase != EReEchoRunPhase::CardChoice || !PendingTraitCardIds.Contains(CardId))
+	// A cadence pack must be resolved as one exact multi-card transaction; a single-card callback may not
+	// silently close an outstanding two-card choice.
+	if (Phase != EReEchoRunPhase::CardChoice || PendingTraitCardPicksRemaining != 1 ||
+	    !PendingTraitCardIds.Contains(CardId))
 	{
 		return false;
 	}
@@ -2749,10 +2947,6 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		return false;
 	}
 
-	const int32 ExistingBonusChoices =
-	    FMath::Max(0, FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(BonusTraitChoicesRemainingFlag)));
-	const bool bApplyingBonusChoice = ExistingBonusChoices > 0;
-	bool bContinueBonusChoices = false;
 	int32 PendingTimeShards = TimeShards;
 	bool bPendingClearWeaponRunes = false;
 	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
@@ -2784,21 +2978,114 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        {
 			        BaseBuild.EquippedParts.Reset();
 		        }
-		        if (bApplyingBonusChoice)
+	        // The post-encounter card pack is tiered the same way shop packs are (shop_drop_levels FreeTier),
+	        // so feed its tier into the cadence counter; INDEX_NONE means no pack was dropped this encounter.
+	        // A pack that owes several picks (cadence ability) is counted once, when the last pick lands.
+	        if (PendingTraitCardPicksRemaining <= 1)
+	        {
+		        RecordNormalTraitGroupSelection(*Snapshot, BaseBuild, ResolveConfiguredFreeTraitTier());
+	        }
+	        return true;
+        },
+        PendingBuild))
+	{
+		return false;
+	}
+	const int32 PreviousTimeShards = TimeShards;
+	CurrentBuild = PendingBuild;
+	ApplyProjectedCardCurrency(PreviousTimeShards, PendingTimeShards);
+	if (bPendingClearWeaponRunes)
+	{
+		OwnedPartIds.Reset();
+	}
+	ReevaluateCoreCollectionCard();
+	// NOTE: the pack is closed unconditionally for now. Keeping it open for a second pick requires the
+	// choice screen to be reopened by the UI flow; without that the run would sit in the card-choice phase
+	// with no interactive screen, which is exactly the mid-combat pop-up bug. Enable together with the
+	// multi-select choice screen.
+	PendingTraitCardPicksRemaining = 1;
+	PendingTraitCardIds.Reset();
+	PendingTraitCardOfferHistoryIds.Reset();
+	PendingTraitCardRefreshUses.Reset();
+	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
+	// Always return to planning: cadence bonuses are resolved inside the pack, never as a deferred choice.
+	SetPhase(EReEchoRunPhase::Planning);
+	ReEchoBuildTrace::LogSnapshot(TEXT("FreeCardGranted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("card=%s"), *CardId.ToString()));
+	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
+	return true;
+}
+
+bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
+{
+	// Cadence abilities (the Sage) can let a pack hand out two cards. Both are granted inside one
+	// authoritative mutation so the pack closes once, the phase returns to planning once, and the run can
+	// never be stranded in the card-choice phase without a screen.
+	if (Phase != EReEchoRunPhase::CardChoice || CardIds.Num() != PendingTraitCardPicksRemaining)
+	{
+		return false;
+	}
+	TSet<FName> UniqueCardIds;
+	for (const FName& CardId : CardIds)
+	{
+		if (CardId.IsNone() || UniqueCardIds.Contains(CardId))
+		{
+			return false;
+		}
+		UniqueCardIds.Add(CardId);
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return false;
+	}
+	for (const FName& CardId : CardIds)
+	{
+		if (!PendingTraitCardIds.Contains(CardId) || !Snapshot->CardCatalog->Find(CardId))
+		{
+			return false;
+		}
+	}
+
+	int32 PendingTimeShards = TimeShards;
+	bool bPendingClearWeaponRunes = false;
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
+	FReEchoBuildSnapshot PendingBuild;
+	if (!TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& BaseBuild)
+	        {
+		        for (const FName& CardId : CardIds)
 		        {
-			        const int32 Remaining = ExistingBonusChoices - 1;
-			        bContinueBonusChoices = Remaining > 0;
-			        if (bContinueBonusChoices)
+			        FReEchoCardGrantInput Input;
+			        Input.Stats = BaseBuild.Stats;
+			        Input.CardState = BaseBuild.CardState;
+			        Input.TimeShards = PendingTimeShards;
+			        Input.EncounterIndex = EncounterIndex;
+			        Input.RandomSeed =
+			            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
+			        const FReEchoCardGrantResult Grant =
+			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
+			        if (!Grant.bSucceeded)
 			        {
-				        BaseBuild.RuleFlags.Add(BonusTraitChoicesRemainingFlag, FString::FromInt(Remaining));
+				        return false;
 			        }
-			        else
+			        BaseBuild.Stats = Grant.Stats;
+			        BaseBuild.CardState = Grant.CardState;
+			        PendingHealthAdjustment = Grant.HealthAdjustment;
+			        PendingTimeShards = Grant.TimeShards;
+			        if (Grant.bClearWeaponRunes)
 			        {
-				        BaseBuild.RuleFlags.Remove(BonusTraitChoicesRemainingFlag);
+				        bPendingClearWeaponRunes = true;
+				        BaseBuild.EquippedParts.Reset();
 			        }
-			        return true;
 		        }
-		        bContinueBonusChoices = RecordNormalTraitGroupSelection(*Snapshot, BaseBuild) > 0;
+		        // One pack, one cadence step, regardless of how many cards it yields.
+		        RecordNormalTraitGroupSelection(*Snapshot, BaseBuild, ResolveConfiguredFreeTraitTier());
 		        return true;
 	        },
 	        PendingBuild))
@@ -2813,18 +3100,27 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		OwnedPartIds.Reset();
 	}
 	ReevaluateCoreCollectionCard();
+	PendingTraitCardPicksRemaining = 1;
 	PendingTraitCardIds.Reset();
 	PendingTraitCardOfferHistoryIds.Reset();
 	PendingTraitCardRefreshUses.Reset();
 	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
-	SetPhase(bContinueBonusChoices ? EReEchoRunPhase::CardChoice : EReEchoRunPhase::Planning);
-	ReEchoBuildTrace::LogSnapshot(TEXT("FreeCardGranted"),
+	SetPhase(EReEchoRunPhase::Planning);
+	ReEchoBuildTrace::LogSnapshot(TEXT("FreeCardsGranted"),
 	                              EncounterIndex,
 	                              Phase,
 	                              CurrentBuild,
-	                              FString::Printf(TEXT("card=%s"), *CardId.ToString()));
+	                              FString::Printf(TEXT("count=%d"), CardIds.Num()));
 	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
 	return true;
+}
+
+void UReEchoRunSubsystem::ResetPendingTraitCardChoice()
+{
+	PendingTraitCardIds.Reset();
+	PendingTraitCardOfferHistoryIds.Reset();
+	PendingTraitCardRefreshUses.Reset();
+	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
 }
 
 bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
@@ -3003,7 +3299,7 @@ void UReEchoRunSubsystem::ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
 	}
 }
 
-float UReEchoRunSubsystem::ModifyCardIncomingHit(const float RawDamage)
+float UReEchoRunSubsystem::ModifyCardIncomingHit(const float RawDamage, const FName AttackerDefinitionId)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
@@ -3011,7 +3307,7 @@ float UReEchoRunSubsystem::ModifyCardIncomingHit(const float RawDamage)
 		return RawDamage;
 	}
 	const FReEchoCardIncomingHitResult Result =
-	    ReEchoCardRuntime::ModifyIncomingHit(*Snapshot->CardCatalog, CurrentBuild.CardState, RawDamage, TimeShards);
+	    ReEchoCardRuntime::ModifyIncomingHit(*Snapshot->CardCatalog, CurrentBuild.CardState, RawDamage, TimeShards, AttackerDefinitionId);
 	CurrentBuild.CardState = Result.CardState;
 	TimeShards = Result.TimeShards;
 	bPendingCardEchoRemoval |= Result.bRemoveAllEchoes;
@@ -3421,7 +3717,7 @@ bool UReEchoRunSubsystem::TryRefreshShopCardSlot(const int32 Tier, const int32 S
 	    EncounterIndex,
 	    Pack.OfferHistoryCardIds,
 	    BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, NextSequence),
-	    true);
+	    false);
 	if (ReplacementCardId.IsNone())
 	{
 		OutError = TEXT("No legal unowned same-tier or Easter replacement remains");
@@ -3531,7 +3827,8 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 			        return false;
 		        }
 		        FReEchoShopCardPackRuntimeState& Pack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
-		        if (Pack.Tier != Tier || Pack.bPaymentCommitted || Pack.bPurchased || Pack.CandidateCardIds.IsEmpty())
+		        if (Pack.Tier != Tier || Pack.bPaymentCommitted || Pack.bPurchased ||
+		            Pack.RemainingPurchases <= 0 || Pack.CandidateCardIds.IsEmpty())
 		        {
 			        MutationDetail = TEXT("The card pack payment state changed before commit");
 			        return false;
@@ -3549,9 +3846,223 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	}
 	CurrentBuild = MoveTemp(PendingBuild);
 	CommitShopCost(EffectivePrice);
+	// Decide how many cards this pack hands out. A cadence ability (Sage) can raise it to two, which turns
+	// the usual 3-choose-1 into 3-choose-2. Resolved at payment so the choice screen can require both picks.
+	for (FReEchoShopCardPackRuntimeState& Pack : CurrentBuild.CardState.Runtime.ShopCardPackStates)
+	{
+		if (Pack.Tier == Tier && Pack.bPaymentCommitted)
+		{
+			Pack.SelectableCardCount = FMath::Max(1, ResolvePackSelectableCardCount(Tier));
+			Pack.PicksRemaining = Pack.SelectableCardCount;
+		}
+	}
 	ReEchoBuildTrace::LogSnapshot(
 	    TEXT("ShopCardPackPaid"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("tier=%d"), Tier));
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
+}
+
+FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const TArray<FName>& ItemIds)
+{
+	// Cadence abilities (the Sage) can let a paid pack hand out two cards. Both are granted inside one
+	// authoritative mutation so the pack closes once, the cadence counter advances once, and the run can
+	// never be left in a pending-choice state with no screen to interact with.
+	if (ItemIds.Num() <= 0)
+	{
+		FReEchoShopPurchaseOutcome Outcome;
+		Outcome.Result = EReEchoShopPurchaseResult::OfferNotFound;
+		Outcome.Detail = TEXT("No card was supplied for the claim");
+		return Outcome;
+	}
+	TSet<FName> UniqueItemIds;
+	for (const FName& ItemId : ItemIds)
+	{
+		if (ItemId.IsNone() || UniqueItemIds.Contains(ItemId))
+		{
+			FReEchoShopPurchaseOutcome Outcome;
+			Outcome.Result = EReEchoShopPurchaseResult::OfferNotFound;
+			Outcome.Detail = TEXT("Card choices must be unique");
+			return Outcome;
+		}
+		UniqueItemIds.Add(ItemId);
+	}
+	const FName PrimaryItemId = ItemIds[0];
+	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const auto Finish = [&](const EReEchoShopPurchaseResult Result, const FString& Detail)
+	{
+		FReEchoShopPurchaseOutcome Outcome;
+		Outcome.TransactionId = TransactionId;
+		Outcome.ItemId = PrimaryItemId;
+		Outcome.Result = Result;
+		Outcome.Detail = Detail;
+		WriteShopPurchaseAuditLine(FString::Printf(
+		    TEXT("[ShopPurchaseAudit] tx=%s phase=RESULT item=%s success=%d code=%s effectivePrice=0 detail=%s"),
+		    *TransactionId,
+		    *PrimaryItemId.ToString(),
+		    Outcome.IsSuccess(),
+		    GetShopPurchaseResultName(Result),
+		    *SanitizeShopPurchaseAuditText(Detail)));
+		return Outcome;
+	};
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return Finish(EReEchoShopPurchaseResult::DataUnavailable, TEXT("The runtime card data is unavailable"));
+	}
+	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
+	int32 PackIndex = INDEX_NONE;
+	TArray<FReEchoShopCardChoiceOffer> Choices;
+	for (int32 Index = 0; Index < ShopView.CardPackOffers.Num() && PackIndex == INDEX_NONE; ++Index)
+	{
+		const FReEchoShopCardPackOffer& Pack = ShopView.CardPackOffers[Index];
+		if (Pack.Status != EReEchoShopCardPackStatus::PaidPendingChoice)
+		{
+			continue;
+		}
+		TArray<FReEchoShopCardChoiceOffer> Found;
+		for (const FName& ItemId : ItemIds)
+		{
+			const FReEchoShopCardChoiceOffer* Match = Pack.Choices.FindByPredicate(
+			    [ItemId](const FReEchoShopCardChoiceOffer& Candidate)
+			    {
+				    return Candidate.ItemId == ItemId;
+			    });
+			if (!Match)
+			{
+				Found.Reset();
+				break;
+			}
+			Found.Add(*Match);
+		}
+		if (Found.Num() == ItemIds.Num())
+		{
+			Choices = MoveTemp(Found);
+			PackIndex = Index;
+		}
+	}
+	if (PackIndex == INDEX_NONE)
+	{
+		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
+		              TEXT("The requested cards are not claimable from a paid pack"));
+	}
+	const FReEchoShopCardPackOffer& SelectedPack = ShopView.CardPackOffers[PackIndex];
+	if (ItemIds.Num() != SelectedPack.SelectableCardCount)
+	{
+		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
+		              TEXT("The paid card pack requires an exact number of choices"));
+	}
+	for (const FReEchoShopCardChoiceOffer& Choice : Choices)
+	{
+		const FReEchoCardDefinition* ChoiceDefinition = Snapshot->CardCatalog->Find(Choice.CardId);
+		if (ReEchoCardRuntime::HasCard(CurrentBuild.CardState, Choice.CardId) &&
+		    (!ChoiceDefinition || ChoiceDefinition->StackPolicy == TEXT("Unique") || ChoiceDefinition->Tier != 1))
+		{
+			return Finish(EReEchoShopPurchaseResult::AlreadyOwned,
+			              TEXT("Owned unique, tier-2, tier-3, and Easter cards cannot be claimed again"));
+		}
+	}
+
+	int32 PendingTimeShards = TimeShards;
+	bool bPendingClearWeaponRunes = false;
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
+	FReEchoBuildSnapshot PendingBuild;
+	EReEchoShopPurchaseResult Failure = EReEchoShopPurchaseResult::MutationRejected;
+	FString FailureDetail = TEXT("The authoritative build rejected the card claim");
+	const int32 ClaimPackIndex = PackIndex;
+	if (!TryMutateAuthoritativeBuild(
+	        *Snapshot,
+	        CurrentBuild,
+	        [&](FReEchoBuildSnapshot& Build)
+	        {
+		        if (!Build.CardState.Runtime.ShopCardPackStates.IsValidIndex(ClaimPackIndex))
+		        {
+			        return false;
+		        }
+		        FReEchoShopCardPackRuntimeState& Pack = Build.CardState.Runtime.ShopCardPackStates[ClaimPackIndex];
+		        if (!Pack.bPaymentCommitted || Pack.bPurchased)
+		        {
+			        FailureDetail = TEXT("The paid card-pack state changed before claim commit");
+			        return false;
+		        }
+		        for (const FReEchoShopCardChoiceOffer& Choice : Choices)
+		        {
+			        if (!Pack.CandidateCardIds.Contains(Choice.CardId))
+			        {
+				        FailureDetail = TEXT("The paid card-pack state changed before claim commit");
+				        return false;
+			        }
+			        FReEchoCardGrantInput Input;
+			        Input.Stats = Build.Stats;
+			        Input.CardState = Build.CardState;
+			        Input.TimeShards = PendingTimeShards;
+			        Input.EncounterIndex = EncounterIndex;
+			        Input.RandomSeed =
+			            BuildShopOfferSeed(RunSeed, Choice.CardId, EncounterIndex, Choice.SlotRefreshSequence);
+			        const FReEchoCardGrantResult Grant =
+			            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, Choice.CardId, Input);
+			        if (!Grant.bSucceeded)
+			        {
+				        Failure = EReEchoShopPurchaseResult::GrantRejected;
+				        FailureDetail = Grant.Error.IsEmpty() ? TEXT("The card grant was rejected") : Grant.Error;
+				        return false;
+			        }
+			        Build.Stats = Grant.Stats;
+			        Build.CardState = Grant.CardState;
+			        PendingHealthAdjustment = Grant.HealthAdjustment;
+			        PendingTimeShards = Grant.TimeShards;
+			        bPendingClearWeaponRunes |= Grant.bClearWeaponRunes;
+			        if (Grant.bClearWeaponRunes)
+			        {
+				        Build.EquippedParts.Reset();
+			        }
+		        }
+		        if (!Build.CardState.Runtime.ShopCardPackStates.IsValidIndex(ClaimPackIndex))
+		        {
+			        FailureDetail = TEXT("The card grant did not preserve the paid shop pack");
+			        return false;
+		        }
+		        FReEchoShopCardPackRuntimeState& ClaimedPack =
+		            Build.CardState.Runtime.ShopCardPackStates[ClaimPackIndex];
+		        // One pack, one cadence step, regardless of how many cards it yields.
+		        ClaimedPack.PicksRemaining = 0;
+		        ClaimedPack.bPurchased = true;
+		        if (ClaimedPack.RemainingPurchases > 1)
+		        {
+			        ClaimedPack.RemainingPurchases--;
+			        ClaimedPack.bPurchased = false;
+			        ClaimedPack.bPaymentCommitted = false;
+			        ClaimedPack.ClaimCount++;
+			        ReRollShopCardPackCandidates(*Snapshot, Build.CardState, ClaimedPack, ClaimedPack.Tier);
+		        }
+		        else
+		        {
+			        ClaimedPack.RemainingPurchases = 0;
+		        }
+		        RecordNormalTraitGroupSelection(*Snapshot, Build, ClaimedPack.Tier);
+		        return true;
+	        },
+	        PendingBuild))
+	{
+		return Finish(Failure, FailureDetail);
+	}
+	const int32 PreviousTimeShards = TimeShards;
+	CurrentBuild = MoveTemp(PendingBuild);
+	ApplyProjectedCardCurrency(PreviousTimeShards, PendingTimeShards);
+	if (bPendingClearWeaponRunes)
+	{
+		OwnedPartIds.Reset();
+	}
+	ReevaluateCoreCollectionCard();
+	for (const FName& ItemId : ItemIds)
+	{
+		InventoryItems.AddUnique(ItemId);
+	}
+	ReEchoBuildTrace::LogSnapshot(TEXT("PaidCardsGranted"),
+	                              EncounterIndex,
+	                              Phase,
+	                              CurrentBuild,
+	                              FString::Printf(TEXT("count=%d"), ItemIds.Num()));
+	return Finish(EReEchoShopPurchaseResult::Succeeded,
+	              FString::Printf(TEXT("Claimed %d choices from the paid card pack"), ItemIds.Num()));
 }
 
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FName ItemId)
@@ -3605,6 +4116,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	{
 		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
 		              TEXT("The requested card is not claimable from a paid pack"));
+	}
+	if (ShopView.CardPackOffers[PackIndex].SelectableCardCount != 1)
+	{
+		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
+		              TEXT("This paid card pack requires multiple choices"));
 	}
 	const FReEchoCardDefinition* ChoiceDefinition = Snapshot->CardCatalog->Find(Choice.CardId);
 	if (ReEchoCardRuntime::HasCard(CurrentBuild.CardState, Choice.CardId) &&
@@ -3664,8 +4180,30 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 			        FailureDetail = TEXT("The card grant did not preserve the paid shop pack");
 			        return false;
 		        }
-		        Build.CardState.Runtime.ShopCardPackStates[PackIndex].bPurchased = true;
-		        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build) > 0;
+		        FReEchoShopCardPackRuntimeState& ClaimedPack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
+	        // NOTE: see ApplyTraitCard. The pack closes on the first pick until the multi-select choice
+	        // screen exists; keeping it open without reopening the UI would strand the run.
+	        ClaimedPack.PicksRemaining = 0;
+	        ClaimedPack.bPurchased = true;
+	        {
+		        // Multi-purchase support: if remaining > 1, reset for next purchase cycle
+		        if (ClaimedPack.RemainingPurchases > 1)
+		        {
+				ClaimedPack.RemainingPurchases--;
+				// Reset purchase state so this tier can be paid again.
+				ClaimedPack.bPurchased = false;
+				ClaimedPack.bPaymentCommitted = false;
+				// This repeat purchase is a separate pack, so roll its own three cards instead of
+				// re-showing the candidates generated when the page was first built.
+				ClaimedPack.ClaimCount++;
+				ReRollShopCardPackCandidates(*Snapshot, Build.CardState, ClaimedPack, ClaimedPack.Tier);
+			}
+			else
+			{
+				ClaimedPack.RemainingPurchases = 0; // fully consumed
+			}
+	        } // end of the single-pick pack close
+	        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build, ClaimedPack.Tier) > 0;
 		        PendingTimeShards = Grant.TimeShards;
 		        return true;
 	        },
@@ -3780,7 +4318,10 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		                      TEXT("The requested shop item was already purchased"),
 		                      EffectivePrice);
 	}
-	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part && OwnedPartIds.Contains(SlotOffer.PartId))
+	// A tier-I rune may be bought again to feed I->II->III synthesis, so owning one does not reject the
+	// purchase. Every other part keeps the legacy "buy once" rule.
+	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part && OwnedPartIds.Contains(SlotOffer.PartId) &&
+	    !SlotOffer.bRepeatPurchasable)
 	{
 		return FinishPurchase(
 		    EReEchoShopPurchaseResult::AlreadyOwned, TEXT("The requested rune is already owned"), EffectivePrice);
@@ -3881,12 +4422,19 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		{
 			OwnedPartIds.Add(SlotOffer.PartId);
 		}
+		// OwnedPartIds is a de-duplicated ownership set, so a second purchase of the same rune adds no entry.
+		// Track copies separately to drive tier synthesis.
+		RuneAcquisitionCounts.Add(SlotOffer.PartId, RuneAcquisitionCounts.FindRef(SlotOffer.PartId) + 1);
+		// Consume this slot for the current page; the rune can be offered again once the page regenerates.
+		PurchasedWeaponPartOfferIds.Add(SlotOffer.PartId);
 		FString EquipError;
 		if (!TryEquipPurchasedPart(SlotOffer.PartId, EquipError))
 		{
 			CompletionDetail =
 			    FString::Printf(TEXT("Purchase committed; automatic rune equip was rejected: %s"), *EquipError);
 		}
+		// Synthesis: buying runes may complete a tier-upgrade recipe (e.g. 2x I -> 1x II).
+		ProcessRuneSynthesis(*Snapshot);
 	}
 	else if (bIsLegacy)
 	{
@@ -3900,6 +4448,151 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("item=%s"), *ItemId.ToString()));
 	return FinishPurchase(EReEchoShopPurchaseResult::Succeeded, CompletionDetail, EffectivePrice);
+}
+
+bool UReEchoRunSubsystem::IsShopOfferRepeatPurchasable(const FName ItemId) const
+{
+	if (ItemId.IsNone())
+	{
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> LoadedSnapshot = GetRunDataSnapshot();
+	if (!LoadedSnapshot.IsValid())
+	{
+		return false;
+	}
+	// Only the tier-I rune of a family is ever sold, and it must stay buyable so the player can gather the
+	// copies that synthesis consumes. Tiers II/III are never offered in the shop.
+	return GetRuneTierFromPartId(ItemId) == 1 && LoadedSnapshot->RuneUpgrades.Contains(ItemId);
+}
+
+int32 UReEchoRunSubsystem::GetPaidShopCardPackSelectableCount() const
+{
+	for (const FReEchoShopCardPackRuntimeState& Pack : CurrentBuild.CardState.Runtime.ShopCardPackStates)
+	{
+		if (Pack.bPaymentCommitted && !Pack.bPurchased)
+		{
+			return FMath::Max(1, Pack.SelectableCardCount);
+		}
+	}
+	return 1;
+}
+
+int32 UReEchoRunSubsystem::ResolvePackSelectableCardCount(const int32 CardPackTier) const
+{
+	// Evaluated before the choice screen opens: this pack is the next one to be claimed, so it lands on the
+	// cadence when (already claimed + 1) is a multiple of the ability's interval and passes its tier gate.
+	const TSharedPtr<const FReEchoCsvDataSnapshot> LoadedSnapshot = GetRunDataSnapshot();
+	if (!LoadedSnapshot.IsValid())
+	{
+		return 1;
+	}
+	const int32 ClaimedSoFar =
+	    FMath::Max(0, FCString::Atoi(*CurrentBuild.RuleFlags.FindRef(NormalTraitSelectionsFlag)));
+	const int32 NextSelectionIndex = ClaimedSoFar + 1;
+	return 1 + ReEchoCharacterAbilityRuntime::ResolveExtraTraitChoicesForTier(
+	               *LoadedSnapshot, CurrentBuild.CharacterId, NextSelectionIndex, CardPackTier);
+}
+
+void UReEchoRunSubsystem::ReRollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
+                                                       FReEchoCardBuildState& CardState,
+                                                       FReEchoShopCardPackRuntimeState& Pack,
+                                                       const int32 Tier)
+{
+	// Card packs keep one stable page per encounter, but a tier configured with several purchases would
+	// otherwise hand out the same three cards every time. Reset the roll and reseed it with ClaimCount so
+	// each purchase instance is an independent pack.
+	Pack.CandidateCardIds.Reset();
+	Pack.OfferHistoryCardIds.Reset();
+	Pack.SlotRefreshUses.Reset();
+	if (!SnapshotRef.CardCatalog.IsValid())
+	{
+		return;
+	}
+	constexpr int32 RefreshSequence = 0;
+	for (int32 CandidateIndex = 0; CandidateIndex < ReEchoShopOfferCountPerGroup; ++CandidateIndex)
+	{
+		const FName SlotSeedKey(*FString::Printf(
+		    TEXT("SHOP_CARD_TIER_%d_SLOT_%d_ROLL_%d"), Tier, CandidateIndex, Pack.ClaimCount));
+		const FName SelectedCardId = SelectCardForOfferSlot(
+		    *SnapshotRef.CardCatalog,
+		    CardState,
+		    Tier,
+		    EncounterIndex,
+		    Pack.OfferHistoryCardIds,
+		    BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, RefreshSequence));
+		if (SelectedCardId.IsNone())
+		{
+			break;
+		}
+		Pack.CandidateCardIds.Add(SelectedCardId);
+		Pack.OfferHistoryCardIds.Add(SelectedCardId);
+		Pack.SlotRefreshUses.Add(0);
+	}
+}
+
+void UReEchoRunSubsystem::ProcessRuneSynthesis(const FReEchoCsvDataSnapshot& Snapshot)
+{
+	// Iteratively apply tier-upgrade recipes until no recipe can fire (supports I->II->III cascades).
+	if (Snapshot.RuneUpgrades.Num() == 0)
+	{
+		return;
+	}
+	bool bChanged = true;
+	int32 Guard = 0;
+	while (bChanged && Guard++ < 32)
+	{
+		bChanged = false;
+		for (const TPair<FName, FReEchoCsvRuneUpgradeRow>& Pair : Snapshot.RuneUpgrades)
+		{
+			const FName FromPart = Pair.Key;
+			const int32 NeedCount = Pair.Value.NeedCount;
+			const FName ToPart = Pair.Value.ToPartId;
+			if (NeedCount <= 0 || ToPart.IsNone())
+			{
+				continue;
+			}
+			// Copy count lives in RuneAcquisitionCounts: OwnedPartIds is a de-duplicated ownership set that
+			// still lists equipped runes, so counting it together with EquippedParts double-counts them.
+			const int32 Held = RuneAcquisitionCounts.FindRef(FromPart);
+			if (Held < NeedCount)
+			{
+				continue;
+			}
+			const int32 Remaining = Held - NeedCount;
+			bool bShouldEquipUpgrade = false;
+			if (Remaining > 0)
+			{
+				RuneAcquisitionCounts.Add(FromPart, Remaining);
+			}
+			else
+			{
+				// Every copy was consumed: the rune leaves the backpack and any slot it occupied.
+				RuneAcquisitionCounts.Remove(FromPart);
+				OwnedPartIds.Remove(FromPart);
+				bShouldEquipUpgrade = CurrentBuild.EquippedParts.ContainsByPredicate(
+				    [&](const FReEchoEquippedPartSnapshot& Eq) { return Eq.PartId == FromPart; });
+				if (bShouldEquipUpgrade)
+				{
+					CurrentBuild.EquippedParts.RemoveAll(
+					    [&](const FReEchoEquippedPartSnapshot& Eq) { return Eq.PartId == FromPart; });
+				}
+			}
+			// Grant the synthesized higher-tier rune.
+			if (!OwnedPartIds.Contains(ToPart))
+			{
+				OwnedPartIds.Add(ToPart);
+			}
+			RuneAcquisitionCounts.Add(ToPart, RuneAcquisitionCounts.FindRef(ToPart) + 1);
+			if (bShouldEquipUpgrade)
+			{
+				// The consumed rune held a slot; auto-equip the upgrade into the freed slot.
+				FString EquipErr;
+				TryEquipPurchasedPart(ToPart, EquipErr);
+			}
+			bChanged = true;
+		}
+	}
 }
 
 bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
@@ -4465,6 +5158,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
 	SaveGame->OwnedPartIds = OwnedPartIds;
+	SaveGame->RuneAcquisitionCounts = RuneAcquisitionCounts;
 	for (const FName WeaponId : OwnedWeaponIds)
 	{
 		SaveGame->OwnedWeaponIds.Add(WeaponId);
@@ -4642,6 +5336,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
 	OwnedPartIds = MoveTemp(NormalizedOwnedParts);
+	RuneAcquisitionCounts = SaveGame.RuneAcquisitionCounts;
 	OwnedWeaponIds = MoveTemp(NormalizedOwnedWeapons);
 	if (SaveGame.SaveVersion >= 14)
 	{

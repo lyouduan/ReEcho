@@ -468,12 +468,12 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 	}
 
 	TSet<FName> GrantedThisTransaction;
-	TFunction<bool(FName, bool)> GrantSingle;
-	GrantSingle = [&](const FName RequestedCardId, const bool bRecordOwnership)
+	TFunction<bool(FName, bool, bool)> GrantSingle;
+	GrantSingle = [&](const FName RequestedCardId, const bool bRecordOwnership, const bool bForce)
 	{
 		const FReEchoCardDefinition* Card = Catalog.Find(RequestedCardId);
 		if (!Card || !Card->bEnabled ||
-		    (bRecordOwnership && !CanOffer(Catalog, Result.CardState, *Card, Input.EncounterIndex)) ||
+		    (bRecordOwnership && !bForce && !CanOffer(Catalog, Result.CardState, *Card, Input.EncounterIndex)) ||
 		    GrantedThisTransaction.Contains(RequestedCardId))
 		{
 			Result.Error = FString::Printf(TEXT("Card cannot be granted: %s"), *RequestedCardId.ToString());
@@ -723,21 +723,43 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					FRandomStream Random(HashCombine(GetTypeHash(Input.RandomSeed),
 					                                 GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
 					const FName GrantedCardId = Pool[Random.RandRange(0, Pool.Num() - 1)].Id;
-					if (!GrantSingle(GrantedCardId, true))
+					if (!GrantSingle(GrantedCardId, true, false))
 					{
 						return false;
 					}
 					FReEchoCardOutcomeState& Outcome =
 					    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
 					Outcome.RelatedCardIds.Add(GrantedCardId);
-					++Outcome.ResolutionCount;
-				}
-			}
-		}
-		return true;
-	};
+                    ++Outcome.ResolutionCount;
+                }
+            }
+            else if (Effect.BehaviorId == TEXT("Card.GrantAllTier1"))
+            {
+                // 立即获得每张启用的目标阶级卡牌各 1 张；已拥有的可堆叠卡也额外获得一张。
+                // 仅跳过当前事务已发放的卡，防止嵌套 OnGrant 行为产生重复授予。
+                TArray<FReEchoCardDefinition> Tier1Cards = Catalog.GetAll(FMath::RoundToInt(Effect.Value));
+                for (const FReEchoCardDefinition& Tier1Card : Tier1Cards)
+                {
+                    if (GrantedThisTransaction.Contains(Tier1Card.Id))
+                    {
+                        continue;
+                    }
+                    // bForce=true：绕过 CanOffer 的上架/冲突/遭遇限制，强制入袋。
+                    if (!GrantSingle(Tier1Card.Id, true, true))
+                    {
+                        return false;
+                    }
+                    FReEchoCardOutcomeState& Outcome =
+                        FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
+                    Outcome.RelatedCardIds.Add(Tier1Card.Id);
+                    ++Outcome.ResolutionCount;
+                }
+            }
+        }
+        return true;
+    };
 
-	if (!GrantSingle(CardId, Input.bRecordOwnership))
+	if (!GrantSingle(CardId, Input.bRecordOwnership, false))
 	{
 		const FString Error = Result.Error;
 		Result = {};
@@ -974,7 +996,8 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 FReEchoCardIncomingHitResult ReEchoCardRuntime::ModifyIncomingHit(const FReEchoCardCatalog& Catalog,
                                                                   const FReEchoCardBuildState& State,
                                                                   const float RawDamage,
-                                                                  const int32 TimeShards)
+                                                                  const int32 TimeShards,
+                                                                  const FName AttackerDefinitionId)
 {
 	FReEchoCardIncomingHitResult Result;
 	Result.CardState = State;
@@ -1007,10 +1030,16 @@ FReEchoCardIncomingHitResult ReEchoCardRuntime::ModifyIncomingHit(const FReEchoC
 			    const int32 AffordableStacks =
 			        CostPerStack == 0 ? StackCount : FMath::Min(StackCount, Result.TimeShards / CostPerStack);
 			    Result.TimeShards -= AffordableStacks * CostPerStack;
-			    Result.RawDamage = FMath::Max(0.0f, Result.RawDamage + Effect.Value * AffordableStacks);
-		    }
-	    });
-	return Result;
+            Result.RawDamage = FMath::Max(0.0f, Result.RawDamage + Effect.Value * AffordableStacks);
+        }
+    });
+    if (!Result.bPrevented && !AttackerDefinitionId.IsNone() &&
+        State.Runtime.ImmuneEnemyDefinitionIds.Contains(AttackerDefinitionId))
+    {
+        Result.RawDamage = 0.0f;
+        Result.bPrevented = true;
+    }
+    return Result;
 }
 
 FReEchoCardEventResult ReEchoCardRuntime::OnReaction(const FReEchoCardCatalog& Catalog,
@@ -1118,6 +1147,44 @@ FReEchoCardEventResult ReEchoCardRuntime::OnKillResolved(const FReEchoCardCatalo
 	    TEXT("OnHitResolved"),
 	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
 	    {
+		    if (Effect.BehaviorId == TEXT("Card.KillThresholdStatBoost") && !bKilledByEcho &&
+		        Effect.ParamName == TargetDefinitionId &&
+		        !Result.CardState.Runtime.CompletedKillThresholdCardIds.Contains(Card.Id))
+		    {
+			    const int32 KillCount = Result.CardState.Runtime.PlayerKillCountByEnemyId.FindRef(TargetDefinitionId);
+			    if (KillCount >= FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)))
+			    {
+				    if (Effect.Target == TEXT("HpMax"))
+				    {
+					    Result.Stats.HpMax *= Effect.Value;
+					    Result.Stats.HpPoint = Result.Stats.HpMax;
+				    }
+				    Result.CardState.Runtime.CompletedKillThresholdCardIds.Add(Card.Id);
+				    FReEchoCardOutcomeState& Outcome =
+					    FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
+				    Outcome.PrimaryTarget = TEXT("KillThreshold");
+				    Outcome.PrimaryValue = Effect.Value;
+				    ++Outcome.ResolutionCount;
+			    }
+			    return;
+		    }
+		    if (Effect.BehaviorId == TEXT("Card.KillThresholdImmunity") && !bKilledByEcho &&
+		        Effect.ParamName == TargetDefinitionId &&
+		        !Result.CardState.Runtime.CompletedKillThresholdCardIds.Contains(Card.Id))
+		    {
+			    const int32 KillCount = Result.CardState.Runtime.PlayerKillCountByEnemyId.FindRef(TargetDefinitionId);
+			    if (KillCount >= FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)))
+			    {
+				    Result.CardState.Runtime.ImmuneEnemyDefinitionIds.Add(TargetDefinitionId);
+				    Result.CardState.Runtime.CompletedKillThresholdCardIds.Add(Card.Id);
+				    FReEchoCardOutcomeState& Outcome =
+					    FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
+				    Outcome.PrimaryTarget = TEXT("EnemyImmunity");
+				    Outcome.PrimaryValue = 1.0f;
+				    ++Outcome.ResolutionCount;
+			    }
+			    return;
+		    }
 		    if (Effect.BehaviorId == TEXT("Card.TargetKillCurse") && !bKilledByEcho &&
 		        Effect.ParamName == TargetDefinitionId)
 		    {
@@ -1210,7 +1277,12 @@ FName ReEchoCardRuntime::SelectOfferForSlot(const FReEchoCardCatalog& Catalog,
 	NormalPool.RemoveAll(
 	    [&](const FReEchoCardDefinition& Candidate)
 	    {
-		    return OfferHistory.Contains(Candidate.Id) || (bExcludeOwnedNormalCards && HasCard(State, Candidate.Id));
+		    // 与 CanOffer 的拥有判断保持一致：排除历史卡、以及“拥有即不可再发”的卡
+		    // （二阶/三阶已拥有、或一阶 Unique 已拥有）；但保留“一阶可叠加卡已拥有”的情况，
+		    // 使其仍可作为重复发牌/刷新的目标（叠加）。
+		    return OfferHistory.Contains(Candidate.Id) ||
+		           (HasCard(State, Candidate.Id) &&
+		            (Candidate.Tier != 1 || Candidate.StackPolicy == TEXT("Unique") || bExcludeOwnedNormalCards));
 	    });
 	EasterPool.RemoveAll(
 	    [&](const FReEchoCardDefinition& Candidate)
@@ -1293,23 +1365,63 @@ FReEchoCardEventResult ReEchoCardRuntime::OnCoreInventoryChanged(const FReEchoCa
 	{
 		return Result;
 	}
+	bool bGrantTieredCards = false;
+	int32 TieredRequiredCores = 6;
+	FName TieredCardId = NAME_None;
 	ForEachOwnedEffect(
 	    Catalog,
 	    State,
 	    TEXT("OnInventoryChanged"),
 	    [&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
 	    {
-		    if (Effect.BehaviorId != TEXT("Card.CollectCores") || Result.CardState.Runtime.bDragonSoulCompleted)
+		    if (Effect.BehaviorId == TEXT("Card.CollectCores") && !Result.CardState.Runtime.bDragonSoulCompleted)
 		    {
-			    return;
+			    const float Granted = Effect.Value * FMath::Max(1, StackCount);
+			    Result.Stats.CriticalRate += Granted;
+			    Result.Stats.CriticalEffect += Granted;
+			    Result.Stats.ReactionEfficiency += Granted;
+			    Result.CardState.Runtime.bDragonSoulCompleted = true;
+			    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("CoreCollection"), Granted);
 		    }
-		    const float Granted = Effect.Value * FMath::Max(1, StackCount);
-		    Result.Stats.CriticalRate += Granted;
-		    Result.Stats.CriticalEffect += Granted;
-		    Result.Stats.ReactionEfficiency += Granted;
-		    Result.CardState.Runtime.bDragonSoulCompleted = true;
-		    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("CoreCollection"), Granted);
+		    else if (Effect.BehaviorId == TEXT("Card.CollectCoresGrantTiered") && !Result.CardState.Runtime.bDragonSoulCompleted)
+		    {
+			    bGrantTieredCards = true;
+			    TieredCardId = Card.Id;
+			    TieredRequiredCores = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+		    }
 	    });
+	if (bGrantTieredCards && DistinctOwnedCoreCount >= TieredRequiredCores && !Result.CardState.Runtime.bDragonSoulCompleted)
+	{
+		for (int32 Tier = 1; Tier <= 3; ++Tier)
+		{
+			// BuildOfferPool already applies the canonical ownership rule: tier-one Stackable cards
+			// remain eligible for repeat grants, while owned higher-tier and Unique cards are excluded.
+			TArray<FReEchoCardDefinition> Pool = BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), Tier, Result.CardState.Runtime.ActiveEncounterIndex);
+			if (Pool.IsEmpty())
+			{
+				continue;
+			}
+			FRandomStream Random(HashCombine(GetTypeHash(Result.CardState.Runtime.RandomSequence++), GetTypeHash(Tier)));
+			const FName GrantedCardId = Pool[Random.RandRange(0, Pool.Num() - 1)].Id;
+			FReEchoCardGrantInput GrantInput;
+			GrantInput.Stats = Result.Stats;
+			GrantInput.CardState = Result.CardState;
+			GrantInput.TimeShards = 0;
+			GrantInput.EncounterIndex = Result.CardState.Runtime.ActiveEncounterIndex;
+			GrantInput.RandomSeed = HashCombine(GetTypeHash(Result.CardState.Runtime.RandomSequence++), GetTypeHash(GrantedCardId));
+			GrantInput.bRecordOwnership = true;
+			const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, GrantedCardId, GrantInput);
+			if (Grant.bSucceeded)
+			{
+				Result.Stats = Grant.Stats;
+				Result.CardState = Grant.CardState;
+				FReEchoCardOutcomeState& Outcome = FindOrAddOutcome(Result.CardState.Runtime, TieredCardId, EReEchoCardOutcomeKind::GrantedCards);
+				Outcome.RelatedCardIds.Add(GrantedCardId);
+				++Outcome.ResolutionCount;
+			}
+		}
+		Result.CardState.Runtime.bDragonSoulCompleted = true;
+	}
 	return Result;
 }
 
@@ -1539,6 +1651,19 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::FreeShopRefreshes);
 			    Outcome.PrimaryTarget = TEXT("FreeShopRefresh");
 			    Outcome.PrimaryValue += Granted;
+			    ++Outcome.ResolutionCount;
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.EndKillShards"))
+		    {
+			    const int32 TotalKills = FMath::Max(PlayerKillCount, Result.CardState.Runtime.EncounterKillCount);
+			    // 战利回流：本场时之碎片收入 × 每击杀返还比例(Effect.Value) × 击杀数
+			    const float RatePerKill = FMath::Max(0.0f, Effect.Value);
+			    const int32 ShardCount = FMath::RoundToInt(GrossTimeShardIncome * RatePerKill * TotalKills * StackCount);
+			    Result.TimeShardsGranted += ShardCount;
+			    FReEchoCardOutcomeState& Outcome =
+			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::TimeShards);
+			    Outcome.PrimaryTarget = TEXT("TimeShards");
+			    Outcome.PrimaryValue += ShardCount;
 			    ++Outcome.ResolutionCount;
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.NumericChallenge") &&

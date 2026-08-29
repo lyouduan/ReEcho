@@ -32,6 +32,7 @@ enum class EReEchoCardOutcomeKind : uint8
 	StatGain,
 	EconomyPenalty,
 	FreeShopRefreshes,
+	TimeShards,
 	CumulativeStatGain,
 	RunReset,
 	FreeShopVisit,
@@ -126,6 +127,14 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPaymentCommitted = false;
 	/** A successful card claim consumes this pack for the current page. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPurchased = false;
+	/** Remaining purchase count for this tier slot (from ShopTiers Tier:Count config). 0 = sold out / not configured. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 RemainingPurchases = 0;
+	/** Claims made on this tier slot for the current page. Seeds each repeat purchase so it rolls its own cards. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ClaimCount = 0;
+	/** How many of the three cards this pack lets the player take. 1 normally; 2 on a tiered cadence ability. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 SelectableCardCount = 1;
+	/** Picks still owed by this paid pack. Above 1 the pack stays open for another pick. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PicksRemaining = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -167,6 +176,10 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	/** Weapon/rune refresh-count limit is suspended until the next committed shop purchase. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bUnlimitedWeaponRuneRefresh = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bDragonSoulCompleted = false;
+	/** Stable enemy definition ids whose damage is fully prevented for the rest of the run (兔兔杀手 etc.). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TSet<FName> ImmuneEnemyDefinitionIds;
+	/** One-shot kill-threshold cards that have already resolved, keyed by card id. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TSet<FName> CompletedKillThresholdCardIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bNumericChallengeCompleted = false;
 	/** Final applied damage resolved during the active encounter, split by stable source domain. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterPlayerDamage = 0.0f;

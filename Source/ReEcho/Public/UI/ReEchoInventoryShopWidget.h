@@ -26,6 +26,11 @@ DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopCardPackRequested, int32);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
+/**
+ * Raised when the player picks an already-owned rune from the rune backpack popup. This is a pure
+ * re-equip intent and must never be routed through the purchase transaction.
+ */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoOwnedPartEquipRequested, FName, int32);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
 
@@ -53,6 +58,7 @@ public:
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
 	FReEchoShopCardPackRequested OnCardPackRequested;
 	FReEchoWeaponEquipRequested OnWeaponEquipRequested;
+	FReEchoOwnedPartEquipRequested OnOwnedPartEquipRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
@@ -156,6 +162,8 @@ private:
 	UFUNCTION()
 	void HandleWeaponBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
+	/** Creates (or reuses) the roman-numeral tier badge layered over a weapon-rune offer icon. */
+	UTextBlock* EnsureRuneTierBadge(class UCanvasPanel* Card, class UImage* Icon, int32 Index);
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
 	bool HasEchoStorageCard() const;
@@ -327,6 +335,8 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerPartOfferIcons;
 	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferTierBadges;
+	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferDescriptions;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferCosts;
@@ -392,7 +402,11 @@ private:
 	TObjectPtr<UReEchoButtonVisualFeedback> DesignerCardPageRightVisualFeedback;
 
 	TArray<FReEchoShopOffer> DisplayedOwnedCards;
+	/** Stack count per entry in DisplayedOwnedCards; the same card obtained twice shows one icon with ×N. */
+	TArray<int32> DisplayedOwnedCardCounts;
 	int32 ActiveOwnedCardPage = 0;
+	/** Creates (or reuses) the ×N stack-count badge layered over an owned-card slot icon. */
+	UTextBlock* EnsureOwnedCardCountBadge(UWidget* Anchor, int32 Index);
 
 	// ---- echo storage popup (authored WBP presentation with C++ fallback) ----
 	UPROPERTY(meta = (BindWidgetOptional))

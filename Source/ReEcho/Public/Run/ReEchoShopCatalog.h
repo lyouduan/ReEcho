@@ -67,6 +67,11 @@ struct REECHO_API FReEchoShopOffer
 	int32 EffectivePrice = 0;
 	/** Authoritative purchase gate. Widgets display this state and never recalculate affordability. */
 	bool bCanPurchase = false;
+	/**
+	 * Tier-I runes can be bought again even when already owned: repeat purchases are what feed
+	 * I->II->III synthesis, so owning one must neither gate the purchase nor hide its price.
+	 */
+	bool bRepeatPurchasable = false;
 };
 
 // One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
@@ -85,6 +90,8 @@ struct REECHO_API FReEchoWeaponSlotOffer
 	int32 Price = 0;
 	int32 EffectivePrice = 0;
 	bool bCanPurchase = false;
+	/** Tier-I rune: can be bought again while already owned, because repeat purchases feed I->II->III synthesis. */
+	bool bRepeatPurchasable = false;
 };
 
 enum class EReEchoShopCardPackStatus : uint8
@@ -127,6 +134,12 @@ struct REECHO_API FReEchoShopCardPackOffer
 	int32 EffectivePrice = 0;
 	bool bCanPurchase = false;
 	TArray<FReEchoShopCardChoiceOffer> Choices;
+	/** Purchases still available for this tier on the current page (ShopTiers "Tier:Count" config). */
+	int32 RemainingPurchases = 0;
+	/** Total purchases configured for this tier. Above 1 the entrance is a repeatable multi-pack. */
+	int32 TotalPurchases = 0;
+	/** How many of the three cards this pack lets the player take. 2 turns 3-choose-1 into 3-choose-2. */
+	int32 SelectableCardCount = 1;
 
 	bool IsAvailable() const
 	{

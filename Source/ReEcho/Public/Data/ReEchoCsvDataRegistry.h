@@ -89,6 +89,11 @@ struct REECHO_API FReEchoCsvCharacterAbilityRow
 	float Value = 0.0f;
 	FName BehaviorId;
 	float Interval = 0.0f;
+	/**
+	 * Card-pack tier required for this cadence ability's counter to advance. 0 counts every card pack;
+	 * a positive value only counts packs at or above that tier (e.g. 2 = non-tier-1 packs only).
+	 */
+	int32 MinCardPackTier = 0;
 	bool bEnabled = false;
 	FString DisabledReason;
 };
@@ -311,10 +316,19 @@ struct REECHO_API FReEchoCsvShopDropLevelRow
 {
 	int32 EncounterIndex = 0;
 	int32 FreeTier = 0;
-	FString ShopTiers; // pipe-delimited tiers, e.g. "2|3"
+	FString ShopTiers; // pipe-delimited tier:count pairs, e.g. "1:3|2:1|3:1" (count defaults to 1)
 	FString SourceSheet;
 	int32 SourceRow = 0;
 	FString DisabledReason;
+};
+
+struct REECHO_API FReEchoCsvRuneUpgradeRow
+{
+	FName FromPartId = NAME_None; // lower-tier rune consumed by the recipe
+	int32 NeedCount = 0;          // how many lower-tier runes are required
+	FName ToPartId = NAME_None;   // higher-tier rune produced by the recipe
+	FString SourceSheet;
+	int32 SourceRow = 0;
 };
 
 struct REECHO_API FReEchoCsvShopRefreshRuleRow
@@ -609,6 +623,7 @@ struct REECHO_API FReEchoCsvDataSnapshot
 	TMap<FName, FReEchoCsvShopPriceRangeRow> ShopPriceRanges;   // keyed by PriceCategory
 	TMap<int32, FReEchoCsvShopDropLevelRow> ShopDropLevels;     // keyed by EncounterIndex (clamped to run length)
 	TMap<FName, FReEchoCsvShopRefreshRuleRow> ShopRefreshRules; // keyed by RuleId; production uses Default
+	TMap<FName, FReEchoCsvRuneUpgradeRow> RuneUpgrades;          // keyed by FromPartId; I->II->III synthesis recipes
 
 	const FReEchoRuntimeSmokeRow* FindRuntimeSmokeRow(FName RowId) const;
 	FName ResolveCharacterId(FName CharacterId) const;
