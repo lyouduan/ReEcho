@@ -575,20 +575,27 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 	if (TitleText)
 	{
 		const FText PickCount = FText::AsNumber(SelectableCount);
-		TitleText->SetText(bShopMode ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择{0}张{1}构筑卡牌"),
-		                                             PickCount,
-		                                             FText::FromString(ShopTier == 1   ? TEXT("一级")
-		                                                               : ShopTier == 2 ? TEXT("二级")
-		                                                                               : TEXT("三级")))
-		                             : FText::Format(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择{0}张构筑卡牌"), PickCount));
+		TitleText->SetText(
+		    SelectableCount > 1
+		        ? FText::Format(NSLOCTEXT("ReEcho",
+		                                  "CardChoiceCadenceTitle",
+		                                  "从破碎的刻度中，你读出了更多的可能...本次可以选择{0}张！"),
+		                        PickCount)
+		        : (bShopMode ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择{0}张{1}构筑卡牌"),
+		                                     PickCount,
+		                                     FText::FromString(ShopTier == 1   ? TEXT("一级")
+		                                                       : ShopTier == 2 ? TEXT("二级")
+		                                                                       : TEXT("三级")))
+		                     : FText::Format(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择{0}张构筑卡牌"), PickCount)));
 	}
 	if (SubtitleText)
 	{
+		// The cadence flavour line now lives in the title, so keep the subtitle a short actionable hint
+		// instead of rendering the same sentence twice.
 		SubtitleText->SetText(
 		    SelectableCount > 1
-		        ? NSLOCTEXT("ReEcho",
-		                    "CardChoiceCadenceDoublePick",
-		                    "从破碎的刻度中，你读出了更多的可能...本次你可以额外选择1张卡牌！")
+		        ? FText::Format(NSLOCTEXT("ReEcho", "CardChoiceCadenceHint", "请选满 {0} 张后点击确认"),
+		                        FText::AsNumber(SelectableCount))
 		        : (bShopMode
 		               ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "卡牌组已付款；选择1张卡牌完成领取")
 		               : NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具")));
@@ -654,6 +661,56 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 		                                            Offer.RefreshCost <= CurrentTimeShards);
 	}
 	RefreshSelectionVisuals();
+	ApplyTitleLayout();
+}
+
+/** Vertical breathing room between the pick hint and the top of the tallest card frame. */
+static constexpr float TraitChoiceTitleCardGap = 26.0f;
+
+void UReEchoTraitCardChoiceWidget::ApplyTitleLayout()
+{
+	if (!TitleText)
+	{
+		return;
+	}
+	// The card frames are the runtime layout authority. Park the pick hint just above their top edge so it
+	// can never sit on top of the page chrome the designer laid out further up the canvas.
+	float CardTopY = TNumericLimits<float>::Max();
+	for (const TObjectPtr<USizeBox>& CardPanel : CardPanels)
+	{
+		const UCanvasPanelSlot* CardSlot = CardPanel ? Cast<UCanvasPanelSlot>(CardPanel->Slot) : nullptr;
+		if (!CardSlot)
+		{
+			continue;
+		}
+		CardTopY =
+		    FMath::Min(CardTopY, CardSlot->GetPosition().Y - CardSlot->GetSize().Y * CardSlot->GetAlignment().Y);
+	}
+	if (!FMath::IsFinite(CardTopY))
+	{
+		return;
+	}
+	UCanvasPanelSlot* TitleSlot = Cast<UCanvasPanelSlot>(TitleText->Slot);
+	if (!TitleSlot)
+	{
+		// The authored layout may keep the hint inside a header container. Move that container instead so
+		// the fallback layout and any designer grouping are both covered.
+		UWidget* Ancestor = TitleText->GetParent();
+		while (Ancestor && !TitleSlot)
+		{
+			TitleSlot = Cast<UCanvasPanelSlot>(Ancestor->Slot);
+			Ancestor = Ancestor->GetParent();
+		}
+	}
+	if (!TitleSlot)
+	{
+		return;
+	}
+	const FVector2D TitleSize = TitleSlot->GetSize();
+	// Keep the designer's X placement; only move the hint vertically so its bottom edge clears the cards.
+	const float TitleBottomY = CardTopY - TraitChoiceTitleCardGap;
+	TitleSlot->SetPosition(
+	    FVector2D(TitleSlot->GetPosition().X, TitleBottomY - TitleSize.Y * (1.0f - TitleSlot->GetAlignment().Y)));
 }
 
 void UReEchoTraitCardChoiceWidget::RefreshSelectionVisuals()
