@@ -126,7 +126,7 @@ bool FReEchoCsvDefaultDataLoadsTest::RunTest(const FString& Parameters)
 	          Boss->Abilities[0].BehaviorId,
 	          FName(TEXT("Boss.MeleeSweep")));
 	TestEqual(TEXT("Boss ships two phases (one-form + blood-depleted two-form)"), Boss->BossPhases.Num(), 2);
-	TestEqual(TEXT("Phase-two maximum health is the black-form ceiling"), Boss->BossPhases[1].PhaseMaxHealth, 650.0f);
+	TestEqual(TEXT("Phase-two maximum health is the black-form ceiling"), Boss->BossPhases[1].PhaseMaxHealth, 2000.0f);
 	TestEqual(TEXT("Phase-two refill policy is RefillToMaximum"),
 	          Boss->BossPhases[1].RefillHealthPolicy,
 	          TEXT("RefillToMaximum"));

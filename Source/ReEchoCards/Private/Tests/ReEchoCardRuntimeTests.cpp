@@ -85,6 +85,41 @@ bool FReEchoOwnedCardTierOfferRulesTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGrantAllTierOneCardsTest,
+                                 "ReEcho.Cards.Grant.GrantAllTierOneAddsEveryEnabledCard",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGrantAllTierOneCardsTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition TierOneOwned =
+	    MakeCard(TEXT("TIER_ONE_OWNED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	const FReEchoCardDefinition TierOneMissing =
+	    MakeCard(TEXT("TIER_ONE_MISSING"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	FReEchoCardDefinition TierOneDisabled =
+	    MakeCard(TEXT("TIER_ONE_DISABLED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("HpMax"), 1.0f);
+	TierOneDisabled.bEnabled = false;
+	const FReEchoCardDefinition GrantAll =
+	    MakeCard(TEXT("GRANT_ALL_TIER_ONE"), 3, TEXT("Card.GrantAllTier1"), TEXT("OnGrant"), TEXT("Tier"), 1.0f);
+	const FReEchoCardCatalog Catalog = BuildCatalog({TierOneOwned, TierOneMissing, TierOneDisabled, GrantAll});
+
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.CardState.OwnedCardIds = {TierOneOwned.Id};
+	const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, GrantAll.Id, Input);
+
+	TestTrue(TEXT("Grant-all transaction succeeds"), Grant.bSucceeded);
+	TestEqual(TEXT("An already owned enabled tier-one card receives another stack"),
+	          ReEchoCardRuntime::CountOwned(Grant.CardState, TierOneOwned.Id),
+	          2);
+	TestEqual(TEXT("A missing enabled tier-one card is granted"),
+	          ReEchoCardRuntime::CountOwned(Grant.CardState, TierOneMissing.Id),
+	          1);
+	TestEqual(TEXT("A disabled tier-one card is not granted"),
+	          ReEchoCardRuntime::CountOwned(Grant.CardState, TierOneDisabled.Id),
+	          0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEncounterAndConflictOfferRulesTest,
                                  "ReEcho.Cards.Offer.EncounterAndConflictsAreShared",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -305,6 +340,43 @@ bool FReEchoCoreCollectionCardTest::RunTest(const FString&)
 	const FReEchoCardEventResult Repeated =
 	    ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, Complete.CardState, Complete.Stats, 7);
 	TestEqual(TEXT("Collection completion is idempotent"), Repeated.Stats.CriticalRate, Complete.Stats.CriticalRate);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDragonSoulTieredGrantTest,
+                                 "ReEcho.Cards.Inventory.DragonSoulGrantsRepeatableTierOne",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoDragonSoulTieredGrantTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition TierOne =
+	    MakeCard(TEXT("TIER_ONE"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	const FReEchoCardDefinition TierTwo =
+	    MakeCard(TEXT("TIER_TWO"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	const FReEchoCardDefinition TierThree =
+	    MakeCard(TEXT("TIER_THREE"), 3, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("HpMax"), 1.0f);
+	const FReEchoCardDefinition DragonSoul = MakeCard(TEXT("DRAGON_SOUL"),
+	                                                   3,
+	                                                   TEXT("Card.CollectCoresGrantTiered"),
+	                                                   TEXT("OnInventoryChanged"),
+	                                                   TEXT("CoreCollection"),
+	                                                   1.0f,
+	                                                   TEXT("RequiredCount"),
+	                                                   6.0f,
+	                                                   true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({TierOne, TierTwo, TierThree, DragonSoul});
+
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {DragonSoul.Id, TierOne.Id};
+	const FReEchoCardEventResult Complete = ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, State, {}, 6);
+
+	TestTrue(TEXT("Six cores complete dragon soul"), Complete.CardState.Runtime.bDragonSoulCompleted);
+	TestEqual(TEXT("Dragon soul repeats an already owned tier-one Stackable card"),
+	          ReEchoCardRuntime::CountOwned(Complete.CardState, TierOne.Id),
+	          2);
+	TestEqual(TEXT("Dragon soul grants one tier-two card"), ReEchoCardRuntime::CountOwned(Complete.CardState, TierTwo.Id), 1);
+	TestEqual(TEXT("Dragon soul grants one tier-three card"), ReEchoCardRuntime::CountOwned(Complete.CardState, TierThree.Id), 1);
 	return true;
 }
 

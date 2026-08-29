@@ -246,6 +246,7 @@ bool ReadCharacterAbilitiesTable(const FString& DataDirectory,
 	                            TEXT("Value"),
 	                            TEXT("BehaviorId"),
 	                            TEXT("Interval"),
+	                            TEXT("MinCardPackTier"),
 	                            TEXT("Enabled"),
 	                            TEXT("DisabledReason")},
 	                           Issues);
@@ -264,6 +265,7 @@ bool ReadCharacterAbilitiesTable(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, Ability.Value, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), Ability.BehaviorId, Issues);
 		ReEchoCsv::RequireFloat(Table, Row, TEXT("Interval"), 0.0f, 100000.0f, Ability.Interval, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("MinCardPackTier"), Ability.MinCardPackTier, Issues);
 		ReEchoCsv::RequireBool(Table, Row, TEXT("Enabled"), Ability.bEnabled, Issues);
 		ReEchoCsv::ReadOptionalCell(Row, TEXT("DisabledReason"), Ability.DisabledReason);
 		const FString OrderKey = FString::Printf(

@@ -21,6 +21,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoTraitCardSelected, FName, Car
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoShopCardChoiceSelected, FName, ItemId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoCardSlotRefreshRequested, int32, SlotIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoShopCardChoiceCancelled);
+/** Fired on confirm with every picked card, so cadence packs can hand out more than one at a time. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoCardChoicesSelected, const TArray<FName>&, CardIds);
 
 /** 展示三选一特质/锻造卡，并在揭示完成后接受一次选择。 */
 UCLASS()
@@ -40,6 +42,11 @@ public:
 	FReEchoCardSlotRefreshRequested OnCardSlotRefreshRequested;
 	UPROPERTY(BlueprintAssignable)
 	FReEchoShopCardChoiceCancelled OnShopChoiceCancelled;
+	/** Confirmed with every picked card at once; preferred by cadence packs that grant two cards. */
+	UPROPERTY(BlueprintAssignable)
+	FReEchoCardChoicesSelected OnCardChoicesSelected;
+	UPROPERTY(BlueprintAssignable)
+	FReEchoCardChoicesSelected OnShopCardChoicesSelected;
 
 	/** 装载本轮候选项。默认重置全部揭示；刷新成功时只重播指定稳定槽位。 */
 	void InitializeOffers(const TArray<FReEchoTraitCardOffer>& InOffers,
@@ -56,6 +63,9 @@ public:
 	void AdvanceRevealAnimationForTesting(float DeltaSeconds);
 #endif
 
+	/** Sets how many cards this pack requires. Call before the offers are revealed. */
+	void SetSelectableCount(int32 InSelectableCount);
+
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
@@ -64,6 +74,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	void EnsureConfirmButton();
 	void EnsureShopCancelButton();
 	void BuildCardEntries();
 	void RefreshOffers();
@@ -81,6 +92,8 @@ private:
 
 	UFUNCTION()
 	void HandleCardClicked(int32 OfferIndex);
+	/** Commits every currently picked card. Used by both the confirm button and the one-click layouts. */
+	void CommitSelectedChoices();
 	UFUNCTION()
 	void HandleCardRefreshClicked(int32 OfferIndex);
 
@@ -173,6 +186,10 @@ private:
 	int32 ShopTier = 0;
 	float RevealElapsed = 0.0f;
 	int32 SelectedOfferIndex = INDEX_NONE;
+	/** All currently picked cards. Cadence abilities can raise the required pick count above one. */
+	TArray<int32> SelectedOfferIndices;
+	/** How many cards this pack requires the player to take (1 normally, 2 on a cadence ability). */
+	int32 SelectableCount = 1;
 	int32 RevealingCardIndex = INDEX_NONE;
 	bool bRevealComplete = false;
 	bool bShopMode = false;

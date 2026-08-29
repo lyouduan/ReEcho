@@ -17,9 +17,10 @@ constexpr const TCHAR* PartEffectsTableId = TEXT("PartEffects");
 constexpr const TCHAR* ShopPriceRangesTableId = TEXT("shop_price_ranges");
 constexpr const TCHAR* ShopDropLevelsTableId = TEXT("shop_drop_levels");
 constexpr const TCHAR* ShopRefreshRulesTableId = TEXT("shop_refresh_rules");
+constexpr const TCHAR* RuneUpgradesTableId = TEXT("RuneUpgrades");
 constexpr const TCHAR* NoneId = TEXT("None");
 constexpr int32 MaxStartSelectableLoadoutOrder = static_cast<int32>(EReEchoInputSlot::Slot6);
-constexpr int32 ExpectedPartSourceRows = 49;
+constexpr int32 ExpectedPartSourceRows = 111;
 
 TArray<FName> ParseNameList(const FString& Text)
 {
@@ -979,6 +980,46 @@ bool ReadShopDropLevelsTable(const FString& DataDirectory,
 	return Issues.Num() == 0;
 }
 
+bool ReadRuneUpgradesTable(const FString& DataDirectory,
+                            const ReEchoCsv::FManifestEntry& Entry,
+                            FReEchoCsvDataSnapshot& Snapshot,
+                            TArray<FReEchoCsvIssue>& Issues)
+{
+	ReEchoCsv::FTable Table;
+	const FString TablePath = FPaths::Combine(DataDirectory, Entry.FileName);
+	if (!ReEchoCsv::ParseCsvFile(TablePath, Table, Issues))
+	{
+		return false;
+	}
+	TArray<FString> ExpectedColumns = {TEXT("FromPartId"), TEXT("NeedCount"), TEXT("ToPartId")};
+	if (!ReEchoCsv::HasExactColumns(Table, ExpectedColumns, Issues))
+	{
+		return false;
+	}
+	TSet<FName> SeenFrom;
+	for (const ReEchoCsv::FRow& Row : Table.Rows)
+	{
+		FReEchoCsvRuneUpgradeRow Rule;
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("FromPartId"), Rule.FromPartId, Issues);
+		ReEchoCsv::RequireInt(Table, Row, TEXT("NeedCount"), Rule.NeedCount, Issues);
+		ReEchoCsv::RequireStableId(Table, Row, TEXT("ToPartId"), Rule.ToPartId, Issues);
+		Rule.SourceSheet = Entry.FileName;
+		Rule.SourceRow = Row.Line;
+		if (SeenFrom.Contains(Rule.FromPartId))
+		{
+			ReEchoCsv::AddIssue(
+			    Issues,
+			    Table.File,
+			    Row.Line,
+			    TEXT("FromPartId"),
+			    FString::Printf(TEXT("rune_upgrades duplicate FromPartId %s"), *Rule.FromPartId.ToString()));
+		}
+		SeenFrom.Add(Rule.FromPartId);
+		Snapshot.RuneUpgrades.Add(Rule.FromPartId, Rule);
+	}
+	return Issues.Num() == 0;
+}
+
 bool ReadShopRefreshRulesTable(const FString& DataDirectory,
                                const ReEchoCsv::FManifestEntry& Entry,
                                FReEchoCsvDataSnapshot& Snapshot,
@@ -1163,7 +1204,7 @@ bool ReadPartsTable(const FString& DataDirectory,
 	if (Table.Rows.Num() != ExpectedPartSourceRows)
 	{
 		ReEchoCsv::AddIssue(
-		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Production four-weapon rune catalog must contain 49 rows"));
+		    Issues, Table.File, 1, TEXT("SourceRow"), TEXT("Production four-weapon rune catalog must contain 111 rows"));
 	}
 	// The named/unnamed split is no longer pinned to 10/60: weapon part families are implemented
 	// incrementally, so naming + enabling rows is expected progress. The real invariant kept here is
@@ -1400,6 +1441,10 @@ bool ReadTables(const FString& DataDirectory,
 	if (Issues.Num() == 0)
 	{
 		ReadShopDropLevelsTable(DataDirectory, ManifestEntries[ShopDropLevelsTableId], Snapshot, Issues);
+	}
+	if (Issues.Num() == 0)
+	{
+		ReadRuneUpgradesTable(DataDirectory, ManifestEntries[RuneUpgradesTableId], Snapshot, Issues);
 	}
 	if (Issues.Num() == 0)
 	{
