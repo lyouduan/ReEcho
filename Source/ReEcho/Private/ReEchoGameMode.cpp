@@ -1609,37 +1609,53 @@ void AReEchoGameMode::HandleNewGameRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->SelectFirstEmptySaveSlot())
+	const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
+	const int32 TargetSlotIndex = ResolveNewGameSaveSlot(SaveSlots);
+	const FReEchoSaveSlotSummary* TargetSlot = SaveSlots.FindByPredicate(
+	    [TargetSlotIndex](const FReEchoSaveSlotSummary& Candidate)
+	    {
+		    return Candidate.SlotIndex == TargetSlotIndex;
+	    });
+	if (!TargetSlot || !RunSubsystem->SelectSaveSlot(TargetSlotIndex))
 	{
-		const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
-		const FReEchoSaveSlotSummary* OldestSaveSlot = nullptr;
-		for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
-		{
-			if (!SaveSlot.bOccupied)
-			{
-				continue;
-			}
-
-			if (!OldestSaveSlot || SaveSlot.SavedAtUtc < OldestSaveSlot->SavedAtUtc)
-			{
-				OldestSaveSlot = &SaveSlot;
-			}
-		}
-
-		if (!OldestSaveSlot || !RunSubsystem->SelectSaveSlot(OldestSaveSlot->SlotIndex))
-		{
-			PostUiEvent(FReEchoAudioEvents::UiError);
-			UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no replaceable save slot found."));
-			return;
-		}
-
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no writable save slot found."));
+		return;
+	}
+	if (TargetSlot->bOccupied)
+	{
 		UE_LOG(LogTemp,
 		       Display,
 		       TEXT("[ReEchoStartFlow] Selected oldest save slot for deferred replacement. Slot=%d SavedAtUtc=%s"),
-		       OldestSaveSlot->SlotIndex + 1,
-		       *OldestSaveSlot->SavedAtUtc.ToIso8601());
+		       TargetSlot->SlotIndex + 1,
+		       *TargetSlot->SavedAtUtc.ToIso8601());
 	}
 	ShowLoadoutSelection();
+}
+
+int32 AReEchoGameMode::ResolveNewGameSaveSlot(const TArray<FReEchoSaveSlotSummary>& SaveSlots)
+{
+	int32 FirstEmptySlotIndex = INDEX_NONE;
+	const FReEchoSaveSlotSummary* OldestOccupiedSlot = nullptr;
+	for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
+	{
+		if (!SaveSlot.bOccupied)
+		{
+			if (FirstEmptySlotIndex == INDEX_NONE || SaveSlot.SlotIndex < FirstEmptySlotIndex)
+			{
+				FirstEmptySlotIndex = SaveSlot.SlotIndex;
+			}
+			continue;
+		}
+		if (!OldestOccupiedSlot || SaveSlot.SavedAtUtc < OldestOccupiedSlot->SavedAtUtc ||
+		    (SaveSlot.SavedAtUtc == OldestOccupiedSlot->SavedAtUtc &&
+		     SaveSlot.SlotIndex < OldestOccupiedSlot->SlotIndex))
+		{
+			OldestOccupiedSlot = &SaveSlot;
+		}
+	}
+	return FirstEmptySlotIndex != INDEX_NONE ? FirstEmptySlotIndex
+	                                         : (OldestOccupiedSlot ? OldestOccupiedSlot->SlotIndex : INDEX_NONE);
 }
 
 void AReEchoGameMode::HandleContinueGameRequested()

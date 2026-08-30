@@ -85,6 +85,19 @@ def copy_label_presentation(source, target):
     )
 
 
+def copy_slot_presentation(source, target):
+    source_slot = source.get_editor_property("slot")
+    target_slot = target.get_editor_property("slot")
+    if source_slot is None or target_slot is None:
+        raise RuntimeError("Unable to copy the authored label slot")
+    for prop in (
+        "padding",
+        "horizontal_alignment",
+        "vertical_alignment",
+    ):
+        target_slot.set_editor_property(prop, source_slot.get_editor_property(prop))
+
+
 def main():
     toolset = unreal.UMGToolSet.get_default_object()
     blueprint = unreal.load_asset(SELECTION_PATH)
@@ -101,6 +114,12 @@ def main():
         confirm_label, unreal.TextBlock
     ):
         raise RuntimeError("Authored Confirm button contract is missing")
+    unreal.log(
+        "[Plan154LoadoutBackMigration] "
+        f"confirm_parent={confirm_button.get_parent().get_name() if confirm_button.get_parent() else '<none>'} "
+        f"label_parent={confirm_label.get_parent().get_name() if confirm_label.get_parent() else '<none>'} "
+        f"label_slot={confirm_label.get_editor_property('slot').get_class().get_name()}"
+    )
 
     back_button = widgets.get("BackButton")
     back_label = widgets.get("BackButtonLabel")
@@ -110,7 +129,6 @@ def main():
 
     if created:
         confirm_slot, confirm_layout, confirm_offsets = canvas_geometry(confirm_button)
-        label_slot, label_layout, label_offsets = canvas_geometry(confirm_label)
         split = (confirm_offsets.right + BUTTON_GAP) * 0.5
 
         back_button = toolset.call_method(
@@ -119,7 +137,7 @@ def main():
         ).widget
         back_label = toolset.call_method(
             "AddWidget",
-            args=(blueprint, unreal.TextBlock, "BackButtonLabel", canvas, -1),
+            args=(blueprint, unreal.TextBlock, "BackButtonLabel", back_button, -1),
         ).widget
         if not isinstance(back_button, unreal.Button) or not isinstance(
             back_label, unreal.TextBlock
@@ -127,9 +145,6 @@ def main():
             raise RuntimeError("Failed to create Plan154 Back controls")
 
         back_slot, back_layout, back_offsets = canvas_geometry(back_button)
-        back_label_slot, back_label_layout, back_label_offsets = canvas_geometry(
-            back_label
-        )
         set_canvas_x(
             back_slot,
             confirm_layout,
@@ -142,22 +157,10 @@ def main():
             confirm_offsets,
             confirm_offsets.left + split,
         )
-        label_split = (label_offsets.right + BUTTON_GAP) * 0.5
-        set_canvas_x(
-            back_label_slot,
-            label_layout,
-            label_offsets,
-            label_offsets.left - label_split,
-        )
-        set_canvas_x(
-            label_slot,
-            label_layout,
-            label_offsets,
-            label_offsets.left + label_split,
-        )
 
     copy_button_presentation(confirm_button, back_button)
     copy_label_presentation(confirm_label, back_label)
+    copy_slot_presentation(confirm_label, back_label)
     mark_variable(toolset, blueprint, back_button)
     mark_variable(toolset, blueprint, back_label)
 
@@ -180,4 +183,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        unreal.SystemLibrary.request_exit_with_status(True, 1)
+        raise

@@ -206,8 +206,15 @@ def main():
                 back_label, unreal.TextBlock
             ):
                 raise RuntimeError("Plan154 Loadout Back/Confirm labels are missing")
-            if back_button.get_parent() is not design_canvas or back_label.get_parent() is not design_canvas:
-                raise RuntimeError("Plan154 Back controls are not Designer-owned canvas children")
+            if (
+                confirm_button.get_parent() is not design_canvas
+                or back_button.get_parent() is not design_canvas
+                or confirm_label.get_parent() is not confirm_button
+                or back_label.get_parent() is not back_button
+            ):
+                raise RuntimeError(
+                    "Plan154 Back/Confirm controls do not share the Designer-owned button hierarchy"
+                )
             confirm_style = confirm_button.get_editor_property("widget_style")
             back_style = back_button.get_editor_property("widget_style")
             for state in ("normal", "hovered", "pressed", "disabled"):
@@ -238,6 +245,21 @@ def main():
                 raise RuntimeError("Plan154 Back button size/row does not match Confirm")
             if back_offsets.left >= confirm_offsets.left:
                 raise RuntimeError("Plan154 Back button is not left of Confirm")
+            if str(back_label.get_editor_property("text")) != "返回":
+                raise RuntimeError("Plan154 Back label does not use the formal return text")
+            back_font = back_label.get_editor_property("font")
+            confirm_font = confirm_label.get_editor_property("font")
+            back_color = back_label.get_editor_property("color_and_opacity")
+            confirm_color = confirm_label.get_editor_property("color_and_opacity")
+            if (
+                back_font.get_editor_property("font_object")
+                is not confirm_font.get_editor_property("font_object")
+                or back_font.get_editor_property("size")
+                != confirm_font.get_editor_property("size")
+                or back_color.get_editor_property("specified_color")
+                != confirm_color.get_editor_property("specified_color")
+            ):
+                raise RuntimeError("Plan154 Back label typography does not match Confirm")
             unreal.log(
                 "[Plan154LoadoutAudit] "
                 f"back=({back_offsets.left},{back_offsets.top},"

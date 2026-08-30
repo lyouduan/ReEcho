@@ -19,6 +19,7 @@
   - `Source/ReEcho/Public/ReEchoGameMode.h`
   - `Source/ReEcho/Private/ReEchoGameMode.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoLoadoutSelectionTests.cpp`
+  - `Source/ReEcho/Private/Tests/ReEchoGameModeTests.cpp`
   - `scripts/ue/migrate_plan154_loadout_back_button.py`
   - `scripts/ue/audit_plan132_loadout_widgets.py`
   - `Design/UI/ReEcho_UI修改指导.md`

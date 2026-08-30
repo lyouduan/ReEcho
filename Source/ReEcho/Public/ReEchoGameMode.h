@@ -40,6 +40,7 @@ class UMaterialInterface;
 class UTexture2D;
 class UWorld;
 struct FReEchoCsvStageRow;
+struct FReEchoSaveSlotSummary;
 enum class EReEchoInventoryShopMode : uint8;
 struct FReEchoEncounterRuntimeState;
 struct FReEchoMinimapView;
@@ -484,6 +485,7 @@ private:
 	friend class FReEchoGameModeBossVictoryGateTest;
 	friend class FReEchoGameModeSceneAndMoveSpeedTest;
 	friend class FReEchoGameModeEnemyElementAllTest;
+	friend class FReEchoGameModeNewGameSaveSlotTest;
 	friend class FReEchoEncounterTransitionPolicyTest;
 #endif
 	static bool ShouldStartEncounterTransition(float RemainingTime, bool bBossEncounter, bool bTransitioning);
@@ -514,6 +516,7 @@ private:
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);
+	static int32 ResolveNewGameSaveSlot(const TArray<FReEchoSaveSlotSummary>& SaveSlots);
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);

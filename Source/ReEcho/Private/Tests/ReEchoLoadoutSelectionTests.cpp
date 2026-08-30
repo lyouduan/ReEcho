@@ -3,6 +3,8 @@
 #include "Misc/AutomationTest.h"
 
 #include "Components/Border.h"
+#include "Components/Button.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
 #include "Components/ScaleBoxSlot.h"
@@ -161,6 +163,20 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestEqual(TEXT("Back remains visible before a candidate is selected"),
 			          AuthoredWidget->BackButton->GetVisibility(),
 			          ESlateVisibility::Visible);
+			UCanvasPanelSlot* BackSlot = Cast<UCanvasPanelSlot>(AuthoredWidget->BackButton->Slot);
+			UCanvasPanelSlot* ConfirmSlot = Cast<UCanvasPanelSlot>(AuthoredWidget->ConfirmButton->Slot);
+			TestNotNull(TEXT("Back button remains a Designer Canvas child"), BackSlot);
+			TestNotNull(TEXT("Confirm button remains a Designer Canvas child"), ConfirmSlot);
+			if (BackSlot && ConfirmSlot)
+			{
+				TestEqual(
+				    TEXT("Back and Confirm use the same authored size"), BackSlot->GetSize(), ConfirmSlot->GetSize());
+				TestEqual(TEXT("Back and Confirm stay on the same authored row"),
+				          BackSlot->GetPosition().Y,
+				          ConfirmSlot->GetPosition().Y);
+				TestTrue(TEXT("Back is authored to the left of Confirm"),
+				         BackSlot->GetPosition().X < ConfirmSlot->GetPosition().X);
+			}
 		}
 		TestNotNull(TEXT("Designer tree owns the stage switcher"), AuthoredWidget->StageSwitcher.Get());
 		if (AuthoredWidget->StageSwitcher)
