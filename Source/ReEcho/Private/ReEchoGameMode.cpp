@@ -27,7 +27,6 @@
 #include "UnrealClient.h"
 #include "EngineUtils.h"
 #include "ImageUtils.h"
-#include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
@@ -3102,17 +3101,6 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 			       Event.Count,
 			       Pending ? Pending->Locations.Num() : 0,
 			       Event.SpawnSeconds);
-			if (Pending && GetWorld())
-			{
-				const float FixedStepGraceSeconds =
-				    1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
-				const float DisplaySeconds =
-				    FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds) + FixedStepGraceSeconds;
-				for (const FVector& Location : Pending->Locations)
-				{
-					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Red, false, DisplaySeconds, 0, 5.0f);
-				}
-			}
 			continue;
 		}
 		SpawnScheduledBatch(Event);

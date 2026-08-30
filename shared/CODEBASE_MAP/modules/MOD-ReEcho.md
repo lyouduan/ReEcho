@@ -247,6 +247,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 **设计意图：** 提供可暂停、确定性的 60 Hz 固定步遭遇时钟、表驱动波次门、单一出生解析和纯值 Stage 过渡决策，让 Recording/Echo/敌人生成共享同一时间语义，同时不让 GameMode 保存刷怪平衡常量。Stage 是连续战场，Encounter 只界定时钟、波次、录制和 Echo；结束一场不等于重建同 Stage 的 Actor。
 
+- 出生 `Warning` 只预留容量、锁定最终位置并记录日志，不绘制球形网格或调试线框；此约束在 Editor、Development 与 Shipping 共用路径生效，不依赖构建开关。`Commit` 时序与 Host 提交后的可选 Born 动画保持不变。`ReEcho.GameMode.SpawnWarningNoDebugGeometry` 检查 Editor/Game World 下普通怪与 Boss 的预备事件不向调试批次添加几何。
+
 - 代码：`Source/ReEcho/Public/Encounter/`、`Source/ReEcho/Private/Encounter/`。
 - 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
 - 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只消费 GameMode 传入的墙体派生世界 `FBox2D` 并做纯确定性计算；越界候选不 Clamp，最终 fallback 也必须同时满足 Bounds、玩家/Echo 距离和既有出生间距，否则失败关闭；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。

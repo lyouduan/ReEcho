@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`。
 - 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@d62a088a8f732a90ff9b1b6ac4b6f1d681e44981`。
 - 本地实现方式：独立分支 `plan/157-shop-tooltip-blueprints`、worktree `ReEcho-plan157-shop-tooltip-blueprints`。
@@ -156,3 +156,12 @@
 - 用户在属性图标恢复后明确要求“推送到远端合入主分支”，本次人工状态更新为 `Passed`。全部最新已保存 UI 微调纳入候选，保持 EngineAssociation=5.8；发布前没有运行生成器重置用户布局。
 - 已 fetch 并重读远端 AGENTS / Git / Planner 权威规则；当前 main `efe05ad3`，相对 Plan-only 基线新增刷怪调试球移除、攻速 300% 上限、一级卡牌数值及配套 XLSX/CSV、属性图标 AlwaysCook。只读 diff 审计：无新增 Plan 编号冲突；不触碰本任务 UI 源码或蓝图，保留外部 Gameplay/表格/Cook 变更。预构建包存在双边更新，需要最终 FullRebuild；`MOD-ReEcho.md` 的波次段与本任务 UI 段可组合保留，无产品取舍。
 - 先保存完整本地正式候选，再按发布锁协议合入最新 main，重跑最终构建、资产/自动化/静态/LFS 门禁。此处不复用本地增量构建作为发布证据。
+
+### 最终集成与关闭
+
+- 正式实现提交 `28447b92`（`JosephLE910 + Codex`、`[PROGRAMMER]`）；该提交成功原子取得 `main-publish-lock` 后，再次 fetch 并 merge `efe05ad3ec20c4e9481ef7df38573862de177dd7`。源码、UI 资产和文档自动组合；仅精选 DLL/manifest 冲突，由最终构建生成物解决，未选择任一旧二进制冒充组合候选。
+- `Saved/Logs/Plan157-Publish-FullRebuild.log`：`Build-Editor.cmd -Configuration Development -FullRebuild` 成功，97 项构建动作完成、7 模块预构建刷新，engine build `55116800`、source fingerprint `94dca48a3670`。构建期间 manifest 尚有合并标记时提前静态检查被正确拦截；构建完成并暂存冲突解决后重新执行项目和预构建校验均 PASS。
+- `Saved/Logs/Plan157-Publish-Tests-Engine.log`：最终组合候选 9/9 Success、退出码 0，覆盖商店 5 项、选择页 Flow/Assets 2 项、真实 GPU 背板/八图标渲染 1 项及传入出生警告无调试几何 1 项。重新查看最终属性渲染图，八张图标和边框保留。
+- `Saved/Logs/Plan157-Publish-Audit-Engine.log`：独立 UE 进程重新加载最终资产审计 PASS。Python 语法、`validate_project.py`、预构建清单、暂存差异和 LFS 对象检查通过。5 个相关 UI 蓝图与实现提交逐字节相同，包含用户最终字号、间距与位置微调。
+- 关闭文档审阅：`MOD-ReEcho.md` 已组合保留主线波次说明及本任务只读 UI 契约；`MOD-ReEchoUI.md` 已更新蓝图表现权威、可见背板、图标尺寸及按钮状态；专门微调指南与总 UI 指南已更新。`ARCHITECTURE.md`、`README.md` 已重审，无模块拓扑、依赖方向或路由变化，不需修改。
+- 人工验收 `Passed`，发布范围与用户请求一致，无未解决冲突或跳过的必需门禁。随后按同一锁协议更新候选并普通推送 main，核验准确远端引用后释放锁；本次未请求删除本地工作文件夹，继续保留测试工程及本地证据。

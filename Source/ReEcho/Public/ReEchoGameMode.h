@@ -495,6 +495,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FReEchoGameModeFoxSpawnTest;
 	friend class FReEchoGameModeBossVictoryGateTest;
+	friend class FReEchoGameModeSpawnWarningNoDebugGeometryTest;
 	friend class FReEchoGameModeSceneAndMoveSpeedTest;
 	friend class FReEchoGameModeEnemyElementAllTest;
 	friend class FReEchoGameModeNewGameSaveSlotTest;

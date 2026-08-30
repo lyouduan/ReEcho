@@ -375,7 +375,8 @@ void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
 	// Keep the raw stat block in sync for BOTH backends. Echoes (no ability system) and the player
 	// (ability-system bound) must both see transient attack/move speed in weapon cadence and movement.
 	// Previously only the no-ability-system fallback mutated Stats, so player attack-speed runes had no effect.
-	Stats.AttackSpeed += Stack.FallbackAttackSpeedDelta;
+	Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
+	                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
 	Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
 	RefreshTickState();
 }
@@ -869,7 +870,7 @@ void UReEchoCombatantComponent::SyncFromAbilitySystem()
 	Stats.Block = FMath::RoundToInt(Attributes->GetBlock());
 	Stats.PhysicalAttack = Attributes->GetPhysicalAttack();
 	Stats.ElementalAttack = Attributes->GetElementalAttack();
-	Stats.AttackSpeed = Attributes->GetAttackSpeed();
+	Stats.AttackSpeed = FMath::Min(Attributes->GetAttackSpeed(), FReEchoStatBlock::MaxAttackSpeedMultiplier);
 	Stats.MovementSpeed = Attributes->GetMovementSpeed();
 	Stats.EchoEfficiency = Attributes->GetEchoEfficiency();
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
@@ -927,7 +928,7 @@ void UReEchoCombatantComponent::HandleElementalAttackChanged(const FOnAttributeC
 
 void UReEchoCombatantComponent::HandleAttackSpeedChanged(const FOnAttributeChangeData& Data)
 {
-	Stats.AttackSpeed = Data.NewValue;
+	Stats.AttackSpeed = FMath::Min(Data.NewValue, FReEchoStatBlock::MaxAttackSpeedMultiplier);
 }
 
 void UReEchoCombatantComponent::HandleMovementSpeedChanged(const FOnAttributeChangeData& Data)
