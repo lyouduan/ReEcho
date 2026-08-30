@@ -107,6 +107,8 @@
 - 根据人工反馈，CG完成回调现在先在媒体层背后生成并定位 Echo/相机，再关闭全屏CG；关闭后首个可见游戏帧已经是稳定Echo特写，定格结束后同时拉远并切回玩家。
 - 根据最终节奏要求，CG前使用真实全局暂停完成“玩家推进1秒 → 玩家近景保持0.5秒”，默认特写距离比最初候选近一倍；CG后使用两个独立阶段：“锁定Echo并用1秒拉回标准视角 → 保持标准视角并用1秒平移到玩家”，最后一步完成才解除暂停并激活Encounter 2。CG播放本身始终在非全局暂停状态，避免媒体时钟冻结。
 - 暂停镜头返修：除构造默认值外，Arena Camera 在每次 `Configure()` 和 Stage01To02 序列开始时运行时强制 `SetTickableWhenPaused(true)` / 启用 Actor Tick，GameMode开始序列时也重新落实同一契约，避免关卡中旧的已序列化Actor实例覆盖原生默认值。序列起始日志输出实际Tick启用和暂停Tick状态。
+- 2026-08-30 镜头构图修复候选：玩家与 Echo 的每段镜头开始时，从当前可见 `UReEcho2DAnimationComponent` 锁存 Flipbook `RenderBounds.Origin` 的世界位置，并沿当前倾斜相机 Forward 投影到 Gameplay Plane 后作为地面焦点；Stage01To02 的 `0.325` 近景默认绕过 Arena Clamp 以保证严格居中，拉回标准视角时平滑重新进入 Clamp，普通战斗跟随及媒体/关卡状态机不变。新增纯函数自动化覆盖视觉高度投影、水平相机安全回退和默认精确居中策略；待 PIE 验收主角/Echo 近景构图。
+- 2026-08-30 CG 音量修复候选：保留首个视频帧后启动、跳过/结束时由 Widget 精确停止的独立 SoundWave 组件，启动增益使用 `Master × Music Bus × 1.5`，不继承 `Music.Encounter` 的 `0.5` BaseVolume，也不响应 Master/Music 静音开关。新增纯函数自动化覆盖默认与组合音量。
 - 暂停视图缓存返修：运行日志证明 Arena Camera 的焦点和 `OrthoWidth` 已在暂停帧完成插值，但 `APlayerController` 默认仅执行最小暂停 Tick，提前返回而不调用 `PlayerCameraManager->UpdateCamera()`，导致视口保持暂停前缓存。统一暂停边界现临时启用 `bShouldPerformFullTickWhenPaused`，解除暂停、失败或重置时恢复原值，使 CameraManager 在全局冻结期间持续消费 Arena Camera 的实时 POV。
 - 运行时接线返修：PIE日志没有出现暂停相机刷新启用/恢复记录，进一步确认 `AReEchoPlayerController` 虽已定义但从未设置为 GameMode 的 `PlayerControllerClass`，运行时 Cast 因实际控制器仍是引擎基类而安全跳过。GameMode 构造函数现显式接入项目控制器，使暂停 CameraManager 刷新契约真正进入活跃运行路径。
 

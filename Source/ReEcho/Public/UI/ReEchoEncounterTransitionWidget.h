@@ -47,6 +47,7 @@ public:
 	static float CalculateCardChoiceToShopCollapseAlpha(double MediaTimeSeconds);
 	static FVector2D CalculateCardChoiceToShopCollapseSize(const FVector2D& ViewSize, float CollapseAlpha);
 	static float CalculateCardChoiceToShopCollapseOpacity(float CollapseAlpha);
+	static float CalculateStageCgMusicVolume(float MasterVolume, float MusicBusVolume);
 	static FVector2D CalculateCardChoiceToShopCollapsePosition(const FVector2D& ViewSize,
 	                                                           float CollapseAlpha,
 	                                                           const FVector2D& TargetCenter);
