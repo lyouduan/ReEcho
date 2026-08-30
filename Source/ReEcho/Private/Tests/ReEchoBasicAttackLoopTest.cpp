@@ -24,6 +24,25 @@
 
 namespace
 {
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoHighAttackSpeedAnimationWindowTest,
+	                             "ReEcho.Combat.BasicAttack.HighSpeedAnimationWindow",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoHighAttackSpeedAnimationWindowTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TestEqual(TEXT("A normal attack window preserves the authored animation rate"),
+	          AReEchoPlayerPawn::ResolveAttackAnimationPlayRate(0.4f, 1.0f, 0.5f),
+	          1.0f);
+	TestEqual(TEXT("A doubled attack speed fits the full clip before the next attack restart"),
+	          AReEchoPlayerPawn::ResolveAttackAnimationPlayRate(0.4f, 1.0f, 0.2f),
+	          2.0f);
+	TestEqual(TEXT("Invalid timing safely preserves the authored animation rate"),
+	          AReEchoPlayerPawn::ResolveAttackAnimationPlayRate(0.4f, 1.25f, 0.0f),
+	          1.25f);
+	return true;
+}
+
 void RunHeldBasicAttackRepeatScenario(FAutomationTestBase& Test, const bool bManual)
 {
 	const TCHAR* ModeName = bManual ? TEXT("Manual") : TEXT("Auto");

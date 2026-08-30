@@ -35,6 +35,7 @@ AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 	ArenaCamera->SetOrthoWidth(2560.0f);
 	ArenaCamera->SetAspectRatio(1376.0f / 768.0f);
 	ArenaCamera->SetConstraintAspectRatio(true);
+	ImpactShakeBaseCameraLocation = ArenaCamera->GetRelativeLocation();
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CountdownPostProcessFinder(
 	    TEXT("/Game/ReEcho/Materials/PostProcess/EncounterTransition/M_PP_EncounterCountdownGhost_V4."
 	         "M_PP_EncounterCountdownGhost_V4"));
@@ -65,6 +66,10 @@ void AReEchoArenaCameraActor::Configure(AReEchoPlayerPawn* InFollowTarget, AReEc
 void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bStage01To02CameraSequenceActive && !bSequenceAdvancesWhenPaused && UGameplayStatics::IsGamePaused(this))
+	{
+		return;
+	}
 	if (!IsValid(FollowTarget))
 	{
 		Configure(Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)), ArenaSource);
@@ -77,6 +82,7 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 	{
 		UpdateFollow(DeltaSeconds);
 	}
+	UpdateImpactShake(DeltaSeconds);
 	if (EncounterCountdownPostProcessIntensity > 0.0f && EncounterCountdownPostProcessMID)
 	{
 		EncounterCountdownPostProcessPhase +=
@@ -86,7 +92,44 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 	}
 }
 
-void AReEchoArenaCameraActor::BeginStage01To02CameraSequence()
+void AReEchoArenaCameraActor::PlayImpactShake(const float AmplitudeCm, const float DurationSeconds)
+{
+	ImpactShakeAmplitudeCm = FMath::Max(0.0f, AmplitudeCm);
+	ImpactShakeDurationSeconds = FMath::Max(0.0f, DurationSeconds);
+	ImpactShakeElapsedSeconds = 0.0f;
+	UpdateImpactShake(0.0f);
+}
+
+FVector AReEchoArenaCameraActor::ResolveImpactShakeOffset(const float ElapsedSeconds,
+                                                          const float DurationSeconds,
+                                                          const float AmplitudeCm)
+{
+	if (DurationSeconds <= KINDA_SMALL_NUMBER || AmplitudeCm <= 0.0f || ElapsedSeconds < 0.0f ||
+	    ElapsedSeconds >= DurationSeconds)
+	{
+		return FVector::ZeroVector;
+	}
+	const float Alpha = FMath::Clamp(ElapsedSeconds / DurationSeconds, 0.0f, 1.0f);
+	const float Envelope = 1.0f - Alpha;
+	const float Phase = Alpha * 6.0f * UE_PI;
+	return FVector(0.0f,
+	               FMath::Sin(Phase) * AmplitudeCm * Envelope,
+	               FMath::Sin(Phase * 1.35f + UE_PI * 0.5f) * AmplitudeCm * 0.55f * Envelope);
+}
+
+void AReEchoArenaCameraActor::UpdateImpactShake(const float DeltaSeconds)
+{
+	if (!ArenaCamera)
+	{
+		return;
+	}
+	ImpactShakeElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
+	ArenaCamera->SetRelativeLocation(
+	    ImpactShakeBaseCameraLocation +
+	    ResolveImpactShakeOffset(ImpactShakeElapsedSeconds, ImpactShakeDurationSeconds, ImpactShakeAmplitudeCm));
+}
+
+void AReEchoArenaCameraActor::BeginStage01To02CameraSequence(const bool bAdvanceWhenPaused)
 {
 	if (!ArenaCamera)
 	{
@@ -95,6 +138,7 @@ void AReEchoArenaCameraActor::BeginStage01To02CameraSequence()
 	SetActorTickEnabled(true);
 	SetTickableWhenPaused(true);
 	bStage01To02CameraSequenceActive = true;
+	bSequenceAdvancesWhenPaused = bAdvanceWhenPaused;
 	bStage01To02CameraMoveActive = false;
 	Stage01To02CameraTarget = nullptr;
 	Stage01To02SequenceStandardOrthoWidth = ArenaCamera->OrthoWidth;

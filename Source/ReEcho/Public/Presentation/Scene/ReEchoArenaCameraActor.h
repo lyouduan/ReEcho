@@ -25,11 +25,14 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(AReEchoPlayerPawn* InFollowTarget, AReEchoArenaSceneActor* InArenaSource);
+	/** Adds a short presentation-only camera-local shake without disturbing the authoritative follow focus. */
+	void PlayImpactShake(float AmplitudeCm = 8.0f, float DurationSeconds = 0.18f);
+	static FVector ResolveImpactShakeOffset(float ElapsedSeconds, float DurationSeconds, float AmplitudeCm);
 	static float CalculateEncounterCountdownPostProcessIntensity(float RemainingTime);
 	void SetEncounterCountdownPostProcessIntensity(float Intensity);
 	void ResetEncounterCountdownPostProcess();
 	static float CalculateStage01To02CameraEaseAlpha(float LinearAlpha);
-	void BeginStage01To02CameraSequence();
+	void BeginStage01To02CameraSequence(bool bAdvanceWhenPaused = true);
 	bool FocusStage01To02Target(AActor* Target, float OrthoWidthRatio, float DurationSeconds);
 	bool FocusStage01To02TargetAtStandardWidth(AActor* Target, float DurationSeconds);
 	bool IsStage01To02CameraMoveComplete() const;
@@ -153,6 +156,7 @@ private:
 	void EnsureEncounterCountdownPostProcess();
 	void UpdateEncounterCountdownPostProcessParameters();
 	void UpdateFollow(float DeltaSeconds);
+	void UpdateImpactShake(float DeltaSeconds);
 	void UpdateStage01To02CameraMove(float DeltaSeconds);
 	FVector2D ResolveTransitionTargetFocus() const;
 	FVector GetGroundFocus() const;
@@ -179,5 +183,10 @@ private:
 	float Stage01To02MoveElapsedSeconds = 0.0f;
 	float Stage01To02MoveDurationSeconds = 0.0f;
 	bool bStage01To02CameraSequenceActive = false;
+	bool bSequenceAdvancesWhenPaused = true;
 	bool bStage01To02CameraMoveActive = false;
+	float ImpactShakeElapsedSeconds = 0.0f;
+	float ImpactShakeDurationSeconds = 0.0f;
+	float ImpactShakeAmplitudeCm = 0.0f;
+	FVector ImpactShakeBaseCameraLocation = FVector::ZeroVector;
 };

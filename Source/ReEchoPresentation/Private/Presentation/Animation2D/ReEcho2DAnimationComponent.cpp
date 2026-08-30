@@ -189,6 +189,28 @@ void UReEcho2DAnimationComponent::SetFacingSign(const float InFacingSign)
 	ApplyDisplayScale();
 }
 
+void UReEcho2DAnimationComponent::SetDisplayScaleMultiplier(const float InMultiplier)
+{
+	const float SafeMultiplier = FMath::Max(0.0f, InMultiplier);
+	if (FMath::IsNearlyEqual(DisplayScaleMultiplier, SafeMultiplier))
+	{
+		return;
+	}
+	DisplayScaleMultiplier = SafeMultiplier;
+	ApplyDisplayScale();
+}
+
+void UReEcho2DAnimationComponent::SetDisplayScaleReferenceHeight(const float InReferenceHeight)
+{
+	const float SafeReferenceHeight = FMath::Max(0.0f, InReferenceHeight);
+	if (FMath::IsNearlyEqual(DisplayScaleReferenceHeight, SafeReferenceHeight))
+	{
+		return;
+	}
+	DisplayScaleReferenceHeight = SafeReferenceHeight;
+	ApplyDisplayScale();
+}
+
 bool UReEcho2DAnimationComponent::IsAnimationActive()
 {
 	return bAnimationActive && GetFlipbook() != nullptr;
@@ -286,8 +308,11 @@ void UReEcho2DAnimationComponent::ApplyDisplayScale()
 {
 	const UPaperFlipbook* Flipbook = GetFlipbook();
 	const float NativeWorldHeight = Flipbook ? Flipbook->GetRenderBounds().BoxExtent.Z * 2.0f : 0.0f;
-	const float UniformScale =
-	    ActiveClip.bUseNativeScale || NativeWorldHeight <= 0.0f ? 1.0f : ActiveClip.WorldHeight / NativeWorldHeight;
+	const float ScaleReferenceHeight =
+	    DisplayScaleReferenceHeight > UE_SMALL_NUMBER ? DisplayScaleReferenceHeight : NativeWorldHeight;
+	const float BaseUniformScale =
+	    ActiveClip.bUseNativeScale || ScaleReferenceHeight <= 0.0f ? 1.0f : ActiveClip.WorldHeight / ScaleReferenceHeight;
+	const float UniformScale = BaseUniformScale * DisplayScaleMultiplier;
 	const float ClipMirrorSign = ActiveClip.bMirrorHorizontally ? -1.0f : 1.0f;
 	SetRelativeScale3D(FVector(UniformScale * FacingSign * ClipMirrorSign, UniformScale, UniformScale));
 }

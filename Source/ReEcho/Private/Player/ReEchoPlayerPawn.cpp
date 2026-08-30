@@ -944,7 +944,7 @@ bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 	const bool bAttacked = Weapon && Weapon->TryBasicAttack(Combatant);
 	if (bAttacked)
 	{
-		StartAttackVisual(0.18f, 16.0f);
+		StartAttackVisual(0.18f, 16.0f, Weapon->GetAttackCooldownRemaining());
 	}
 	return bAttacked;
 }
@@ -1053,7 +1053,7 @@ bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 		return false;
 	}
 
-	StartAttackVisual(0.28f, 24.0f);
+	StartAttackVisual(0.28f, 24.0f, 0.0f);
 	OnActiveSkill.Broadcast(GetActorLocation(), Weapon->GetEquippedWeaponId());
 	return true;
 }
@@ -1068,15 +1068,33 @@ bool AReEchoPlayerPawn::IsWeaponInvulnerable() const
 	return Weapon && Weapon->IsInvulnerableWindowActive();
 }
 
-void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Strength)
+float AReEchoPlayerPawn::ResolveAttackAnimationPlayRate(const float ClipSeconds,
+	                                                     const float AuthoredPlayRate,
+	                                                     const float AttackWindowSeconds)
+{
+	const float SafeAuthoredRate = FMath::Max(0.01f, AuthoredPlayRate);
+	if (ClipSeconds <= KINDA_SMALL_NUMBER || AttackWindowSeconds <= KINDA_SMALL_NUMBER)
+	{
+		return SafeAuthoredRate;
+	}
+	return FMath::Max(SafeAuthoredRate, ClipSeconds / AttackWindowSeconds);
+}
+
+void AReEchoPlayerPawn::StartAttackVisual(const float Duration,
+	                                      const float Strength,
+	                                      const float PlaybackWindowSeconds)
 {
 	AttackVisualDuration = Duration;
 	AttackVisualRemaining = Duration;
 	AttackVisualStrength = Strength;
 	if (PresentationController)
 	{
-		PresentationController->PlayAction(
-		    ReEcho2DAnimationTags::Attack_Basic, true, NextPresentationAttackInstanceId++);
+		if (PresentationController->PlayAction(
+		        ReEcho2DAnimationTags::Attack_Basic, true, NextPresentationAttackInstanceId++) && SequenceAnimation)
+		{
+			SequenceAnimation->SetPlayRate(ResolveAttackAnimationPlayRate(
+			    SequenceAnimation->GetFlipbookLength(), SequenceAnimation->GetPlayRate(), PlaybackWindowSeconds));
+		}
 	}
 }
 

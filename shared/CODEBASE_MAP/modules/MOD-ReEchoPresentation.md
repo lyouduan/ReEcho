@@ -39,7 +39,9 @@
 
 - 稳定 `FName PresentationId`。
 - Move、Born、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。Born 是锁至完成、仅 Death 可抢占的非循环瞬时表现，完成后回到 Move；Death 仍为最高优先级终结独占。动画集转换缺少 `Transform.Phase2` 时，Controller 保留旧形态直到玩法完成事件，再原子切换目标动画集的基础循环，不能提前显示目标形态或把表现失败反馈成玩法失败。
-- 朝向和武器视觉集合 ID。
+- 朝向、武器视觉集合 ID，以及由 Host 在形态初始化边界设置的持久显示倍率和可选原始高度参考；倍率默认
+  1、参考高度默认跟随当前 Flipbook。一个形态需要跨 Clip 保持相同像素到世界比例时，以基础 Clip 的原始高度作为
+  共享参考，后续 Clip 切换与朝向重算必须持续消费同一配置，不能由 Host 每帧补偿组件 Scale。
 
 ### 输出
 
@@ -98,6 +100,8 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 | 逐帧查询 | `ReEcho2DFrameCollisionDriver.h` | `ReEcho2DFrameCollisionDriver.cpp` | Collision Track |
 
 ## 扩展方式
+
+TimeGuard 的 Phase2 动画集必须完整绑定黑羊 Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death；蓄力复用 BadGoat Attack，受击/变身复用 BadGoat Walk。不得让缺失映射借用默认白羊动画。`scripts/ue/fix_timeguard_phase2_animation.py` 提供具名 DA 的审计/修复入口，AssetProfiles 自动化检查六种状态均为 BadGoat。
 
 新增 Player/Echo 外观时在 `DataAsset/Character/Profiles` 创建并分别注册到对应域 Catalog，同时设置与该域外观一致的 `MinimapIcon`；敌人 Profile 仍位于 `DataAsset/Enemy/Profiles`。共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。当前生产敌人的 Death 映射保持角色族一致：Grunt/Shield/Bomber/Slime 共用 Slime Death，Rabbit/Fox 使用各自 Death，GoatPriest/TimeGuard 共用 Goat Death；均为非循环、可重启动作。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
 

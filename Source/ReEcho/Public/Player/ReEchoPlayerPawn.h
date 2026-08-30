@@ -106,6 +106,10 @@ public:
 
 	FString GetEquippedWeaponLabel() const;
 	float GetCurrentAttackInterval() const;
+	/** Keeps one-shot attack Flipbooks inside the authoritative high-speed attack window without slowing normal clips. */
+	static float ResolveAttackAnimationPlayRate(float ClipSeconds,
+	                                            float AuthoredPlayRate,
+	                                            float AttackWindowSeconds);
 	/** 武器是否处于临时动作锁（有序攻击步骤锁）中。held 普攻循环据此决定是否重试而非终止。 */
 	bool IsWeaponActionLocked() const;
 	/** 武器动作锁剩余秒数。 */
@@ -309,7 +313,7 @@ private:
 	void GrantStartupAbilities();
 	void AbilityInputPressed(const FGameplayTag& InputTag);
 	void AbilityInputReleased(const FGameplayTag& InputTag);
-	void StartAttackVisual(float Duration, float Strength);
+	void StartAttackVisual(float Duration, float Strength, float PlaybackWindowSeconds);
 	void UpdateSpriteAnimation(float DeltaSeconds);
 	void CaptureAuthoredPresentationBaseline();
 	void ResetTransientPresentationMotion();

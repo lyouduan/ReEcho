@@ -7,6 +7,7 @@
 #include "ReEchoGameMode.h"
 #include "Run/ReEchoRunSubsystem.h"
 #include "UI/ReEchoEncounterTransitionWidget.h"
+#include "UI/ReEchoBossPhase3AnnouncementWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEncounterTransitionPolicyTest,
                                  "ReEcho.UI.EncounterTransition.Policy",
@@ -45,6 +46,42 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Stage camera ease clamps after completion"),
 	          AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(2.0f),
 	          1.0f);
+	TestTrue(TEXT("Skill03 impact camera shake has a visible interior offset"),
+	         !AReEchoArenaCameraActor::ResolveImpactShakeOffset(0.0625f, 0.25f, 14.0f).IsNearlyZero());
+	TestTrue(TEXT("Skill03 impact camera shake returns exactly to rest at its duration"),
+	         AReEchoArenaCameraActor::ResolveImpactShakeOffset(0.25f, 0.25f, 14.0f).IsNearlyZero());
+	TestTrue(TEXT("Skill04 beam camera shake is stronger than Skill03 at the same normalized time"),
+	         AReEchoArenaCameraActor::ResolveImpactShakeOffset(0.05f, 0.20f, 20.0f).Size() >
+	             AReEchoArenaCameraActor::ResolveImpactShakeOffset(0.0625f, 0.25f, 14.0f).Size());
+	TestEqual(TEXT("Phase3 announcement holds at full opacity"),
+	          UReEchoBossPhase3AnnouncementWidget::CalculateAnnouncementOpacity(0.75f),
+	          1.0f);
+	TestEqual(TEXT("Phase3 announcement is halfway through its fade"),
+	          UReEchoBossPhase3AnnouncementWidget::CalculateAnnouncementOpacity(1.375f),
+	          0.5f);
+	TestEqual(TEXT("Phase3 announcement fully disappears without blocking gameplay"),
+	          UReEchoBossPhase3AnnouncementWidget::CalculateAnnouncementOpacity(2.0f),
+	          0.0f);
+	FReEchoStatBlock Phase3Stats;
+	Phase3Stats.HpMax = 100.0f;
+	Phase3Stats.PhysicalAttack = 12.0f;
+	Phase3Stats.Block = 3;
+	Phase3Stats.ProjectileCount = 2;
+	Phase3Stats.RoleId = TEXT("J_TEST");
+	UReEchoRunSubsystem::ApplyBossPhase3FinalStatMultiplier(Phase3Stats);
+	TestEqual(TEXT("Phase3 doubles floating-point player attributes"), Phase3Stats.PhysicalAttack, 24.0f);
+	TestEqual(TEXT("Phase3 doubles integer player attributes"), Phase3Stats.Block, 6);
+	TestEqual(TEXT("Phase3 doubles projectile count"), Phase3Stats.ProjectileCount, 4);
+	TestEqual(TEXT("Phase3 preserves non-numeric player identity"), Phase3Stats.RoleId, FName(TEXT("J_TEST")));
+	TestEqual(TEXT("Phase3 doubles non-Boss authored wave count"),
+	          AReEchoGameMode::ResolveBossPhase3SpawnCount(5, true, false),
+	          10);
+	TestEqual(TEXT("Phase3 doubles non-Boss active unit capacity"),
+	          AReEchoGameMode::ResolveBossPhase3ActiveUnitLimit(12, true, false),
+	          24);
+	TestEqual(TEXT("Phase3 does not duplicate the Boss"),
+	          AReEchoGameMode::ResolveBossPhase3SpawnCount(1, true, true),
+	          1);
 	const AReEchoArenaCameraActor* CameraDefaults = GetDefault<AReEchoArenaCameraActor>();
 	TestEqual(TEXT("Pre-CG camera push lasts one second while globally paused"),
 	          CameraDefaults->GetStage01To02PlayerFocusDuration(),

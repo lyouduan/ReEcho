@@ -201,7 +201,7 @@ int32 CountRemainingBurnTicks(const float NextTick, const float EndTime)
 int32 ReEchoHitResolver::TickElementStatuses(AActor& Target, const float CurrentTimeSeconds)
 {
 	UReEchoCombatantComponent* Combatant = GetCombatant(Target);
-	if (!Combatant || !Combatant->IsAlive() || CurrentTimeSeconds < 0.0f)
+	if (!Combatant || Combatant->IsPresentationSuspended() || !Combatant->IsAlive() || CurrentTimeSeconds < 0.0f)
 	{
 		return 0;
 	}
@@ -233,6 +233,18 @@ int32 ReEchoHitResolver::TickElementStatuses(AActor& Target, const float Current
 
 FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 {
+	if (Intent.Target)
+	{
+		const UReEchoCombatantComponent* Combatant = GetCombatant(*Intent.Target);
+		if (Combatant && Combatant->IsPresentationSuspended())
+		{
+			FReEchoHitResolved Blocked;
+			Blocked.Attack = Intent.Attack;
+			Blocked.Target = Intent.Target;
+			Blocked.bBlocked = true;
+			return Blocked;
+		}
+	}
 	FReEchoHitIntent Candidate = Intent;
 #if !UE_BUILD_SHIPPING
 	const bool bTraceRangedWeapon = IsRangedWeaponTrace(Candidate.Attack);
@@ -373,7 +385,8 @@ FReEchoElementExecutionResult ReEchoHitResolver::ResolveElementHit(AActor& Targe
 	UReEchoCombatantComponent* PrimaryCombatant = GetCombatant(Target);
 	const TSharedPtr<const FReEchoElementRuleSet> Rules = ReEchoElementRuntime::GetRuleSet();
 	UWorld* World = Target.GetWorld();
-	if (!PrimaryCombatant || !PrimaryCombatant->IsAlive() || !Rules.IsValid())
+	if (!PrimaryCombatant || PrimaryCombatant->IsPresentationSuspended() || !PrimaryCombatant->IsAlive() ||
+	    !Rules.IsValid())
 	{
 		return Execution;
 	}

@@ -61,7 +61,9 @@ enum class EReEchoBossAbilityKind : uint8
 	Projectile,
 	BlinkSlam,
 	PrayerBeam,
-	ElementCleanse
+	ElementCleanse,
+	/** Appended to preserve serialized values of the original Boss ability kinds. */
+	BlinkSlamMoving
 };
 
 UENUM(BlueprintType)
@@ -209,6 +211,18 @@ struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
 	/** When true, the enemy keeps moving toward its target during the active/recovery window of this ability. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bMovementDuringCast = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 MinPhaseIndex = 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 MaxPhaseIndex = 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ComboMin = 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ComboMax = 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bEnabled = false;
@@ -520,6 +534,12 @@ struct REECHOENEMIES_API FReEchoBossIntent
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bRequestTeleport = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ComboStrikeIndex = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ComboStrikeCount = 0;
 };
 
 /** Deterministic behavior output. The host applies movement and forwards attack candidates to Combat. */
@@ -580,6 +600,10 @@ struct REECHOENEMIES_API FReEchoEnemyActionIntent
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoEnemyPhaseTriggerReason PhaseTriggerReason = EReEchoEnemyPhaseTriggerReason::None;
+
+	/** Target encounter phase for an authoritative transition, including refill policy and max health. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoBossPhaseDefinition PhaseDefinition;
 
 	/** Ordered semantic commands for Boss-only world execution. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -733,6 +757,13 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bBossCurrentAbilityCommitted = false;
+
+	/** Current deterministic combo progress; index is one-based while a combo is active. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 BossComboStrikeIndex = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 BossComboStrikeCount = 0;
 
 	/** Idle-wander state. Direction is re-derived deterministically every WanderPeriodSeconds. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)

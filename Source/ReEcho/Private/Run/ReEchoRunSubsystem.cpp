@@ -29,6 +29,7 @@ constexpr float EasterEggOfferChance = 0.01f;
 const FName AnyWeaponTypeId = TEXT("Any");
 const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
+const FName BossPhase3FinalStatMultiplierFlag = TEXT("BossPhase3FinalStatMultiplier");
 
 const FString RunSaveSlot = TEXT("ReEchoRun");
 const FString PlayerProgressSaveSlot = TEXT("ReEchoPlayerProgress");
@@ -758,12 +759,21 @@ bool TryMutateAuthoritativeBuild(const FReEchoCsvDataSnapshot& Snapshot,
 	BaseBuild.EquipmentBaseStats = BaseBuild.Stats;
 	BaseBuild.EquipmentBaseRuleFlags = BaseBuild.RuleFlags;
 	BaseBuild.bHasEquipmentBase = true;
+	bool bRebuilt = false;
 	if (Build.WeaponDomainRevision.IsEmpty() && Build.EquippedParts.IsEmpty())
 	{
 		OutBuild = BaseBuild;
-		return true;
+		bRebuilt = true;
 	}
-	return ReEchoWeaponRuntime::TryEquipParts(Snapshot, BaseBuild, GetEquippedPartIds(Build), OutBuild, Error);
+	else
+	{
+		bRebuilt = ReEchoWeaponRuntime::TryEquipParts(Snapshot, BaseBuild, GetEquippedPartIds(Build), OutBuild, Error);
+	}
+	if (bRebuilt && OutBuild.RuleFlags.Contains(BossPhase3FinalStatMultiplierFlag))
+	{
+		UReEchoRunSubsystem::ApplyBossPhase3FinalStatMultiplier(OutBuild.Stats);
+	}
+	return bRebuilt;
 }
 
 FReEchoStoredEchoSummary MakeStoredEchoSummary(const FReEchoRecording& Recording)
@@ -1760,6 +1770,22 @@ TArray<FReEchoShopOffer> UReEchoRunSubsystem::GetOwnedBuildCardView() const
 		}
 	}
 	return OwnedCards;
+}
+
+bool UReEchoRunSubsystem::HasOwnedEasterEggCard() const
+{
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
+	{
+		return false;
+	}
+
+	return CurrentBuild.CardState.OwnedCardIds.ContainsByPredicate(
+	    [&Snapshot](const FName CardId)
+	    {
+		    const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
+		    return Card && Card->OfferGroup == EasterEggOfferGroup;
+	    });
 }
 
 namespace
@@ -3236,6 +3262,46 @@ FReEchoCardRuleSnapshot UReEchoRunSubsystem::GetCardRules() const
 	return Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()
 	           ? ReEchoCardRuntime::CompileRules(*Snapshot->CardCatalog, CurrentBuild.CardState)
 	           : FReEchoCardRuleSnapshot{};
+}
+
+bool UReEchoRunSubsystem::ActivateBossPhase3FinalStatMultiplier()
+{
+	if (CurrentBuild.RuleFlags.Contains(BossPhase3FinalStatMultiplierFlag))
+	{
+		return false;
+	}
+	if (!CurrentBuild.bHasEquipmentBase)
+	{
+		CurrentBuild.EquipmentBaseStats = CurrentBuild.Stats;
+		CurrentBuild.EquipmentBaseRuleFlags = CurrentBuild.RuleFlags;
+		CurrentBuild.bHasEquipmentBase = true;
+	}
+	CurrentBuild.EquipmentBaseRuleFlags.Add(BossPhase3FinalStatMultiplierFlag, TEXT("2"));
+	CurrentBuild.RuleFlags.Add(BossPhase3FinalStatMultiplierFlag, TEXT("2"));
+	ApplyBossPhase3FinalStatMultiplier(CurrentBuild.Stats);
+	return true;
+}
+
+void UReEchoRunSubsystem::ApplyBossPhase3FinalStatMultiplier(FReEchoStatBlock& Stats)
+{
+	Stats.HpPoint *= 2.0f;
+	Stats.HpMax *= 2.0f;
+	Stats.PhysicalAttack *= 2.0f;
+	Stats.ElementalAttack *= 2.0f;
+	Stats.Block *= 2;
+	Stats.AttackSpeed *= 2.0f;
+	Stats.MovementSpeed *= 2.0f;
+	Stats.CriticalRate *= 2.0f;
+	Stats.CriticalEffect *= 2.0f;
+	Stats.EchoEfficiency *= 2.0f;
+	Stats.ReactionEfficiency *= 2.0f;
+	Stats.ProjectileCount *= 2;
+	Stats.WeaponSize *= 2.0f;
+	Stats.EchoCount *= 2;
+	Stats.ShopDiscount *= 2.0f;
+	Stats.CharacterSize *= 2.0f;
+	Stats.Concentration *= 2.0f;
+	Stats.PathAffinity *= 2.0f;
 }
 
 int32 UReEchoRunSubsystem::BuildCardEffectRandomSeed(const FName ContextId, const int32 Sequence) const

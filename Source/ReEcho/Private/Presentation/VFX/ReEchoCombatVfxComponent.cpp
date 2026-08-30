@@ -1294,6 +1294,19 @@ FVector UReEchoCombatVfxComponent::ResolveBossBeamGroundOrigin(const FVector& Lo
 	return GroundOrigin;
 }
 
+FVector UReEchoCombatVfxComponent::ResolveGroundAlignedEffectOrigin(const FVector& GroundCenter,
+                                                                    const FBox& AuthoredBounds,
+                                                                    const FVector& WorldScale)
+{
+	if (!AuthoredBounds.IsValid)
+	{
+		return GroundCenter;
+	}
+	FVector Origin = GroundCenter;
+	Origin.Z -= AuthoredBounds.Min.Z * FMath::Abs(WorldScale.Z);
+	return Origin;
+}
+
 FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredScale,
                                                         const FVector& AttachmentWorldScale,
                                                         const bool bPreserveWorldSize)
@@ -1309,6 +1322,20 @@ FVector UReEchoCombatVfxComponent::ResolveAttachedScale(const FVector& DesiredSc
 	return FVector(SafeDivide(DesiredScale.X, AttachmentWorldScale.X),
 	               SafeDivide(DesiredScale.Y, AttachmentWorldScale.Y),
 	               SafeDivide(DesiredScale.Z, AttachmentWorldScale.Z));
+}
+
+USceneComponent* UReEchoCombatVfxComponent::ResolveBossChargingAttachmentRoot(const bool bSkill03,
+                                                                              const int32 BossPhaseIndex,
+                                                                              USceneComponent* AttackRoot,
+                                                                              USceneComponent* WeaponRoot)
+{
+	return bSkill03 && BossPhaseIndex >= 3 ? AttackRoot : WeaponRoot;
+}
+
+FVector
+UReEchoCombatVfxComponent::ResolveBossPhase3ChargingTopWorldLocation(const FBoxSphereBounds& AnimationWorldBounds)
+{
+	return AnimationWorldBounds.Origin + FVector::UpVector * AnimationWorldBounds.BoxExtent.Z;
 }
 
 FVector UReEchoCombatVfxComponent::ResolveAttackRangeScale(const FVector& AuthoredScale,
@@ -1922,6 +1949,7 @@ bool UReEchoCombatVfxComponent::TryResolveBossImpactSemantic(const int64 AttackS
 
 void UReEchoCombatVfxComponent::StopAllEffects()
 {
+	EndBossTransformationEffects();
 	ClearEchoConnectionLinks();
 	for (FReverseMeleePlayback& Playback : ReverseMeleePlaybacks)
 	{
@@ -2589,12 +2617,163 @@ void UReEchoCombatVfxComponent::HandlePresentationAction(const FReEchoPresentati
 	}
 }
 
+void UReEchoCombatVfxComponent::BeginBossTransformationEffects(const float Scale)
+{
+	EndBossTransformationEffects();
+	StopBossActionEffects();
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+	FReEchoBossIntent GroundIntent;
+	GroundIntent.Target = Owner;
+	GroundIntent.LockedTargetLocation = Owner->GetActorLocation();
+	const FVector Ground = ResolveBossTargetGroundLocation(GroundIntent);
+	BossTransformationGround = SpawnWorld(
+	    static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming), Ground, FVector::ForwardVector, false);
+	FVector Top = Owner->GetActorLocation();
+	if (const UReEcho2DAnimationComponent* Animation = Owner->FindComponentByClass<UReEcho2DAnimationComponent>())
+	{
+		Top = ResolveBossPhase3ChargingTopWorldLocation(Animation->CalcBounds(Animation->GetComponentTransform()));
+	}
+	BossTransformationCharge = SpawnWorld(
+	    static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill04Charging), Top, FVector::ForwardVector, false);
+	for (UNiagaraComponent* Effect : {BossTransformationGround.Get(), BossTransformationCharge.Get()})
+	{
+		if (Effect)
+		{
+			Effect->SetWorldScale3D(Effect->GetComponentScale() * FMath::Max(0.1f, Scale));
+		}
+	}
+}
+
+void UReEchoCombatVfxComponent::BurstBossTransformationEffects(const float Scale)
+{
+	StopEffect(BossTransformationCharge);
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+	FReEchoBossIntent Intent;
+	Intent.Target = Owner;
+	Intent.LockedTargetLocation = Owner->GetActorLocation();
+	const FVector Ground = ResolveBossTargetGroundLocation(Intent);
+	BossTransformationBurst = SpawnWorld(
+	    static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact), Ground, FVector::ForwardVector, false, false);
+	if (BossTransformationBurst)
+	{
+		BossTransformationBurst->SetWorldScale3D(BossTransformationBurst->GetComponentScale() *
+		                                         FMath::Max(0.1f, Scale));
+		const UNiagaraSystem* System = BossTransformationBurst->GetAsset();
+		BossTransformationBurst->SetWorldLocation(ResolveGroundAlignedEffectOrigin(
+		    Ground, System ? System->GetFixedBounds() : FBox(ForceInit), BossTransformationBurst->GetComponentScale()));
+		BossTransformationBurst->Activate(true);
+	}
+}
+
+void UReEchoCombatVfxComponent::EndBossTransformationEffects()
+{
+	EndSacrificeEffect();
+	StopEffect(BossTransformationCharge);
+	StopEffect(BossTransformationGround);
+	StopEffect(BossTransformationBurst);
+}
+
+void UReEchoCombatVfxComponent::BeginSacrificeEffect(const FVector& WorldLocation)
+{
+	EndSacrificeEffect();
+	SacrificeEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Charging),
+	                             WorldLocation,
+	                             FVector::ForwardVector,
+	                             false);
+	if (SacrificeEffect)
+	{
+		const UReEcho2DAnimationComponent* Animation = GetOwner()->FindComponentByClass<UReEcho2DAnimationComponent>();
+		const float BodyHeight = Animation ? Animation->Bounds.BoxExtent.Z * 2.0f : 180.0f;
+		SacrificeEffect->SetWorldScale3D(SacrificeEffect->GetComponentScale() *
+		                                 FMath::Clamp(BodyHeight / 180.0f, 0.4f, 1.5f));
+	}
+}
+
+void UReEchoCombatVfxComponent::UpdateSacrificeEffect(const FVector& WorldLocation)
+{
+	if (SacrificeEffect)
+	{
+		SacrificeEffect->SetWorldLocation(WorldLocation);
+		if (SacrificeEffect->IsComplete())
+		{
+			SacrificeEffect->Activate(true);
+		}
+	}
+}
+
+void UReEchoCombatVfxComponent::EndSacrificeEffect()
+{
+	StopEffect(SacrificeEffect);
+}
+
+FString UReEchoCombatVfxComponent::MakeBossSkill03ImpactKey(const FReEchoBossIntent& Intent)
+{
+	return FString::Printf(TEXT("%lld:%d"), Intent.Attack.Sequence, Intent.ComboStrikeIndex);
+}
+
+void UReEchoCombatVfxComponent::SpawnBossSkill03Impact(const FReEchoBossIntent& Intent)
+{
+#if WITH_DEV_AUTOMATION_TESTS
+	++BossSkill03ImpactIntentCountForTests;
+#endif
+	const FVector* LockedGroundLocation = BossGroundLocationByAttackSequence.Find(Intent.Attack.Sequence);
+	const FVector ImpactLocation =
+	    LockedGroundLocation ? *LockedGroundLocation : ResolveBossTargetGroundLocation(Intent);
+	const EReEchoCombatVfxSemantic ImpactSemantic = EReEchoCombatVfxSemantic::GoatSkill03Impact;
+	LastBossSkill03ImpactEffect =
+	    SpawnWorld(static_cast<uint8>(ImpactSemantic), ImpactLocation, Intent.LockedDirection, false, false);
+	if (UNiagaraComponent* ImpactEffect = LastBossSkill03ImpactEffect.Get())
+	{
+		const UNiagaraSystem* ImpactSystem = ImpactEffect->GetAsset();
+		const FBox AuthoredBounds = ImpactSystem ? ImpactSystem->GetFixedBounds() : FBox(EForceInit::ForceInit);
+		ImpactEffect->SetWorldLocation(
+		    ResolveGroundAlignedEffectOrigin(ImpactLocation, AuthoredBounds, ImpactEffect->GetComponentScale()));
+		ImpactEffect->Activate(true);
+		if (UWorld* World = GetWorld())
+		{
+			const TWeakObjectPtr<UNiagaraComponent> WeakImpactEffect(ImpactEffect);
+			FTimerHandle LifetimeTimer;
+			World->GetTimerManager().SetTimer(
+			    LifetimeTimer,
+			    [WeakImpactEffect]()
+			    {
+				    if (UNiagaraComponent* ActiveEffect = WeakImpactEffect.Get())
+				    {
+					    ActiveEffect->Deactivate();
+					    ActiveEffect->DestroyComponent();
+				    }
+			    },
+			    FMath::Max(FReEchoCombatVfxCatalog::ResolvePlacement(ImpactSemantic).PlaybackDurationSeconds, 0.01f),
+			    false);
+		}
+	}
+#if WITH_DEV_AUTOMATION_TESTS
+	BossSkill03ImpactSpawnCountForTests += LastBossSkill03ImpactEffect.IsValid() ? 1 : 0;
+#endif
+}
+
 void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
+	if (Intent.Type == EReEchoBossIntentType::EncounterPhase)
+	{
+		CurrentBossPhaseIndex = FMath::Max(1, Intent.PhaseDefinition.PhaseIndex);
+		EarlyBossSkill03ImpactKeys.Reset();
+		StopBossActionEffects();
+		return;
+	}
 	const bool bSkill01 = Intent.AbilityId == TEXT("M_SHEEP_MeleeSweep");
 	const bool bSkill02 =
 	    Intent.AbilityId == TEXT("M_SHEEP_StationaryVolley") || Intent.AbilityId == TEXT("M_SHEEP_MovingSpread");
-	const bool bSkill03 = Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam");
+	const bool bSkill03 = Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
+	                      Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlamMoving;
 	const bool bSkill04 = Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam");
 	if (!bSkill01 && !bSkill02 && !bSkill03 && !bSkill04)
 	{
@@ -2603,11 +2782,11 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	RememberBossAbility(Intent.Attack.Sequence, Intent.AbilityId);
 	if (bSkill03 && Intent.Type == EReEchoBossIntentType::ImpactResolved)
 	{
-		const FVector* LockedGroundLocation = BossGroundLocationByAttackSequence.Find(Intent.Attack.Sequence);
-		const FVector ImpactLocation =
-		    LockedGroundLocation ? *LockedGroundLocation : ResolveBossTargetGroundLocation(Intent);
-		SpawnWorld(
-		    static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Impact), ImpactLocation, Intent.LockedDirection);
+		if (CurrentBossPhaseIndex >= 3 && EarlyBossSkill03ImpactKeys.Remove(MakeBossSkill03ImpactKey(Intent)) > 0)
+		{
+			return;
+		}
+		SpawnBossSkill03Impact(Intent);
 		return;
 	}
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
@@ -2620,15 +2799,27 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 		const EReEchoCombatVfxSemantic ChargingSemantic = bSkill02   ? EReEchoCombatVfxSemantic::GoatSkill02Charging
 		                                                  : bSkill03 ? EReEchoCombatVfxSemantic::GoatSkill03Charging
 		                                                             : EReEchoCombatVfxSemantic::GoatSkill04Charging;
-		BossChargingEffect = SpawnAttached(
-		    static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ResolveBossWeaponVfxRoot(), false);
+		USceneComponent* ChargingRoot = ResolveBossChargingAttachmentRoot(
+		    bSkill03, CurrentBossPhaseIndex, ResolveAttackVfxRoot(), ResolveBossWeaponVfxRoot());
+		BossChargingEffect =
+		    SpawnAttached(static_cast<uint8>(ChargingSemantic), Intent.LockedDirection, ChargingRoot, false);
+		if (BossChargingEffect && bSkill03 && CurrentBossPhaseIndex >= 3)
+		{
+			AActor* Owner = GetOwner();
+			UReEcho2DAnimationComponent* Animation =
+			    Owner ? Owner->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+			if (Animation && Animation->GetFlipbook())
+			{
+				const FBoxSphereBounds AnimationWorldBounds = Animation->CalcBounds(Animation->GetComponentTransform());
+				BossChargingEffect->SetWorldLocation(ResolveBossPhase3ChargingTopWorldLocation(AnimationWorldBounds));
+			}
+		}
 		if (bSkill03 || bSkill04)
 		{
 			const FVector GroundEffectLocation = ResolveBossTargetGroundLocation(Intent);
 			BossGroundLocationByAttackSequence.Add(Intent.Attack.Sequence, GroundEffectLocation);
-			const FVector TelegraphLocation = bSkill04 ? GroundEffectLocation : Intent.LockedTargetLocation;
 			BossTelegraphEffect = SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::GoatSkill03Alarming),
-			                                 TelegraphLocation,
+			                                 GroundEffectLocation,
 			                                 Intent.LockedDirection,
 			                                 false);
 		}
@@ -2638,6 +2829,11 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	{
 		StopEffect(BossChargingEffect);
 		StopEffect(BossTelegraphEffect);
+		if (bSkill03 && CurrentBossPhaseIndex >= 3)
+		{
+			SpawnBossSkill03Impact(Intent);
+			EarlyBossSkill03ImpactKeys.Add(MakeBossSkill03ImpactKey(Intent));
+		}
 		if (bSkill01)
 		{
 			if (USceneComponent* WeaponRoot = ResolveBossWeaponVfxRoot())
@@ -2664,6 +2860,7 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	}
 	if (Intent.Type == EReEchoBossIntentType::AbilityEnded)
 	{
+		EarlyBossSkill03ImpactKeys.Remove(MakeBossSkill03ImpactKey(Intent));
 		StopBossActionEffects();
 		BossGroundLocationByAttackSequence.Remove(Intent.Attack.Sequence);
 	}

@@ -81,9 +81,33 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossBlinkSlamPresentationTest,
 
 bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 {
+	TestEqual(TEXT("Camera-right targets face right"),
+	          UReEchoEnemyPresentationComponent::ResolveCameraFacingSign(FVector::RightVector,
+	                                                                    FVector::RightVector),
+	          1.0f);
+	TestEqual(TEXT("Camera-left targets face left"),
+	          UReEchoEnemyPresentationComponent::ResolveCameraFacingSign(-FVector::RightVector,
+	                                                                    FVector::RightVector),
+	          -1.0f);
+	const FBoxSphereBounds Phase3AnimationBounds(
+	    FVector(120.0f, -30.0f, 240.0f), FVector(80.0f, 15.0f, 110.0f), 140.0f);
+	TestTrue(TEXT("Phase3 charging resolves to the animation top center"),
+	         UReEchoCombatVfxComponent::ResolveBossPhase3ChargingTopWorldLocation(Phase3AnimationBounds)
+	             .Equals(FVector(120.0f, -30.0f, 350.0f), KINDA_SMALL_NUMBER));
+	const FBox LayeredImpactBounds(FVector(-100.0f, -80.0f, -35.0f), FVector(100.0f, 80.0f, 65.0f));
+	TestTrue(TEXT("Skill03 layered impact raises its authored lowest point onto the warning ground plane"),
+	         UReEchoCombatVfxComponent::ResolveGroundAlignedEffectOrigin(
+	             FVector(400.0f, 250.0f, 12.0f), LayeredImpactBounds, FVector(1.0f, 1.0f, 2.0f))
+	             .Equals(FVector(400.0f, 250.0f, 82.0f), KINDA_SMALL_NUMBER));
 	const FVector StartOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.5f, 0.5f, 300.0f);
 	const FVector HalfwayOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.25f, 0.5f, 300.0f);
 	const FVector LandedOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.0f, 0.5f, 300.0f);
+	const FVector WindupStart =
+	    UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(0.5f, 0.5f, 300.0f);
+	const FVector WindupHalfway =
+	    UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(0.25f, 0.5f, 300.0f);
+	const FVector WindupHidden =
+	    UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(0.0f, 0.5f, 300.0f);
 
 	TestTrue(TEXT("Blink slam starts 300 cm above the locked landing point"),
 	         StartOffset.Equals(FVector(0.0f, 0.0f, 300.0f), KINDA_SMALL_NUMBER));
@@ -91,6 +115,11 @@ bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 	         HalfwayOffset.Equals(FVector(0.0f, 0.0f, 75.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Blink slam presentation finishes exactly at the gameplay landing point"),
 	         LandedOffset.IsNearlyZero());
+	TestTrue(TEXT("Phase3 windup begins at the sheep's grounded position"), WindupStart.IsNearlyZero());
+	TestTrue(TEXT("Phase3 windup rises while the Phase3 attack remains active"),
+	         WindupHalfway.Equals(FVector(0.0f, 0.0f, 262.5f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Phase3 windup reaches its hidden height before the downward slam"),
+	         WindupHidden.Equals(FVector(0.0f, 0.0f, 300.0f), KINDA_SMALL_NUMBER));
 	return true;
 }
 

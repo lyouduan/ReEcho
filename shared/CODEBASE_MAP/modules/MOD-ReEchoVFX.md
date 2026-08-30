@@ -2,6 +2,20 @@
 
 ## 模块状态
 
+羊一→二、二→三阶段共用BeginBossTransformationEffects，蓄力统一改GoatSkill04Charging（NS_Goat_Skill04_Charging）；地面预警、爆发、挂点/缩放/时序保持不变。周围献祭怪物仍使用GoatSkill03Charging。
+
+落地改为等待怪物变身动画实际结束；等待期间GoatSkill03Charging继续随身体播放，实际落地才清理，不按原3.9秒硬关闭。羊爆发时间不顺延。
+
+怪物献祭蓄力独立于BeginSacrificeVisual，改为演出时钟1.0秒一次启动，仍在3.9秒落地清理；升空与怪物变身动画保持0.8秒。取消后重置启动状态。
+
+后续同步调整：怪物蓄力VFX/升空/变身动画均从0.8秒开始，去掉单独0.5秒蓄力等待；VFX随身体保持至3.9秒落地，羊的爆发在3.5秒悬停结束，清理逻辑不变。
+
+用户澄清：2.8秒触发的是怪物自身变身动画，不是羊；羊仍按原流程在4.0秒爆发，怪物蓄力跟随至4.4秒落地结束。下段“Boss2.8秒”说明已被本条覆盖。
+
+献祭怪物改用与Boss变身一致的GoatSkill03Charging（不再GoatSkill02Impact），在聚焦结束时启动，按Flipbook体型缩放，实时跟随视觉中心；系统提前完成则重新激活，落地/取消结束，不再落地重播受击特效。Boss阶段提交及变身爆发移到空中挣扎开始时（默认2.8秒），怪物悬停到4.0秒才下落。
+
+Boss一→二阶段献祭使用独立 `SacrificeEffect` 生命周期：只读表现请求 `GoatSkill02Impact`（NS_Goat_Skill02_BeAttacked），起点与逐帧位置来自目标Flipbook世界Bounds中心；不会发送伤害事件。升空消失时停止，原位显现开始时重播一次，演出结束/取消及StopAllEffects时清理。该效果不复用Boss技能待处理计时器，也不改Niagara资产。
+
 - 当前形态：`MOD-ReEcho` 内的文档型逻辑入口，**不是**独立 Runtime Module。
 - 功能检索标识：`AREA-Presentation`。
 - 代码根：`Source/ReEcho/{Public,Private}/Presentation/VFX/`。
@@ -10,6 +24,8 @@
 - 导入清单：`Design/Art/VFX/combat_vfx_import_manifest.csv`。
 
 ## 存在原因
+
+Boss 变身使用独立的 Charge/Ground/Burst Niagara 实例，复用羊 Skill03 资源但不调用技能伤害。由 GameMode 显式 Begin/Burst/End，身体蓄力取当前 Flipbook 世界包围盒顶部，法阵取 Boss 地面高度且固定朝上；二、三阶段倍率来自程序 DA。实例与技能特效字段分离，阶段事件清技能特效时不误清演出；死亡/清场同步清理。资源内部可见性、亮度及画面节奏仍须 PIE 验收。
 
 攻击逻辑只应表达“兔子开始前摇”“某次投射物移动”“某次近战已提交”“某个目标实际受伤”等事实，不应知道 Niagara 路径、朝向轴、透明层级或销毁方式。反过来，粒子是否成功加载、播放多久或何时结束，也不能决定攻击提交、命中或伤害。
 
@@ -81,7 +97,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
 | GoatSkill01 | `MoonStaff` + `NS_Goat_Skill02_BeAttacked` | 羊 Boss 从 Plan104 的 `DA_WeaponPresentation_MoonStaff` 读取持有贴图、尺寸和偏移；近战攻击窗口驱动法杖挥舞，并在法杖世界位置复用 Skill02 BeAttacked，玩法圆形命中不变 |
 | GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 两种投射技能共用；Charging 挂在 `BossWeaponTipRoot`，该节点位于包含 MoonStaff DA 最终左右偏移的法杖贴图顶部，Bullet 使用 Local Space。StationaryVolley 在 Recovery 窗口内逐颗发布四次 Spawned，MovingSpread 同帧发布三向 Spawned；每颗投影权威弹道、命中后经 Combat 结算单弹配表伤害并发布 Ended，实际 `AppliedDamage > 0` 时在角色世界命中坐标播放命中 |
-| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | Charging 附着 Boss；预警固定在锁定角色落点并使用显式世界向上法线，Boss 落在预警 XY 中心；BeAttacked 作为同尺寸地裂贴地播放，实际伤害仍由 Combat 裁决 |
+| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | Charging 附着 Boss；预警固定在锁定角色落点并使用显式世界向上法线，Boss 落在预警 XY 中心；BeAttacked 作为同尺寸地裂贴地播放，Phase1/2 在落地时生成，Phase3 每段连击在 0.5 秒下降开始时生成且落地去重；实际伤害仍统一在落地后由 Combat 裁决 |
 | GoatSkill04 | `NS_Goat_Skill04_Charging` / `NS_Goat_Skill03_Alarming` / `Lighting` | Charging 开始时显示目标快照预警，权威锁定后重启到 LockedTargetLocation；Lighting 从预警中心释放并使用 CameraPlane mesh facing，伤害起点同一锁点；AbilityEnded/Death/清场清理 |
 | PlayerMeleeSlash / Element Slash | 默认 `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01`；火/雷/草/水分别为 `NS_People_Sword_Attack_Fire` / `Thunder` / `Grass` / `Water` | 长剑提交时按该次攻击的最终元素选择专用斩击，继承默认长剑的挂点、镜头正面修正、左右播放与 Local Space 契约；无元素或资源不可用时回退默认斩击 |
 | PlayerScytheSlash / Element Slash | 默认 `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01`；火/雷/草/水分别为 `NS_People_Sickle_Attack_Fire` / `Thunder` / `Grass` / `Water` | 镰刀提交时按该次攻击最终元素选择专用斩击，继承默认镰刀的延迟、挂点、CameraPlane 朝向和 Local Space 契约；无元素或资源不可用时回退默认斩击 |

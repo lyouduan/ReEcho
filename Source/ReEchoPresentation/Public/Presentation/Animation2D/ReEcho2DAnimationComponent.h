@@ -48,6 +48,18 @@ public:
 	/** Pause on the current frame without turning a one-shot pause into playback completion. */
 	void SetPlaybackPaused(bool bPaused);
 	void SetFacingSign(float InFacingSign);
+	/** Persistent visual-only multiplier applied whenever a clip or facing direction recalculates display scale. */
+	void SetDisplayScaleMultiplier(float InMultiplier);
+	/** Optional native-height reference shared by every clip in one form, preserving a stable pixel-to-world scale. */
+	void SetDisplayScaleReferenceHeight(float InReferenceHeight);
+	float GetDisplayScaleMultiplier() const
+	{
+		return DisplayScaleMultiplier;
+	}
+	float GetDisplayScaleReferenceHeight() const
+	{
+		return DisplayScaleReferenceHeight;
+	}
 	bool IsAnimationActive();
 	bool IsPlaybackPaused() const
 	{
@@ -88,6 +100,8 @@ private:
 	FReEcho2DAnimationClip ActiveClip;
 	EReEcho2DAnimationState ActiveState = EReEcho2DAnimationState::Default;
 	float FacingSign = 1.0f;
+	float DisplayScaleMultiplier = 1.0f;
+	float DisplayScaleReferenceHeight = 0.0f;
 	bool bAnimationActive = false;
 	bool bPlaybackPaused = false;
 };

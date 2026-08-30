@@ -2,19 +2,19 @@
   "AdditionalProperties": [
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaDetours.dll"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaDetours.dll"
     },
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.exe"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.exe"
     },
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaHost.toml"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaHost.toml"
     },
     {
       "Name": "Uba",
-      "Value": "C:\\Program Files\\Epic Games\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.toml"
+      "Value": "F:\\UnrealEngine_Dev\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealBuildAccelerator\\x64\\UbaAgent.toml"
     },
     {
       "Name": "SDK",
@@ -310,6 +310,66 @@
     "XInputDevice"
   ],
   "BuildProducts": [
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.dll",
+      "Type": "DynamicLibrary"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.pdb",
+      "Type": "SymbolFile"
+    },
+    {
+      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor.modules",
+      "Type": "RequiredResource"
+    },
     {
       "Path": "$(EngineDir)/Binaries/Win64/AgentInterface.dll",
       "Type": "DynamicLibrary"
@@ -5533,66 +5593,6 @@
     {
       "Path": "$(EngineDir)/Plugins/XGEController/Binaries/Win64/UnrealEditor.modules",
       "Type": "RequiredResource"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEcho.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoAudio.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCards.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoCombat.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoEnemies.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoPresentation.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.dll",
-      "Type": "DynamicLibrary"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-ReEchoWeapons.pdb",
-      "Type": "SymbolFile"
-    },
-    {
-      "Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor.modules",
-      "Type": "RequiredResource"
     }
   ],
   "BuildSettingsVersion": "V7",
@@ -5603,6 +5603,246 @@
   "Platform": "Win64",
   "Project": "../../ReEcho.uproject",
   "RuntimeDependencies": [
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateCardEffectOrder/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateId/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateReactionPair/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateWeaponInputSlot/weapons.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/EchoEfficiencyEnabled/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/IllegalRange/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidCardEffectBehaviorPair/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidWeaponPartEffectBehaviorPair/part_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/MissingRequired/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ReactionValueChanged/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownBehavior/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownCardEffectTarget/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownEffectKind/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownFormulaId/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownReference/runtime_smoke_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownWeaponReference/characters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCanCrit/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCardEffectTrigger/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedVersion/reecho_data_manifest.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ValidAlt/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/attack_steps.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/attributes.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/audio_events.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/boss_phases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/card_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/cards.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/character_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/character_aliases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/characters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/csv_schema.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/elements.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/encounter_waves.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/encounters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemies.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_combat_stats.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/enemy_shard_drops.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/part_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/parts.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/reactions.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/reecho_data_manifest.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/rune_upgrades.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/runtime_smoke.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/runtime_smoke_effects.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_drop_levels.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_price_ranges.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/shop_refresh_rules.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/slot_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/slot_types.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/spawn_policy.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/spawn_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/stages.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/statuses.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/weapon_types.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/weapons.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/CardChoiceToShop.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterEndToCardChoiceV2.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/Stage01To02.mov",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/ReEcho.uproject",
+      "Type": "UFS"
+    },
     {
       "Path": "$(EngineDir)/Binaries/DotNET/OidcToken/win-x64/OidcToken.exe",
       "Type": "NonUFS"
@@ -30621,246 +30861,6 @@
     },
     {
       "Path": "$(EngineDir)/Plugins/XGEController/XGEController.uplugin",
-      "Type": "UFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateCardEffectOrder/card_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateId/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateReactionPair/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateWeaponInputSlot/weapons.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/EchoEfficiencyEnabled/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/IllegalRange/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidCardEffectBehaviorPair/card_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/InvalidWeaponPartEffectBehaviorPair/part_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/MissingRequired/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ReactionValueChanged/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownBehavior/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownCardEffectTarget/card_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownEffectKind/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownFormulaId/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownReference/runtime_smoke_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnknownWeaponReference/characters.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCanCrit/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedCardEffectTrigger/card_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/UnsupportedVersion/reecho_data_manifest.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/ValidAlt/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/attack_steps.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/attributes.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/audio_events.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/boss_phases.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/card_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/cards.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/character_abilities.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/character_aliases.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/characters.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/csv_schema.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/elements.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/encounter_waves.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/encounters.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/enemies.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/enemy_abilities.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/enemy_combat_stats.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/enemy_shard_drops.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/part_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/parts.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/reactions.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/reecho_data_manifest.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/rune_upgrades.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/runtime_smoke.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/runtime_smoke_effects.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/shop_drop_levels.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/shop_price_ranges.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/shop_refresh_rules.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/slot_profiles.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/slot_types.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/spawn_policy.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/spawn_profiles.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/stages.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/statuses.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/weapon_types.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Data/weapons.csv",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/CardChoiceToShop.mov",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterEndToCardChoiceV2.mov",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/Content/Movies/EncounterTransition/Stage01To02.mov",
-      "Type": "NonUFS"
-    },
-    {
-      "Path": "$(ProjectDir)/ReEcho.uproject",
       "Type": "UFS"
     }
   ],

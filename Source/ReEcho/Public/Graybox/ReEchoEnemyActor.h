@@ -59,6 +59,11 @@ class REECHO_API AReEchoEnemyActor : public AActor,
 
 public:
 	AReEchoEnemyActor();
+	/** Called once at the authored transformation burst, not by a VFX completion callback. */
+	bool CommitCinematicBossPhase(int32 PhaseIndex);
+	bool CommitSacrificePhase2();
+	void PrepareBossTransformation();
+	void CompensateBossTransformationPause(float SuspendedAtWorldTime);
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
@@ -126,6 +131,9 @@ public:
 	bool IsAlive() const;
 	void ApplyCardStun(float DurationSeconds);
 	void SetCardMovementMultiplier(float Multiplier);
+	/** Development-only GM path: applies a forced Boss phase through the same Host transition/refill adapter. */
+	bool DebugForceBossPhaseForGM(int32 PhaseIndex);
+	bool DebugSetBossEncounterElapsedSecondsForGM(float Seconds);
 	/** Freezes this host across a same-Stage intermission while preserving its long-lived runtime state. */
 	void SetEncounterSimulationSuspended(bool bSuspended);
 
@@ -210,6 +218,11 @@ public:
 	void AdvancePendingBossBlinkSlamForTests(float DeltaSeconds);
 	void AdvancePendingBossPrayerBeamForTests(float DeltaSeconds);
 	void UpdateStunStateForTests(bool bStunned);
+
+	float GetCardStunDeadlineForTests() const
+	{
+		return CardStunnedUntilWorldTime;
+	}
 #endif
 
 protected:
@@ -245,7 +258,7 @@ private:
 	void HandlePhaseTransitionIntent(const FReEchoEnemyActionIntent& Intent);
 	// WS4 (Plan 68): after a blood-depleted second-phase transition, resize this boss to its phase-two maximum health
 	// (from BossPhases.PhaseMaxHealth) and refill it there. No-op unless the phase is RefillToMaximum.
-	void ApplyBloodDepletedPhase2MaxHealth();
+	void ApplyBloodDepletedBossPhaseHealth(const FReEchoBossPhaseDefinition& PhaseDefinition);
 	const FReEchoEnemyAbilityDefinition* FindAbility(FName AbilityId) const;
 	FVector ResolveFacingDirection() const;
 	FVector ResolveBossTeleportDestination(const FVector& TargetLocation);
@@ -388,6 +401,7 @@ private:
 	bool bCanBeDamagedBeforeBornGate = true;
 	float CardStunnedUntilWorldTime = 0.0f;
 	float CardMovementMultiplier = 1.0f;
+	float BossPhase1MaxHealth = 0.0f;
 	float GameplayPlaneWorldZ = 0.0f;
 	float CrowdBlockedSeconds = 0.0f;
 	double NextBossPhase2TracePlatformSeconds = 0.0;

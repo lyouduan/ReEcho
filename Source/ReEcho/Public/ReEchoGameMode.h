@@ -3,6 +3,7 @@
 #include "Combat/ReEchoCombatTypes.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Encounter/ReEchoEncounterRuntime.h"
+#include "Data/ReEchoBossPhase3Config.h"
 #include "Enemies/ReEchoEnemyTypes.h"
 #include "GameFramework/GameModeBase.h"
 #include "UI/ReEchoAboutWidget.h"
@@ -17,6 +18,7 @@ class AReEchoEnemyActor;
 class AReEchoPlayerPawn;
 class AReEchoTimeShardPickupActor;
 class UReEchoEncounterHudWidget;
+class UReEchoBossPhase3AnnouncementWidget;
 class UReEchoEncounterFlowSettings;
 class UReEchoEncounterTransitionWidget;
 class UMediaSoundComponent;
@@ -36,6 +38,8 @@ class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
 class UReEchoArenaSceneCatalog;
 class UReEchoEnemyGameplayClassRegistry;
+class UReEchoBossPhase3Config;
+class UReEchoCombatantComponent;
 class UReEchoAudioService;
 class UMaterialInterface;
 class UTexture2D;
@@ -52,6 +56,8 @@ class REECHO_API AReEchoGameMode : public AGameModeBase
 	GENERATED_BODY()
 public:
 	AReEchoGameMode();
+	bool BeginBossTransformation(AReEchoEnemyActor* Boss, int32 TargetPhase);
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void StartPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	void TogglePauseMenu();
@@ -98,7 +104,13 @@ public:
 	void GMGotoBoss();
 	/** Queues one production sheep Boss ability through its normal Telegraph/Attack/Recovery state machine. */
 	UFUNCTION(Exec)
-	void GMBossSkill(const FString& Skill = TEXT("Skill01"));
+	void GMBossSkill(const FString& Skill = TEXT("Skill01"), int32 ComboCount = 0);
+	/** Forces the living sheep Boss into an authored phase through its normal Host transition adapter. */
+	UFUNCTION(Exec)
+	void GMBossPhase(int32 PhaseIndex = 3);
+	/** Sets the sheep Boss logic clock for exact fast-kill boundary testing. */
+	UFUNCTION(Exec)
+	void GMBossEasterEggTimer(float ElapsedSeconds = 14.9f);
 	UFUNCTION(Exec)
 	void GMGrantCard(FName CardId);
 	/** Replays the birth-circle presentation on every living Echo without changing gameplay state. */
@@ -166,6 +178,35 @@ public:
 	bool TryGetActiveArenaGameplayPlaneZ(float& OutGameplayPlaneZ) const;
 
 #if WITH_DEV_AUTOMATION_TESTS
+	void ConfigureBossTransformationForTests(AReEchoPlayerPawn* InPlayer,
+	                                         AReEchoEncounterDirector* InDirector,
+	                                         AReEchoArenaCameraActor* InCamera = nullptr);
+
+	void AdvanceBossTransformationForTests(float DeltaSeconds)
+	{
+		AdvanceBossTransformation(DeltaSeconds);
+	}
+
+	void CancelBossTransformationForTests()
+	{
+		EndBossTransformation(false);
+	}
+
+	bool IsBossTransformationActiveForTests() const
+	{
+		return BossTransformTargetPhase != 0;
+	}
+
+	int32 GetBossSacrificeCountForTests() const
+	{
+		return BossSacrificeEnemies.Num();
+	}
+
+	bool HasBossSacrificeChargeStartedForTests() const
+	{
+		return bBossSacrificeChargeStarted;
+	}
+
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
@@ -174,6 +215,39 @@ public:
 #endif
 
 private:
+	void AdvanceBossTransformation(float DeltaSeconds);
+	void EndBossTransformation(bool bCompleted);
+	void FreezeBossTransformationActors();
+	void BeginBossSacrifice();
+	void PrepareBossSacrifice();
+	void UpdateBossSacrifice();
+	void EndBossSacrifice();
+	TArray<TWeakObjectPtr<AReEchoEnemyActor>> BossSacrificeEnemies;
+	bool bBossSacrificeEnabled = false;
+	bool bBossSacrificeStarted = false;
+	bool bBossSacrificeChargeStarted = false;
+	bool bBossSacrificeReappearing = false;
+	bool bBossTransformVfxStarted = false;
+	float BossSacrificeRiseStart = 0.0f;
+	float BossSacrificeRiseEnd = 0.0f;
+	float BossSacrificeBornWaitSeconds = 0.0f;
+	float BossSacrificeTransformWaitSeconds = 0.0f;
+	float BossSacrificeReappearStart = 0.0f;
+	float BossSacrificeReappearEnd = 0.0f;
+	TWeakObjectPtr<AReEchoEnemyActor> TransformingBoss;
+	TWeakObjectPtr<AReEchoEnemyActor> QueuedTransformingBoss;
+	int32 QueuedBossTransformPhase = 0;
+	TMap<TWeakObjectPtr<AReEchoEnemyActor>, float> BossTransformEnemyFreezeTimes;
+	FReEchoBossTransformPresentation BossTransformSettings;
+	float BossTransformElapsed = 0.0f;
+	int32 BossTransformTargetPhase = 0;
+	bool bBossTransformBurst = false;
+	bool bBossTransformCameraReturning = false;
+	bool bBossTransformPreviousDirectorTick = false;
+	bool bBossTransformInputBlocked = false;
+	TMap<TWeakObjectPtr<AActor>, bool> BossTransformActorTicks;
+	TMap<TWeakObjectPtr<UActorComponent>, bool> BossTransformComponentTicks;
+	TMap<TWeakObjectPtr<UReEchoCombatantComponent>, bool> BossTransformCombatGates;
 	/** Lets the next-frame World Timer run while retaining menu input and ability blocking. */
 	void ResumeWorldForMenuTransition();
 	bool EnsureGMCommandAvailable() const;
@@ -216,6 +290,10 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoEnemyGameplayClassRegistry> EnemyGameplayClassRegistry;
 
+	/** Optional programmer-authored hidden phase overlay; normal designer CSV data remains untouched. */
+	UPROPERTY()
+	TObjectPtr<UReEchoBossPhase3Config> BossPhase3Config;
+
 	/** Whether the GM enemy-health overlay is currently enabled (GMShowEnemyHealth). */
 	bool bShowEnemyHealthDebug = false;
 	/** Whether the GM enemy-range overlay is currently enabled (GMShowEnemyRange). */
@@ -248,6 +326,8 @@ private:
 	TObjectPtr<UReEchoStatsWidget> StatsWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
+	UPROPERTY()
+	TObjectPtr<UReEchoBossPhase3AnnouncementWidget> BossPhase3AnnouncementWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterTransitionWidget> EncounterTransitionWidget;
 	UPROPERTY()
@@ -301,6 +381,7 @@ private:
 	bool bEncounterClearedByDefeat = false;
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
+	bool bBossPhase3EscalationTriggered = false;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
 	FReEchoEncounterWaveScheduler EncounterWaveScheduler;
@@ -473,7 +554,10 @@ private:
 	void ProcessScheduledSpawnEvents(float EncounterSeconds);
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
 	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
-	bool SpawnConfiguredEnemy(FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex = INDEX_NONE);
+	bool SpawnConfiguredEnemy(FName EnemyId,
+	                          const FVector& SpawnLocation,
+	                          int32 CombatIndex = INDEX_NONE,
+	                          AReEchoEnemyActor** OutEnemy = nullptr);
 	static void ResolveGMSpawnFoxRequest(
 	    float CountOrDistance, float Distance, int32& OutCount, float& OutDistance, bool& bOutLegacyDistance);
 	static bool TryResolveGMSceneId(const FString& Scene, FName& OutSceneId);
@@ -521,6 +605,10 @@ private:
 	bool IsBossEncounter() const;
 	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);
 	void TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition& PhaseDefinition);
+	void TriggerBossPhase3Escalation();
+	void ShowBossPhase3Announcement();
+	static int32 ResolveBossPhase3SpawnCount(int32 AuthoredCount, bool bPhase3, bool bBossRole);
+	static int32 ResolveBossPhase3ActiveUnitLimit(int32 AuthoredLimit, bool bPhase3, bool bBossRole);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
 	bool ResolveNextStageTransition(FReEchoStageTransitionDecision& OutDecision, FString& OutError) const;

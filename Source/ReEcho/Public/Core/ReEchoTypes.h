@@ -351,6 +351,10 @@ struct REECHO_API FReEchoEncounterRuntimeState
 	UPROPERTY()
 	bool bBossPostEchoPhaseTriggered = false;
 
+	/** Hidden Boss Phase3 already doubled player stats and future non-Boss wave capacity. */
+	UPROPERTY()
+	bool bBossPhase3EscalationTriggered = false;
+
 	UPROPERTY()
 	TArray<FReEchoEnemyRuntimeState> Enemies;
 };

@@ -20,6 +20,43 @@
 #include "Presentation/Enemy/ReEchoEnemyPresentationComponent.h"
 #include "Player/ReEchoPlayerPawn.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DDisplayScaleMultiplierTest,
+                                 "ReEcho.Presentation.Animation2D.DisplayScaleMultiplierPersists",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEcho2DDisplayScaleMultiplierTest::RunTest(const FString& Parameters)
+{
+	UPaperFlipbook* WalkFlipbook =
+	    LoadObject<UPaperFlipbook>(nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Phase3/Walk/Walk.Walk"));
+	UPaperFlipbook* GroundSlamFlipbook = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Phase3/GroundSlam/GroundSlam.GroundSlam"));
+	if (!TestNotNull(TEXT("Display multiplier test loads the Phase3 Walk Flipbook"), WalkFlipbook) ||
+	    !TestNotNull(TEXT("Display multiplier test loads the Phase3 GroundSlam Flipbook"), GroundSlamFlipbook))
+	{
+		return false;
+	}
+
+	UReEcho2DAnimationComponent* Renderer = NewObject<UReEcho2DAnimationComponent>();
+	Renderer->SetDisplayScaleReferenceHeight(WalkFlipbook->GetRenderBounds().BoxExtent.Z * 2.0f);
+	Renderer->SetDisplayScaleMultiplier(2.0f);
+	FReEcho2DAnimationClip Clip;
+	Clip.Flipbook = WalkFlipbook;
+	Clip.bLooping = true;
+	Clip.bUseNativeScale = false;
+	Clip.WorldHeight = 100.0f;
+	TestTrue(TEXT("Display multiplier test plays the first clip"), Renderer->PlayClip(Clip, true));
+	const FVector WalkScale = Renderer->GetRelativeScale3D().GetAbs();
+
+	Renderer->SetFacingSign(-1.0f);
+	TestTrue(TEXT("Facing refresh preserves the persistent display multiplier"),
+	         Renderer->GetRelativeScale3D().GetAbs().Equals(WalkScale, KINDA_SMALL_NUMBER));
+	Clip.Flipbook = GroundSlamFlipbook;
+	TestTrue(TEXT("Display multiplier test switches to GroundSlam"), Renderer->PlayClip(Clip, true));
+	TestTrue(TEXT("A shared reference height preserves pixel-to-world scale across differently sized Flipbooks"),
+	         Renderer->GetRelativeScale3D().GetAbs().Equals(WalkScale, KINDA_SMALL_NUMBER));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEcho2DFootpointAlignmentTest,
                                  "ReEcho.Presentation.Animation2D.FootpointAlignment",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -474,14 +511,20 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	         AuthoredFox && AuthoredFox->bUseAuthoredDeathPivot);
 	TestEnemyDeathClip(TEXT("Goat Priest owns Goat Death"), AuthoredGoat, GoatDeathFlipbook);
 	TestEnemyDeathClip(TEXT("TimeGuard owns Goat Death"), AuthoredTimeGuard, GoatDeathFlipbook);
-	TestTrue(TEXT("TimeGuard does not claim unavailable Phase2 animation clips"),
-	         AuthoredTimeGuard &&
-	             (!TimeGuardPhase2Set || (!TimeGuardPhase2Set->FindClip(ReEcho2DAnimationTags::Transform_Phase2) &&
-	                                      !TimeGuardPhase2Set->FindClip(ReEcho2DAnimationTags::Move) &&
-	                                      !TimeGuardPhase2Set->FindClip(ReEcho2DAnimationTags::Attack_Charge) &&
-	                                      !TimeGuardPhase2Set->FindClip(ReEcho2DAnimationTags::Attack_Basic) &&
-	                                      !TimeGuardPhase2Set->FindClip(ReEcho2DAnimationTags::Hit) &&
-	                                      !TimeGuardPhase2Set->FindClip(ReEcho2DAnimationTags::Death))));
+	for (const FGameplayTag Semantic : {ReEcho2DAnimationTags::Transform_Phase2.GetTag(),
+	                                    ReEcho2DAnimationTags::Move.GetTag(),
+	                                    ReEcho2DAnimationTags::Attack_Charge.GetTag(),
+	                                    ReEcho2DAnimationTags::Attack_Basic.GetTag(),
+	                                    ReEcho2DAnimationTags::Hit.GetTag(),
+	                                    ReEcho2DAnimationTags::Death.GetTag()})
+	{
+		const FReEcho2DAnimationClip* Phase2Clip =
+		    TimeGuardPhase2Set ? TimeGuardPhase2Set->FindClip(Semantic) : nullptr;
+		TestTrue(FString::Printf(TEXT("TimeGuard Phase2 %s owns a black goat clip without white-form fallback"),
+		                         *Semantic.ToString()),
+		         Phase2Clip && Phase2Clip->Flipbook &&
+		             Phase2Clip->Flipbook->GetPathName().Contains(TEXT("/Enemies/BadGoat/")));
+	}
 	TestTrue(TEXT("Fox Walk uses authored EachFrame collision"),
 	         FoxWalkClip && FoxWalkClip->Flipbook &&
 	             FoxWalkClip->Flipbook->GetCollisionSource() == EFlipbookCollisionMode::EachFrameCollision);
@@ -693,7 +736,8 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Born can be active immediately before terminal Death"),
 	         Controller->PlayAction(ReEcho2DAnimationTags::Born) && EnemyPresentation->IsBornPlaying());
 	TestTrue(TEXT("Terminal Death resolves the authored clip"),
-	         EnemyPresentation->BeginTerminalDeath(FVector::ForwardVector, FSimpleDelegate::CreateLambda(
+	         EnemyPresentation->BeginTerminalDeath(FVector::ForwardVector,
+	                                               FSimpleDelegate::CreateLambda(
 	                                                   [&DeathCompletionCount]()
 	                                                   {
 		                                                   ++DeathCompletionCount;

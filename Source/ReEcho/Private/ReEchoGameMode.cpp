@@ -13,6 +13,7 @@
 #include "Core/ReEchoBalanceSettings.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Data/ReEchoEnemyDefinitionCompiler.h"
+#include "Data/ReEchoBossPhase3Config.h"
 #include "Encounter/ReEchoEncounterDirector.h"
 #include "Encounter/ReEchoEncounterFlowSettings.h"
 #include "Enemies/ReEchoEnemyEventsComponent.h"
@@ -56,6 +57,7 @@
 #include "Run/ReEchoRunStatsTracker.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoEncounterHudWidget.h"
+#include "UI/ReEchoBossPhase3AnnouncementWidget.h"
 #include "UI/ReEchoEncounterTransitionWidget.h"
 #include "UI/ReEchoInventoryShopWidget.h"
 #include "UI/ReEchoLoadoutSelectionWidget.h"
@@ -96,6 +98,9 @@ AReEchoGameMode::AReEchoGameMode()
 	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyGameplayClassRegistry."
 	         "DA_EnemyGameplayClassRegistry"));
 	EnemyGameplayClassRegistry = EnemyClassRegistryFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UReEchoBossPhase3Config> BossPhase3ConfigFinder(
+	    TEXT("/Game/ReEcho/DataAsset/Enemy/DA_SheepBossPhase3.DA_SheepBossPhase3"));
+	BossPhase3Config = BossPhase3ConfigFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UReEchoArenaSceneCatalog> ArenaSceneCatalogFinder(
 	    TEXT("/Game/ReEcho/Scene/DA_ArenaSceneCatalog.DA_ArenaSceneCatalog"));
 	ArenaSceneCatalog = ArenaSceneCatalogFinder.Object;
@@ -276,7 +281,8 @@ void AReEchoGameMode::GMHelp()
 	                   "<Clear|Rain|Fog> | GMScene <SC01|SC02|SC03|SC04> | GMMoveSpeed <cm/s> | "
 	                   "GMEndEncounter | GMTransition4 | GMKillAll | GMSpawnFox <count> [distance] | "
 	                   "GMGotoEncounter <1-based index> | GMGotoBoss | "
-	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> | "
+	                   "GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> [1|2|3] | "
+	                   "GMBossPhase <2|3> | GMBossEasterEggTimer <seconds> | "
 	                   "GMEchoBorn | GMEchoSummon | "
 	                   "GMElement <None|Flame|Lightning|Grass|Water> | "
 	                   "GMEnemyElementAll <None|Grass|Water> | "
@@ -1040,12 +1046,19 @@ void AReEchoGameMode::GMKillAll()
 		return;
 	}
 	int32 KilledCount = 0;
+	int32 AdvancedBossPhaseCount = 0;
 	for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
 	{
 		AReEchoEnemyActor* Enemy = Cast<AReEchoEnemyActor>(EnemyHost.Get());
 		const FVector DamageSource =
 		    Enemy ? Enemy->GetActorLocation() - Enemy->GetFacingDirection() * 100.0f : FVector::ZeroVector;
-		for (int32 Attempt = 0; Enemy && Enemy->IsAlive() && Attempt < 32; ++Attempt)
+		const bool bMultiPhaseBoss =
+		    Enemy && Enemy->GetEnemyLogicComponent() &&
+		    Enemy->GetEnemyLogicComponent()->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss;
+		const int32 BossPhaseBeforeDamage =
+		    bMultiPhaseBoss ? Enemy->GetEnemyLogicComponent()->GetSnapshot().CurrentPhaseIndex : 0;
+		const int32 MaximumAttempts = bMultiPhaseBoss ? 1 : 32;
+		for (int32 Attempt = 0; Enemy && Enemy->IsAlive() && Attempt < MaximumAttempts; ++Attempt)
 		{
 			Enemy->ReceiveGrayboxDamage(TNumericLimits<float>::Max(), DamageSource);
 		}
@@ -1053,9 +1066,16 @@ void AReEchoGameMode::GMKillAll()
 		{
 			++KilledCount;
 		}
+		else if (bMultiPhaseBoss &&
+		         Enemy->GetEnemyLogicComponent()->GetSnapshot().CurrentPhaseIndex > BossPhaseBeforeDamage)
+		{
+			++AdvancedBossPhaseCount;
+		}
 	}
-	PrintGMResult(
-	    FString::Printf(TEXT("Killed %d enemies; normal encounter completion will run next tick."), KilledCount));
+	PrintGMResult(FString::Printf(TEXT("Killed %d enemies; advanced %d Boss phase(s); normal encounter completion "
+	                                   "will run next tick."),
+	                              KilledCount,
+	                              AdvancedBossPhaseCount));
 }
 
 void AReEchoGameMode::ResolveGMSpawnFoxRequest(
@@ -1285,7 +1305,7 @@ void AReEchoGameMode::GMGotoEncounter(const int32 EncounterNumber)
 	              bStartedTarget);
 }
 
-void AReEchoGameMode::GMBossSkill(const FString& Skill)
+void AReEchoGameMode::GMBossSkill(const FString& Skill, const int32 ComboCount)
 {
 	if (!EnsureGMCommandAvailable())
 	{
@@ -1317,7 +1337,7 @@ void AReEchoGameMode::GMBossSkill(const FString& Skill)
 	}
 	else
 	{
-		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04>"), false);
+		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> [1|2|3]"), false);
 		return;
 	}
 
@@ -1340,12 +1360,62 @@ void AReEchoGameMode::GMBossSkill(const FString& Skill)
 		return;
 	}
 
-	const bool bQueued = Boss->GetEnemyLogicComponent()->DebugQueueBossAbility(AbilityId);
+	const bool bQueued = Boss->GetEnemyLogicComponent()->DebugQueueBossAbility(AbilityId, ComboCount);
 	PrintGMResult(bQueued ? FString::Printf(TEXT("Queued Boss ability %s through the normal skill state machine."),
 	                                        *AbilityId.ToString())
 	                      : FString::Printf(TEXT("Boss ability %s is unavailable in the active definition."),
 	                                        *AbilityId.ToString()),
 	              bQueued);
+}
+
+void AReEchoGameMode::GMBossPhase(const int32 PhaseIndex)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (!EnemyRoster)
+	{
+		PrintGMResult(TEXT("GMBossPhase requires an active enemy roster."), false);
+		return;
+	}
+	for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+	{
+		AReEchoEnemyActor* Boss = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+		if (Boss && Boss->GetEnemyId() == TEXT("M_SHEEP"))
+		{
+			const bool bApplied = Boss->DebugForceBossPhaseForGM(PhaseIndex);
+			PrintGMResult(
+			    FString::Printf(TEXT("Boss phase %d %s."), PhaseIndex, bApplied ? TEXT("applied") : TEXT("rejected")),
+			    bApplied);
+			return;
+		}
+	}
+	PrintGMResult(TEXT("GMBossPhase requires a living M_SHEEP Boss."), false);
+}
+
+void AReEchoGameMode::GMBossEasterEggTimer(const float ElapsedSeconds)
+{
+	if (!EnsureGMCommandAvailable())
+	{
+		return;
+	}
+	if (!EnemyRoster)
+	{
+		PrintGMResult(TEXT("GMBossEasterEggTimer requires an active enemy roster."), false);
+		return;
+	}
+	for (const TWeakObjectPtr<AActor>& EnemyHost : EnemyRoster->GetLivingEnemyActors())
+	{
+		AReEchoEnemyActor* Boss = Cast<AReEchoEnemyActor>(EnemyHost.Get());
+		if (Boss && Boss->GetEnemyId() == TEXT("M_SHEEP"))
+		{
+			const bool bApplied = Boss->DebugSetBossEncounterElapsedSecondsForGM(ElapsedSeconds);
+			PrintGMResult(FString::Printf(TEXT("Boss fast-kill timer set to %.3f seconds."), ElapsedSeconds), bApplied);
+			return;
+		}
+	}
+	PrintGMResult(TEXT("GMBossEasterEggTimer requires a living M_SHEEP Boss."), false);
 }
 
 void AReEchoGameMode::GMGrantCard(const FName CardId)
@@ -2546,6 +2616,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 	bEncounterClearedByDefeat = false;
 	bBossSuccessfullySpawnedThisEncounter = false;
 	bBossPostEchoPhaseTriggered = false;
+	bBossPhase3EscalationTriggered = false;
 	RunSubsystem->BeginEncounter();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* Encounter =
@@ -2752,6 +2823,7 @@ FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() con
 	Result.PlayerVelocity = Player->GetVelocity();
 	Result.ActiveRecording = Player->Recorder->GetRecording();
 	Result.bBossPostEchoPhaseTriggered = bBossPostEchoPhaseTriggered;
+	Result.bBossPhase3EscalationTriggered = bBossPhase3EscalationTriggered;
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		if (Entry.bAlive)
@@ -2800,6 +2872,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	}
 	const FReEchoEncounterRuntimeState SavedState = RunSubsystem->ConsumePendingEncounterResume();
 	bBossPostEchoPhaseTriggered = SavedState.bBossPostEchoPhaseTriggered;
+	bBossPhase3EscalationTriggered = SavedState.bBossPhase3EscalationTriggered;
 	ClearCombatants();
 	if (!ApplyArenaSceneForStage(*Stage, SceneError) || !ConfigureEncounterSpawns(RunSubsystem->EncounterIndex))
 	{
@@ -2893,6 +2966,10 @@ void AReEchoGameMode::ResumeSavedEncounter()
 		{
 			UE_LOG(LogTemp, Error, TEXT("Plan48 enemy restore failed: %s"), *CompileError);
 			continue;
+		}
+		if (BossPhase3Config)
+		{
+			BossPhase3Config->ApplyTo(EnemyId, Definition);
 		}
 		AReEchoEnemyActor* Enemy = GetWorld()->SpawnActor<AReEchoEnemyActor>(
 		    ResolveEnemyClass(Definition.PresentationId), EnemyState.Transform.GetLocation(), FRotator::ZeroRotator);
@@ -3102,19 +3179,23 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 		}
 		ReservedCount += ExistingBatch.Locations.Num();
 	}
+	const bool bBossRole = Event.EnemyRole == TEXT("Boss");
+	const int32 RequestedCount = ResolveBossPhase3SpawnCount(Event.Count, bBossPhase3EscalationTriggered, bBossRole);
+	const int32 ActiveUnitLimit =
+	    ResolveBossPhase3ActiveUnitLimit(Encounter->ActiveUnitLimit, bBossPhase3EscalationTriggered, bBossRole);
 	const bool bCountsTowardUnitLimit = Event.EnemyRole != TEXT("Boss") || Encounter->bBossCountsTowardUnitLimit;
 	const int32 ReservationCount = ReEchoSpawnCapacity::CalculateReservationCount(
-	    Encounter->ActiveUnitLimit, LivingCount, ReservedCount, Event.Count, bCountsTowardUnitLimit);
-	if (ReservationCount < Event.Count)
+	    ActiveUnitLimit, LivingCount, ReservedCount, RequestedCount, bCountsTowardUnitLimit);
+	if (ReservationCount < RequestedCount)
 	{
 		UE_LOG(LogTemp,
 		       Display,
 		       TEXT("[EncounterSpawn] warning wave=%s role=%s reserved %d->%d by active unit limit %d."),
 		       *Event.WaveId.ToString(),
 		       *Event.EnemyRole.ToString(),
-		       Event.Count,
+		       RequestedCount,
 		       ReservationCount,
-		       Encounter->ActiveUnitLimit);
+		       ActiveUnitLimit);
 	}
 
 	FReEchoPendingSpawnBatchState Pending;
@@ -3246,8 +3327,15 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	PendingSpawnBatches.RemoveAt(PendingIndex);
 }
 
-bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& SpawnLocation, int32 CombatIndex)
+bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId,
+                                           const FVector& SpawnLocation,
+                                           int32 CombatIndex,
+                                           AReEchoEnemyActor** OutEnemy)
 {
+	if (OutEnemy)
+	{
+		*OutEnemy = nullptr;
+	}
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
 	    RunSubsystem ? RunSubsystem->GetRunDataSnapshot() : nullptr;
@@ -3258,6 +3346,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	{
 		UE_LOG(LogTemp, Error, TEXT("Enemy spawn failed for %s: %s"), *EnemyId.ToString(), *CompileError);
 		return false;
+	}
+	if (BossPhase3Config)
+	{
+		BossPhase3Config->ApplyTo(EnemyId, Definition);
 	}
 	const int32 NextSpawnIndex = EnemySpawnIndex + 1;
 	FActorSpawnParameters SpawnParameters;
@@ -3284,6 +3376,10 @@ bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId, const FVector& S
 	Enemy->SetEnemyRoster(EnemyRoster);
 	Enemy->SetEnemyId(EnemyId);
 	ConfigureEnemyRuntimeBindings(Enemy);
+	if (OutEnemy)
+	{
+		*OutEnemy = Enemy;
+	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
 		bBossSuccessfullySpawnedThisEncounter = true;
@@ -3321,8 +3417,7 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 		                                                         &AReEchoGameMode::HandleCardElementReactionResolved);
 		CombatEvents->OnHurt.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyHurt);
 		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyDeath);
-		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
-		                                                         &AReEchoGameMode::HandleRunStatsElementReaction);
+		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsElementReaction);
 	}
 }
 
@@ -3526,11 +3621,85 @@ void AReEchoGameMode::TriggerBossPostEchoPhase(const FReEchoBossPhaseDefinition&
 
 void AReEchoGameMode::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
+	if (Intent.Type == EReEchoBossIntentType::EncounterPhase && Intent.PhaseDefinition.PhaseIndex >= 3)
+	{
+		TriggerBossPhase3Escalation();
+	}
 	if (Intent.Type == EReEchoBossIntentType::EncounterPhase &&
 	    Intent.PhaseDefinition.EchoPolicy == EReEchoBossEchoPolicy::RetireEncounterEchoes)
 	{
 		TriggerBossPostEchoPhase(Intent.PhaseDefinition);
 	}
+}
+
+void AReEchoGameMode::TriggerBossPhase3Escalation()
+{
+	if (bBossPhase3EscalationTriggered || !IsBossEncounter() || !Player || !Player->Combatant)
+	{
+		return;
+	}
+
+	UReEchoRunSubsystem* RunSubsystem =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (!RunSubsystem)
+	{
+		return;
+	}
+	const float PreviousHealth = Player->Combatant->CurrentHealth;
+	if (!RunSubsystem->ActivateBossPhase3FinalStatMultiplier())
+	{
+		return;
+	}
+	bBossPhase3EscalationTriggered = true;
+	Player->Combatant->InitializeFromStats(RunSubsystem->CurrentBuild.Stats, false);
+	Player->Combatant->RestoreCurrentHealth(PreviousHealth * 2.0f);
+	if (Player->Movement)
+	{
+		Player->Movement->MaxSpeed = 420.0f * RunSubsystem->CurrentBuild.Stats.MovementSpeed;
+	}
+
+	PendingSpawnBatches.RemoveAll(
+	    [](const FReEchoPendingSpawnBatchState& Batch)
+	    {
+		    return Batch.EnemyRole != TEXT("Boss");
+	    });
+	if (BossTransformTargetPhase == 0)
+	{
+		ShowBossPhase3Announcement();
+	}
+}
+
+void AReEchoGameMode::ShowBossPhase3Announcement()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController)
+	{
+		return;
+	}
+	if (!BossPhase3AnnouncementWidget)
+	{
+		BossPhase3AnnouncementWidget = CreateWidget<UReEchoBossPhase3AnnouncementWidget>(PlayerController);
+	}
+	if (BossPhase3AnnouncementWidget)
+	{
+		if (!BossPhase3AnnouncementWidget->IsInViewport())
+		{
+			BossPhase3AnnouncementWidget->AddToViewport(35);
+		}
+		BossPhase3AnnouncementWidget->ShowAnnouncement();
+	}
+}
+
+int32 AReEchoGameMode::ResolveBossPhase3SpawnCount(const int32 AuthoredCount, const bool bPhase3, const bool bBossRole)
+{
+	return bPhase3 && !bBossRole ? AuthoredCount * 2 : AuthoredCount;
+}
+
+int32 AReEchoGameMode::ResolveBossPhase3ActiveUnitLimit(const int32 AuthoredLimit,
+                                                        const bool bPhase3,
+                                                        const bool bBossRole)
+{
+	return bPhase3 && !bBossRole ? AuthoredLimit * 2 : AuthoredLimit;
 }
 
 void AReEchoGameMode::HandleFixedStep(float)
@@ -3646,8 +3815,8 @@ void AReEchoGameMode::HandleFixedStep(float)
 			}
 			const uint64 EchoKey = static_cast<uint64>(static_cast<uint32>(Echo->GetUniqueID())) << 32;
 			const uint64 PlayerPair = EchoKey | 0xffffffffu;
-			if (Player->IsCombatTargetAlive() && FVector::DistSquared2D(Echo->GetActorLocation(), Player->GetActorLocation()) <=
-			                                         FMath::Square(100.0f))
+			if (Player->IsCombatTargetAlive() &&
+			    FVector::DistSquared2D(Echo->GetActorLocation(), Player->GetActorLocation()) <= FMath::Square(100.0f))
 			{
 				CurrentContacts.Add(PlayerPair);
 				if (!ActiveEasterEchoContactPairs.Contains(PlayerPair))
@@ -3658,8 +3827,8 @@ void AReEchoGameMode::HandleFixedStep(float)
 			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 			{
 				AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
-				if (!Enemy || FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) >
-				                  FMath::Square(100.0f))
+				if (!Enemy ||
+				    FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) > FMath::Square(100.0f))
 				{
 					continue;
 				}
@@ -3901,6 +4070,10 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 
 void AReEchoGameMode::TogglePauseMenu()
 {
+	if (BossTransformTargetPhase != 0)
+	{
+		return;
+	}
 	if (SettingsWidget)
 	{
 		HandleSettingsClosed();
@@ -3947,6 +4120,10 @@ void AReEchoGameMode::TogglePauseMenu()
 
 void AReEchoGameMode::ToggleStatsMenu()
 {
+	if (BossTransformTargetPhase != 0)
+	{
+		return;
+	}
 	if (StatsWidget)
 	{
 		HandleStatsClosed();
@@ -4013,6 +4190,10 @@ void AReEchoGameMode::HandleStatsClosed()
 
 void AReEchoGameMode::ToggleInventoryMenu()
 {
+	if (BossTransformTargetPhase != 0)
+	{
+		return;
+	}
 	UE_LOG(LogReEcho,
 	       Log,
 	       TEXT("[AttrPanel] GameMode: ToggleInventoryMenu called; InventoryShopWidget=%s"),
@@ -4027,6 +4208,10 @@ void AReEchoGameMode::ToggleInventoryMenu()
 
 void AReEchoGameMode::ToggleShopMenu()
 {
+	if (BossTransformTargetPhase != 0)
+	{
+		return;
+	}
 	UE_LOG(LogReEcho,
 	       Log,
 	       TEXT("[AttrPanel] GameMode: ToggleShopMenu called; InventoryShopWidget=%s"),
@@ -4088,8 +4273,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
 	InventoryShopWidget->OnCardPackRequested.AddUObject(this, &AReEchoGameMode::HandleShopCardPackRequested);
 	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
-	InventoryShopWidget->OnOwnedPartEquipRequested.AddUObject(
-	    this, &AReEchoGameMode::HandleShopOwnedPartEquipRequested);
+	InventoryShopWidget->OnOwnedPartEquipRequested.AddUObject(this,
+	                                                          &AReEchoGameMode::HandleShopOwnedPartEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
@@ -4145,8 +4330,8 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	// 则下一 tick 的 ShowTraitCardChoice 会弹出特质卡屏。此刻若直接推进遭遇，会与特质卡屏的弹出竞态，
 	// 把 Phase 推进到 Encounter 而屏仍打开——孤儿屏导致刷新/确认双双失效软锁。
 	// 因此当额外选择待解（Phase == CardChoice）时，仅关闭商店、不推进遭遇，先让特质卡屏解完再续流程。
-	const bool bTraitChoicePending = (RunSubsystem && RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
-	                                 || bReturnToOpenShopAfterTraitChoice;
+	const bool bTraitChoicePending =
+	    (RunSubsystem && RunSubsystem->Phase == EReEchoRunPhase::CardChoice) || bReturnToOpenShopAfterTraitChoice;
 	const bool bShouldStartNextEncounter = bContinueRunAfterShop && !bTraitChoicePending;
 	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
@@ -4373,8 +4558,7 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
 	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
-	TraitCardChoiceWidget->OnShopCardChoicesSelected.AddDynamic(
-	    this, &AReEchoGameMode::HandleShopCardChoicesSelected);
+	TraitCardChoiceWidget->OnShopCardChoicesSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoicesSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleShopCardRefreshRequested);
 	TraitCardChoiceWidget->OnShopChoiceCancelled.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoiceCancelled);
@@ -4602,7 +4786,7 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
 	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
 	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(),
-	                                             RunSubsystem->CurrentBuild.CharacterId);
+	                                           RunSubsystem->CurrentBuild.CharacterId);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,
@@ -4942,6 +5126,7 @@ void AReEchoGameMode::HandleRestartRequested()
 
 void AReEchoGameMode::HandleEncounterEnded()
 {
+	EndBossTransformation(false);
 	if (bEncounterTransitioning || !Player)
 	{
 		return;
@@ -5890,7 +6075,8 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 		{
 			UE_LOG(LogReEcho,
 			       Warning,
-			       TEXT("[TraitChoice] Refresh rejected on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       TEXT("[TraitChoice] Refresh rejected on orphaned trait choice screen (phase=%d); closing and "
+			            "resuming flow."),
 			       static_cast<int32>(RunSubsystem->Phase));
 			CloseTraitCardChoiceScreen();
 			bContinueRunAfterShop = true;
@@ -6032,7 +6218,8 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		{
 			UE_LOG(LogReEcho,
 			       Warning,
-			       TEXT("[TraitChoice] Confirm ignored on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       TEXT("[TraitChoice] Confirm ignored on orphaned trait choice screen (phase=%d); closing and "
+			            "resuming flow."),
 			       static_cast<int32>(RunSubsystem->Phase));
 			CloseTraitCardChoiceScreen();
 			bContinueRunAfterShop = true;
@@ -6219,6 +6406,11 @@ void AReEchoGameMode::RefreshPlayerHudTimeShards(const UReEchoRunSubsystem* RunS
 void AReEchoGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	AdvanceBossTransformation(DeltaSeconds);
+	if (BossTransformTargetPhase != 0)
+	{
+		return;
+	}
 	if (bAwaitingStartChoice || !Director || !Player)
 	{
 		return;

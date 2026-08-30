@@ -119,7 +119,7 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const EReEchoDamageSource DamageSource)
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (!IsAlive() || Damage <= 0.f)
+	if (bPresentationSuspended || !IsAlive() || Damage <= 0.f)
 	{
 		return 0.f;
 	}
@@ -217,6 +217,51 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	HealthChangeReason = NAME_None;
 	HealthChangeAttack = {};
 	return OverhealthDamage + Applied;
+}
+
+void UReEchoCombatantComponent::SetPresentationSuspended(const bool bSuspended)
+{
+	if (bPresentationSuspended == bSuspended)
+	{
+		return;
+	}
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (bSuspended)
+	{
+		PresentationSuspendedAt = Now;
+	}
+	else
+	{
+		const float Delay = FMath::Max(0.0f, Now - PresentationSuspendedAt);
+		auto ShiftActiveDeadline = [this, Delay](float& Deadline)
+		{
+			if (Deadline > PresentationSuspendedAt)
+			{
+				Deadline += Delay;
+			}
+		};
+		ShiftActiveDeadline(StunnedUntilWorldTime);
+		ShiftActiveDeadline(InvulnerableUntilWorldTime);
+		ShiftActiveDeadline(ElementState.ImmunityUntil);
+		for (auto& Status : ElementState.ActiveStatusUntilSeconds)
+		{
+			ShiftActiveDeadline(Status.Value);
+		}
+		if (ElementState.bBurnActive)
+		{
+			ElementState.BurnNextTickTimeSeconds += Delay;
+		}
+		for (FBleedingStack& Stack : BleedingStacks)
+		{
+			ShiftActiveDeadline(Stack.ExpiresAt);
+			Stack.NextTickAt += Delay;
+		}
+		for (FTransientStatStack& Stack : TransientStatStacks)
+		{
+			ShiftActiveDeadline(Stack.ExpiresAt);
+		}
+	}
+	bPresentationSuspended = bSuspended;
 }
 
 void UReEchoCombatantComponent::SetDebugInvulnerable(const bool bEnabled)
@@ -782,6 +827,10 @@ void UReEchoCombatantComponent::TickComponent(const float DeltaTime,
 
 void UReEchoCombatantComponent::AdvanceTimedRuntimeState(const float CurrentTimeSeconds)
 {
+	if (bPresentationSuspended)
+	{
+		return;
+	}
 	if (const float* CursedUntil = ElementState.ActiveStatusUntilSeconds.Find(TEXT("Z_Cursed"));
 	    CursedUntil && CurrentTimeSeconds >= *CursedUntil)
 	{
