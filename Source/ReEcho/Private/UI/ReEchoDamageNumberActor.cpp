@@ -7,6 +7,12 @@
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
+namespace
+{
+/** 暴击跳字基准世界字号，与普通伤害跳字一致。 */
+constexpr float DamageNumberBaseWorldSize = 52.0f;
+}
+
 const TCHAR* AReEchoDamageNumberActor::GetDamageNumberFontPath()
 {
 	return TEXT("/Game/ReEcho/Fonts/DamageNumbers/F_DamageNumber_MFYuYue_Font.F_DamageNumber_MFYuYue_Font");
@@ -30,7 +36,7 @@ AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 	SetRootComponent(Text);
 	Text->SetHorizontalAlignment(EHTA_Center);
 	Text->SetVerticalAlignment(EVRTA_TextCenter);
-	Text->SetWorldSize(52.0f);
+	Text->SetWorldSize(DamageNumberBaseWorldSize);
 	Text->SetXScale(1.0f);
 	Text->SetYScale(1.0f);
 	Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -46,12 +52,35 @@ AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 	{
 		Text->SetTextMaterial(TranslucentTextMaterial);
 	}
+
+	Underline = CreateDefaultSubobject<UTextRenderComponent>(TEXT("DamageUnderline"));
+	Underline->SetupAttachment(Text);
+	Underline->SetVisibility(false);
+	Underline->SetHorizontalAlignment(EHTA_Center);
+	Underline->SetVerticalAlignment(EVRTA_TextCenter);
+	Underline->SetWorldSize(DamageNumberBaseWorldSize);
+	Underline->SetXScale(1.0f);
+	Underline->SetYScale(1.0f);
+	Underline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Underline->SetCastShadow(false);
+	Underline->SetTranslucentSortPriority(21);
+	if (DamageNumberFont.Succeeded())
+	{
+		Underline->SetFont(DamageNumberFont.Object);
+	}
+	if (UMaterialInterface* TranslucentTextMaterial =
+	        LoadObject<UMaterialInterface>(nullptr, GetDamageNumberMaterialPath()))
+	{
+		Underline->SetTextMaterial(TranslucentTextMaterial);
+	}
 }
 
 void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
                                                  const FVector& WorldLocation,
                                                  const float Damage,
-                                                 const FLinearColor& Color)
+                                                 const FLinearColor& Color,
+                                                 const float SizeScale,
+                                                 const bool bUnderline)
 {
 	if (!World || Damage <= 0.0f)
 	{
@@ -68,16 +97,30 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
 	    DamageNumberClass, WorldLocation + FVector(0.0f, 0.0f, 95.0f), FRotator::ZeroRotator);
 	if (DamageNumber)
 	{
-		DamageNumber->InitializeDamage(Damage, Color);
+		DamageNumber->InitializeDamage(Damage, Color, SizeScale, bUnderline);
 	}
 }
 
-void AReEchoDamageNumberActor::InitializeDamage(const float Damage, const FLinearColor& Color)
+void AReEchoDamageNumberActor::InitializeDamage(const float Damage, const FLinearColor& Color, const float SizeScale, const bool bUnderline)
 {
 	InitialColor = Color;
 	const int32 DisplayDamage = FMath::Max(1, FMath::RoundToInt(Damage));
-	Text->SetText(FText::FromString(FString::Printf(TEXT("%d"), DisplayDamage)));
+	const FString DamageText = FString::Printf(TEXT("%d"), DisplayDamage);
+	Text->SetText(FText::FromString(DamageText));
+	Text->SetWorldSize(DamageNumberBaseWorldSize * SizeScale);
 	Text->SetTextRenderColor(InitialColor.ToFColor(false));
+
+	const bool bShowUnderline = bUnderline && Underline != nullptr;
+	Underline->SetVisibility(bShowUnderline);
+	if (bShowUnderline)
+	{
+		// 把每个数字字符替换为下划线，连成一条与数字等宽的下划线，定位在数字正下方。
+		Underline->SetText(FText::FromString(FString::ChrN(DamageText.Len(), '_')));
+		Underline->SetWorldSize(DamageNumberBaseWorldSize * SizeScale);
+		// TextRenderComponent 文字向上为 +Y；下划线置于字底下方约 0.42 字高处（估算值，实测可微调）。
+		Underline->SetRelativeLocation(FVector(0.0f, -DamageNumberBaseWorldSize * SizeScale * 0.42f, 0.0f));
+		Underline->SetTextRenderColor(InitialColor.ToFColor(false));
+	}
 }
 
 void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
