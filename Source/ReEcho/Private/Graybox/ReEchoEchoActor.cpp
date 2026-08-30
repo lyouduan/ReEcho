@@ -581,24 +581,15 @@ void AReEchoEchoActor::CompleteDeferredBornReveal()
 
 bool AReEchoEchoActor::PlayBornVfx()
 {
-	const UPaperFlipbook* Flipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
-	if (!CombatVfx || !EchoAnimation || !Flipbook || !IsCombatTargetAlive())
+	if (!CombatVfx || !GroundShadow || !IsCombatTargetAlive())
 	{
 		return false;
 	}
 	constexpr float BornCircleToEchoWidthRatio = 0.8f;
 	const float EchoWorldWidth = CalculateSpatialShadowWidth() * GetActorScale3D().GetAbsMax();
-	const FBoxSphereBounds FlipbookBounds = Flipbook->GetRenderBounds();
-	const FVector LocalBottomCenter(
-	    FlipbookBounds.Origin.X, FlipbookBounds.Origin.Y, FlipbookBounds.Origin.Z - FlipbookBounds.BoxExtent.Z);
-	const FVector BornCircleCenter = EchoAnimation->GetComponentTransform().TransformPosition(LocalBottomCenter);
-	FVector WorldScreenDownDirection = FVector::ForwardVector;
-	if (const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0))
-	{
-		WorldScreenDownDirection = -FRotationMatrix(CameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Z);
-	}
-	return CombatVfx->PlayEchoBornAtWorldLocation(
-	    BornCircleCenter, EchoWorldWidth * BornCircleToEchoWidthRatio, WorldScreenDownDirection);
+	FVector BornCircleCenter = GetActorLocation();
+	BornCircleCenter.Z = GroundShadow->GetComponentLocation().Z;
+	return CombatVfx->PlayEchoBornAtWorldLocation(BornCircleCenter, EchoWorldWidth * BornCircleToEchoWidthRatio);
 }
 
 bool AReEchoEchoActor::IsBornVfxPlaying() const

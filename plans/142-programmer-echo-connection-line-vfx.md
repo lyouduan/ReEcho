@@ -132,8 +132,6 @@
 - CG 遮罩下完成定位后解除全局 Pause，但保持 Prepared Encounter、输入、敌人模拟、Director、Recording 与 Echo 回放门禁；正式显形在法阵启动满 0.4 秒后执行，不再等待 Niagara 的完整生命周期，法阵生成失败则立即 fail-open 显形。
 - 法阵尺寸不再由固定 `0.25` 决定正常路径：Echo 复用当前 Flipbook 空间宽度，目标世界直径为角色宽度的 `1.2` 倍，再按 Niagara authored XY Bounds 换算统一缩放；Bounds 无效时才回退 Catalog `0.25`。全部启用 Sprite Renderer 绑定 `User.GroundNormal=(0,0,1)`，不再恢复 FaceCamera。
 - 镜头旋转复验表明 `GroundShadow` 的 XY 包含随镜头变化的 2D 脚点补偿，不能作为生成后固定的世界法阵中心；法阵改用 Echo Actor 的稳定世界 XY，并只读取 `GroundShadow` 的地面 Z。Sprite 除 `User.GroundNormal=(0,0,1)` 外再绑定 `CustomAlignment` 的 `User.GroundTangent=(1,0,0)`，同时锁定平面法线和面内方向，避免绕世界 Up 继续追随相机旋转。
-- 后续按资源真实坐标复核：`NS_Echo_Born` 的法阵面是本地 YZ、本地 X 是法线。运行时改为把本地 X 旋转到世界 Up，以 YZ Bounds 计算 `0.8` 目标尺寸，并向 Local Space Renderer 写入本地 X 法线与本地 Y 切线；出生位置直接取当前 Flipbook RenderBounds 下方中心点的完整世界坐标，不再组合 Actor 与阴影坐标。
-- PIE 复验发现 Niagara 组件原点不等于圆环视觉中心，且贴地后缺少绕法线的箭头方向约束。运行时进一步用固定 Bounds 的本地 YZ 中心反算组件位置，使圆环视觉中心落在 Flipbook 下方中心点；本地 Z 箭头轴只绕世界 Up 对齐屏幕向下的地面投影，保持平面贴地。
 - PIE 首次加载曾因资产脚本 `RequestCompile` 后立即保存退出，把 Echo Born 的待处理 Niagara 编译遗留给运行时，产生约 23 秒主线程等待。新增统一 `CompileNiagaraSystemAndWait` authoring seam，两个 Echo Born 脚本均在保存前等待 CPU/GPU 编译完成并确认无 outstanding request；修复后 commandlet 内该 System 编译分别为 0.18 秒和 0.14 秒，编译结果随资产保存。
 - 精确导入 `NS_Echo_Chain`、`BaseVFX003_Inst25`、`Tur_C080`、`Tur_C090`；未复制外部目录中的 Water/Grass/LevelSequence 或其他无关材质、纹理。
 - Catalog 新增 `EchoConnectionLine`，Player VFX Component 按存活 Echo 集合差量维护持续 Niagara，并从双方当前 Flipbook 渲染 Bounds 中心更新世界端点。

@@ -1050,9 +1050,7 @@ FVector UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(const float Desired
 		return FallbackScale;
 	}
 	const FVector AuthoredSize = AuthoredSystemBounds.GetSize();
-	// NS_Echo_Born is authored in local YZ. Local X is its plane normal, so X thickness must not
-	// participate in the requested ground diameter.
-	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.Y, AuthoredSize.Z);
+	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.X, AuthoredSize.Y);
 	if (AuthoredGroundDiameter <= UE_SMALL_NUMBER)
 	{
 		return FallbackScale;
@@ -1060,33 +1058,8 @@ FVector UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(const float Desired
 	return FVector(DesiredWorldDiameterCm / AuthoredGroundDiameter);
 }
 
-FQuat UReEchoCombatVfxComponent::ResolveEchoBornWorldRotation(const FVector& WorldScreenDownDirection)
-{
-	FVector GroundArrowDirection(WorldScreenDownDirection.X, WorldScreenDownDirection.Y, 0.0f);
-	if (!GroundArrowDirection.Normalize())
-	{
-		GroundArrowDirection = FVector::ForwardVector;
-	}
-	return FRotationMatrix::MakeFromXZ(FVector::UpVector, GroundArrowDirection).ToQuat();
-}
-
-FVector UReEchoCombatVfxComponent::ResolveEchoBornComponentLocation(const FVector& DesiredWorldCenter,
-	                                                                  const FBox& AuthoredSystemBounds,
-	                                                                  const FVector& WorldScale,
-	                                                                  const FQuat& WorldRotation)
-{
-	if (!AuthoredSystemBounds.IsValid)
-	{
-		return DesiredWorldCenter;
-	}
-	const FVector AuthoredCenter = AuthoredSystemBounds.GetCenter();
-	const FVector LocalPlaneCenter(0.0f, AuthoredCenter.Y, AuthoredCenter.Z);
-	return DesiredWorldCenter - WorldRotation.RotateVector(LocalPlaneCenter * WorldScale);
-}
-
 bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation,
-	                                                        const float DesiredWorldDiameterCm,
-	                                                        const FVector& WorldScreenDownDirection) const
+                                                            const float DesiredWorldDiameterCm) const
 {
 	const EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::EchoBorn;
 	UNiagaraComponent* Effect =
@@ -1100,19 +1073,12 @@ bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& Groun
 	// hidden Echo actor's visibility or its camera-dependent presentation offset.
 	Effect->PrimaryComponentTick.bTickEvenWhenPaused = true;
 	Effect->SetTranslucentSortPriority(ResolveOwnerAuraSortPriority());
-	const FQuat WorldRotation = ResolveEchoBornWorldRotation(WorldScreenDownDirection);
-	Effect->SetWorldRotation(WorldRotation);
-	// Enabled emitters simulate in component-local space. The resource plane is local YZ, so its
-	// renderer normal/tangent must stay local as well; the component rotation maps local X to world up.
-	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::ForwardVector);
-	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::RightVector);
+	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
+	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::ForwardVector);
 	const UNiagaraSystem* System = Effect->GetAsset();
 	const FBox AuthoredBounds = System ? System->GetFixedBounds() : FBox(EForceInit::ForceInit);
-	const FVector WorldScale = ResolveEchoBornWorldScale(
-	    DesiredWorldDiameterCm, AuthoredBounds, FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).Scale);
-	Effect->SetWorldScale3D(WorldScale);
-	Effect->SetWorldLocation(
-	    ResolveEchoBornComponentLocation(GroundWorldLocation, AuthoredBounds, WorldScale, WorldRotation));
+	Effect->SetWorldScale3D(ResolveEchoBornWorldScale(
+	    DesiredWorldDiameterCm, AuthoredBounds, FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).Scale));
 	EchoBornEffect = Effect;
 	Effect->Activate(true);
 	const float DurationSeconds = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).PlaybackDurationSeconds;
