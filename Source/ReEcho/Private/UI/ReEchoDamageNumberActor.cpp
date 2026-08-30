@@ -13,8 +13,8 @@ namespace
 constexpr float DamageNumberBaseWorldSize = 52.0f;
 /** 下划线略微加宽，确保在不同数字组合下仍能清楚覆盖数字底部。 */
 constexpr float CriticalUnderlineXScale = 1.18f;
-/** 下划线水平左移补偿；该字体的下划线字形本身带有明显右侧偏移，因此需要大幅左移。 */
-constexpr float CriticalUnderlineHorizontalOffset = -0.95f;
+/** 下划线水平左移补偿；实机字形偏移明显，需将下划线整体移到数字正下方。 */
+constexpr float CriticalUnderlineHorizontalOffset = -4.0f;
 /** 与数字底部拉开距离，避免下划线贴住字形。 */
 constexpr float CriticalUnderlineVerticalOffset = -0.58f;
 }
