@@ -263,14 +263,12 @@ void UReEchoRestartWidget::RefreshRunStatsValues()
 
 namespace
 {
-	/** 标签列宽；数值列从标签列右侧 138 处开始，列间距为 350，因此数值最多可用 212。 */
-	constexpr float SettlementStatLabelWidth = 130.0f;
-	constexpr float SettlementStatValueWidth = 200.0f;
+	/** 统计文案行高。 */
 	constexpr float SettlementStatRowHeight = 46.0f;
 	/** 抬高统计文案层级，避免被结算底图/装饰图压住。 */
 	constexpr int32 SettlementStatZOrder = 10;
 
-	/** 统一结算统计文案的排版，并在作者化的三列坐标内保证文案完整可见（不裁剪、不遮挡）。 */
+	/** 统一结算统计文案的排版：不裁剪、不换行，保证每行文案完整可见且不乱行。 */
 	void ConstrainSettlementStats(UWidgetTree* WidgetTree, const TCHAR* Prefix)
 	{
 		if (!WidgetTree)
@@ -306,15 +304,12 @@ namespace
 				if (UCanvasPanelSlot* LabelSlot = Cast<UCanvasPanelSlot>(Label->Slot))
 				{
 					LabelSlot->SetPosition(FVector2D(StatColumn.X, StatColumn.Y));
-					// 给出足够渲染尺寸，长标签在本列内换行而不是被切掉。
-					LabelSlot->SetSize(FVector2D(SettlementStatLabelWidth, SettlementStatRowHeight));
 					LabelSlot->SetZOrder(SettlementStatZOrder);
 				}
 				FSlateFontInfo LabelFont = Label->GetFont();
 				LabelFont.Size = 18;
 				Label->SetFont(LabelFont);
-				Label->SetAutoWrapText(true);
-				// 不做边界裁剪，保证文案永远完整显示。
+				Label->SetAutoWrapText(false);
 				Label->SetClipping(EWidgetClipping::Inherit);
 				Label->SetJustification(ETextJustify::Left);
 				Label->SetColorAndOpacity(FSlateColor(FLinearColor(0.86f, 0.83f, 0.76f, 1.0f)));
@@ -325,13 +320,12 @@ namespace
 				if (UCanvasPanelSlot* ValueSlot = Cast<UCanvasPanelSlot>(Value->Slot))
 				{
 					ValueSlot->SetPosition(FVector2D(StatColumn.X + 138.0f, StatColumn.Y));
-					ValueSlot->SetSize(FVector2D(SettlementStatValueWidth, SettlementStatRowHeight));
 					ValueSlot->SetZOrder(SettlementStatZOrder);
 				}
 				FSlateFontInfo ValueFont = Value->GetFont();
 				ValueFont.Size = 20;
 				Value->SetFont(ValueFont);
-				Value->SetAutoWrapText(true);
+				Value->SetAutoWrapText(false);
 				Value->SetClipping(EWidgetClipping::Inherit);
 				Value->SetJustification(ETextJustify::Center);
 				Value->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.95f, 0.80f, 1.0f)));
