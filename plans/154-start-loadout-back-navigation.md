@@ -7,7 +7,7 @@
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@4eb46ce8c806a00235a9e1f68688c0420483bebb`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan154-loadout-back-navigation`，分支 `plan/154-loadout-back-navigation`；Plan 发布后在该工作区基于最新 `origin/main` 继续实现。
 - 依赖 / 阻塞：依赖 Plan132/Plan138 已落地的 `WBP_ReEchoLoadoutSelection` 两阶段页面、点击选中语义、`OnLoadoutConfirmed(CharacterId, WeaponId)` 最终提交契约与现有 Start Menu/UI Flow；修改和验证 WBP 前需关闭 Unreal Editor，并遵守同克隆 Unreal 锁。
@@ -65,13 +65,13 @@
 
 ## 锁定验收
 
-- [ ] `WBP_ReEchoLoadoutSelection` 在角色页和武器页都显示“返回”；其普通、Hover、Pressed、Disabled Brush、字体和尺寸与“确定”一致，两个按钮在底部同排且不遮挡选项、名称、箭头或说明。
-- [ ] 角色页无候选时返回仍可用；点击后 Loadout 被关闭，主界面重新显示并获得键盘/手柄焦点，鼠标输入正常，没有残留 Loadout Widget 或重复委托。
-- [ ] 武器页点击返回后准确回到角色页，之前点击的角色仍选中；不广播 `OnLoadoutConfirmed`，再次确认角色进入武器页时没有旧武器候选。
-- [ ] 反复执行“角色 → 武器 → 返回 → 武器”不会累计点击绑定、重复广播、遗留说明/箭头或产生不可见焦点；第二次最终确认仍只提交一次准确的 `(CharacterId, WeaponId)`。
-- [ ] 存档槽有空位和三槽全满两种情况下，未最终确认就返回主界面均不创建、删除、覆盖存档或预览图；全满时原最旧槽只在最终确认的新 Run 保存成功时被覆盖。
+- [x] `WBP_ReEchoLoadoutSelection` 在角色页和武器页都显示“返回”；其普通、Hover、Pressed、Disabled Brush、字体和尺寸与“确定”一致，两个按钮在底部同排且不遮挡选项、名称、箭头或说明。
+- [x] 角色页无候选时返回仍可用；点击后 Loadout 被关闭，主界面重新显示并获得键盘/手柄焦点，鼠标输入正常，没有残留 Loadout Widget 或重复委托。
+- [x] 武器页点击返回后准确回到角色页，之前点击的角色仍选中；不广播 `OnLoadoutConfirmed`，再次确认角色进入武器页时没有旧武器候选。
+- [x] 反复执行“角色 → 武器 → 返回 → 武器”不会累计点击绑定、重复广播、遗留说明/箭头或产生不可见焦点；第二次最终确认仍只提交一次准确的 `(CharacterId, WeaponId)`。
+- [x] 存档槽有空位和三槽全满两种情况下，未最终确认就返回主界面均不创建、删除、覆盖存档或预览图；全满时原最旧槽只在最终确认的新 Run 保存成功时被覆盖。
 - [x] `ReEcho.UI.LoadoutSelection` 聚焦自动化、Loadout WBP Compile/Save、CompileAllBlueprints、Development 构建、静态校验通过；最终发布 `-FullRebuild` 留到人工验收通过后的发布轮。
-- [ ] 用户在 PIE 人工确认两个返回路径、按钮视觉/位置、焦点与存档无副作用符合预期。
+- [x] 用户在 PIE 人工确认两个返回路径、按钮视觉/位置、焦点与存档无副作用符合预期。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -127,7 +127,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待实现完成后由用户执行锁定 PIE 验收。
+- `Passed`：用户完成本地手测后明确要求按规则推送并合入远端主分支；手测后保存的 `WBP_ReEchoLoadoutSelection` 微调一并保留在最终候选。
 
 ### 架构文档审阅结果
 

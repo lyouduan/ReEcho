@@ -222,7 +222,7 @@ def main():
                 back_brush = back_style.get_editor_property(state)
                 if (
                     confirm_brush.get_editor_property("resource_object")
-                    is not back_brush.get_editor_property("resource_object")
+                    != back_brush.get_editor_property("resource_object")
                     or confirm_brush.get_editor_property("draw_as")
                     != back_brush.get_editor_property("draw_as")
                 ):
@@ -253,7 +253,7 @@ def main():
             confirm_color = confirm_label.get_editor_property("color_and_opacity")
             if (
                 back_font.get_editor_property("font_object")
-                is not confirm_font.get_editor_property("font_object")
+                != confirm_font.get_editor_property("font_object")
                 or back_font.get_editor_property("size")
                 != confirm_font.get_editor_property("size")
                 or back_color.get_editor_property("specified_color")
