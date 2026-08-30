@@ -112,6 +112,7 @@
 - 用户复现日志 `ReEcho-session-20260830-204156-pid42552.log`：108 次子箭结算中 82 次实际目标等于母目标、22 次等于预定目标、4 次被路径上的其他目标拦截；母目标重命中的飞行距离为 7.92–10.61 cm（平均 8.02 cm）。典型批次 `d8d64154-...` 为三支子箭分别预定 Slime 146/138/130，却全部在 10.61 cm 后重命中母目标 Slime 99，证明方向和候选排序不是根因。
 - 同步 `origin/main@1273f930` 时，远端 Plan154/暴击跳字源码与本任务无真实或逻辑冲突；仅精选 DLL/manifest 发生生成物冲突，已先采用远端生成物并计划在最终组合源码上 FullRebuild，不选择任一侧旧二进制作为交付。
 - 修复候选基于 `origin/main@1273f930` 完成 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：98 个 action 完成，UHT/UBT `Result: Succeeded`，精选 7 模块 Editor 包由组合源码重新生成。
+- 获得发布锁后最终候选已合入 `origin/main@4907ba19` 的 Boss 控制免疫与终局重开更新；清除 PIE 对 `ReEcho.uproject` 的临时 EngineAssociation 改写后重新执行 FullRebuild，95 个 action 完成、`Result: Succeeded`，正式项目描述与预构建源码指纹一致。
 
 ### 剩余风险
 
