@@ -1,17 +1,17 @@
 {
   "binaries": {
     "ReEchoEditor.target": "eab22d1716cfb250f41828b22366f7a81ddf9bb4d846cb23b34bf8e201fab83c",
-    "UnrealEditor-ReEcho.dll": "5b1b2fa45044697d86d45351f3931c79c7873b09917f7f30cd3f950c8cd51c1c",
-    "UnrealEditor-ReEchoAudio.dll": "4e6003ddcea9e68ead22654c17543267c9a249c543119ec3b4378642c9bf2537",
-    "UnrealEditor-ReEchoCards.dll": "b4f93732a84c3977fc0cd279fb78d26aa37a6a3c6043bfa3dadd269850ceba9e",
-    "UnrealEditor-ReEchoCombat.dll": "d38bf56140e66da9bc20d2434c7d5e4947082a21411f1594f0fc20c588f8c0c7",
-    "UnrealEditor-ReEchoEnemies.dll": "79e4444dd25e4122889b9c024562293c0fd4e9161e191c9c938e79b43c8d4977",
-    "UnrealEditor-ReEchoPresentation.dll": "18ae07530c20f76d5ba99d75ea047aa70f7bde766a380cadee777815d6f58074",
-    "UnrealEditor-ReEchoWeapons.dll": "461e9c93a542435a7028160256fdee24889411c5b94cc8f85643d624e770c237",
+    "UnrealEditor-ReEcho.dll": "244842116d884e26f6ab7d8456357ee65c67fd9d04d5db08859d94f76bcfc87a",
+    "UnrealEditor-ReEchoAudio.dll": "153f7170d7cf3804aef8044cae5b1df0640638066af7aed5eb2d78cb64874295",
+    "UnrealEditor-ReEchoCards.dll": "be36845005d3e282768efba3a455689f2398fd1f2d4ab6e4b650ddbdc2c16794",
+    "UnrealEditor-ReEchoCombat.dll": "4fe28b450887d785daab5765dc7ef628d54b6f904fc2b32dcdaebfab1824c776",
+    "UnrealEditor-ReEchoEnemies.dll": "7e7d64805f4db15cbf6d0d170e2410b50aa809764bf21b613c023618e7ffd552",
+    "UnrealEditor-ReEchoPresentation.dll": "242a3873de93731381fce6466608c32e2e2c9cedb1058f47807dbc2d8f7919b4",
+    "UnrealEditor-ReEchoWeapons.dll": "2f6046ec15f81996b4752ad3e117f54b9637841c8b93ab43954999272034ca01",
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
-  "engine_association": "5.8",
+  "engine_association": "{74E3DAA9-4D48-DF55-3FFB-D5BB313B1834}",
   "engine_build_id": "55116800",
   "modules": {
     "ReEcho": "UnrealEditor-ReEcho.dll",
@@ -25,7 +25,7 @@
   "platform": "Win64",
   "schema_version": 1,
   "source_files": {
-    "ReEcho.uproject": "e8dddee2776974360a5614bb38d4a4017eeabf40b1552238529e140733a96078",
+    "ReEcho.uproject": "9ecf1386fc59937bf76858ed818eb307af351c3f6eac1ce11c09459e3ad1c634",
     "Source/ReEcho.Target.cs": "536aedbab65e060f6f01043b4d739a4021dad08244cfbfd85ec00bf605a4a206",
     "Source/ReEcho/Private/Combat/ReEchoCombatAudioAdapterComponent.cpp": "17b6747080e590f20a4964e1647e8f828cd0a069cb88a0eb7040fb7aa2c82497",
     "Source/ReEcho/Private/Combat/ReEchoElementReaction.cpp": "51681e7258facdfbbd9f3b909c90c67f5f6a0efd0e5ed87b9b58ecc1747c970a",
@@ -352,6 +352,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "d5e7823c6eef0a467451c0e90f9e09f09d3c297f0f897173971f86e3c0bd07cd",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "a69e2189b81cd448a94a73aaef51ce145adea6208606b60842c8efd48b96e73d",
+  "source_fingerprint": "752b6989482d620cc33e24e0da0582c36da5449e0b5575f049b46e200416b299",
   "target": "ReEchoEditor"
 }
