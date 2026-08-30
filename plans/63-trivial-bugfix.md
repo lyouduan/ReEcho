@@ -239,3 +239,14 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **文档审阅 / Documentation review**：`MOD-ReEchoEnemies`、`MOD-ReEchoCombat` 与 `MOD-ReEcho` 已同步羊全来源眩晕免疫的 Host/Combat 边界；同时把既有羊生命说明改为读取当前 Phase 定义，避免文档固化过期表值。`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 无模块拓扑或稳定路由变化，无需修改。
 - **验证 / Verification**：取得发布锁并合并 `origin/main@ae548af1` 后，最终集成候选完成 Development Editor `-FullRebuild`（104/104），精选 Win64 Editor 预构建包刷新为源码指纹 `31d717a1509a`；`ReEcho.Combat.Runes.TimedStatusAndIndependentStacks` 与 `ReEcho.Enemies.Host.SheepStunImmunity` 在集成版本上均找到 1 项并返回 `Result={Success}` / `EXIT CODE: 0`。实现阶段自动化曾准确捕获短路表达式未删除状态表残留，拆分计时器与状态清理后复跑通过。最终静态、预构建与 LFS 发布门禁见发布提交记录。
 - **状态 / Status**：Review。用户已授权保留诊断日志并直接发布远端主分支；PIE 二阶段与持续战斗人工复验仍待后续执行。
+
+### #26 — 终局重新开始时完整重建 World
+
+- **现象 / Symptom**：死亡或胜利结算后点击「重新开始」采用同一 World 就地清理；`ClearCombatants()` 只销毁敌人、Echo 和掉落物，未销毁独立的玩家/Echo 弹道，因此暂停时冻结的旧局弹道可能在新一局解除暂停后继续移动并命中新目标。
+- **根因 / Root cause**：#12 为避免 `OpenLevel` 后 `StartPlay()` 固定显示主菜单，取消了原有 World 重载，并假定 `BeginNextEncounter` 会完整复位战场。该假定无法覆盖所有 World 级瞬态 Actor，且后续新增系统会持续扩大人工清理名单。
+- **目标 / Acceptance**：结算界面继续暂停当前 World；只有点击「重新开始」时才删除当前存档并完整重载当前关卡。新 World 必须直接进入角色/武器选择，普通启动仍进入主菜单；跨 World 启动意图只能消费一次，旧局 Actor、计时器和弹道不得进入新局。
+- **改动 / Changes**：UI Flow Coordinator 以 GameInstance 生命周期保存一次性 Loadout 旅行意图；终局重开在 `OpenLevel` 前写入意图并恢复跨 World 复活音频队列。新 GameMode 的 `StartPlay()` 消费意图后选择 Loadout，否则保持主菜单路径。删除 #12 的就地 `ClearCombatants` 和本 GameMode 标志复位。
+- **影响面 / Impact**：`MOD-ReEcho / AREA-UI / AREA-Encounter`；不改变结算内容、存档格式、角色/武器选择、普通启动、退出到主菜单或遭遇内局间连续性。
+- **验证 / Verification**：实现完成后的 Development Editor `-FullRebuild` 98/98 通过；撤回两处无关排版后，最终本地验收候选再以增量构建 4/4 通过并刷新 7 个精选预构建模块（源码指纹 `45e60d073bfa`）。`ReEcho.UIFlow.TerminalRestartTravelRoute` 在最终候选上找到 1 项并以 `Result={Success}` 完成，锁定普通启动无请求、终局请求跨 World 保留且只消费一次；`validate_project.py`、LFS 检出与 `git diff --check` 通过。远端主线随后传入 3 个暴击伤害数字提交，与启动/重开链路无文本或逻辑耦合；按发布锁规则留待用户验收后获锁合入并重新 FullRebuild。仍需 PIE 人工确认死亡/胜利重开直接进入 Loadout且新局无旧弹道。
+- **文档审阅 / Documentation review**：`MOD-ReEcho` 同步终局重载与一次性 UI 旅行路由；`ARCHITECTURE.md`、`CODEBASE_MAP/README.md` 无模块拓扑或稳定标识变化，已审阅、无需修改。
+- **状态 / Status**：Review。技术候选已完成，等待用户 PIE 验收；未经用户认可不发布远端。

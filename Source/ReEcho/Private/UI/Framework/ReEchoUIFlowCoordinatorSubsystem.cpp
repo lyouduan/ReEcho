@@ -236,3 +236,15 @@ void UReEchoUIFlowCoordinatorSubsystem::RestoreGameplay(const UObject* WorldCont
 		UIManager->ConfigureGameplayInput(PlayerController);
 	}
 }
+
+void UReEchoUIFlowCoordinatorSubsystem::RequestLoadoutAfterWorldTravel()
+{
+	bLoadoutRequestedAfterWorldTravel = true;
+}
+
+bool UReEchoUIFlowCoordinatorSubsystem::ConsumeLoadoutAfterWorldTravelRequest()
+{
+	const bool bWasRequested = bLoadoutRequestedAfterWorldTravel;
+	bLoadoutRequestedAfterWorldTravel = false;
+	return bWasRequested;
+}

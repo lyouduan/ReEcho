@@ -28,6 +28,9 @@ public:
 	void FocusScreen(APlayerController* PlayerController, EReEchoUIScreen Screen, bool bUIOnly) const;
 	void PreparePausedScreenTransition(const UObject* WorldContextObject) const;
 	void RestoreGameplay(const UObject* WorldContextObject, APlayerController* PlayerController) const;
+	/** Carries the terminal-restart destination across one world replacement. */
+	void RequestLoadoutAfterWorldTravel();
+	bool ConsumeLoadoutAfterWorldTravelRequest();
 	/** Binds a runtime-created button to stable semantic events; Blueprint may pass NAME_None to disable one side. */
 	UFUNCTION(BlueprintCallable, Category = "ReEcho|UI|Audio")
 	void BindButtonAudioFeedback(UButton* Button, FName HoverEventId, FName ClickEventId);
@@ -44,4 +47,6 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UReEchoButtonVisualFeedback>> ButtonVisualFeedbackBindings;
+
+	bool bLoadoutRequestedAfterWorldTravel = false;
 };

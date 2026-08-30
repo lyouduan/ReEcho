@@ -1557,7 +1557,16 @@ void AReEchoGameMode::StartPlay()
 		}
 	}
 	SetGameplayPresentationVisible(false);
-	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowStartMenu);
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>() : nullptr;
+	if (UIFlow && UIFlow->ConsumeLoadoutAfterWorldTravelRequest())
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowLoadoutSelection);
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowStartMenu);
+	}
 }
 
 void AReEchoGameMode::ShowStartMenu()
@@ -4896,10 +4905,11 @@ void AReEchoGameMode::CompletePauseExit()
 
 void AReEchoGameMode::HandleRestartRequested()
 {
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>() : nullptr;
 	if (RestartWidget)
 	{
-		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		if (UIFlow)
 		{
 			UIFlow->CloseScreen(EReEchoUIScreen::Restart);
 		}
@@ -4908,22 +4918,22 @@ void AReEchoGameMode::HandleRestartRequested()
 	bRestartScreenIsTerminal = false;
 	bRestartScreenIsDeath = false;
 
-	// #12 死亡/胜利后"重新开始"不再重载关卡，改为就地清理并进入新游戏流程
-	// （角色/武器选择界面），避免重载后 StartPlay 无条件弹出主菜单（与 #11 同类回归）。
-	// 后续由 BeginNextEncounter 在开局时完整复位玩家与战场。
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (RunSubsystem)
 	{
 		RunSubsystem->DeleteSavedRun();
 	}
-	// 复位会阻挡再次开局的标志位（首次开局时已置为 true）。
-	bBeginSelectedRunRequested = false;
-	bBeginSelectedRunStarted = false;
-	// 清除当前战场残存（敌人 / Echo），开局时会重新生成。
-	ClearCombatants();
+	if (UIFlow)
+	{
+		UIFlow->RequestLoadoutAfterWorldTravel();
+	}
+	if (UReEchoAudioService* AudioService = GetAudioService())
+	{
+		AudioService->QueueEventForNextWorld(FReEchoAudioEvents::Revive);
+	}
 	UGameplayStatics::SetGamePaused(this, false);
-	PostAudioEvent(FReEchoAudioEvents::Revive, FVector::ZeroVector);
-	ShowLoadoutSelection();
+	const FName CurrentLevelName(*UGameplayStatics::GetCurrentLevelName(this, true));
+	UGameplayStatics::OpenLevel(this, CurrentLevelName);
 }
 
 void AReEchoGameMode::HandleEncounterEnded()
