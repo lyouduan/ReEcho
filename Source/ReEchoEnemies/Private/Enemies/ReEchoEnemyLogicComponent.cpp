@@ -495,8 +495,7 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 		return ApplyMovementPermit(Sense, MoveTemp(Intent));
 	}
 
-	if (Sense.bAttackPermitted && Distance <= Definition.ContactRangeCm &&
-	    State.AttackCooldownRemainingSeconds <= 0.0f)
+	if (Sense.bAttackPermitted && Distance <= Definition.ContactRangeCm && State.AttackCooldownRemainingSeconds <= 0.0f)
 	{
 		CommitAttack(Sense, !Sense.bTargetInvulnerable, false, Intent);
 	}
@@ -1290,6 +1289,10 @@ void UReEchoEnemyLogicComponent::NotifyHurt(const float AppliedDamage,
 	{
 		return;
 	}
+	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
+	{
+		return;
+	}
 	CancelSpecialAction();
 
 	FVector KnockbackDirection = (SelfLocation - SourceLocation).GetSafeNormal2D();
@@ -1582,6 +1585,8 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
+		State.HitReactionRemainingSeconds = 0.0f;
+		State.KnockbackVelocity = FVector::ZeroVector;
 		TArray<FReEchoBossAbilityCooldownSnapshot> RestoredCooldowns;
 		for (const int32 AbilityIndex : BossActiveAbilityIndices)
 		{
@@ -1623,6 +1628,24 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 			State.bBossHasLockedTarget = false;
 			State.bBossHasLockedTeleportDestination = false;
 			State.bBossCurrentAbilityCommitted = false;
+		}
+		if (State.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
+		{
+			switch (State.BossActionPhase)
+			{
+				case EReEchoBossActionPhase::Windup:
+					State.Phase = EReEchoEnemyBehaviorPhase::BossWindup;
+					break;
+				case EReEchoBossActionPhase::Active:
+					State.Phase = EReEchoEnemyBehaviorPhase::BossActive;
+					break;
+				case EReEchoBossActionPhase::Recovery:
+					State.Phase = EReEchoEnemyBehaviorPhase::BossRecovery;
+					break;
+				default:
+					State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+					break;
+			}
 		}
 	}
 	if (!State.bAlive)

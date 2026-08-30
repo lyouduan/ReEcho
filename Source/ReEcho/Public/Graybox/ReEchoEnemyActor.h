@@ -210,6 +210,7 @@ public:
 	void AdvancePendingBossBlinkSlamForTests(float DeltaSeconds);
 	void AdvancePendingBossPrayerBeamForTests(float DeltaSeconds);
 	void UpdateStunStateForTests(bool bStunned);
+	AActor* ResolveAggroTargetForTests(AActor* DefaultTarget, bool bEchoTaunts) const;
 #endif
 
 protected:
@@ -232,6 +233,7 @@ private:
 	void AdvancePendingBossBlinkSlam(float DeltaSeconds);
 	void AdvancePendingBossPrayerBeam(float DeltaSeconds);
 	void TryApplyPendingBossPrayerBeamHit();
+	AActor* ResolveAggroTarget(AActor* DefaultTarget, bool bEchoTaunts) const;
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void DrawBossDamageRangeDebug(const struct FReEchoBossIntent& Intent) const;

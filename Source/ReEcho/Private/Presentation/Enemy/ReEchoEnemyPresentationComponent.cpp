@@ -749,13 +749,10 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 		return;
 	}
 	const FLinearColor Color = ReEchoElementReaction::GetDamageNumberColor(Event);
-	// 暴击至少放大到 1.35 倍；低暴击倍率也必须和普通跳字明显区分。
-	const float CritScale = Event.bCritical ? FMath::Max(1.35f, Event.CriticalMultiplier) : 1.0f;
 	AReEchoDamageNumberActor::SpawnDamageNumber(Host ? Host->GetWorld() : nullptr,
 	                                            Event.WorldLocation,
 	                                            ReEchoElementReaction::GetDamageNumberValue(Event),
 	                                            Color,
-	                                            CritScale,
 	                                            Event.bCritical);
 	if (Event.bFatal || bDeathVisualActive)
 	{

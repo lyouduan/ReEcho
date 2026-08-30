@@ -42,6 +42,7 @@ if created:
     defaults.set_editor_property("float_speed", 70.0)
     defaults.set_editor_property("start_scale", 1.15)
     defaults.set_editor_property("end_scale", 0.85)
+    defaults.set_editor_property("critical_size_scale", 1.35)
     unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)
 
 if not unreal.EditorAssetLibrary.save_loaded_asset(blueprint, only_if_is_dirty=False):

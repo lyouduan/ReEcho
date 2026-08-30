@@ -11,12 +11,6 @@ namespace
 {
 /** 暴击跳字基准世界字号，与普通伤害跳字一致。 */
 constexpr float DamageNumberBaseWorldSize = 52.0f;
-/** 下划线略微加宽，确保在不同数字组合下仍能清楚覆盖数字底部。 */
-constexpr float CriticalUnderlineXScale = 1.18f;
-/** TextRender 的缩放原点会使加宽后的下划线向右偏，向左补偿。 */
-constexpr float CriticalUnderlineHorizontalOffset = -0.10f;
-/** 与数字底部拉开距离，避免下划线贴住字形。 */
-constexpr float CriticalUnderlineVerticalOffset = -0.58f;
 }
 
 const TCHAR* AReEchoDamageNumberActor::GetDamageNumberFontPath()
@@ -58,35 +52,13 @@ AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 	{
 		Text->SetTextMaterial(TranslucentTextMaterial);
 	}
-
-	Underline = CreateDefaultSubobject<UTextRenderComponent>(TEXT("DamageUnderline"));
-	Underline->SetupAttachment(Text);
-	Underline->SetVisibility(false);
-	Underline->SetHorizontalAlignment(EHTA_Center);
-	Underline->SetVerticalAlignment(EVRTA_TextCenter);
-	Underline->SetWorldSize(DamageNumberBaseWorldSize);
-	Underline->SetXScale(1.0f);
-	Underline->SetYScale(1.0f);
-	Underline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Underline->SetCastShadow(false);
-	Underline->SetTranslucentSortPriority(21);
-	if (DamageNumberFont.Succeeded())
-	{
-		Underline->SetFont(DamageNumberFont.Object);
-	}
-	if (UMaterialInterface* TranslucentTextMaterial =
-	        LoadObject<UMaterialInterface>(nullptr, GetDamageNumberMaterialPath()))
-	{
-		Underline->SetTextMaterial(TranslucentTextMaterial);
-	}
 }
 
 void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
                                                  const FVector& WorldLocation,
                                                  const float Damage,
                                                  const FLinearColor& Color,
-                                                 const float SizeScale,
-                                                 const bool bUnderline)
+                                                 const bool bCritical)
 {
 	if (!World || Damage <= 0.0f)
 	{
@@ -103,37 +75,18 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
 	    DamageNumberClass, WorldLocation + FVector(0.0f, 0.0f, 95.0f), FRotator::ZeroRotator);
 	if (DamageNumber)
 	{
-		DamageNumber->InitializeDamage(Damage, Color, SizeScale, bUnderline);
+		DamageNumber->InitializeDamage(Damage, Color, bCritical);
 	}
 }
 
-void AReEchoDamageNumberActor::InitializeDamage(const float Damage, const FLinearColor& Color, const float SizeScale, const bool bUnderline)
+void AReEchoDamageNumberActor::InitializeDamage(
+    const float Damage, const FLinearColor& Color, const bool bCritical)
 {
 	InitialColor = Color;
-	const float EffectiveSizeScale = bUnderline ? FMath::Max(1.35f, SizeScale) : SizeScale;
 	const int32 DisplayDamage = FMath::Max(1, FMath::RoundToInt(Damage));
-	const FString DamageText = FString::Printf(TEXT("%d"), DisplayDamage);
-	Text->SetText(FText::FromString(DamageText));
-	Text->SetWorldSize(DamageNumberBaseWorldSize * EffectiveSizeScale);
+	Text->SetText(FText::FromString(FString::Printf(TEXT("%d"), DisplayDamage)));
+	Text->SetWorldSize(DamageNumberBaseWorldSize * (bCritical ? CriticalSizeScale : 1.0f));
 	Text->SetTextRenderColor(InitialColor.ToFColor(false));
-
-	const bool bShowUnderline = bUnderline && Underline != nullptr;
-	Underline->SetVisibility(bShowUnderline);
-	Underline->SetXScale(bShowUnderline ? CriticalUnderlineXScale : 1.0f);
-	if (bShowUnderline)
-	{
-		// 每三位数字对应一条下划线，按位数向上取整，避免长数字下划线过密。
-		const int32 UnderlineCount = FMath::Max(1, (DamageText.Len() + 2) / 3);
-		Underline->SetText(FText::FromString(FString::ChrN(UnderlineCount, '_')));
-		Underline->SetWorldSize(DamageNumberBaseWorldSize * EffectiveSizeScale);
-		// TextRenderComponent 文字向上为 +Y；下划线左移并置于字底下方约 0.58 字高处。
-		Underline->SetRelativeLocation(
-		    FVector(
-		        DamageNumberBaseWorldSize * EffectiveSizeScale * CriticalUnderlineHorizontalOffset,
-		        DamageNumberBaseWorldSize * EffectiveSizeScale * CriticalUnderlineVerticalOffset,
-		        0.0f));
-		Underline->SetTextRenderColor(InitialColor.ToFColor(false));
-	}
 }
 
 void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
