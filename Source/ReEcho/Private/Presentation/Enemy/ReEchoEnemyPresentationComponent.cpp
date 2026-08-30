@@ -78,6 +78,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	PresentationRoot = InPresentationRoot;
 	VisualEffectRoot = InVisualEffectRoot;
 	FootRoot = InFootRoot;
+	TerminalDeathMotionRoot = VisualEffectRoot ? VisualEffectRoot->GetAttachParent() : nullptr;
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
@@ -92,6 +93,8 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	GroundRoot = GroundShadow ? GroundShadow->GetAttachParent() : nullptr;
 	Collision = InCollision;
 	AuthoredMotionLocation = VisualEffectRoot ? VisualEffectRoot->GetRelativeLocation() : FVector::ZeroVector;
+	AuthoredTerminalDeathMotionLocation =
+	    TerminalDeathMotionRoot ? TerminalDeathMotionRoot->GetRelativeLocation() : FVector::ZeroVector;
 	if (PresentationController)
 	{
 		PresentationController->BindCollisionDriver(FrameCollisionDriver);
@@ -251,6 +254,10 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 		VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 		BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
 	}
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation);
+	}
 	if (FlipbookRoot)
 	{
 		BaseFlipbookLocation = FlipbookRoot->GetRelativeLocation();
@@ -268,7 +275,7 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 }
 
 bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(const FVector& KnockbackWorldDirection,
-	                                                       FSimpleDelegate OnCompleted,
+                                                           FSimpleDelegate OnCompleted,
                                                            float& OutExpectedDurationSeconds)
 {
 	OutExpectedDurationSeconds = 0.0f;
@@ -287,11 +294,10 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(const FVector& Knockb
 	AttackVisualRemaining = 0.0f;
 	ResetTransientRoot();
 	DeathKnockbackElapsedSeconds = 0.0f;
-	DeathKnockbackLocalDirection = PresentationRoot
-	                                   ? PresentationRoot->GetComponentTransform()
-	                                         .InverseTransformVectorNoScale(KnockbackWorldDirection)
-	                                         .GetSafeNormal2D()
-	                                   : KnockbackWorldDirection.GetSafeNormal2D();
+	DeathKnockbackLocalDirection = PresentationRoot ? PresentationRoot->GetComponentTransform()
+	                                                      .InverseTransformVectorNoScale(KnockbackWorldDirection)
+	                                                      .GetSafeNormal2D()
+	                                                : KnockbackWorldDirection.GetSafeNormal2D();
 	if (EffectsRoot)
 	{
 		EffectsRoot->SetVisibility(false, true);
@@ -381,9 +387,9 @@ FVector UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(const fl
 }
 
 FVector UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(const FVector& LocalDirection,
-	                                                                    const float ElapsedSeconds,
-	                                                                    const float DurationSeconds,
-	                                                                    const float DistanceCm)
+                                                                       const float ElapsedSeconds,
+                                                                       const float DurationSeconds,
+                                                                       const float DistanceCm)
 {
 	if (DurationSeconds <= KINDA_SMALL_NUMBER || DistanceCm <= 0.0f || LocalDirection.IsNearlyZero())
 	{
@@ -397,12 +403,10 @@ FVector UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(const FVe
 void UReEchoEnemyPresentationComponent::UpdateDeathKnockbackMotion(const float DeltaSeconds)
 {
 	DeathKnockbackElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
-	ApplyPresentationMotion(
-	    ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
-	                                DeathKnockbackElapsedSeconds,
-	                                ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
-	                                ReEchoEnemyVisual::DeathKnockbackDistanceCm),
-	    FVector::OneVector);
+	ApplyTerminalDeathMotion(ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
+	                                                     DeathKnockbackElapsedSeconds,
+	                                                     ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
+	                                                     ReEchoEnemyVisual::DeathKnockbackDistanceCm));
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float DeltaSeconds)
@@ -480,6 +484,19 @@ FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests
 
 void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 {
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation);
+	}
+	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+}
+
+void UReEchoEnemyPresentationComponent::ApplyTerminalDeathMotion(const FVector& Offset)
+{
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation + Offset);
+	}
 	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 }
 
@@ -537,8 +554,12 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalGroundAnchor);
 	if (!bUseAuthoredDeathPivot)
 	{
-		const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
-		GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+		const USceneComponent* GroundParent = GroundRoot->GetAttachParent();
+		const FVector BottomInGroundParent =
+		    GroundParent ? GroundParent->GetComponentTransform().InverseTransformPosition(BottomWorld)
+		                 : FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+		GroundRoot->SetRelativeLocation(
+		    FVector(BottomInGroundParent.X, BottomInGroundParent.Y, AuthoredGroundRootLocation.Z));
 	}
 
 	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(

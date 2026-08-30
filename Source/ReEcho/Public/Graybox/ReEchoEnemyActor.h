@@ -277,6 +277,12 @@ private:
 	          Category = "Character Scene|Ground",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> FootRoot;
+	/** Presentation-only parent moved during terminal death so the body and grounded shadow remain together. */
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Presentation",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> TerminalDeathMotionRoot;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Presentation",

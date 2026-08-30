@@ -117,6 +117,32 @@ bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Paramete
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathMotionHierarchyTest,
+                                 "ReEcho.Presentation.VFX.EnemyDeathMotionHierarchy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyDeathMotionHierarchyTest::RunTest(const FString& Parameters)
+{
+	AReEchoEnemyActor* Enemy = GetMutableDefault<AReEchoEnemyActor>();
+	const USceneComponent* FootRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("FootRoot"))) : nullptr;
+	const USceneComponent* TerminalDeathRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("TerminalDeathMotionRoot"))) : nullptr;
+	const USceneComponent* MotionRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("PresentationMotionRoot"))) : nullptr;
+	const USceneComponent* GroundRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("GroundRoot"))) : nullptr;
+
+	TestNotNull(TEXT("Enemy owns a terminal death presentation root"), TerminalDeathRoot);
+	TestTrue(TEXT("Terminal death root remains presentation-only below FootRoot"),
+	         FootRoot && TerminalDeathRoot && TerminalDeathRoot->GetAttachParent() == FootRoot);
+	TestTrue(TEXT("Body presentation inherits terminal death displacement"),
+	         MotionRoot && MotionRoot->GetAttachParent() == TerminalDeathRoot);
+	TestTrue(TEXT("Ground shadow anchor inherits the same terminal death displacement"),
+	         GroundRoot && GroundRoot->GetAttachParent() == TerminalDeathRoot);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFatalEnemyHurtVfxPolicyTest,
                                  "ReEcho.Presentation.VFX.FatalEnemyHurtPolicy",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -473,10 +499,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceWater);
 	TestTrue(TEXT("Reaction effects preserve authored world size"), GrowthPlacement.bPreserveWorldSize);
 	TestTrue(TEXT("Growth matches the target Flipbook size"), GrowthPlacement.bMatchTargetFlipbookSize);
-	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"),
-	         EnhanceGrassPlacement.bMatchTargetFlipbookSize);
-	TestTrue(TEXT("Enhance Water matches the target Flipbook size"),
-	         EnhanceWaterPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"), EnhanceGrassPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Water matches the target Flipbook size"), EnhanceWaterPlacement.bMatchTargetFlipbookSize);
 	TestTrue(TEXT("Burn visual lifetime follows the timed Burn status"),
 	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_G")));
 	TestFalse(TEXT("Growth is emitted only by its resolved reaction event"),
