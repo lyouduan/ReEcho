@@ -1243,6 +1243,7 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 	DesignerPartOfferBuyArts.Reset();
 	DesignerPartOfferBuyLabels.Reset();
 	DesignerPackOfferCards.Reset();
+	DesignerPackOfferBases.Reset();
 	DesignerPackOfferIcons.Reset();
 	DesignerPackOfferDescriptions.Reset();
 	DesignerPackOfferCosts.Reset();
@@ -1277,6 +1278,8 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 
 		DesignerPackOfferCards.Add(
 		    Cast<UCanvasPanel>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferCard%d"), Index))));
+		DesignerPackOfferBases.Add(
+		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferBase%d"), Index))));
 		DesignerPackOfferIcons.Add(
 		    Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerPackOfferIcon%d"), Index))));
 		ConfigureAspectFitImage(DesignerPackOfferIcons.Last());
@@ -1803,7 +1806,7 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		const bool bHasOffer = VisibleWeaponPartOffers.IsValidIndex(Index);
 		if (Card)
 		{
-			Card->SetVisibility(bHasOffer ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+			Card->SetVisibility(bHasOffer ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 			Card->SetToolTip(nullptr);
 		}
 		if (!bHasOffer)
@@ -1861,10 +1864,17 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 	for (int32 Index = 0; Index < DesignerPackOfferCards.Num(); ++Index)
 	{
 		UCanvasPanel* Card = DesignerPackOfferCards[Index];
+		UImage* Base = DesignerPackOfferBases.IsValidIndex(Index) ? DesignerPackOfferBases[Index] : nullptr;
 		const bool bHasPack = CurrentPartShopView.CardPackOffers.IsValidIndex(Index);
 		if (Card)
 		{
-			Card->SetVisibility(bHasPack ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+			Card->SetVisibility(bHasPack ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+			Card->SetToolTip(nullptr);
+		}
+		if (Base)
+		{
+			Base->SetVisibility(bHasPack ? ESlateVisibility::Visible : ESlateVisibility::HitTestInvisible);
+			Base->SetToolTip(nullptr);
 		}
 		if (!bHasPack)
 		{
@@ -1872,6 +1882,14 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		}
 
 		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[Index];
+		if (Card)
+		{
+			Card->SetToolTip(BuildCardPackTooltip(Pack));
+		}
+		if (Base)
+		{
+			Base->SetToolTip(BuildCardPackTooltip(Pack));
+		}
 		const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
 		const int32 EffectivePrice = Pack.EffectivePrice;
 		const bool bCanPurchase = Pack.bCanPurchase && bCurrentExtraCardPurchaseAllowed;
@@ -2787,6 +2805,15 @@ UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Of
 		AddTooltipPanel(NSLOCTEXT("ReEcho", "ResolvedCardOutcomeTitle", "实际效果"), Offer.OutcomeText, true);
 	}
 	return TooltipStack;
+}
+
+UWidget* UReEchoInventoryShopWidget::BuildCardPackTooltip(const FReEchoShopCardPackOffer& Pack)
+{
+	FReEchoShopOffer TooltipOffer;
+	TooltipOffer.DisplayName =
+	    FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackTooltipTitle", "{0}卡组"), Pack.DisplayName);
+	TooltipOffer.EffectText = NSLOCTEXT("ReEcho", "ShopCardPackTooltipBody", "购买后可从该等级的候选卡牌中选择 1 张。");
+	return BuildSlotTooltip(TooltipOffer);
 }
 
 void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)

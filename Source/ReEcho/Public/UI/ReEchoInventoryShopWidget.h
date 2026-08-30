@@ -157,6 +157,7 @@ private:
 	void HandleWeaponBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
+	UWidget* BuildCardPackTooltip(const FReEchoShopCardPackOffer& Pack);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
 	bool HasEchoStorageCard() const;
 	void
@@ -338,6 +339,8 @@ private:
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferBuyLabels;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UCanvasPanel>> DesignerPackOfferCards;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPackOfferBases;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerPackOfferIcons;
 	UPROPERTY(Transient)

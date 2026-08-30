@@ -657,6 +657,18 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	PartShopView.OwnedWeaponOffers = {CurrentWeapon, AlternateWeapon};
 	PartShopView.Offers.Add(WeaponPart);
 	PartShopView.Offers.Add(CurrentWeapon);
+	FReEchoShopCardPackOffer CardPack;
+	CardPack.ItemId = TEXT("SHOP_CARD_PACK_TIER_1");
+	CardPack.Tier = 1;
+	CardPack.Status = EReEchoShopCardPackStatus::Available;
+	CardPack.DisplayName = FText::FromString(TEXT("一级"));
+	CardPack.Price = 10;
+	CardPack.EffectivePrice = 10;
+	CardPack.bCanPurchase = true;
+	FReEchoShopCardChoiceOffer CardChoice;
+	CardChoice.ItemId = TEXT("G_1_01");
+	CardPack.Choices.Add(CardChoice);
+	PartShopView.CardPackOffers.Add(CardPack);
 	FReEchoWeaponSlotShopView PartSlot;
 	PartSlot.SlotTypeId = TEXT("Core");
 	PartSlot.DisplayName = FText::FromString(TEXT("Core"));
@@ -720,8 +732,17 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Authored shop keeps the legacy scroll host as a hidden compatibility host"), ShopScrollBox);
 	TestNotNull(TEXT("Authored shop binds the formal presentation canvas"),
 	            Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerShopPresentationCanvas"))));
-	TestNotNull(TEXT("Authored shop exposes the first designer-controlled part card"),
-	            Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferCard0"))));
+	UCanvasPanel* AuthoredPartCard = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerPartOfferCard0")));
+	UCanvasPanel* AuthoredPackCard = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferCard0")));
+	UImage* AuthoredPackBase = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferBase0")));
+	TestNotNull(TEXT("Authored shop exposes the first designer-controlled part card"), AuthoredPartCard);
+	TestTrue(TEXT("The full authored part card is a tooltip hit target"),
+	         AuthoredPartCard && AuthoredPartCard->GetVisibility() == ESlateVisibility::Visible &&
+	             AuthoredPartCard->GetToolTip() != nullptr);
+	TestTrue(TEXT("The full authored card-pack base is a tooltip hit target"),
+	         AuthoredPackCard && AuthoredPackCard->GetVisibility() == ESlateVisibility::Visible && AuthoredPackBase &&
+	             AuthoredPackBase->GetVisibility() == ESlateVisibility::Visible &&
+	             AuthoredPackBase->GetToolTip() != nullptr);
 	TestNotNull(TEXT("Authored shop exposes the first stable weapon-part action"),
 	            Widget->GetWidgetFromName(TEXT("DesignerPartOfferBuy0")));
 	UTexture2D* ExpectedPartIcon = LoadObject<UTexture2D>(
