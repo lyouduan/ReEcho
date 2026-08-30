@@ -19,10 +19,13 @@ public:
 
 	/**
 	 * 创建并初始化一次伤害数字表现。
-	 * @param SizeScale 字号缩放（基准 WorldSize=52，暴击时 = 1 + CriticalEffect）。
-	 * @param bUnderline 是否显示下划线（暴击特殊反馈）。
+	 * @param bCritical 是否使用蓝图配置的暴击字号缩放。
 	 */
-	static void SpawnDamageNumber(UWorld* World, const FVector& WorldLocation, float Damage, const FLinearColor& Color, float SizeScale = 1.0f, bool bUnderline = false);
+	static void SpawnDamageNumber(UWorld* World,
+	                              const FVector& WorldLocation,
+	                              float Damage,
+	                              const FLinearColor& Color,
+	                              bool bCritical = false);
 
 	/** 伤害数字专用运行时字体资产路径，供构造与自动化验证共享。 */
 	static const TCHAR* GetDamageNumberFontPath();
@@ -32,14 +35,10 @@ public:
 	static const TCHAR* GetDamageNumberBlueprintClassPath();
 
 private:
-	void InitializeDamage(float Damage, const FLinearColor& Color, float SizeScale = 1.0f, bool bUnderline = false);
+	void InitializeDamage(float Damage, const FLinearColor& Color, bool bCritical = false);
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> Text;
-
-	/** 暴击下划线：与数字等宽的 '_' 串，定位在数字正下方。 */
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UTextRenderComponent> Underline;
 
 	float ElapsedTime = 0.0f;
 
@@ -66,6 +65,13 @@ private:
 	          Category = "Damage Number|Animation",
 	          meta = (AllowPrivateAccess = "true", ClampMin = "0.01"))
 	float EndScale = 0.85f;
+
+	/** 暴击数字相对普通数字的视觉字号倍率，不改变实际伤害。 */
+	UPROPERTY(EditDefaultsOnly,
+	          BlueprintReadOnly,
+	          Category = "Damage Number|Critical",
+	          meta = (AllowPrivateAccess = "true", ClampMin = "0.01"))
+	float CriticalSizeScale = 1.35f;
 
 	FLinearColor InitialColor = FLinearColor::White;
 };
