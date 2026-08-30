@@ -239,3 +239,12 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **文档审阅 / Documentation review**：`MOD-ReEchoEnemies`、`MOD-ReEchoCombat` 与 `MOD-ReEcho` 已同步羊全来源眩晕免疫的 Host/Combat 边界；同时把既有羊生命说明改为读取当前 Phase 定义，避免文档固化过期表值。`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 无模块拓扑或稳定路由变化，无需修改。
 - **验证 / Verification**：取得发布锁并合并 `origin/main@ae548af1` 后，最终集成候选完成 Development Editor `-FullRebuild`（104/104），精选 Win64 Editor 预构建包刷新为源码指纹 `31d717a1509a`；`ReEcho.Combat.Runes.TimedStatusAndIndependentStacks` 与 `ReEcho.Enemies.Host.SheepStunImmunity` 在集成版本上均找到 1 项并返回 `Result={Success}` / `EXIT CODE: 0`。实现阶段自动化曾准确捕获短路表达式未删除状态表残留，拆分计时器与状态清理后复跑通过。最终静态、预构建与 LFS 发布门禁见发布提交记录。
 - **状态 / Status**：Review。用户已授权保留诊断日志并直接发布远端主分支；PIE 二阶段与持续战斗人工复验仍待后续执行。
+
+### #26 — Boss 免疫受击硬直与 Echo 嘲讽
+
+- **需求 / Need**：所有 Boss 免疫玩家攻击造成的受击硬直/击退，并在 Echo 嘲讽规则生效时继续以玩家为目标；普通敌人的受击和嘲讽行为保持不变。
+- **实现范围 / Writes**：`ReEchoEnemyLogicComponent.cpp`、`ReEchoEnemyActor.*`、EnemyLogic/Host 聚焦自动化、本文档及 `MOD-ReEchoEnemies`、`MOD-ReEcho`。影响 `MOD-ReEchoEnemies` 的 Hurt 权威入口和 `MOD-ReEcho / AREA-Enemies` 的世界目标解析；不改变伤害数值、生命、眩晕/减速/元素状态、卡牌规则、数据 Schema、XLSX/CSV 或存档格式。
+- **改动 / Changes**：EnemyLogic 的通用 Boss Archetype 在权威 `NotifyHurt` 入口忽略硬直和击退，不取消当前技能；恢复旧快照时清除 Boss 可能残留的硬直时间、击退速度与 `HitReaction` phase。Enemy Host 把 AI Sense 与已出手投射物的 Echo 选择统一到同一目标解析函数，普通敌人在嘲讽开启时继续选择最近存活 Echo，Boss 始终保留玩家目标。
+- **验证 / Verification**：Visual Studio LLVM `clang-format` 已按仓库样式格式化 5 个改动 C++ 文件；Development Editor `-FullRebuild` 97/97 通过并刷新 7 个精选预构建模块（源码指纹 `bc2796be36d0`）。`ReEcho.Enemies.Boss.HitReactionImmunity` 与 `ReEcho.Enemies.Host.BossEchoTauntImmunity` 均找到 1 项并返回 `Result={Success}` / `EXIT CODE: 0`；最终项目静态校验、预构建一致性、LFS 与 `git diff --check` 见本候选交付记录。
+- **文档审阅 / Documentation review**：`MOD-ReEchoEnemies` 与 `MOD-ReEcho` 已同步 Boss 控制免疫及 Host 目标选择契约；`MOD-ReEchoCombat` 已审阅、无需修改，因为最终伤害、生命与状态权威未变；`ARCHITECTURE.md` 与 `CODEBASE_MAP/README.md` 已审阅、无需修改，因为模块拓扑、依赖与稳定路由标识未变化。
+- **状态 / Status**：Review。技术候选与客观门禁已完成；用户已明确授权按规则发布，PIE 的 Boss 连续受击与 Echo 嘲讽表现验收作为 `PendingFollowUp` 保留。

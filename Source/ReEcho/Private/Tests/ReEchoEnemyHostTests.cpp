@@ -13,6 +13,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Misc/App.h"
 #include "Misc/AutomationTest.h"
@@ -327,6 +328,66 @@ bool FReEchoEnemyHostSheepStunImmunityTest::RunTest(const FString& Parameters)
 	          Combatant->IsActionDisabled(Fixture.World->GetTimeSeconds() + 1.0f));
 	TestFalse(TEXT("M_SHEEP never records Vertigo in element state"),
 	          Combatant->GetElementState().ActiveStatusUntilSeconds.Contains(TEXT("Z_Vertigo")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyHostBossEchoTauntImmunityTest,
+                                 "ReEcho.Enemies.Host.BossEchoTauntImmunity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyHostBossEchoTauntImmunityTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult LoadResult =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production enemy CSV loads for Boss taunt immunity"), LoadResult.bSuccess))
+	{
+		AddError(LoadResult.FormatIssues());
+		return false;
+	}
+
+	FReEchoEnemyDefinition SheepDefinition;
+	FString CompileError;
+	if (!TestTrue(TEXT("Sheep definition compiles for Boss taunt immunity"),
+	              ReEchoEnemyDefinitionCompiler::Compile(
+	                  *LoadResult.Snapshot, TEXT("M_SHEEP"), SheepDefinition, CompileError)))
+	{
+		AddError(CompileError);
+		return false;
+	}
+
+	FReEchoEnemyHostWorldFixture Fixture;
+	AActor* PlayerTarget = Fixture.World->SpawnActor<AActor>(FVector(600.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoEchoActor* Echo =
+	    Fixture.World->SpawnActor<AReEchoEchoActor>(FVector(100.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	AReEchoEnemyActor* Grunt = Fixture.Spawn(EReEchoEnemyKind::Grunt, 32);
+	AReEchoEnemyActor* Sheep = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	if (!TestNotNull(TEXT("Default player target spawns"), PlayerTarget) ||
+	    !TestNotNull(TEXT("Echo target spawns"), Echo) || !TestNotNull(TEXT("Ordinary enemy host spawns"), Grunt) ||
+	    !TestNotNull(TEXT("Boss host spawns"), Sheep))
+	{
+		return false;
+	}
+
+	FReEchoStatBlock EchoStats;
+	EchoStats.HpMax = 100.0f;
+	EchoStats.HpPoint = 100.0f;
+	Echo->GetCombatTargetCombatant()->InitializeFromStats(EchoStats, true);
+	Sheep->SetEnemyId(TEXT("M_SHEEP"));
+	if (!TestTrue(TEXT("Sheep accepts production definition for Boss taunt immunity"),
+	              Sheep->ConfigureFromDefinition(SheepDefinition, 33)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Ordinary enemy selects a living Echo when taunt is active"),
+	          Grunt->ResolveAggroTargetForTests(PlayerTarget, true),
+	          static_cast<AActor*>(Echo));
+	TestEqual(TEXT("Boss keeps the player target when Echo taunt is active"),
+	          Sheep->ResolveAggroTargetForTests(PlayerTarget, true),
+	          PlayerTarget);
+	TestEqual(TEXT("Ordinary enemy keeps the player target when Echo taunt is inactive"),
+	          Grunt->ResolveAggroTargetForTests(PlayerTarget, false),
+	          PlayerTarget);
 	return true;
 }
 

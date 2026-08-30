@@ -310,6 +310,35 @@ bool FReEchoEnemyHurtAndSnapshotTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossHitReactionImmunityTest,
+                                 "ReEcho.Enemies.Boss.HitReactionImmunity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossHitReactionImmunityTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Boss definition initializes"), Logic->Initialize(MakeBossTestDefinition(), 4));
+	Logic->NotifyHurt(5.0f, FVector(-100.0f, 0.0f, 0.0f), FVector::ZeroVector);
+
+	const FReEchoEnemyLogicSnapshot Hurt = Logic->GetSnapshot();
+	TestNotEqual(TEXT("Boss never enters hit reaction"), Hurt.Phase, EReEchoEnemyBehaviorPhase::HitReaction);
+	TestEqual(TEXT("Boss stores no hit reaction duration"), Hurt.HitReactionRemainingSeconds, 0.0f);
+	TestTrue(TEXT("Boss stores no knockback velocity"), Hurt.KnockbackVelocity.IsNearlyZero());
+
+	FReEchoEnemyLogicSnapshot LegacySnapshot = Hurt;
+	LegacySnapshot.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
+	LegacySnapshot.HitReactionRemainingSeconds = 0.2f;
+	LegacySnapshot.KnockbackVelocity = FVector(140.0f, 0.0f, 0.0f);
+	Logic->RestoreSnapshot(LegacySnapshot);
+	const FReEchoEnemyLogicSnapshot Restored = Logic->GetSnapshot();
+	TestNotEqual(TEXT("Legacy Boss snapshot cannot restore hit reaction"),
+	             Restored.Phase,
+	             EReEchoEnemyBehaviorPhase::HitReaction);
+	TestEqual(TEXT("Legacy Boss snapshot clears hit reaction duration"), Restored.HitReactionRemainingSeconds, 0.0f);
+	TestTrue(TEXT("Legacy Boss snapshot clears knockback velocity"), Restored.KnockbackVelocity.IsNearlyZero());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossInjectedDefinitionTest,
                                  "ReEcho.Enemies.Boss.InjectedDefinitionRequired",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -865,7 +894,8 @@ bool FReEchoEnemyBornMovementPermitTest::RunTest(const FString& Parameters)
 	AttackSense.bTargetAlive = true;
 	AttackSense.TargetLocation = FVector(500.0f, 0.0f, 0.0f);
 	AttackSense.bAttackPermitted = false;
-	TestFalse(TEXT("Born gate emits no ranged special commit"), RangedLogic->Advance(AttackSense, 1.0f).bAttackCommitted);
+	TestFalse(TEXT("Born gate emits no ranged special commit"),
+	          RangedLogic->Advance(AttackSense, 1.0f).bAttackCommitted);
 	TestEqual(TEXT("Born gate prevents a ranged windup while normal time advances"),
 	          RangedLogic->GetSnapshot().SpecialActionPhase,
 	          EReEchoEnemySpecialActionPhase::None);
@@ -875,7 +905,8 @@ bool FReEchoEnemyBornMovementPermitTest::RunTest(const FString& Parameters)
 	         RangedLogic->Advance(AttackSense, 0.06f).bAttackCommitted);
 
 	UReEchoEnemyLogicComponent* BossLogic = NewObject<UReEchoEnemyLogicComponent>();
-	TestTrue(TEXT("Born attack permit Boss definition initializes"), BossLogic->Initialize(MakeBossTestDefinition(), 15));
+	TestTrue(TEXT("Born attack permit Boss definition initializes"),
+	         BossLogic->Initialize(MakeBossTestDefinition(), 15));
 	AttackSense.bAttackPermitted = false;
 	AttackSense.bHasTeleportDestination = true;
 	AttackSense.TeleportDestination = FVector(100.0f, 100.0f, 0.0f);

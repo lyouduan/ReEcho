@@ -46,7 +46,7 @@
 | 卡牌目录、拥有/叠层、随机游标和事件状态 | `MOD-ReEchoCards` 的 Catalog/BuildState/RuntimeState | 整局并嵌入 Build/Recording | 主模块只调用纯命令并执行类型化结果 |
 | 玩家/敌人生命与战斗属性 | GAS/`UReEchoCombatantComponent` | Actor/遭遇 | GameplayEffect、战斗命令、快照与委托 |
 | 当前武器、攻击步骤与攻击载体 | `AReEchoWeaponActor` 及 Weapons 运行逻辑 | Actor/整局武器锁定 | 攻击请求、稳定 WeaponId、只读查询 |
-| 怪物 Archetype、AI phase、攻击冷却、Fuse、受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；表现只读 Snapshot/Event |
+| 怪物 Archetype、AI phase、攻击冷却、Fuse、普通敌人受击位移与攻击序号 | `MOD-ReEchoEnemies` 的 `UReEchoEnemyLogicComponent` | Actor/单场遭遇 | EnemyHost 注入 Sense、应用 Intent；Boss 忽略受击硬直/击退；表现只读 Snapshot/Event |
 | 当前战场怪物注册集合与稳定顺序 | `UReEchoEnemyRosterComponent` | Stage 连续战场 | GameMode 生成/按 Stage 策略清理，保存与全灭判断读取；同 Stage 跨 Encounter 保留原 Host，不扫描世界复制状态 |
 | 遭遇时间与结束条件 | `AReEchoEncounterDirector` | 单场遭遇 | 表驱动时长、固定步推进与完成委托 |
 | Encounter 结算与入场保护编排 | `AReEchoGameMode` + `BP_EncounterFlowSettings` | 首场及后续每场恢复控制、单场结束到局间 UI | 只投影 Director 剩余时间；普通计时关卡在 03→01 时只启动全屏后处理，权威 00 时冻结战斗并从第 0 帧播放透明序列，末帧后幂等进入抽卡；第2–7关全部免费抽卡成功耗尽后，再播放独立透明序列并在覆盖层下切换到商店；所有 Encounter 均在恢复玩家输入的同一时刻按 Blueprint 配置向 Player Combatant 授予短暂无敌，不复制伤害门 |
@@ -232,14 +232,14 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 **设计意图：** `MOD-ReEchoEnemies` 独占怪物行为状态；主模块只提供世界感知、Transform/Collision 应用、Combat 转发和资源表现，避免逻辑与美术继续争用同一份实现。
 
 - 逻辑代码与完整意图：[`MOD-ReEchoEnemies.md`](MOD-ReEchoEnemies.md)。
-- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把敌方逻辑载体的连续路径与世界接触转为 Combat。狐狸 Active 每步继续用根 Box `AddActorWorldOffset(..., sweep=true)`，只按实际起终点与锁定目标碰撞盒的首次相交提交同一 `AttackIdentity` 的 `FReEchoHitIntent`；无敌接触消费一次门但不扣血，世界阻挡立即反馈 Logic 进入 Recovery，禁止穿透或补偿传送。兔子移动散射一次 Commit 展开三条扇形轨迹，站定连发则按 `ActiveSeconds` 依次发布四条同向轨迹，每条最多结算一次；两种兔子技能的单球碰撞半径固定沿用原移动三球基准 `RadiusCm / 3`，不因发数改变。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
+- 世界宿主：`Source/ReEcho/{Public,Private}/Graybox/ReEchoEnemyActor.*`，只组合 Logic/Combat/Presentation、构造 Sense、应用 Intent、维护 Actor 生命周期，并把敌方逻辑载体的连续路径与世界接触转为 Combat。普通敌人的 AI 与已出手投射物共用同一 Echo 嘲讽目标解析；Boss 无视该规则并始终保留玩家目标。狐狸 Active 每步继续用根 Box `AddActorWorldOffset(..., sweep=true)`，只按实际起终点与锁定目标碰撞盒的首次相交提交同一 `AttackIdentity` 的 `FReEchoHitIntent`；无敌接触消费一次门但不扣血，世界阻挡立即反馈 Logic 进入 Recovery，禁止穿透或补偿传送。兔子移动散射一次 Commit 展开三条扇形轨迹，站定连发则按 `ActiveSeconds` 依次发布四条同向轨迹，每条最多结算一次；两种兔子技能的单球碰撞半径固定沿用原移动三球基准 `RadiusCm / 3`，不因发数改变。Combat Death 后 Host 立即关闭 Logic/碰撞和新行为，保留已发射逻辑投射物推进；死亡阶段只继续轻量表现推进，使 GroundShadow 可跟随 Death 当前帧；Death Clip 独占播放一次并在实际完成时销毁 Host，缺失 Death 时下一安全帧销毁，实际时长加短宽限只作为防卡死 watchdog。
 - 表现适配：`Source/ReEcho/{Public,Private}/Presentation/Enemy/ReEchoEnemyPresentationComponent.*` 只把稳定 `PresentationId` 和表现事件转发给 `MOD-ReEchoPresentation`；同时只读 Host 的 Combat 伤害/反应结果生成伤害数字和一次性元素反应字。反应字严格使用事件的 `ReactionBehaviorId` 与 `PrimaryTarget`，不从元素状态重算，也不按 Growth/Conduct 的受影响目标重复生成。主模块的 `UReEchoEnemyGameplayClassRegistry` 独立解析敌人 Gameplay Blueprint Class；血条、动画、命中特效、元素光环、反应字与死亡残留均不反向控制玩法。
 - 主流程：`AReEchoGameMode` 从不可变 Run 数据快照编译并注入 Enemy Definition，通过 Roster 管理生命周期；`SetEncounterSimulationSuspended` 在同 Stage 局间冻结原 Host，并在进入下一 Encounter 前恢复。Boss 房由 Boss 死亡结束，30 秒 EncounterPhase 只编排 Echo 退场和配表倍率强化。
-- Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。普通怪的距离/受击次数 Phase2 仅改变表现，转换期间继续接受伤害；`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后按 Phase2 定义刷新生命上限与当前生命，并在 Host 配置边界启用全来源眩晕免疫（Combat `Z_Vertigo`、卡牌眩晕和存档残留均不生效）；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
+- Plan68 接线：GameMode 用当前 `EncounterIndex` 编译每个出生 Enemy Definition；Host 注入表驱动 `HateRangeCm`、当前生命比率和特殊行动许可。普通怪的距离/受击次数 Phase2 仅改变表现，转换期间继续接受伤害；`M_SHEEP` 的第一次致命伤由 Combat 窄委托转为 Phase2 变身事件，完成后按 Phase2 定义刷新生命上限与当前生命，并在 Host 配置边界启用全来源眩晕免疫（Combat `Z_Vertigo`、卡牌眩晕和存档残留均不生效）；所有 Boss 还在 EnemyLogic Hurt 边界免疫受击硬直与击退，恢复旧快照时清理残留控制状态；普通怪未战斗时的 IdleWander 仍由 EnemyLogic 独占状态。
 - 群体移动：EnemyLogic 的追踪/攻击意图保持权威；主模块 `FReEchoEnemyCrowdSteering` 在 Host 应用 Transform 前，根据 SpawnIndex 稳定攻击槽位、Roster 邻居 Separation、切向绕行和短时受阻恢复修正普通追踪位移。普通敌人之间互相加入 MoveIgnore，避免 Pawn Sweep 形成静止队列；玩家、场景与 Boss 仍保持硬碰撞，击退和特殊动作不进入普通 Crowd 修正。
 - 保存：v9 `FReEchoEnemyRuntimeState` 使用稳定 EnemyId 聚合 Transform、完整 EnemyLogicSnapshot、Combatant 生命/元素，以及通用敌方已生成/已提交待生成投射物；狐狸 Active 快照包含剩余时间/距离、锁向、攻击身份和一次接触门，旧快照缺失这些瞬时字段时安全落入 Recovery，既不补走终点也不重复伤害。待生成直线连发球保存剩余延迟和 Spawned 发布状态，旧存档条目默认视为已生成。EncounterRuntimeState 另存波次游标、预警已解析位置、Spawn序号及普通怪全局技能令牌剩余时间，表现临时状态不保存。
 - 禁止：EnemyActor 再持有攻击/引信/击退计时器，Presentation 调用伤害/AI 命令，GameMode 每帧 `TActorIterator<AReEchoEnemyActor>` 扫描。
-- 测试：`ReEcho.Enemies.*`（其中 `ReEcho.Enemies.Host.FoxDashCollision` 锁定分帧 Sweep、首次路径伤害、躲避/无敌/撞墙）、`ReEcho.StageTransition.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
+- 测试：`ReEcho.Enemies.*`（其中 `ReEcho.Enemies.Boss.HitReactionImmunity` 锁定 Boss 受击控制与旧快照归零，`ReEcho.Enemies.Host.BossEchoTauntImmunity` 锁定普通敌人/Boss 的 Echo 目标差异，`ReEcho.Enemies.Host.FoxDashCollision` 锁定分帧 Sweep、首次路径伤害、躲避/无敌/撞墙）、`ReEcho.StageTransition.*`、`ReEcho.Run.SaveSnapshot`、Combat ElementReaction 与完整回归。
 
 ### `AREA-Encounter`：`Encounter`遭遇时钟
 
