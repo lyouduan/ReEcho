@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@4eb46ce8c806a00235a9e1f68688c0420483bebb`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan154-loadout-back-navigation`，分支 `plan/154-loadout-back-navigation`；Plan 发布后在该工作区基于最新 `origin/main` 继续实现。
@@ -70,7 +70,7 @@
 - [ ] 武器页点击返回后准确回到角色页，之前点击的角色仍选中；不广播 `OnLoadoutConfirmed`，再次确认角色进入武器页时没有旧武器候选。
 - [ ] 反复执行“角色 → 武器 → 返回 → 武器”不会累计点击绑定、重复广播、遗留说明/箭头或产生不可见焦点；第二次最终确认仍只提交一次准确的 `(CharacterId, WeaponId)`。
 - [ ] 存档槽有空位和三槽全满两种情况下，未最终确认就返回主界面均不创建、删除、覆盖存档或预览图；全满时原最旧槽只在最终确认的新 Run 保存成功时被覆盖。
-- [ ] `ReEcho.UI.LoadoutSelection` 聚焦自动化、Loadout WBP Compile/Save、CompileAllBlueprints、Development 构建、静态校验及最终发布 `-FullRebuild` 通过。
+- [x] `ReEcho.UI.LoadoutSelection` 聚焦自动化、Loadout WBP Compile/Save、CompileAllBlueprints、Development 构建、静态校验通过；最终发布 `-FullRebuild` 留到人工验收通过后的发布轮。
 - [ ] 用户在 PIE 人工确认两个返回路径、按钮视觉/位置、焦点与存档无副作用符合预期。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -107,7 +107,19 @@
 
 ### 变化
 
+- `WBP_ReEchoLoadoutSelection` 通过定向、幂等迁移新增 Designer-owned `BackButton` / `BackButtonLabel`；按钮复用确定按钮四态 Style、字体和内部对齐，底部布局为返回在左、确定在右，未重建角色/武器 Entry、Tooltip 或用户微调页面。
+- Loadout Widget 新增窄的 `OnBackRequested` 委托：武器页返回在 Widget 内恢复角色页、保留角色并清空武器；角色页返回由 GameMode 经 UI Flow 关闭配装页并重开 Start Menu。
+- 满存档槽的新游戏入口不再提前删除最旧存档；现在只稳定选择空槽或最旧目标槽，仍由最终配装确认后的 `StartRun + SaveRun` 执行覆盖。
+- 补充返回阶段、WBP 几何/样式契约及新游戏目标存档槽选择的自动化；同步 Designer 微调指导与 Run/UI 模块文档。
+
 ### 证据
+
+- 最新传入审计并重放到 `origin/main@b2bca7e79e579e5ec740df402e81bbe701168fa2`，传入提交只涉及商店 Tooltip 与对应预构建包，没有 Loadout/GameMode 行为冲突。
+- Plan154 定向迁移首次日志：`created=True back=(601,892,370,128.5285) confirm=(999,892,370,128.5285)`；二次迁移为 `created=False` 且两组几何完全不变，证明重跑不会复位用户手调位置。
+- 资产审计：`style=shared designer_owned=True`；Back/Confirm 均为 `LoadoutDesignCanvas` 子控件，各自 Label 为按钮子控件，正式字体、42px 字号、Outline 与四态 Brush 一致。
+- `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 2/2 为 `Result={Success}`；`ReEcho.GameMode.NewGameSaveSlot` 1/1 为 `Result={Success}`。
+- UE 5.8 Development Editor 构建成功（95/95 actions）；`CompileAllBlueprints` 为 `0 errors / 0 warnings / 0 blueprints that failed to load`。
+- `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check`、`git lfs fsck` 与 `git diff --check` 全部通过。精选 Editor 包为 7 modules、Build ID `55116800`、源码指纹 `8cfbcc497c78`。
 
 ### 剩余风险
 
@@ -119,4 +131,7 @@
 
 ### 架构文档审阅结果
 
-- 待执行阶段填写。
+- `MOD-ReEcho.md` 已记录新游戏满槽只选择待覆盖槽，取消配装不产生持久化副作用，最终确认才覆盖。
+- `MOD-ReEchoUI.md` 已记录 Weapon → Character 与 Character → StartMenu 的返回契约、Designer 控件权威和委托边界。
+- `Design/UI/ReEcho_UI修改指导.md` 已记录返回/确定按钮在 `WBP_ReEchoLoadoutSelection` 中的微调入口与不可由 C++ 重写的边界。
+- `ARCHITECTURE.md`、`shared/CODEBASE_MAP/README.md` 已审阅：模块拓扑、依赖方向及路由索引未变化，无需修改。
