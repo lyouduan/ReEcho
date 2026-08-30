@@ -67,7 +67,8 @@ public:
 
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
-	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView);
+	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView,
+	                          FName CharacterId = NAME_None);
 
 	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards,
@@ -127,6 +128,9 @@ private:
 	void RebuildTargetOfferRows();
 	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
+	/** Silently injects the selected character's passive as a synthetic "character card" into the owned-card
+	 *  view so it shows in the right-side card panel; no grant popup, no RunSubsystem inventory mutation. */
+	void InjectCharacterPassiveCardIntoOwnedView();
 	void BindOwnedCardPagination();
 	void UpdateOwnedCardPaginationControls();
 	void RebuildAttachmentHoverSlots();
@@ -292,6 +296,11 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshText;
 
+	// Runtime overlay text drawn on top of the cleaned refresh-button texture
+	// (the baked-in "刷新" label was removed from the source PNG).
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> ShopRefreshCountText;
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRuleText;
 
@@ -448,6 +457,7 @@ private:
 	bool bCurrentExtraCardPurchaseAllowed = true;
 	int32 CurrentShopRefreshSequence = 0;
 	TArray<FName> CurrentOwnedItems;
+	FName CurrentShopCharacterId = NAME_None;
 	FReEchoWeaponPartShopView CurrentPartShopView;
 	TArray<FReEchoShopOffer> VisibleRunItemOffers;
 	TArray<FReEchoShopOffer> VisibleWeaponPartOffers;

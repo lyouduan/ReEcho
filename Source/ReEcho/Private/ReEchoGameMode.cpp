@@ -4601,7 +4601,8 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
 	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
-	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView());
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(),
+	                                             RunSubsystem->CurrentBuild.CharacterId);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,
