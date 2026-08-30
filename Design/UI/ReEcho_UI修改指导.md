@@ -171,10 +171,10 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 ### 5.3 Loadout 两阶段所见即所得页面
 
 - Plan132 后页面固定按“角色确认 → 武器确认”两阶段展示；第一次确认只切阶段，第二次确认才向 GameMode 广播一次最终 `(CharacterId, WeaponId)`。WBP 不得自行启动 Run、切关或写存档。
-- `CharacterStagePanel > CharacterRow` 内固定放置 `CharacterEntry0..3`，`WeaponStagePanel > WeaponRow` 内固定放置 `WeaponEntry0..3`；八项都是实际运行使用的 `WBP_ReEchoLoadoutEntry` 实例，不是占位图。运行时从 CSV 写入名称、说明和资格，但复用这些 Designer 控件，不再清空后另建一套。不要删除或改名；可直接调整 Row 的 1920×1080 位置、每个 Entry 的 HorizontalBox Slot Padding，以及 Entry 蓝图内部尺寸与样式。
+- `CharacterStagePanel > CharacterRow` 内固定放置 `CharacterEntry0..3`，`WeaponStagePanel > WeaponRow` 内固定放置 `WeaponEntry0..3`；八项都是实际运行使用的 `WBP_ReEchoLoadoutEntry` 实例，不是占位图。运行时从 CSV 写入名称、说明和资格，但复用这些 Designer 控件，不再清空后另建一套。不要删除或改名；可直接调整 Row 的 1920×1080 位置、每个 Entry 的 HorizontalBox Slot Padding，以及 Entry 蓝图内部尺寸与样式。Plan154 后页面还固定拥有 `BackButton` / `BackButtonLabel`：它与 `ConfirmButton` / `ConfirmButtonLabel` 都使用正式浅/深按钮资源族。两个 Button 的位置、尺寸和明暗搭配可分别在 Designer 中微调，只需保持在 1920×1080 作者面内且互不遮挡；Label 是对应 Button 的子控件，会随按钮一起移动，运行时不会覆盖 Canvas 几何。
 - 初次进入每个阶段时没有候选：全部条目使用明亮 `Selected` 切图，说明、箭头和确认按钮隐藏。Plan138 后，鼠标 Hover 只使用与商店一致的原生 Tooltip 定位和全局缩放，Slate 跟随当前条目并自动避让屏幕边缘，框体视觉由 `WBP_ReEchoLoadoutTooltip` 完全管理；Hover 不写 Selected ID，也不会移动箭头或改变确认对象。鼠标点击某项后，该项才保持 `Selected`、其余项切到 `Unselected`，并显示箭头和确认按钮；已点击 A 后 Hover B 仍保持 A，直到实际点击 B。键盘/手柄 Focus 继续更新候选，并使用页面内 `DescriptionPanel` / `DescriptionTextScale` 大号回退框。
 - 条目外观统一修改 `WBP_ReEchoLoadoutEntry`。单独打开该 WBP 时使用内容实际尺寸预览，并默认显示 `EntrySelectionArrow`，可直接按最终比例调整条目；Selection 设计期和运行时仍按 Preview 状态控制箭头显隐。`EntryRootSizeBox.Height Override` 与 `PortraitSize.Height Override` 直接由该 WBP 资产拥有，保存、编译和运行时配置都不会回写固定高度；需要调高度时直接修改这两个 SizeBox。角色/武器因横向排版不同，宽度仍由 Selection 分别传入 `390/280`。`PortraitImage` 必须位于 `PortraitScale` 内并保持 `Stretch=Scale To Fit`，且其 ScaleBox Slot 的 Horizontal/Vertical Alignment 都必须为 `Center`。只设 Scale To Fit 但让子 Slot 保持 Fill，仍会把枪这类近方形素材沿另一轴拉长。
-- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。角色与武器页都由同一 Designer 内的 `StageSwitcher` 承载：在层级中选中它，直接将 Details 的 `Active Widget Index` 设为 `0`（角色）或 `1`（武器），Designer 会立即切换到对应的真实运行页面；Class Defaults 的 `Designer Preview Index` 只负责 `-1` 初始全亮态或 `0..3` 选中态。`TitleText`、八个 Entry、两个 Stage Panel、键盘 Focus 回退用的 `DescriptionPanel` / `DescriptionTextScale > DescriptionText`、八张箭头、`ConfirmButton` 和 `ConfirmButtonLabel` 都应在同一 Designer 中按实际运行控件调整。鼠标悬停说明框本身才在 `WBP_ReEchoLoadoutTooltip` 中调整；`TooltipRootSizeBox.Width Override` 控制总宽，`TooltipFrame` 使用 `T_UI_Loadout_DescriptionPanel` 的九宫格 Brush 并控制边框，`TooltipSurface` 控制内边距与内底色，`TitleText` / `DescriptionText` 控制字体和换行。
+- 1920×1080 位置权威位于 `WBP_ReEchoLoadoutSelection > LoadoutDesignCanvas`。角色与武器页都由同一 Designer 内的 `StageSwitcher` 承载：在层级中选中它，直接将 Details 的 `Active Widget Index` 设为 `0`（角色）或 `1`（武器），Designer 会立即切换到对应的真实运行页面；Class Defaults 的 `Designer Preview Index` 只负责 `-1` 初始全亮态或 `0..3` 选中态。`TitleText`、八个 Entry、两个 Stage Panel、键盘 Focus 回退用的 `DescriptionPanel` / `DescriptionTextScale > DescriptionText`、八张箭头、`BackButton` / `BackButtonLabel`、`ConfirmButton` / `ConfirmButtonLabel` 都应在同一 Designer 中按实际运行控件调整。返回按钮在角色页无候选时也始终显示；武器页点击后回角色页并保留角色，角色页点击后回主界面。鼠标悬停说明框本身才在 `WBP_ReEchoLoadoutTooltip` 中调整；`TooltipRootSizeBox.Width Override` 控制总宽，`TooltipFrame` 使用 `T_UI_Loadout_DescriptionPanel` 的九宫格 Brush 并控制边框，`TooltipSurface` 控制内边距与内底色，`TitleText` / `DescriptionText` 控制字体和换行。
 - 选中箭头位于 `WBP_ReEchoLoadoutEntry.EntrySelectionArrow`，与 `SelectButton` 同属 `EntryVisualOverlay`。全局 Hover 反馈会识别该 Overlay，因此角色/武器图、名称与箭头会作为一个整体放大缩小。箭头位置在 Entry 蓝图的 Overlay Slot 中统一调整；运行时只切换可见性，不写位置。不要把箭头重新放回 Selection 的公共 Canvas，否则它不会跟随单个条目的 Hover 缩放。
 - 正式源图位于 `Content/SourceArt/UI/LoadoutSelection/Plan132/`，运行时位于 `/Game/ReEcho/Textures/UI/LoadoutSelection/`。四张 `1-*.png` 是合成构图参考，不得作为整屏点击贴图；实际交互使用 16 张选中/未选中切图、解释框和箭头组合。
 - 角色说明读取 `characters.csv.Description`，武器说明读取对应 `weapon_types.csv.Description`；不要在 WBP/C++ 复制中文玩法文案，也不要用按钮文字反查 ID。C++ 只使用动态索引映射稳定 ID。
@@ -295,7 +295,7 @@ git diff --check
 ### PIE 流程检查
 
 1. Start Menu：新游戏、继续、设置、返回。
-2. Loadout：切换角色、切换武器、确认、动态条目焦点。
+2. Loadout：切换角色、切换武器、武器页返回角色页、角色页返回主界面、确认、动态条目焦点；返回时旧存档不应被创建、覆盖或删除。
 3. 战斗 HUD：玩家血量、敌人血条、遭遇倒计时和最后 5 秒警示。
 4. 背包/商城：打开、购买、余额更新、已拥有状态、关闭。
 5. 抽卡：三卡揭示、选择、额外抽卡、抽卡后自动进入商城、商城关闭后进入下一遭遇。

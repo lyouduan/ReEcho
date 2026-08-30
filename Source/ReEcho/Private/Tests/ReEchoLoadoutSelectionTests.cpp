@@ -3,6 +3,8 @@
 #include "Misc/AutomationTest.h"
 
 #include "Components/Border.h"
+#include "Components/Button.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
 #include "Components/ScaleBoxSlot.h"
@@ -62,13 +64,23 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 	Widget->HandleWeaponClicked(0);
 	TestEqual(TEXT("Mouse click selects the matching weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
 	Widget->HandleWeaponHovered(1);
-	TestEqual(TEXT("Hovering another weapon preserves the clicked weapon"),
-	          Widget->SelectedWeaponId,
-	          FName(TEXT("W_J_04")));
+	TestEqual(
+	    TEXT("Hovering another weapon preserves the clicked weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
 	Widget->HandleWeaponClicked(1);
-	TestEqual(TEXT("A later weapon click replaces the selected candidate"),
-	          Widget->SelectedWeaponId,
-	          FName(TEXT("W_J_09")));
+	TestEqual(
+	    TEXT("A later weapon click replaces the selected candidate"), Widget->SelectedWeaponId, FName(TEXT("W_J_09")));
+	Widget->HandleBackClicked();
+	TestTrue(TEXT("Back from weapon selection returns to the character stage"),
+	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Character);
+	TestEqual(TEXT("Back from weapon selection preserves the clicked character"),
+	          Widget->SelectedCharacterId,
+	          FName(TEXT("J_HEART")));
+	TestTrue(TEXT("Back from weapon selection clears the uncommitted weapon"), Widget->SelectedWeaponId.IsNone());
+	TestFalse(TEXT("Back from weapon selection does not submit a final loadout"), Widget->bFinalConfirmationBroadcast);
+	Widget->HandleConfirmClicked();
+	TestTrue(TEXT("Reconfirming the preserved character re-enters weapon selection"),
+	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Weapon);
+	Widget->HandleWeaponClicked(1);
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("Second confirmation submits the final loadout exactly once"), Widget->bFinalConfirmationBroadcast);
 	TestEqual(
@@ -136,6 +148,51 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		UReEchoLoadoutSelectionWidget* AuthoredWidget =
 		    NewObject<UReEchoLoadoutSelectionWidget>(GetTransientPackage(), SelectionClass);
 		TestTrue(TEXT("Authored selection widget initializes its Designer tree"), AuthoredWidget->Initialize());
+		TestNotNull(TEXT("Designer tree owns the Back button"), AuthoredWidget->BackButton.Get());
+		TestNotNull(TEXT("Designer tree owns the Back button label"), AuthoredWidget->BackButtonLabel.Get());
+		if (AuthoredWidget->BackButton && AuthoredWidget->ConfirmButton)
+		{
+			const FButtonStyle& BackStyle = AuthoredWidget->BackButton->GetStyle();
+			const FButtonStyle& ConfirmStyle = AuthoredWidget->ConfirmButton->GetStyle();
+			auto IsFormalButtonBrush = [](const FSlateBrush& Brush)
+			{
+				const UObject* Resource = Brush.GetResourceObject();
+				const FString Path = Resource ? Resource->GetPathName() : FString();
+				return Path.Contains(TEXT("/PauseAndCombat/T_UI_Pause_ButtonLight.")) ||
+				       Path.Contains(TEXT("/PauseAndCombat/T_UI_Pause_ButtonDark."));
+			};
+			TestTrue(TEXT("Back normal Brush remains in the formal button family"),
+			         IsFormalButtonBrush(BackStyle.Normal));
+			TestTrue(TEXT("Back hovered Brush remains in the formal button family"),
+			         IsFormalButtonBrush(BackStyle.Hovered));
+			TestTrue(TEXT("Back pressed Brush remains in the formal button family"),
+			         IsFormalButtonBrush(BackStyle.Pressed));
+			TestTrue(TEXT("Confirm normal Brush remains in the formal button family"),
+			         IsFormalButtonBrush(ConfirmStyle.Normal));
+			TestEqual(TEXT("Back remains visible before a candidate is selected"),
+			          AuthoredWidget->BackButton->GetVisibility(),
+			          ESlateVisibility::Visible);
+			UCanvasPanelSlot* BackSlot = Cast<UCanvasPanelSlot>(AuthoredWidget->BackButton->Slot);
+			UCanvasPanelSlot* ConfirmSlot = Cast<UCanvasPanelSlot>(AuthoredWidget->ConfirmButton->Slot);
+			TestNotNull(TEXT("Back button remains a Designer Canvas child"), BackSlot);
+			TestNotNull(TEXT("Confirm button remains a Designer Canvas child"), ConfirmSlot);
+			if (BackSlot && ConfirmSlot)
+			{
+				const FVector2D BackPosition = BackSlot->GetPosition();
+				const FVector2D BackSize = BackSlot->GetSize();
+				const FVector2D ConfirmPosition = ConfirmSlot->GetPosition();
+				const FVector2D ConfirmSize = ConfirmSlot->GetSize();
+				TestTrue(TEXT("Back keeps a positive authored size"), BackSize.X > 0.0f && BackSize.Y > 0.0f);
+				TestTrue(TEXT("Back stays inside the 1920x1080 authored surface"),
+				         BackPosition.X >= 0.0f && BackPosition.Y >= 0.0f &&
+				             BackPosition.X + BackSize.X <= 1920.0f && BackPosition.Y + BackSize.Y <= 1080.0f);
+				const bool bButtonsOverlap = BackPosition.X < ConfirmPosition.X + ConfirmSize.X &&
+				                             BackPosition.X + BackSize.X > ConfirmPosition.X &&
+				                             BackPosition.Y < ConfirmPosition.Y + ConfirmSize.Y &&
+				                             BackPosition.Y + BackSize.Y > ConfirmPosition.Y;
+				TestFalse(TEXT("Back does not overlap Confirm after Designer tuning"), bButtonsOverlap);
+			}
+		}
 		TestNotNull(TEXT("Designer tree owns the stage switcher"), AuthoredWidget->StageSwitcher.Get());
 		if (AuthoredWidget->StageSwitcher)
 		{

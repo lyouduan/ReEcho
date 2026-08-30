@@ -1609,38 +1609,53 @@ void AReEchoGameMode::HandleNewGameRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->SelectFirstEmptySaveSlot())
+	const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
+	const int32 TargetSlotIndex = ResolveNewGameSaveSlot(SaveSlots);
+	const FReEchoSaveSlotSummary* TargetSlot = SaveSlots.FindByPredicate(
+	    [TargetSlotIndex](const FReEchoSaveSlotSummary& Candidate)
+	    {
+		    return Candidate.SlotIndex == TargetSlotIndex;
+	    });
+	if (!TargetSlot || !RunSubsystem->SelectSaveSlot(TargetSlotIndex))
 	{
-		const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
-		const FReEchoSaveSlotSummary* OldestSaveSlot = nullptr;
-		for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
-		{
-			if (!SaveSlot.bOccupied)
-			{
-				continue;
-			}
-
-			if (!OldestSaveSlot || SaveSlot.SavedAtUtc < OldestSaveSlot->SavedAtUtc)
-			{
-				OldestSaveSlot = &SaveSlot;
-			}
-		}
-
-		if (!OldestSaveSlot || !RunSubsystem->SelectSaveSlot(OldestSaveSlot->SlotIndex))
-		{
-			PostUiEvent(FReEchoAudioEvents::UiError);
-			UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no replaceable save slot found."));
-			return;
-		}
-
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no writable save slot found."));
+		return;
+	}
+	if (TargetSlot->bOccupied)
+	{
 		UE_LOG(LogTemp,
 		       Display,
-		       TEXT("[ReEchoStartFlow] Replacing oldest save slot. Slot=%d SavedAtUtc=%s"),
-		       OldestSaveSlot->SlotIndex + 1,
-		       *OldestSaveSlot->SavedAtUtc.ToIso8601());
-		RunSubsystem->DeleteSavedRun();
+		       TEXT("[ReEchoStartFlow] Selected oldest save slot for deferred replacement. Slot=%d SavedAtUtc=%s"),
+		       TargetSlot->SlotIndex + 1,
+		       *TargetSlot->SavedAtUtc.ToIso8601());
 	}
 	ShowLoadoutSelection();
+}
+
+int32 AReEchoGameMode::ResolveNewGameSaveSlot(const TArray<FReEchoSaveSlotSummary>& SaveSlots)
+{
+	int32 FirstEmptySlotIndex = INDEX_NONE;
+	const FReEchoSaveSlotSummary* OldestOccupiedSlot = nullptr;
+	for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
+	{
+		if (!SaveSlot.bOccupied)
+		{
+			if (FirstEmptySlotIndex == INDEX_NONE || SaveSlot.SlotIndex < FirstEmptySlotIndex)
+			{
+				FirstEmptySlotIndex = SaveSlot.SlotIndex;
+			}
+			continue;
+		}
+		if (!OldestOccupiedSlot || SaveSlot.SavedAtUtc < OldestOccupiedSlot->SavedAtUtc ||
+		    (SaveSlot.SavedAtUtc == OldestOccupiedSlot->SavedAtUtc &&
+		     SaveSlot.SlotIndex < OldestOccupiedSlot->SlotIndex))
+		{
+			OldestOccupiedSlot = &SaveSlot;
+		}
+	}
+	return FirstEmptySlotIndex != INDEX_NONE ? FirstEmptySlotIndex
+	                                         : (OldestOccupiedSlot ? OldestOccupiedSlot->SlotIndex : INDEX_NONE);
 }
 
 void AReEchoGameMode::HandleContinueGameRequested()
@@ -1895,6 +1910,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 
 	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
 	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->OnBackRequested.AddDynamic(this, &AReEchoGameMode::HandleLoadoutBackRequested);
 	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
 	SetPlayerMenuAbilityBlocked(true);
 	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
@@ -1920,6 +1936,25 @@ void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FNam
 	       *CharacterId.ToString(),
 	       *WeaponId.ToString());
 	RequestBeginSelectedRun();
+}
+
+void AReEchoGameMode::HandleLoadoutBackRequested()
+{
+	if (!LoadoutSelectionWidget)
+	{
+		return;
+	}
+
+	LoadoutSelectionWidget->OnLoadoutConfirmed.RemoveDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->OnBackRequested.RemoveDynamic(this, &AReEchoGameMode::HandleLoadoutBackRequested);
+	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+	{
+		UIFlow->CloseScreen(EReEchoUIScreen::Loadout);
+	}
+	LoadoutSelectionWidget = nullptr;
+	ShowStartMenu();
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Loadout cancelled; returned to start menu without saving."));
 }
 
 void AReEchoGameMode::RequestBeginSelectedRun()
@@ -2182,6 +2217,27 @@ void AReEchoGameMode::ClearEchoes()
 	}
 	Echoes.Reset();
 	RefreshFogRevealSources();
+}
+
+void AReEchoGameMode::RemoveRetiredEchoes()
+{
+	const int32 RemovedCount = Echoes.RemoveAll(
+	    [](const TObjectPtr<AReEchoEchoActor>& Echo)
+	    {
+		    if (IsValid(Echo) && !Echo->IsRetirementPending())
+		    {
+			    return false;
+		    }
+		    if (IsValid(Echo))
+		    {
+			    Echo->Destroy();
+		    }
+		    return true;
+	    });
+	if (RemovedCount > 0)
+	{
+		RefreshFogRevealSources();
+	}
 }
 
 bool AReEchoGameMode::ResolveNextStageTransition(FReEchoStageTransitionDecision& OutDecision, FString& OutError) const
@@ -2595,6 +2651,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 		if (Echo && Echo->InitializeEcho(
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
+			Echo->ConfigureReplayLoop(IsBossEncounter() ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration : 0.0f);
 			Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 			if (bDeferActivation)
 			{
@@ -2857,6 +2914,9 @@ void AReEchoGameMode::ResumeSavedEncounter()
 				if (Echo->InitializeEcho(
 				        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 				{
+					Echo->ConfigureReplayLoop(IsBossEncounter()
+					                                  ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration
+					                                  : 0.0f);
 					Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 					Echo->AdvanceEcho(SavedState.EncounterTime);
 					Echoes.Add(Echo);
@@ -3537,6 +3597,7 @@ void AReEchoGameMode::HandleFixedStep(float)
 	{
 		return;
 	}
+	RemoveRetiredEchoes();
 	Player->Recorder->AdvanceRecording(Director->EncounterTime, Player->GetActorLocation());
 	ProcessScheduledSpawnEvents(Director->EncounterTime);
 	for (AReEchoEchoActor* Echo : Echoes)
