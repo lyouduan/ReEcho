@@ -11,7 +11,6 @@
 #include "UI/ReEchoSettingsWidget.h"
 #include "UI/ReEchoAboutWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
-#include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoWeatherWidget.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
@@ -51,9 +50,6 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice"));
 	static ConstructorHelpers::FClassFinder<UReEchoInventoryShopWidget> InventoryShopClass(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen"));
-	static ConstructorHelpers::FClassFinder<UReEchoStatsWidget> StatsClass(
-	    TEXT("/Game/ReEcho/UI/WBP_ReEchoStatsScreen"));
-
 	ScreenClasses.Add(EReEchoUIScreen::Weather, UReEchoWeatherWidget::StaticClass());
 	ScreenClasses.Add(EReEchoUIScreen::EncounterHud,
 	                  EncounterHudClass.Class ? EncounterHudClass.Class.Get()
@@ -76,8 +72,6 @@ UReEchoUIManagerSubsystem::UReEchoUIManagerSubsystem()
 	ScreenClasses.Add(EReEchoUIScreen::InventoryShop,
 	                  InventoryShopClass.Class ? InventoryShopClass.Class.Get()
 	                                           : UReEchoInventoryShopWidget::StaticClass());
-	ScreenClasses.Add(EReEchoUIScreen::Stats,
-	                  StatsClass.Class ? StatsClass.Class.Get() : UReEchoStatsWidget::StaticClass());
 }
 
 UUserWidget* UReEchoUIManagerSubsystem::CreateScreen(APlayerController* PlayerController, const EReEchoUIScreen Screen)
@@ -260,7 +254,6 @@ EReEchoUILayer UReEchoUIManagerSubsystem::GetScreenLayer(const EReEchoUIScreen S
 		case EReEchoUIScreen::EncounterTransition:
 			return EReEchoUILayer::Transition;
 		case EReEchoUIScreen::InventoryShop:
-		case EReEchoUIScreen::Stats:
 			return EReEchoUILayer::Screen;
 		case EReEchoUIScreen::Restart:
 			return EReEchoUILayer::Pause;

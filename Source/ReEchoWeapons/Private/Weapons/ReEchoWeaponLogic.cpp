@@ -158,7 +158,7 @@ const FReEchoWeaponStepDefinition* FReEchoWeaponLogic::GetNextStep() const
 
 float FReEchoWeaponLogic::GetAttackInterval(const FReEchoStatBlock& Stats) const
 {
-	return Definition.AttackIntervalSeconds / FMath::Max(0.1f, Stats.AttackSpeed);
+	return Definition.AttackIntervalSeconds / FMath::Max(0.1f, FMath::Min(Stats.AttackSpeed, FReEchoStatBlock::MaxAttackSpeedMultiplier));
 }
 
 float FReEchoWeaponLogic::GetCurrentRangeCm() const
@@ -207,7 +207,7 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	{
 		ReadinessRemainingSeconds = FMath::Max(0.01f, GetAttackInterval(Stats));
 	}
-	const float ScaledDuration = Step->DurationSeconds / FMath::Max(0.1f, Stats.AttackSpeed);
+	const float ScaledDuration = Step->DurationSeconds / FMath::Max(0.1f, FMath::Min(Stats.AttackSpeed, FReEchoStatBlock::MaxAttackSpeedMultiplier));
 	BehaviorRemainingSeconds = FMath::Max(0.0f, ScaledDuration);
 	if (Step->bInvulnerable)
 	{

@@ -123,7 +123,7 @@ Commit
 
 主模块可从已装备 Definition 的稳定 `VisualKey` 选择不同纹理或程序回退，但不得为此修改 Commit Carrier、Projectile Spec、碰撞半径、速度、范围或爆炸结算。生产武器清单固定为长剑、镰刀、弓和枪；`MoonStaff` 与 `StaffLightWave` 只服务贤者独立动画辅助，不是可选、可装备或可入商店的生产武器。
 
-Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec::bPierceOnCritical` 控制。逻辑投射物永久保存本弹的 `HitTargets`：直击暴击且造成正伤害时继续飞行，否则到期；同一目标最多结算一次。爆炸仍在每次有效接触点独立查询范围目标，因此穿透与爆炸组合不会把视觉碰撞或主模块回调变成第二个命中权威。分裂选目标和子弹生成属于主模块适配，但子弹继续复用此 Spec/HitIntent，且用显式标志禁止递归分裂。
+Plan76 的暴击穿透由初始化时快照化的 `FReEchoLogicalProjectileSpec::bPierceOnCritical` 控制。逻辑投射物永久保存本弹的 `HitTargets`：直击暴击且造成正伤害时继续飞行，否则到期；同一目标最多结算一次。爆炸仍在每次有效接触点独立查询范围目标，因此穿透与爆炸组合不会把视觉碰撞或主模块回调变成第二个命中权威。分裂选目标和子弹生成属于主模块适配，但子弹继续复用此 Spec/HitIntent，且用显式标志禁止递归分裂。分裂子弹还把母弹首次命中的 Actor 写入 `FReEchoLogicalProjectileSpec::InitialIgnoredTargets`；逻辑组件在第一次路径扫描前将其并入已命中集合，因此无论母目标 Hurtbox 多大，子弹直击和随后的爆炸都不会再次结算母目标。禁止用扩大生成偏移的固定距离替代该契约。
 
 四把生产武器由主模块 `FReEchoWeaponVisualCatalog` 以 `WeaponVisualKey` 一对一解析 `/Game/ReEcho/DataAsset/Weapon` 下的 `UReEchoWeaponPresentationProfile`，集中声明手持资源、绝对世界长度、武器本体动作模式及 Charge/Travel/DamageApplied 可选 VFX 槽；长剑/镰刀现有提交斩击使用独立 AttackCommitted 槽。每个 VFX Slot 的完整 `Offset` Transform 与世界尺寸策略也是该武器的表现真相。Catalog 另保留一个 `MoonStaff` 非生产辅助 Profile，不能进入武器定义、开局选择、商店或存档身份。Profile 不包含角色动画资产或玩法规则，禁止建立角色×武器×技能组合表。长剑/镰刀的 DamageApplied 由 Presentation 消费来源侧最终正伤害 `OnHit`，在命中世界位置播放且包含致死命中；弓/枪 Travel System 绑定逻辑 Actor，DamageApplied 只消费最终正伤害。弓箭保持原 Niagara 内部表现，只把完整 Component 的 authored `+X` 轴按 Commit 已锁定的攻击方向旋转一次。该机制不进入 `ReEchoWeapons` 逻辑模块；表现缺失时 Commit 和命中仍继续。
 
@@ -139,6 +139,8 @@ Plan126 为每个 Weapon Profile 增加中心化局部 `AttackVfxAnchorRatio` �
 ### 持有者瞄准适配
 
 `AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，Echo 宿主读取 `AReEchoEchoActor::AttackAimDirection`，两者都无需旋转根 Actor；其他宿主才回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile 与 MoonStaff 辅助 Wave 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
+
+玩家自动索敌时，弓和枪必须通过 `ResolveAutomaticAimDirectionToTarget` 从最终 `WeaponAttackVfxRoot` 投射物生成点指向目标的 `GetCombatTargetLocation()`；不得继续用角色中心到目标中心的平行方向。近战仍以角色中心求方向，手动鼠标瞄准也不受该自动索敌修正影响。
 
 ## 代码位置与阅读路线
 

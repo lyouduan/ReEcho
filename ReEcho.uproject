@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{74E3DAA9-4D48-DF55-3FFB-D5BB313B1834}",
+	"EngineAssociation": "5.8",
 	"Category": "Games",
 	"Description": "Time Echo vertical slice foundation",
 	"Modules": [
@@ -70,7 +70,9 @@
 		{
 			"Name": "ElectraPlayer",
 			"Enabled": true,
-			"PlatformAllowList": ["Win64"]
+			"PlatformAllowList": [
+				"Win64"
+			]
 		},
 		{
 			"Name": "ModelingToolsEditorMode",

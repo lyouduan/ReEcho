@@ -14,9 +14,11 @@ class UWidget;
 class UWidgetSwitcher;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FReEchoLoadoutConfirmed, FName, CharacterId, FName, WeaponId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoLoadoutBackRequested);
 
 /** Blocking first-encounter selection for a data-backed character and initial weapon. */
 UCLASS()
+
 class REECHO_API UReEchoLoadoutSelectionWidget : public UUserWidget
 {
 	GENERATED_BODY()
@@ -26,6 +28,10 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FReEchoLoadoutConfirmed OnLoadoutConfirmed;
+
+	/** Requests the owning flow to leave the character stage and restore the start menu. */
+	UPROPERTY(BlueprintAssignable)
+	FReEchoLoadoutBackRequested OnBackRequested;
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -43,6 +49,7 @@ private:
 	void BuildOptionEntries();
 	void LoadOptions();
 	void RefreshSelection();
+	void RefreshActionButtons(bool bCanConfirm);
 	void RefreshSelectionArrow();
 	void SetSelectionStage(ESelectionStage NewStage);
 	void SelectCharacter(FName CharacterId);
@@ -69,6 +76,15 @@ private:
 	UFUNCTION()
 	void HandleConfirmClicked();
 
+	UFUNCTION()
+	void HandleBackClicked();
+
+	UFUNCTION()
+	void HandleBackHovered();
+
+	UFUNCTION()
+	void HandleBackUnhovered();
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;
 
@@ -83,6 +99,9 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ConfirmButtonLabel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> BackButtonLabel;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> CharacterStagePanel;
@@ -119,6 +138,9 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConfirmButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> BackButton;
 
 #if WITH_EDITORONLY_DATA
 	/** Entry shown as selected in Designer; -1 previews the initial all-bright state. */

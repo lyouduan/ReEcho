@@ -367,6 +367,10 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		    DefaultActor
 		        ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("PresentationMotionRoot")))
 		        : nullptr;
+		USceneComponent* TerminalDeathRoot =
+		    DefaultActor
+		        ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("TerminalDeathMotionRoot")))
+		        : nullptr;
 		USceneComponent* FlipbookRoot =
 		    DefaultActor ? Cast<USceneComponent>(DefaultActor->GetDefaultSubobjectByName(TEXT("FlipbookRoot")))
 		                 : nullptr;
@@ -387,9 +391,13 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 		TestTrue(Label,
 		         Collision && Presentation && FootRoot && MotionRoot && FlipbookRoot && GroundRoot && EffectsRoot &&
 		             AttackVfxRoot && HurtVfxRoot && Renderer && Presentation->GetAttachParent() == Collision &&
-		             FootRoot->GetAttachParent() == Presentation && MotionRoot->GetAttachParent() == FootRoot &&
+		             FootRoot->GetAttachParent() == Presentation &&
+		             ((!TerminalDeathRoot && MotionRoot->GetAttachParent() == FootRoot) ||
+		              (TerminalDeathRoot && TerminalDeathRoot->GetAttachParent() == FootRoot &&
+		               MotionRoot->GetAttachParent() == TerminalDeathRoot)) &&
 		             FlipbookRoot->GetAttachParent() == MotionRoot &&
-		             GroundRoot->GetAttachParent() == (bStableEnemyGround ? FootRoot : MotionRoot) &&
+		             GroundRoot->GetAttachParent() ==
+		                 (TerminalDeathRoot ? TerminalDeathRoot : (bStableEnemyGround ? FootRoot : MotionRoot)) &&
 		             EffectsRoot->GetAttachParent() == MotionRoot && AttackVfxRoot->GetAttachParent() == EffectsRoot &&
 		             HurtVfxRoot->GetAttachParent() == EffectsRoot && Renderer->GetAttachParent() == FlipbookRoot &&
 		             !FlipbookRoot->IsUsingAbsoluteRotation() && !GroundRoot->IsUsingAbsoluteRotation() &&

@@ -2,7 +2,13 @@
 
 #include "ReEchoGameMode.h"
 
+#include "Components/LineBatchComponent.h"
+#include "Data/ReEchoCsvDataRegistry.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
+#include "Run/ReEchoRunSubsystem.h"
 
 #include <limits>
 
@@ -21,6 +27,128 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeSceneAndMoveSpeedTest,
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeEnemyElementAllTest,
                                  "ReEcho.GameMode.GMEnemyElementAll",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeNewGameSaveSlotTest,
+                                 "ReEcho.GameMode.NewGameSaveSlot",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeSpawnWarningNoDebugGeometryTest,
+                                 "ReEcho.GameMode.SpawnWarningNoDebugGeometry",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGameModeSpawnWarningNoDebugGeometryTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult Load =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production data loads"), Load.bSuccess) || !Load.Snapshot.IsValid())
+	{
+		AddError(Load.FormatIssues());
+		return false;
+	}
+	for (const EWorldType::Type WorldType : {EWorldType::Editor, EWorldType::Game})
+	{
+		const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("SpawnWarningTestWorld"));
+		FWorldContext& Context = GEngine->CreateNewWorldContext(WorldType);
+		UWorld* World = UWorld::CreateWorld(WorldType, false, WorldName, GetTransientPackage());
+		World->AddToRoot();
+		Context.SetCurrentWorld(World);
+		ON_SCOPE_EXIT
+		{
+			World->DestroyWorld(true);
+			GEngine->DestroyWorldContext(World);
+			World->RemoveFromRoot();
+		};
+		AReEchoGameMode* GameMode = World->SpawnActor<AReEchoGameMode>();
+		if (!TestNotNull(TEXT("Spawn warning host exists"), GameMode))
+		{
+			return false;
+		}
+		for (const FName EncounterId : {FName(TEXT("Encounter.1")), FName(TEXT("Encounter.8"))})
+		{
+			FString Error;
+			FReEchoEncounterWaveScheduler Probe;
+			if (!TestTrue(TEXT("Probe schedule compiles"), Probe.Configure(*Load.Snapshot, EncounterId, Error)) ||
+			    !TestTrue(TEXT("Host schedule compiles"),
+			              GameMode->EncounterWaveScheduler.Configure(*Load.Snapshot, EncounterId, Error)))
+			{
+				return false;
+			}
+			const TArray<FReEchoScheduledSpawnEvent> Warnings = Probe.AdvanceTo(0.0f);
+			TestTrue(TEXT("Initial wave has warning events"), Warnings.Num() > 0);
+			GameMode->PendingSpawnBatches.Reset();
+			// Seed resolved reservations so this test isolates the warning consumer from world placement.
+			const FVector ReservedLocation(125.0f, 250.0f, 215.0f);
+			for (const FReEchoScheduledSpawnEvent& Event : Warnings)
+			{
+				if (!TestEqual(
+				        TEXT("Initial events are warnings"), Event.Type, EReEchoScheduledSpawnEventType::Warning))
+				{
+					return false;
+				}
+				FReEchoPendingSpawnBatchState& Pending = GameMode->PendingSpawnBatches.AddDefaulted_GetRef();
+				Pending.WaveId = Event.WaveId;
+				Pending.EnemyRole = Event.EnemyRole;
+				Pending.EnemyId = Event.EnemyId;
+				Pending.Locations.Add(ReservedLocation);
+			}
+			GameMode->ProcessScheduledSpawnEvents(0.0f);
+			TestEqual(TEXT("Warnings still advance the authoritative cursor"),
+			          GameMode->EncounterWaveScheduler.GetNextEventIndex(),
+			          Probe.GetNextEventIndex());
+			TestEqual(TEXT("All reservations survive warning processing"),
+			          GameMode->PendingSpawnBatches.Num(),
+			          Warnings.Num());
+			for (const FReEchoPendingSpawnBatchState& Pending : GameMode->PendingSpawnBatches)
+			{
+				TestTrue(TEXT("Reserved locations are unchanged"),
+				         Pending.Locations == TArray<FVector>{ReservedLocation});
+			}
+			for (const UWorld::ELineBatcherType BatcherType : {UWorld::ELineBatcherType::World,
+			                                                   UWorld::ELineBatcherType::WorldPersistent,
+			                                                   UWorld::ELineBatcherType::Foreground})
+			{
+				const ULineBatchComponent* Batcher = World->GetLineBatcher(BatcherType);
+				if (TestNotNull(TEXT("World has a testable debug line batcher"), Batcher))
+				{
+					TestEqual(TEXT("Spawn warnings do not draw debug lines"), Batcher->BatchedLines.Num(), 0);
+					TestEqual(TEXT("Spawn warnings do not draw debug meshes"), Batcher->BatchedMeshes.Num(), 0);
+					TestEqual(TEXT("Spawn warnings do not draw debug points"), Batcher->BatchedPoints.Num(), 0);
+				}
+			}
+		}
+	}
+	return true;
+}
+
+bool FReEchoGameModeNewGameSaveSlotTest::RunTest(const FString& Parameters)
+{
+	TArray<FReEchoSaveSlotSummary> Slots;
+	for (int32 SlotIndex = 0; SlotIndex < 3; ++SlotIndex)
+	{
+		FReEchoSaveSlotSummary& Slot = Slots.AddDefaulted_GetRef();
+		Slot.SlotIndex = SlotIndex;
+		Slot.bOccupied = true;
+		Slot.SavedAtUtc = FDateTime(2026, 8, 30, 10 + SlotIndex, 0, 0);
+	}
+	Slots[1].bOccupied = false;
+	TestEqual(
+	    TEXT("New game prefers the first physical empty slot"), AReEchoGameMode::ResolveNewGameSaveSlot(Slots), 1);
+
+	Slots[1].bOccupied = true;
+	Slots[1].SavedAtUtc = FDateTime(2026, 8, 29, 8, 0, 0);
+	TestEqual(TEXT("A full save set selects the oldest slot without deleting it"),
+	          AReEchoGameMode::ResolveNewGameSaveSlot(Slots),
+	          1);
+
+	Slots[0].SavedAtUtc = Slots[1].SavedAtUtc;
+	TestEqual(TEXT("Equal save times choose the lowest stable slot index"),
+	          AReEchoGameMode::ResolveNewGameSaveSlot(Slots),
+	          0);
+	TestEqual(TEXT("An empty summary rejects new game allocation"),
+	          AReEchoGameMode::ResolveNewGameSaveSlot(TArray<FReEchoSaveSlotSummary>()),
+	          INDEX_NONE);
+	return true;
+}
 
 bool FReEchoGameModeSceneAndMoveSpeedTest::RunTest(const FString& Parameters)
 {

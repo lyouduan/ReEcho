@@ -70,6 +70,8 @@ public:
 	                    TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot);
 	/** 将回响推进到指定遭遇时间，补播期间跨过的所有事件。 */
 	void AdvanceEcho(float EncounterTime);
+	/** Positive only in Boss encounters; zero preserves one-shot playback. */
+	void ConfigureReplayLoop(float LoopDurationSeconds);
 	/** 根据录制角色 ID 选择对应的回响形态。 */
 	bool ConfigureEchoAppearance(FName CharacterId);
 	/** Presentation-owned icon for this Echo appearance on the combat minimap. */
@@ -82,6 +84,12 @@ public:
 	/** Replays only the one-shot birth presentation at this Echo's current GroundRoot. */
 	bool PlayBornVfx();
 	bool IsBornVfxPlaying() const;
+	/** Freezes replay and attacks during presentation-only stage transitions while leaving visual Tick active. */
+	void SetTransitionGameplaySuspended(bool bSuspended);
+	bool IsTransitionGameplaySuspended() const
+	{
+		return bTransitionGameplaySuspended;
+	}
 	/** Positions this Echo for a paused transition while withholding its actor/weapon presentation and birth VFX. */
 	void PrepareDeferredBornReveal(float EncounterTime);
 	/** Hides this Echo at its current playback position and arms a fresh birth reveal. */
@@ -117,6 +125,10 @@ public:
 	virtual void NotifyHitResolved(const FReEchoHitResolved& Result) const override;
 	virtual void NotifyNegativeStatusApplied(FName StatusId) const override;
 	virtual void NotifyDefeated(EReEchoDamageSource DamageSource) const override;
+	bool IsRetirementPending() const
+	{
+		return bRetirementPending;
+	}
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
@@ -276,4 +288,8 @@ private:
 	bool bHasPresentationLocation = false;
 	bool bAudioLifecycleStarted = false;
 	bool bCanAttack = true;
+	bool bTransitionGameplaySuspended = false;
+	bool bRetireOnDefeat = false;
+	mutable bool bDefeatHandled = false;
+	mutable bool bRetirementPending = false;
 };

@@ -382,6 +382,7 @@ float AReEchoEchoActor::GetCurrentHealth() const
 void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats)
 {
 	bCanAttack = Rules.bEchoesCanAttack;
+	bRetireOnDefeat = Rules.bRetireEchoOnDefeat;
 	if (Combatant && Rules.EchoHealthMultiplier > 1.0f)
 	{
 		FReEchoStatBlock Stats = Combatant->Stats;
@@ -498,6 +499,12 @@ void AReEchoEchoActor::NotifyNegativeStatusApplied(const FName StatusId) const
 
 void AReEchoEchoActor::NotifyDefeated(const EReEchoDamageSource DamageSource) const
 {
+	if (bDefeatHandled)
+	{
+		return;
+	}
+	bDefeatHandled = true;
+
 	if (DamageSource == EReEchoDamageSource::Enemy)
 	{
 		if (UReEchoRunSubsystem* Run =
@@ -509,6 +516,10 @@ void AReEchoEchoActor::NotifyDefeated(const EReEchoDamageSource DamageSource) co
 				Player->Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
 			}
 		}
+	}
+	if (bRetireOnDefeat)
+	{
+		bRetirementPending = true;
 	}
 }
 
@@ -529,11 +540,23 @@ FVector AReEchoEchoActor::EvaluateRecordedPosition(const float EncounterTime) co
 
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
+	if (bTransitionGameplaySuspended || bRetirementPending)
+	{
+		return;
+	}
 	Playback->AdvancePlayback(EncounterTime);
 	if (bBornVfxPending && !bDeferredBornReveal)
 	{
 		bBornVfxPending = false;
 		PlayBornVfx();
+	}
+}
+
+void AReEchoEchoActor::ConfigureReplayLoop(const float LoopDurationSeconds)
+{
+	if (Playback)
+	{
+		Playback->SetLoopDuration(LoopDurationSeconds);
 	}
 }
 
@@ -561,7 +584,21 @@ bool AReEchoEchoActor::BeginDeferredBornReveal()
 		return false;
 	}
 	bBornVfxPending = false;
+	// Encounter 2 Echoes are prepared while hidden, before their presentation components receive a normal world tick.
+	// Reveal first, then run the same footpoint/shadow refresh used by Tick so PlayBornVfx reads the same stable
+	// GroundShadow world center as the already-running GMEchoSummon path. The reveal remains fail-open if Niagara fails.
+	CompleteDeferredBornReveal();
+	UpdatePresentationState();
 	return PlayBornVfx();
+}
+
+void AReEchoEchoActor::SetTransitionGameplaySuspended(const bool bSuspended)
+{
+	bTransitionGameplaySuspended = bSuspended;
+	if (Weapon)
+	{
+		Weapon->SetTransitionGameplaySuspended(bSuspended);
+	}
 }
 
 void AReEchoEchoActor::CompleteDeferredBornReveal()
@@ -581,15 +618,15 @@ void AReEchoEchoActor::CompleteDeferredBornReveal()
 
 bool AReEchoEchoActor::PlayBornVfx()
 {
-	if (!CombatVfx || !GroundShadow || !IsCombatTargetAlive())
+	const UPaperFlipbook* Flipbook = EchoAnimation ? EchoAnimation->GetFlipbook() : nullptr;
+	if (!CombatVfx || !EchoAnimation || !Flipbook || !GroundShadow || !IsCombatTargetAlive())
 	{
 		return false;
 	}
-	constexpr float BornCircleToEchoWidthRatio = 0.8f;
-	const float EchoWorldWidth = CalculateSpatialShadowWidth() * GetActorScale3D().GetAbsMax();
-	FVector BornCircleCenter = GetActorLocation();
-	BornCircleCenter.Z = GroundShadow->GetComponentLocation().Z;
-	return CombatVfx->PlayEchoBornAtWorldLocation(BornCircleCenter, EchoWorldWidth * BornCircleToEchoWidthRatio);
+	// GroundShadow is the authoritative ground-space center for the Echo. Mixing Flipbook visual bounds for XY with
+	// shadow Z inherited sprite/presentation offsets and made the circle visibly off-center.
+	const FVector BornCircleCenter = GroundShadow->GetComponentLocation();
+	return CombatVfx->PlayEchoBornAtWorldLocation(BornCircleCenter);
 }
 
 bool AReEchoEchoActor::IsBornVfxPlaying() const
@@ -748,7 +785,7 @@ void AReEchoEchoActor::Tick(const float DeltaSeconds)
 
 	UpdatePresentationState();
 
-	if (!Weapon || !bCanAttack || !IsCombatTargetAlive())
+	if (bTransitionGameplaySuspended || !Weapon || !bCanAttack || !IsCombatTargetAlive())
 	{
 		return;
 	}

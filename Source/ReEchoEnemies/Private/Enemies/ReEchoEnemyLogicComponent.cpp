@@ -438,13 +438,13 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::Advance(const FReEchoEnemyS
 	{
 		return ApplyMovementPermit(Sense, AdvanceBoss(Sense, SafeDeltaSeconds));
 	}
-	if (Definition.Archetype == EReEchoEnemyArchetype::Ranged || Definition.Archetype == EReEchoEnemyArchetype::Elite)
-	{
-		return ApplyMovementPermit(Sense, AdvanceSpecial(Sense, SafeDeltaSeconds));
-	}
 	if (State.HitReactionRemainingSeconds > 0.0f)
 	{
 		return ApplyMovementPermit(Sense, AdvanceHitReaction(SafeDeltaSeconds));
+	}
+	if (Definition.Archetype == EReEchoEnemyArchetype::Ranged || Definition.Archetype == EReEchoEnemyArchetype::Elite)
+	{
+		return ApplyMovementPermit(Sense, AdvanceSpecial(Sense, SafeDeltaSeconds));
 	}
 
 	const bool bHasLiveTarget = Sense.bTargetExists && Sense.bTargetAlive;
@@ -1364,11 +1364,14 @@ FReEchoEnemyActionIntent UReEchoEnemyLogicComponent::AdvanceHitReaction(const fl
 {
 	FReEchoEnemyActionIntent Intent;
 	State.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
-	Intent.MovementDelta = State.KnockbackVelocity * DeltaSeconds;
-	Intent.bHasMovement = !Intent.MovementDelta.IsNearlyZero();
-	State.KnockbackVelocity =
-	    FMath::VInterpTo(State.KnockbackVelocity, FVector::ZeroVector, DeltaSeconds, Definition.KnockbackDrag);
-	State.HitReactionRemainingSeconds = FMath::Max(0.0f, State.HitReactionRemainingSeconds - DeltaSeconds);
+	const float StepSeconds = FMath::Min(FMath::Max(0.0f, DeltaSeconds), State.HitReactionRemainingSeconds);
+	State.KnockbackVelocity = FVector::ZeroVector;
+	State.HitReactionRemainingSeconds = FMath::Max(0.0f, State.HitReactionRemainingSeconds - StepSeconds);
+	if (State.HitReactionRemainingSeconds <= KINDA_SMALL_NUMBER)
+	{
+		State.HitReactionRemainingSeconds = 0.0f;
+		State.KnockbackVelocity = FVector::ZeroVector;
+	}
 	return Intent;
 }
 
@@ -1405,21 +1408,19 @@ void UReEchoEnemyLogicComponent::CommitAttack(const FReEchoEnemySenseSnapshot& S
 }
 
 void UReEchoEnemyLogicComponent::NotifyHurt(const float AppliedDamage,
-                                            const FVector& SourceLocation,
-                                            const FVector& SelfLocation)
+                                            const FVector& /*SourceLocation*/,
+                                            const FVector& /*SelfLocation*/)
 {
 	if (!bInitialized || !State.bAlive || AppliedDamage <= 0.0f)
 	{
 		return;
 	}
-	CancelSpecialAction();
-
-	FVector KnockbackDirection = (SelfLocation - SourceLocation).GetSafeNormal2D();
-	if (KnockbackDirection.IsNearlyZero())
+	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
-		KnockbackDirection = -State.FacingDirection.GetSafeNormal2D();
+		return;
 	}
-	State.KnockbackVelocity = KnockbackDirection * Definition.KnockbackSpeedCmPerSecond;
+	CancelSpecialAction();
+	State.KnockbackVelocity = FVector::ZeroVector;
 	State.HitReactionRemainingSeconds = Definition.HitReactionDurationSeconds;
 	State.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
 }
@@ -1660,6 +1661,8 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 	State.AttackCooldownRemainingSeconds = FMath::Max(0.0f, State.AttackCooldownRemainingSeconds);
 	State.FuseRemainingSeconds = FMath::Max(0.0f, State.FuseRemainingSeconds);
 	State.HitReactionRemainingSeconds = FMath::Max(0.0f, State.HitReactionRemainingSeconds);
+	// Legacy saves may contain gameplay knockback velocity. HitReaction is now a complete movement lock.
+	State.KnockbackVelocity = FVector::ZeroVector;
 	State.AttackSequence = FMath::Max<int64>(0, State.AttackSequence);
 	State.CurrentPhaseIndex = FMath::Clamp(State.CurrentPhaseIndex, 1, 3);
 	State.ReceivedDamageCount = FMath::Max(0, State.ReceivedDamageCount);
@@ -1733,6 +1736,8 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 	}
 	if (Definition.Archetype == EReEchoEnemyArchetype::Boss)
 	{
+		State.HitReactionRemainingSeconds = 0.0f;
+		State.KnockbackVelocity = FVector::ZeroVector;
 		TArray<FReEchoBossAbilityCooldownSnapshot> RestoredCooldowns;
 		for (const int32 AbilityIndex : BossActiveAbilityIndices)
 		{
@@ -1792,6 +1797,24 @@ void UReEchoEnemyLogicComponent::RestoreSnapshot(const FReEchoEnemyLogicSnapshot
 				State.BossCurrentAttackSequence = 0;
 				State.BossComboStrikeIndex = 0;
 				State.BossComboStrikeCount = 0;
+			}
+		}
+		if (State.Phase == EReEchoEnemyBehaviorPhase::HitReaction)
+		{
+			switch (State.BossActionPhase)
+			{
+				case EReEchoBossActionPhase::Windup:
+					State.Phase = EReEchoEnemyBehaviorPhase::BossWindup;
+					break;
+				case EReEchoBossActionPhase::Active:
+					State.Phase = EReEchoEnemyBehaviorPhase::BossActive;
+					break;
+				case EReEchoBossActionPhase::Recovery:
+					State.Phase = EReEchoEnemyBehaviorPhase::BossRecovery;
+					break;
+				default:
+					State.Phase = EReEchoEnemyBehaviorPhase::Idle;
+					break;
 			}
 		}
 	}

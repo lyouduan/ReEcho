@@ -104,7 +104,7 @@ struct REECHOCOMBAT_API FReEchoHitIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ReactionEfficiency = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
-	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CriticalMultiplier = 1.0f;
 	/** Internal adjudication guard: source-side rule providers already transformed this intent. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bSourceRulesApplied = false;
@@ -131,7 +131,7 @@ struct REECHOCOMBAT_API FReEchoHitResolved
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
-	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CriticalMultiplier = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bKilled = false;
@@ -150,6 +150,9 @@ USTRUCT(BlueprintType)
 struct REECHOCOMBAT_API FReEchoStatBlock
 {
 	GENERATED_BODY()
+
+	/** 攻击速度倍率硬上限 = 300%（即 3.0 倍基础攻速）。角色与回响统一适用。 */
+	static constexpr float MaxAttackSpeedMultiplier = 3.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float HpPoint = 15.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float HpMax = 100.f;

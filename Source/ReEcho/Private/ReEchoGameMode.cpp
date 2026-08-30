@@ -28,7 +28,6 @@
 #include "UnrealClient.h"
 #include "EngineUtils.h"
 #include "ImageUtils.h"
-#include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
@@ -65,7 +64,6 @@
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoSettingsWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
-#include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
@@ -1486,24 +1484,9 @@ void AReEchoGameMode::GMEchoSummon()
 			continue;
 		}
 		++PlayedCount;
-		const TWeakObjectPtr<AReEchoEchoActor> WeakEcho(Echo);
-		FTimerHandle RevealTimer;
-		GetWorldTimerManager().SetTimer(
-		    RevealTimer,
-		    [WeakEcho]()
-		    {
-			    if (AReEchoEchoActor* ActiveEcho = WeakEcho.Get())
-			    {
-				    ActiveEcho->CompleteDeferredBornReveal();
-			    }
-		    },
-		    GetStage01To02EchoRevealDelaySeconds(),
-		    false);
 	}
 	PrintGMResult(PlayedCount > 0
-	                  ? FString::Printf(TEXT("Replayed Echo summon reveal on %d living Echo(es); reveal delay %.1fs."),
-	                                    PlayedCount,
-	                                    GetStage01To02EchoRevealDelaySeconds())
+	                  ? FString::Printf(TEXT("Replayed simultaneous Echo summon on %d living Echo(es)."), PlayedCount)
 	                  : TEXT("GMEchoSummon requires at least one living Echo and a valid Echo Born system."),
 	              PlayedCount > 0);
 }
@@ -1628,7 +1611,16 @@ void AReEchoGameMode::StartPlay()
 		}
 	}
 	SetGameplayPresentationVisible(false);
-	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowStartMenu);
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>() : nullptr;
+	if (UIFlow && UIFlow->ConsumeLoadoutAfterWorldTravelRequest())
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowLoadoutSelection);
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowStartMenu);
+	}
 }
 
 void AReEchoGameMode::ShowStartMenu()
@@ -1680,38 +1672,53 @@ void AReEchoGameMode::HandleNewGameRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->SelectFirstEmptySaveSlot())
+	const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
+	const int32 TargetSlotIndex = ResolveNewGameSaveSlot(SaveSlots);
+	const FReEchoSaveSlotSummary* TargetSlot = SaveSlots.FindByPredicate(
+	    [TargetSlotIndex](const FReEchoSaveSlotSummary& Candidate)
+	    {
+		    return Candidate.SlotIndex == TargetSlotIndex;
+	    });
+	if (!TargetSlot || !RunSubsystem->SelectSaveSlot(TargetSlotIndex))
 	{
-		const TArray<FReEchoSaveSlotSummary> SaveSlots = RunSubsystem->GetSaveSlotSummaries();
-		const FReEchoSaveSlotSummary* OldestSaveSlot = nullptr;
-		for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
-		{
-			if (!SaveSlot.bOccupied)
-			{
-				continue;
-			}
-
-			if (!OldestSaveSlot || SaveSlot.SavedAtUtc < OldestSaveSlot->SavedAtUtc)
-			{
-				OldestSaveSlot = &SaveSlot;
-			}
-		}
-
-		if (!OldestSaveSlot || !RunSubsystem->SelectSaveSlot(OldestSaveSlot->SlotIndex))
-		{
-			PostUiEvent(FReEchoAudioEvents::UiError);
-			UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no replaceable save slot found."));
-			return;
-		}
-
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		UE_LOG(LogTemp, Warning, TEXT("[ReEchoStartFlow] New game failed: no writable save slot found."));
+		return;
+	}
+	if (TargetSlot->bOccupied)
+	{
 		UE_LOG(LogTemp,
 		       Display,
-		       TEXT("[ReEchoStartFlow] Replacing oldest save slot. Slot=%d SavedAtUtc=%s"),
-		       OldestSaveSlot->SlotIndex + 1,
-		       *OldestSaveSlot->SavedAtUtc.ToIso8601());
-		RunSubsystem->DeleteSavedRun();
+		       TEXT("[ReEchoStartFlow] Selected oldest save slot for deferred replacement. Slot=%d SavedAtUtc=%s"),
+		       TargetSlot->SlotIndex + 1,
+		       *TargetSlot->SavedAtUtc.ToIso8601());
 	}
 	ShowLoadoutSelection();
+}
+
+int32 AReEchoGameMode::ResolveNewGameSaveSlot(const TArray<FReEchoSaveSlotSummary>& SaveSlots)
+{
+	int32 FirstEmptySlotIndex = INDEX_NONE;
+	const FReEchoSaveSlotSummary* OldestOccupiedSlot = nullptr;
+	for (const FReEchoSaveSlotSummary& SaveSlot : SaveSlots)
+	{
+		if (!SaveSlot.bOccupied)
+		{
+			if (FirstEmptySlotIndex == INDEX_NONE || SaveSlot.SlotIndex < FirstEmptySlotIndex)
+			{
+				FirstEmptySlotIndex = SaveSlot.SlotIndex;
+			}
+			continue;
+		}
+		if (!OldestOccupiedSlot || SaveSlot.SavedAtUtc < OldestOccupiedSlot->SavedAtUtc ||
+		    (SaveSlot.SavedAtUtc == OldestOccupiedSlot->SavedAtUtc &&
+		     SaveSlot.SlotIndex < OldestOccupiedSlot->SlotIndex))
+		{
+			OldestOccupiedSlot = &SaveSlot;
+		}
+	}
+	return FirstEmptySlotIndex != INDEX_NONE ? FirstEmptySlotIndex
+	                                         : (OldestOccupiedSlot ? OldestOccupiedSlot->SlotIndex : INDEX_NONE);
 }
 
 void AReEchoGameMode::HandleContinueGameRequested()
@@ -1966,6 +1973,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 
 	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
 	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->OnBackRequested.AddDynamic(this, &AReEchoGameMode::HandleLoadoutBackRequested);
 	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
 	SetPlayerMenuAbilityBlocked(true);
 	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
@@ -1991,6 +1999,25 @@ void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FNam
 	       *CharacterId.ToString(),
 	       *WeaponId.ToString());
 	RequestBeginSelectedRun();
+}
+
+void AReEchoGameMode::HandleLoadoutBackRequested()
+{
+	if (!LoadoutSelectionWidget)
+	{
+		return;
+	}
+
+	LoadoutSelectionWidget->OnLoadoutConfirmed.RemoveDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->OnBackRequested.RemoveDynamic(this, &AReEchoGameMode::HandleLoadoutBackRequested);
+	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+	{
+		UIFlow->CloseScreen(EReEchoUIScreen::Loadout);
+	}
+	LoadoutSelectionWidget = nullptr;
+	ShowStartMenu();
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Loadout cancelled; returned to start menu without saving."));
 }
 
 void AReEchoGameMode::RequestBeginSelectedRun()
@@ -2253,6 +2280,27 @@ void AReEchoGameMode::ClearEchoes()
 	}
 	Echoes.Reset();
 	RefreshFogRevealSources();
+}
+
+void AReEchoGameMode::RemoveRetiredEchoes()
+{
+	const int32 RemovedCount = Echoes.RemoveAll(
+	    [](const TObjectPtr<AReEchoEchoActor>& Echo)
+	    {
+		    if (IsValid(Echo) && !Echo->IsRetirementPending())
+		    {
+			    return false;
+		    }
+		    if (IsValid(Echo))
+		    {
+			    Echo->Destroy();
+		    }
+		    return true;
+	    });
+	if (RemovedCount > 0)
+	{
+		RefreshFogRevealSources();
+	}
 }
 
 bool AReEchoGameMode::ResolveNextStageTransition(FReEchoStageTransitionDecision& OutDecision, FString& OutError) const
@@ -2667,10 +2715,13 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 		if (Echo && Echo->InitializeEcho(
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
+			Echo->ConfigureReplayLoop(IsBossEncounter() ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration
+			                                            : 0.0f);
 			Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 			if (bDeferActivation)
 			{
 				Echo->PrepareDeferredBornReveal(0.0f);
+				Echo->SetTransitionGameplaySuspended(true);
 			}
 			Echoes.Add(Echo);
 		}
@@ -2721,6 +2772,13 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 	RestoreGameInput();
 	GrantPostEntryInvulnerability(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (IsValid(Echo))
+		{
+			Echo->SetTransitionGameplaySuspended(false);
+		}
+	}
 	ProcessScheduledSpawnEvents(0.0f);
 	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::CaptureActiveSaveSlotPreview);
 	UE_LOG(LogReEcho,
@@ -2931,6 +2989,8 @@ void AReEchoGameMode::ResumeSavedEncounter()
 				if (Echo->InitializeEcho(
 				        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 				{
+					Echo->ConfigureReplayLoop(
+					    IsBossEncounter() ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration : 0.0f);
 					Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 					Echo->AdvanceEcho(SavedState.EncounterTime);
 					Echoes.Add(Echo);
@@ -3118,17 +3178,6 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 			       Event.Count,
 			       Pending ? Pending->Locations.Num() : 0,
 			       Event.SpawnSeconds);
-			if (Pending && GetWorld())
-			{
-				const float FixedStepGraceSeconds =
-				    1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
-				const float DisplaySeconds =
-				    FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds) + FixedStepGraceSeconds;
-				for (const FVector& Location : Pending->Locations)
-				{
-					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Red, false, DisplaySeconds, 0, 5.0f);
-				}
-			}
 			continue;
 		}
 		SpawnScheduledBatch(Event);
@@ -3708,6 +3757,7 @@ void AReEchoGameMode::HandleFixedStep(float)
 	{
 		return;
 	}
+	RemoveRetiredEchoes();
 	Player->Recorder->AdvanceRecording(Director->EncounterTime, Player->GetActorLocation());
 	ProcessScheduledSpawnEvents(Director->EncounterTime);
 	for (AReEchoEchoActor* Echo : Echoes)
@@ -4083,11 +4133,6 @@ void AReEchoGameMode::TogglePauseMenu()
 	{
 		return;
 	}
-	if (StatsWidget)
-	{
-		HandleStatsClosed();
-		return;
-	}
 	if (bRestartScreenIsTerminal)
 	{
 		return;
@@ -4116,76 +4161,6 @@ void AReEchoGameMode::TogglePauseMenu()
 	}
 	bPauseOpenedOverInventoryShop = false;
 	ShowRestartScreen(false);
-}
-
-void AReEchoGameMode::ToggleStatsMenu()
-{
-	if (BossTransformTargetPhase != 0)
-	{
-		return;
-	}
-	if (StatsWidget)
-	{
-		HandleStatsClosed();
-		return;
-	}
-	ShowStatsMenu();
-}
-
-void AReEchoGameMode::ShowStatsMenu()
-{
-	if (InventoryShopWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal || !Player)
-	{
-		return;
-	}
-
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
-	if (!PlayerController)
-	{
-		return;
-	}
-
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	StatsWidget =
-	    UIFlow ? Cast<UReEchoStatsWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
-	           : nullptr;
-	if (!StatsWidget)
-	{
-		return;
-	}
-
-	FReEchoStatBlock EchoStats;
-	float EchoHealth = 0.0f;
-	bool bHasEcho = false;
-	for (AReEchoEchoActor* Echo : Echoes)
-	{
-		if (Echo)
-		{
-			EchoStats = Echo->GetCurrentStats();
-			EchoHealth = Echo->GetCurrentHealth();
-			bHasEcho = true;
-			break;
-		}
-	}
-
-	StatsWidget->InitializeStats(
-	    Player->Combatant->Stats, Player->Combatant->CurrentHealth, EchoStats, EchoHealth, bHasEcho);
-	StatsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleStatsClosed);
-	SetPlayerMenuAbilityBlocked(true);
-}
-
-void AReEchoGameMode::HandleStatsClosed()
-{
-	if (StatsWidget)
-	{
-		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
-		{
-			UIFlow->CloseScreen(EReEchoUIScreen::Stats);
-		}
-		StatsWidget = nullptr;
-	}
-	RestoreGameInput();
 }
 
 void AReEchoGameMode::ToggleInventoryMenu()
@@ -4228,13 +4203,12 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 {
 	UE_LOG(LogReEcho,
 	       Log,
-	       TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
+	       TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Trait=%d Restart=%d Terminal=%d)"),
 	       (int32)Mode,
-	       StatsWidget ? 1 : 0,
 	       TraitCardChoiceWidget ? 1 : 0,
 	       RestartWidget ? 1 : 0,
 	       bRestartScreenIsTerminal ? 1 : 0);
-	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
+	if (TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
 		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] ShowInventoryShopMenu guard TRIPPED - early return"));
 		return;
@@ -5094,10 +5068,11 @@ void AReEchoGameMode::CompletePauseExit()
 
 void AReEchoGameMode::HandleRestartRequested()
 {
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>() : nullptr;
 	if (RestartWidget)
 	{
-		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		if (UIFlow)
 		{
 			UIFlow->CloseScreen(EReEchoUIScreen::Restart);
 		}
@@ -5106,22 +5081,22 @@ void AReEchoGameMode::HandleRestartRequested()
 	bRestartScreenIsTerminal = false;
 	bRestartScreenIsDeath = false;
 
-	// #12 死亡/胜利后"重新开始"不再重载关卡，改为就地清理并进入新游戏流程
-	// （角色/武器选择界面），避免重载后 StartPlay 无条件弹出主菜单（与 #11 同类回归）。
-	// 后续由 BeginNextEncounter 在开局时完整复位玩家与战场。
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	if (RunSubsystem)
 	{
 		RunSubsystem->DeleteSavedRun();
 	}
-	// 复位会阻挡再次开局的标志位（首次开局时已置为 true）。
-	bBeginSelectedRunRequested = false;
-	bBeginSelectedRunStarted = false;
-	// 清除当前战场残存（敌人 / Echo），开局时会重新生成。
-	ClearCombatants();
+	if (UIFlow)
+	{
+		UIFlow->RequestLoadoutAfterWorldTravel();
+	}
+	if (UReEchoAudioService* AudioService = GetAudioService())
+	{
+		AudioService->QueueEventForNextWorld(FReEchoAudioEvents::Revive);
+	}
 	UGameplayStatics::SetGamePaused(this, false);
-	PostAudioEvent(FReEchoAudioEvents::Revive, FVector::ZeroVector);
-	ShowLoadoutSelection();
+	const FName CurrentLevelName(*UGameplayStatics::GetCurrentLevelName(this, true));
+	UGameplayStatics::OpenLevel(this, CurrentLevelName);
 }
 
 void AReEchoGameMode::HandleEncounterEnded()
@@ -5814,17 +5789,18 @@ void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed, const bool bSkip
 		       *GetNameSafe(EchoTarget));
 	}
 	// Encounter 2 remains prepared but inactive, with input and enemy simulation still gated. Leave the world
-	// unpaused so Niagara's system manager can actually simulate the birth effect before the Echo is revealed.
+	// unpaused so Niagara's system manager can simulate the birth effect while the Echo is visible.
 	SetEncounterTransitionWorldPaused(false);
-	// Start the birth circle while the final opaque CG frame still covers the world. Closing the transition screen
-	// afterwards guarantees the first returned gameplay frame already contains the running effect.
-	const bool bEchoRevealStarted = bEchoPrepositioned && BeginStage01To02EchoReveal();
+	// Remove the opaque CG layer before Niagara activation. Starting the one-shot behind the media widget consumed its
+	// important opening frames before the game viewport became visible, unlike the working GMEchoSummon path.
 	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 	{
 		UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
 	}
 	EncounterTransitionWidget = nullptr;
+	// The UI close and reveal still happen in one game tick, so the next rendered frame contains both Echo and circle.
+	const bool bEchoRevealStarted = bEchoPrepositioned && BeginStage01To02EchoReveal();
 	if (bEchoPrepositioned)
 	{
 		if (bEchoRevealStarted)
@@ -5961,6 +5937,9 @@ bool AReEchoGameMode::BeginStage01To02EchoReveal()
 			bPlayedAnyBornVfx |= Echo->BeginDeferredBornReveal();
 		}
 	}
+	// BeginDeferredBornReveal atomically reveals each Echo, refreshes its Flipbook transform, and activates Niagara.
+	// The following delay only holds the camera; this completion remains a fail-open cleanup for invalid Echoes.
+	CompleteStage01To02EchoReveal();
 	return bPlayedAnyBornVfx;
 }
 

@@ -48,6 +48,7 @@ namespace ReEchoCombatVfx
 constexpr int32 CombatEffectSortOffset = 1;
 constexpr int32 CombatEffectSortPriorityFloor = 1000;
 constexpr float DebugElementReactionPreviewSeconds = 2.0f;
+constexpr float BoundedElementReactionLifetimeSeconds = 2.0f;
 constexpr int32 EchoAuraSortOffset = -1;
 constexpr float EchoConnectionBoundsPaddingCm = 200.0f;
 const FBox FoxDirectionRuntimeBounds(FVector(-500.0f, -500.0f, -650.0f), FVector(500.0f, 500.0f, 350.0f));
@@ -237,7 +238,16 @@ float UReEchoCombatVfxComponent::ResolveProjectileGlowDiameter(const float Colli
 
 bool UReEchoCombatVfxComponent::IsElementReactionStateDriven(const FName ReactionId)
 {
-	return ReactionId == TEXT("Y_ER_F_G") || ReactionId == TEXT("Y_ER_L_G");
+	return ReactionId == TEXT("Y_ER_F_G");
+}
+
+bool UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(const uint8 SemanticValue)
+{
+	const EReEchoElementReactionVfxSemantic Semantic = static_cast<EReEchoElementReactionVfxSemantic>(SemanticValue);
+	return Semantic == EReEchoElementReactionVfxSemantic::Vaporize ||
+	       Semantic == EReEchoElementReactionVfxSemantic::Growth ||
+	       Semantic == EReEchoElementReactionVfxSemantic::EnhanceGrass ||
+	       Semantic == EReEchoElementReactionVfxSemantic::EnhanceWater;
 }
 
 bool UReEchoCombatVfxComponent::TryResolveDebugElementReactionSemantic(const FName ReactionName,
@@ -359,6 +369,20 @@ bool UReEchoCombatVfxComponent::TryResolveFlipbookCenter(AActor* Target, FVector
 	return true;
 }
 
+bool UReEchoCombatVfxComponent::TryResolveFlipbookWorldDiameter(AActor* Target, float& OutDiameterCm)
+{
+	UReEcho2DAnimationComponent* Animation =
+	    Target ? Target->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+	const UPaperFlipbook* Flipbook = Animation ? Animation->GetFlipbook() : nullptr;
+	if (!Animation || !Flipbook)
+	{
+		return false;
+	}
+	const FBoxSphereBounds WorldBounds = Flipbook->GetRenderBounds().TransformBy(Animation->GetComponentTransform());
+	OutDiameterCm = (WorldBounds.BoxExtent * 2.0f).GetMax();
+	return OutDiameterCm > UE_SMALL_NUMBER;
+}
+
 bool UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner)
 {
 	const bool bTargetIsEnemy = Cast<AReEchoEnemyActor>(Owner) != nullptr;
@@ -372,6 +396,28 @@ FVector UReEchoCombatVfxComponent::ResolveBossHurtEffectLocation(const FVector& 
 	FVector Result = HurtRootWorld;
 	Result.Z = FMath::Lerp(HurtRootWorld.Z, FlipbookCenterWorld.Z, 0.5f);
 	return Result;
+}
+
+FVector UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(const UNiagaraSystem* ReactionSystem,
+                                                                          const float TargetDiameterCm,
+                                                                          const float CoverageRatio,
+                                                                          const FVector& FallbackWorldScale)
+{
+	if (!ReactionSystem || TargetDiameterCm <= UE_SMALL_NUMBER || CoverageRatio <= UE_SMALL_NUMBER)
+	{
+		return FallbackWorldScale;
+	}
+	const FBox ReactionBounds = ReactionSystem->GetFixedBounds();
+	if (!ReactionBounds.IsValid)
+	{
+		return FallbackWorldScale;
+	}
+	const float ReactionDiameter = ReactionBounds.GetSize().GetMax();
+	if (ReactionDiameter <= UE_SMALL_NUMBER)
+	{
+		return FallbackWorldScale;
+	}
+	return FVector(TargetDiameterCm * CoverageRatio / ReactionDiameter);
 }
 
 FBox UReEchoCombatVfxComponent::ResolveConnectionLinkLocalBounds(const FTransform& EffectTransform,
@@ -729,9 +775,10 @@ bool UReEchoCombatVfxComponent::SetEchoBornMeshHeightScale(UNiagaraSystem* Syste
 				{
 					continue;
 				}
-				const FVector3f Current = Script->RapidIterationParameters.GetParameterValue<FVector3f>(Parameter);
 				Script->Modify();
-				Script->RapidIterationParameters.SetParameterValue(FVector3f(Current.X, Current.Y, 0.1f), Parameter);
+				// Fountain004 retains the source asset's complete authored size. Its relative layer size is owned by
+				// Niagara; only the runtime component applies the common Echo Born world-scale normalization.
+				Script->RapidIterationParameters.SetParameterValue(FVector3f(25.0f, 25.0f, 40.0f), Parameter);
 				bModified = true;
 			}
 		}
@@ -995,25 +1042,7 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
 	}
 }
 
-FVector UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(const float DesiredWorldDiameterCm,
-                                                             const FBox& AuthoredSystemBounds,
-                                                             const FVector& FallbackScale)
-{
-	if (DesiredWorldDiameterCm <= UE_SMALL_NUMBER || !AuthoredSystemBounds.IsValid)
-	{
-		return FallbackScale;
-	}
-	const FVector AuthoredSize = AuthoredSystemBounds.GetSize();
-	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.X, AuthoredSize.Y);
-	if (AuthoredGroundDiameter <= UE_SMALL_NUMBER)
-	{
-		return FallbackScale;
-	}
-	return FVector(DesiredWorldDiameterCm / AuthoredGroundDiameter);
-}
-
-bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation,
-                                                            const float DesiredWorldDiameterCm) const
+bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation) const
 {
 	const EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::EchoBorn;
 	UNiagaraComponent* Effect =
@@ -1029,10 +1058,6 @@ bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& Groun
 	Effect->SetTranslucentSortPriority(ResolveOwnerAuraSortPriority());
 	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
 	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::ForwardVector);
-	const UNiagaraSystem* System = Effect->GetAsset();
-	const FBox AuthoredBounds = System ? System->GetFixedBounds() : FBox(EForceInit::ForceInit);
-	Effect->SetWorldScale3D(ResolveEchoBornWorldScale(
-	    DesiredWorldDiameterCm, AuthoredBounds, FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).Scale));
 	EchoBornEffect = Effect;
 	Effect->Activate(true);
 	const float DurationSeconds = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).PlaybackDurationSeconds;
@@ -1959,9 +1984,7 @@ void UReEchoCombatVfxComponent::StopAllEffects()
 	StopEffect(ChargingEffect);
 	StopEffect(DirectionEffect);
 	StopEffect(DashEffect);
-	StopEffect(ElementAttachmentEffect);
 	StopEffect(BurnStatusEffect);
-	ActiveAttachmentElement = EReEchoElement::None;
 	for (TPair<FReEchoProjectileVisualKey, TObjectPtr<UMaterialBillboardComponent>>& Pair : ProjectileVisuals)
 	{
 		StopProjectileVisual(Pair.Value);
@@ -2098,50 +2121,7 @@ UNiagaraSystem* UReEchoCombatVfxComponent::ResolveElementSystem(const uint8 Sema
 
 void UReEchoCombatVfxComponent::RefreshElementEffects(const FReEchoElementState& State)
 {
-	RefreshElementAttachment(State.Attached);
 	RefreshBurnStatus(State.bBurnActive);
-}
-
-void UReEchoCombatVfxComponent::RefreshElementAttachment(const EReEchoElement Element)
-{
-	if (ActiveAttachmentElement == Element && ElementAttachmentEffect)
-	{
-		return;
-	}
-	StopEffect(ElementAttachmentEffect);
-	ActiveAttachmentElement = EReEchoElement::None;
-	EReEchoElementReactionVfxSemantic Semantic;
-	if (Element == EReEchoElement::Grass)
-	{
-		Semantic = EReEchoElementReactionVfxSemantic::AttachmentGrass;
-	}
-	else if (Element == EReEchoElement::Water)
-	{
-		Semantic = EReEchoElementReactionVfxSemantic::AttachmentWater;
-	}
-	else
-	{
-		return;
-	}
-	UNiagaraSystem* System = ResolveElementSystem(static_cast<uint8>(Semantic), GetOwner());
-	if (System && ResolveHurtVfxRoot())
-	{
-		ElementAttachmentEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
-		                                                                       ResolveHurtVfxRoot(),
-		                                                                       NAME_None,
-		                                                                       FVector::ZeroVector,
-		                                                                       FRotator::ZeroRotator,
-		                                                                       FVector::OneVector,
-		                                                                       EAttachLocation::KeepRelativeOffset,
-		                                                                       false,
-		                                                                       ENCPoolMethod::None,
-		                                                                       true);
-		if (ElementAttachmentEffect)
-		{
-			ElementAttachmentEffect->SetTranslucentSortPriority(ResolveOwnerSortPriority());
-			ActiveAttachmentElement = Element;
-		}
-	}
 }
 
 void UReEchoCombatVfxComponent::RefreshBurnStatus(const bool bBurnActive)
@@ -2163,12 +2143,24 @@ void UReEchoCombatVfxComponent::RefreshBurnStatus(const bool bBurnActive)
 	    ResolveElementSystem(static_cast<uint8>(EReEchoElementReactionVfxSemantic::Burn), GetOwner());
 	if (System && ResolveHurtVfxRoot())
 	{
+		const FReEchoElementReactionVfxPlacement Placement =
+		    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::Burn);
+		FVector ReactionWorldScale = Placement.WorldScale;
+		float FlipbookDiameterCm = 0.0f;
+		if (Placement.bMatchTargetFlipbookSize && TryResolveFlipbookWorldDiameter(GetOwner(), FlipbookDiameterCm))
+		{
+			ReactionWorldScale = ResolveTargetMatchedReactionWorldScale(
+			    System, FlipbookDiameterCm, Placement.TargetCoverageRatio, Placement.WorldScale);
+		}
+		const FVector RelativeScale = ResolveAttachedScale(ReactionWorldScale,
+		                                                   ResolveHurtVfxRoot()->GetComponentTransform().GetScale3D(),
+		                                                   Placement.bPreserveWorldSize);
 		BurnStatusEffect = UNiagaraFunctionLibrary::SpawnSystemAttached(System,
 		                                                                ResolveHurtVfxRoot(),
 		                                                                NAME_None,
 		                                                                FVector::ZeroVector,
 		                                                                FRotator::ZeroRotator,
-		                                                                FVector::OneVector,
+		                                                                RelativeScale,
 		                                                                EAttachLocation::KeepRelativeOffset,
 		                                                                false,
 		                                                                ENCPoolMethod::None,
@@ -2192,13 +2184,38 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8
 	USceneComponent* AttachmentRoot = TargetVfx ? TargetVfx->ResolveHurtVfxRoot() : Target->GetRootComponent();
 	if (AttachmentRoot)
 	{
+		FVector RelativeLocation = FVector::ZeroVector;
+		if (const AReEchoEnemyActor* TargetEnemy = Cast<AReEchoEnemyActor>(Target);
+		    TargetEnemy && TargetEnemy->GetPresentationId() == TEXT("Enemy.TimeGuard"))
+		{
+			FVector FlipbookCenterWorld = FVector::ZeroVector;
+			if (TryResolveFlipbookCenter(Target, FlipbookCenterWorld))
+			{
+				const FVector BossReactionWorld =
+				    ResolveBossHurtEffectLocation(AttachmentRoot->GetComponentLocation(), FlipbookCenterWorld);
+				RelativeLocation = AttachmentRoot->GetComponentTransform().InverseTransformPosition(BossReactionWorld);
+			}
+		}
+		const EReEchoElementReactionVfxSemantic Semantic =
+		    static_cast<EReEchoElementReactionVfxSemantic>(SemanticValue);
+		const FReEchoElementReactionVfxPlacement Placement =
+		    FReEchoElementReactionVfxCatalog::ResolvePlacement(Semantic);
+		FVector ReactionWorldScale = Placement.WorldScale;
+		float FlipbookDiameterCm = 0.0f;
+		if (Placement.bMatchTargetFlipbookSize && TryResolveFlipbookWorldDiameter(Target, FlipbookDiameterCm))
+		{
+			ReactionWorldScale = ResolveTargetMatchedReactionWorldScale(
+			    System, FlipbookDiameterCm, Placement.TargetCoverageRatio, Placement.WorldScale);
+		}
+		const FVector RelativeScale = ResolveAttachedScale(
+		    ReactionWorldScale, AttachmentRoot->GetComponentTransform().GetScale3D(), Placement.bPreserveWorldSize);
 		if (UNiagaraComponent* Effect =
 		        UNiagaraFunctionLibrary::SpawnSystemAttached(System,
 		                                                     AttachmentRoot,
 		                                                     NAME_None,
-		                                                     FVector::ZeroVector,
+		                                                     RelativeLocation,
 		                                                     FRotator::ZeroRotator,
-		                                                     FVector::OneVector,
+		                                                     RelativeScale,
 		                                                     EAttachLocation::KeepRelativeOffset,
 		                                                     true,
 		                                                     ENCPoolMethod::None,
@@ -2206,6 +2223,24 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnElementReactionAt(const uint8
 		{
 			Effect->SetTranslucentSortPriority(TargetVfx ? TargetVfx->ResolveOwnerSortPriority()
 			                                             : ResolveOwnerSortPriority());
+			if (UWorld* World = GetWorld(); World && IsBoundedElementReactionSemantic(SemanticValue))
+			{
+				TWeakObjectPtr<UNiagaraComponent> WeakEffect = Effect;
+				FTimerHandle StopTimer;
+				World->GetTimerManager().SetTimer(
+				    StopTimer,
+				    FTimerDelegate::CreateWeakLambda(this,
+				                                     [WeakEffect]()
+				                                     {
+					                                     if (UNiagaraComponent* ActiveEffect = WeakEffect.Get())
+					                                     {
+						                                     ActiveEffect->DeactivateImmediate();
+						                                     ActiveEffect->DestroyComponent();
+					                                     }
+				                                     }),
+				    ReEchoCombatVfx::BoundedElementReactionLifetimeSeconds,
+				    false);
+			}
 			return Effect;
 		}
 	}
@@ -2543,7 +2578,7 @@ void UReEchoCombatVfxComponent::HandleElementReactionResolved(const FReEchoEleme
 	EReEchoElementReactionVfxSemantic Semantic;
 	if (IsElementReactionStateDriven(Event.ReactionId))
 	{
-		// Burn is driven by the authoritative timed status; Growth is driven by each target's attached Grass state.
+		// Burn is driven by the authoritative timed reaction status.
 		return;
 	}
 	if (Event.ReactionId == TEXT("Y_ER_L_W"))
@@ -2554,6 +2589,10 @@ void UReEchoCombatVfxComponent::HandleElementReactionResolved(const FReEchoEleme
 	if (Event.ReactionId == TEXT("Y_ER_F_W"))
 	{
 		Semantic = EReEchoElementReactionVfxSemantic::Vaporize;
+	}
+	else if (Event.ReactionId == TEXT("Y_ER_L_G"))
+	{
+		Semantic = EReEchoElementReactionVfxSemantic::Growth;
 	}
 	else if (Event.ReactionId == TEXT("Y_ER_G_W"))
 	{

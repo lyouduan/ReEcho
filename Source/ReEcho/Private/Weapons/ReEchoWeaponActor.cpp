@@ -907,6 +907,40 @@ FVector AReEchoWeaponActor::ResolveOwnerAimDirection() const
 	return OwnerForward.IsNearlyZero() ? FVector::ForwardVector : OwnerForward;
 }
 
+FVector AReEchoWeaponActor::ResolveAutomaticAimDirectionToTarget(const FVector& TargetLocation) const
+{
+	const AActor* WeaponOwner = GetOwner();
+	if (!WeaponOwner)
+	{
+		return FVector::ForwardVector;
+	}
+
+	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
+	FVector OwnerToTarget = TargetLocation - OwnerLocation;
+	OwnerToTarget.Z = 0.0f;
+	const FVector OwnerDirection = OwnerToTarget.GetSafeNormal2D();
+	if (OwnerDirection.IsNearlyZero())
+	{
+		return ResolveOwnerAimDirection();
+	}
+
+	const FName VisualKey = GetEquippedWeaponVisualKey();
+	if (VisualKey != TEXT("Bow") && VisualKey != TEXT("Gun"))
+	{
+		return OwnerDirection;
+	}
+
+	const bool bHasWeaponAnchor = IsValid(WeaponAttackVfxRoot);
+	const FVector WeaponAnchorLocation =
+	    bHasWeaponAnchor ? WeaponAttackVfxRoot->GetComponentLocation() : FVector::ZeroVector;
+	const FVector SpawnLocation = ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
+	    WeaponAnchorLocation, OwnerLocation, OwnerDirection, bHasWeaponAnchor);
+	FVector SpawnToTarget = TargetLocation - SpawnLocation;
+	SpawnToTarget.Z = 0.0f;
+	const FVector ProjectileDirection = SpawnToTarget.GetSafeNormal2D();
+	return ProjectileDirection.IsNearlyZero() ? OwnerDirection : ProjectileDirection;
+}
+
 EReEchoDamageSource AReEchoWeaponActor::ResolveOwnerDamageSource() const
 {
 	return ReEchoCombatRelations::ResolveActorDamageSource(GetOwner(), EReEchoDamageSource::Player);
@@ -1674,6 +1708,39 @@ void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRun
 		           LeftTarget->GetCombatTargetTieBreakIndex() < RightTarget->GetCombatTargetTieBreakIndex();
 	    });
 	const int32 ChildCount = FMath::Min(Candidates.Num(), FMath::Max(0, FMath::RoundToInt(Effect.ParamValue)));
+#if !UE_BUILD_SHIPPING
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[SplitArrowTrace] ParentImpact parentProjectile=%s attackSequence=%lld parentTarget='%s' "
+	            "hit=(%.2f,%.2f,%.2f) candidateCount=%d childCount=%d range=%.2f"),
+	       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+	       static_cast<long long>(Context->Commit.Attack.Sequence),
+	       *GetNameSafe(Result.Target),
+	       Result.HitLocation.X,
+	       Result.HitLocation.Y,
+	       Result.HitLocation.Z,
+	       Candidates.Num(),
+	       ChildCount,
+	       Context->Commit.RangeCm);
+	for (int32 CandidateIndex = 0; CandidateIndex < Candidates.Num(); ++CandidateIndex)
+	{
+		const IReEchoCombatTarget* CandidateTarget = Cast<IReEchoCombatTarget>(Candidates[CandidateIndex]);
+		const FVector CandidateLocation = CandidateTarget ? CandidateTarget->GetCombatTargetLocation()
+		                                                  : Candidates[CandidateIndex]->GetActorLocation();
+		UE_LOG(LogReEcho,
+		       Log,
+		       TEXT("[SplitArrowTrace] Candidate parentProjectile=%s rank=%d selected=%d actor='%s' "
+		            "location=(%.2f,%.2f,%.2f) distanceFromHit2D=%.2f"),
+		       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       CandidateIndex,
+		       CandidateIndex < ChildCount ? 1 : 0,
+		       *GetNameSafe(Candidates[CandidateIndex]),
+		       CandidateLocation.X,
+		       CandidateLocation.Y,
+		       CandidateLocation.Z,
+		       FVector::Dist2D(Result.HitLocation, CandidateLocation));
+	}
+#endif
 	const bool bPierceOnCritical = Context->Effects.ContainsByPredicate(
 	    [](const FReEchoWeaponRuneEffectSpec& RuneEffect)
 	    {
@@ -1705,7 +1772,15 @@ void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRun
 		                                 bPierceOnCritical,
 		                                 this,
 		                                 Context,
-		                                 false);
+		                                 false,
+		                                 Result.Target);
+#if !UE_BUILD_SHIPPING
+		if (IsValid(Projectile))
+		{
+			Projectile->ConfigureSplitDiagnostics(
+			    Snapshot.ProjectileId.Value, Index, Result.Target, Candidates[Index]);
+		}
+#endif
 	}
 }
 
@@ -2173,7 +2248,10 @@ void AReEchoWeaponActor::AdvanceScytheThrow(const float DeltaSeconds)
 void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	WeaponLogic.Tick(DeltaSeconds);
+	if (!bTransitionGameplaySuspended)
+	{
+		WeaponLogic.Tick(DeltaSeconds);
+	}
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	WeaponHandAnchorLocation =
 	    ResolveOwnerVisualFacingSign() < 0.0f ? LeftWeaponHandAnchorLocation : RightWeaponHandAnchorLocation;

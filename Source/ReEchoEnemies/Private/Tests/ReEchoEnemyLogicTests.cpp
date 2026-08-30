@@ -324,14 +324,12 @@ bool FReEchoEnemyHurtAndSnapshotTest::RunTest(const FString& Parameters)
 
 	const FReEchoEnemyLogicSnapshot Hurt = Logic->GetSnapshot();
 	TestEqual(TEXT("Hurt starts gameplay reaction"), Hurt.Phase, EReEchoEnemyBehaviorPhase::HitReaction);
-	TestEqual(TEXT("Knockback points away from source"), Hurt.KnockbackVelocity, FVector(360.0f, 0.0f, 0.0f));
+	TestTrue(TEXT("Hurt stores no gameplay knockback velocity"), Hurt.KnockbackVelocity.IsNearlyZero());
 
 	FReEchoEnemySenseSnapshot NoTarget;
 	const FReEchoEnemyActionIntent Reaction = Logic->Advance(NoTarget, 0.1f);
-	TestTrue(TEXT("Reaction produces world movement intent"), Reaction.bHasMovement);
-	TestEqual(TEXT("First reaction movement uses authoritative velocity"),
-	          Reaction.MovementDelta,
-	          FVector(36.0f, 0.0f, 0.0f));
+	TestFalse(TEXT("Reaction blocks all Actor movement intent"), Reaction.bHasMovement);
+	TestTrue(TEXT("Reaction movement delta remains zero"), Reaction.MovementDelta.IsNearlyZero());
 
 	FReEchoEnemyLogicSnapshot Saved = Logic->GetSnapshot();
 	Saved.AttackCooldownRemainingSeconds = 0.75f;
@@ -345,6 +343,35 @@ bool FReEchoEnemyHurtAndSnapshotTest::RunTest(const FString& Parameters)
 	Restored->NotifyDeath();
 	TestEqual(TEXT("Death stops behavior"), Restored->GetSnapshot().Phase, EReEchoEnemyBehaviorPhase::Dead);
 	TestFalse(TEXT("Dead logic emits no action"), Restored->Advance(NoTarget, 1.0f).bAttackCommitted);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossHitReactionImmunityTest,
+                                 "ReEcho.Enemies.Boss.HitReactionImmunity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossHitReactionImmunityTest::RunTest(const FString& Parameters)
+{
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Boss definition initializes"), Logic->Initialize(MakeBossTestDefinition(), 4));
+	Logic->NotifyHurt(5.0f, FVector(-100.0f, 0.0f, 0.0f), FVector::ZeroVector);
+
+	const FReEchoEnemyLogicSnapshot Hurt = Logic->GetSnapshot();
+	TestNotEqual(TEXT("Boss never enters hit reaction"), Hurt.Phase, EReEchoEnemyBehaviorPhase::HitReaction);
+	TestEqual(TEXT("Boss stores no hit reaction duration"), Hurt.HitReactionRemainingSeconds, 0.0f);
+	TestTrue(TEXT("Boss stores no knockback velocity"), Hurt.KnockbackVelocity.IsNearlyZero());
+
+	FReEchoEnemyLogicSnapshot LegacySnapshot = Hurt;
+	LegacySnapshot.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
+	LegacySnapshot.HitReactionRemainingSeconds = 0.2f;
+	LegacySnapshot.KnockbackVelocity = FVector(140.0f, 0.0f, 0.0f);
+	Logic->RestoreSnapshot(LegacySnapshot);
+	const FReEchoEnemyLogicSnapshot Restored = Logic->GetSnapshot();
+	TestNotEqual(TEXT("Legacy Boss snapshot cannot restore hit reaction"),
+	             Restored.Phase,
+	             EReEchoEnemyBehaviorPhase::HitReaction);
+	TestEqual(TEXT("Legacy Boss snapshot clears hit reaction duration"), Restored.HitReactionRemainingSeconds, 0.0f);
+	TestTrue(TEXT("Legacy Boss snapshot clears knockback velocity"), Restored.KnockbackVelocity.IsNearlyZero());
 	return true;
 }
 
@@ -755,6 +782,42 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	         LegacyRestore->GetSnapshot().bSpecialDamageConsumed);
 	TestFalse(TEXT("Missing new Active fields emit no dash movement"),
 	          LegacyRestore->Advance(Sense, 0.01f).bHasMovement);
+
+	UReEchoEnemyLogicComponent* HurtEliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Hit reaction Elite target initializes"), HurtEliteLogic->Initialize(Elite, 3));
+	HurtEliteLogic->Advance(Sense, 0.01f);
+	HurtEliteLogic->Advance(Sense, Dash.WindupSeconds + 0.01f);
+	TestEqual(TEXT("Hit reaction setup reaches Fox dash Active"),
+	          HurtEliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Active);
+	HurtEliteLogic->NotifyHurt(5.0f, FVector(-100.0f, 0.0f, 0.0f), FVector::ZeroVector);
+	TestEqual(TEXT("Hurt cancels the active Fox dash immediately"),
+	          HurtEliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	const FReEchoEnemyActionIntent HurtStep = HurtEliteLogic->Advance(Sense, 1.0f);
+	TestEqual(TEXT("Fox hurt owns behavior priority for its complete reaction"),
+	          HurtEliteLogic->GetSnapshot().Phase,
+	          EReEchoEnemyBehaviorPhase::HitReaction);
+	TestFalse(TEXT("Fox hurt movement is never tagged as residual dash movement"), HurtStep.bSpecialDashMovement);
+	TestFalse(TEXT("Fox hurt blocks all Actor movement during the Hit cycle"), HurtStep.bHasMovement);
+	TestTrue(TEXT("Fox hurt emits no passive knockback delta"), HurtStep.MovementDelta.IsNearlyZero());
+	TestEqual(TEXT("Oversized hurt step consumes only the authored Hit duration"),
+	          HurtEliteLogic->GetSnapshot().HitReactionRemainingSeconds,
+	          0.0f);
+	TestTrue(TEXT("Completed Fox hurt clears residual knockback velocity"),
+	         HurtEliteLogic->GetSnapshot().KnockbackVelocity.IsNearlyZero());
+
+	FReEchoEnemyLogicSnapshot LegacyHurt = HurtEliteLogic->GetSnapshot();
+	LegacyHurt.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
+	LegacyHurt.HitReactionRemainingSeconds = Elite.HitReactionDurationSeconds;
+	LegacyHurt.KnockbackVelocity = FVector(360.0f, 0.0f, 0.0f);
+	UReEchoEnemyLogicComponent* RestoredHurtEliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Legacy hurt restore target initializes"), RestoredHurtEliteLogic->Initialize(Elite, 4));
+	RestoredHurtEliteLogic->RestoreSnapshot(LegacyHurt);
+	TestTrue(TEXT("Legacy hurt snapshot cannot restore movement velocity"),
+	         RestoredHurtEliteLogic->GetSnapshot().KnockbackVelocity.IsNearlyZero());
+	TestFalse(TEXT("Restored legacy hurt remains movement locked"),
+	          RestoredHurtEliteLogic->Advance(Sense, 0.01f).bHasMovement);
 	return true;
 }
 

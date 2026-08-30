@@ -53,7 +53,7 @@
 
 持有 `G_2_30「连接，连接！」` 时，角色本体与每个存活回响之间各维持一条 `NS_Echo_Chain` 链接；双方移动时端点连续跟随。双回响必须显示两条并与现有两条玩法伤害线一致。卡牌未生效、任一端死亡/失效、回响移除、遭遇结束或宿主 EndPlay 时，准确清理对应链接且无残留。资源缺失时玩法继续。
 
-每个回响仅在外观、录制、武器和战斗属性全部初始化成功后，以其最终阴影组件 `GroundShadow` 的完整世界位置播放一次独立 `NS_Echo_Born`。法阵平行贴地并保持世界尺寸，生成后留在该出生点而不附着或跟随回响；双回响各播放一次。第一关转第二关的专用镜头流程在后台预置并隐藏回响，镜头定位后启动法阵，法阵建立 `0.4` 秒后显示回响及武器并继续镜头拉远，法阵本身仍播放到原生命周期结束；资源缺失则立即显示回响并继续镜头。Development `GMEchoBorn` 只在当前存活回响的阴影位置重播表现，不生成回响或修改玩法状态。
+每个回响仅在外观、录制、武器和战斗属性全部初始化成功后，以其最终表现脚底中心播放一次独立 `NS_Echo_Born`。法阵保持世界尺寸，生成后留在该出生点而不附着或跟随回响；双回响各播放一次。第一关转第二关的专用镜头流程在后台预置并隐藏回响，镜头定位后在同一次调用中启动法阵并显示回响及武器，保持 `0.4` 秒后继续镜头拉远，法阵本身仍播放到原生命周期结束；资源缺失则立即显示回响并继续镜头。Development `GMEchoBorn` 只在当前存活回响位置重播表现，不生成回响或修改玩法状态。
 
 ## 架构影响与设计决策
 
@@ -131,6 +131,11 @@
 - 出生法阵在最终 CG 画面仍遮挡世界时先激活，随后才关闭过渡界面，保证回到游戏画面的第一帧已经处于法阵播放中，而不是先露出空场再启动特效。
 - CG 遮罩下完成定位后解除全局 Pause，但保持 Prepared Encounter、输入、敌人模拟、Director、Recording 与 Echo 回放门禁；正式显形在法阵启动满 0.4 秒后执行，不再等待 Niagara 的完整生命周期，法阵生成失败则立即 fail-open 显形。
 - 法阵尺寸不再由固定 `0.25` 决定正常路径：Echo 复用当前 Flipbook 空间宽度，目标世界直径为角色宽度的 `1.2` 倍，再按 Niagara authored XY Bounds 换算统一缩放；Bounds 无效时才回退 Catalog `0.25`。全部启用 Sprite Renderer 绑定 `User.GroundNormal=(0,0,1)`，不再恢复 FaceCamera。
+- 2026-08-30 尺寸复调：正常路径的目标世界直径从 Echo 当前表现宽度的 `0.8` 倍缩小到 `0.4` 倍，即上一版表现的 50%；位置、朝向、生命周期、1→2 关专用触发条件以及 Bounds 无效时的 Catalog `0.25` 回退均保持不变。
+- 2026-08-30 Mesh 平面修复：`0817_01` 的真实可见平面是本地 YZ，旧作者化误把 `Fountain004` 唯一的 `InitializeParticle.Mesh Scale Z` 从 `40` 压到 `0.1`，使其可见图案被单独压扁，而 Sprite Fountain002/003/005 不受影响。现恢复可见 `Y=25、Z=40`，仅把平面法线/厚度轴 `X` 压到 `0.1`；统一 Component 尺寸倍率继续独立生效。
+- 2026-08-30 统一缩放修复：运行时目标直径换算改为只读取 Niagara 本地 YZ 可见平面的 `Max(Y,Z)`，不再把本地 X 法线/厚度纳入直径。Fountain002/003/004/005 继续共同消费同一个均匀 Component WorldScale；自动化锁定 X Bounds 任意变化都不影响最终尺寸。
+- 2026-08-30 Fountain004 尺寸恢复：按人工验收要求取消该 Emitter 的任何局部压缩，唯一 `InitializeParticle.Mesh Scale` 恢复源资源完整 `(25,25,40)`；Fountain004 与其他层只共同消费运行时统一 Component WorldScale。
+- 2026-08-30 整体尺寸复调：统一 Component 目标直径从 Echo 当前表现宽度的 `0.4` 倍缩小为 `0.2` 倍，即当前表现的 50%；Fountain004 继续保持原始 `(25,25,40)`，全部 Emitter 同比缩小。
 - 镜头旋转复验表明 `GroundShadow` 的 XY 包含随镜头变化的 2D 脚点补偿，不能作为生成后固定的世界法阵中心；法阵改用 Echo Actor 的稳定世界 XY，并只读取 `GroundShadow` 的地面 Z。Sprite 除 `User.GroundNormal=(0,0,1)` 外再绑定 `CustomAlignment` 的 `User.GroundTangent=(1,0,0)`，同时锁定平面法线和面内方向，避免绕世界 Up 继续追随相机旋转。
 - PIE 首次加载曾因资产脚本 `RequestCompile` 后立即保存退出，把 Echo Born 的待处理 Niagara 编译遗留给运行时，产生约 23 秒主线程等待。新增统一 `CompileNiagaraSystemAndWait` authoring seam，两个 Echo Born 脚本均在保存前等待 CPU/GPU 编译完成并确认无 outstanding request；修复后 commandlet 内该 System 编译分别为 0.18 秒和 0.14 秒，编译结果随资产保存。
 - 精确导入 `NS_Echo_Chain`、`BaseVFX003_Inst25`、`Tur_C080`、`Tur_C090`；未复制外部目录中的 Water/Grass/LevelSequence 或其他无关材质、纹理。

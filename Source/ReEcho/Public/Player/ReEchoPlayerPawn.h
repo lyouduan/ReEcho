@@ -305,7 +305,6 @@ private:
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
-	void ToggleStatsMenu();
 	void ConfigureMouseInput();
 	/** 将鼠标位置投射到战斗平面，并据此更新角色左右朝向。 */
 	void UpdateMouseAim();

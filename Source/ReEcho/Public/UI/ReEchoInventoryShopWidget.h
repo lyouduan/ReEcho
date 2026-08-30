@@ -13,6 +13,8 @@ class UCanvasPanel;
 class UHorizontalBox;
 class UImage;
 class UReEchoIndexedButton;
+class UReEchoShopTooltipWidget;
+class UReEchoAttributeTooltipWidget;
 class UReEchoButtonVisualFeedback;
 class UScaleBox;
 class UScrollBox;
@@ -67,8 +69,7 @@ public:
 
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
-	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView,
-	                          FName CharacterId = NAME_None);
+	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView, FName CharacterId = NAME_None);
 
 	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards,
@@ -109,6 +110,13 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
+
+	/** Shared authored appearance for all shop item descriptions, including resolved card outcomes. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shop|Tooltips")
+	TSubclassOf<UReEchoShopTooltipWidget> ShopTooltipWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shop|Tooltips")
+	TSubclassOf<UReEchoAttributeTooltipWidget> AttributeTooltipWidgetClass;
 
 private:
 	void BuildWidgetTree();
@@ -169,6 +177,7 @@ private:
 	/** Creates (or reuses) the roman-numeral tier badge layered over a weapon-rune offer icon. */
 	UTextBlock* EnsureRuneTierBadge(class UCanvasPanel* Card, class UImage* Icon, int32 Index);
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
+	UWidget* BuildCardPackTooltip(const FReEchoShopCardPackOffer& Pack);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
 	bool HasEchoStorageCard() const;
 	void
@@ -357,6 +366,8 @@ private:
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferBuyLabels;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UCanvasPanel>> DesignerPackOfferCards;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPackOfferBases;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerPackOfferIcons;
 	UPROPERTY(Transient)

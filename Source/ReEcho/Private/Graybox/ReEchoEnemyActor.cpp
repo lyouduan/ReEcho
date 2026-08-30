@@ -104,14 +104,16 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
 	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
+	TerminalDeathMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("TerminalDeathMotionRoot"));
+	TerminalDeathMotionRoot->SetupAttachment(FootRoot);
 	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
-	PresentationMotionRoot->SetupAttachment(FootRoot);
+	PresentationMotionRoot->SetupAttachment(TerminalDeathMotionRoot);
 	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
 	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
-	GroundRoot->SetupAttachment(FootRoot);
+	GroundRoot->SetupAttachment(TerminalDeathMotionRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
@@ -209,9 +211,10 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 
 	AttachIfNeeded(PresentationRoot, RootComponent);
 	AttachIfNeeded(FootRoot, PresentationRoot);
-	AttachIfNeeded(PresentationMotionRoot, FootRoot);
+	AttachIfNeeded(TerminalDeathMotionRoot, FootRoot);
+	AttachIfNeeded(PresentationMotionRoot, TerminalDeathMotionRoot);
 	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
-	AttachIfNeeded(GroundRoot, FootRoot);
+	AttachIfNeeded(GroundRoot, TerminalDeathMotionRoot);
 	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
@@ -899,27 +902,45 @@ float AReEchoEnemyActor::ReceiveGrayboxDamage(const float Damage,
 	return ReEchoHitResolver::ResolvePhysicalHit(Intent).AppliedDamage;
 }
 
-void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
+AActor* AReEchoEnemyActor::ResolveAggroTarget(AActor* DefaultTarget, const bool bEchoTaunts) const
 {
-	AActor* TargetActor = UGameplayStatics::GetPlayerPawn(this, 0);
-	const UReEchoRunSubsystem* Run =
-	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
-	if (Run && Run->GetCardRules().bEchoTaunts)
+	if (!bEchoTaunts || !EnemyLogic || EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss ||
+	    !GetWorld())
 	{
-		float BestDistanceSquared = TNumericLimits<float>::Max();
-		for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
+		return DefaultTarget;
+	}
+
+	AActor* DesiredTarget = DefaultTarget;
+	float BestDistanceSquared = TNumericLimits<float>::Max();
+	for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
+	{
+		if (!EchoIt->IsCombatTargetAlive())
 		{
-			if (EchoIt->IsCombatTargetAlive())
-			{
-				const float DistanceSquared = FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
-				if (DistanceSquared < BestDistanceSquared)
-				{
-					BestDistanceSquared = DistanceSquared;
-					TargetActor = *EchoIt;
-				}
-			}
+			continue;
+		}
+		const float DistanceSquared = FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
+		if (DistanceSquared < BestDistanceSquared)
+		{
+			BestDistanceSquared = DistanceSquared;
+			DesiredTarget = *EchoIt;
 		}
 	}
+	return DesiredTarget;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+AActor* AReEchoEnemyActor::ResolveAggroTargetForTests(AActor* DefaultTarget, const bool bEchoTaunts) const
+{
+	return ResolveAggroTarget(DefaultTarget, bEchoTaunts);
+}
+#endif
+
+void AReEchoEnemyActor::AdvanceEnemyProjectiles(const float DeltaSeconds)
+{
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	AActor* TargetActor =
+	    ResolveAggroTarget(UGameplayStatics::GetPlayerPawn(this, 0), Run && Run->GetCardRules().bEchoTaunts);
 	IReEchoCombatTarget* Target = TargetActor ? Cast<IReEchoCombatTarget>(TargetActor) : nullptr;
 	for (int32 ProjectileIndex = 0; ProjectileIndex < BossProjectiles.Num();)
 	{
@@ -1124,26 +1145,10 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
 		Sense.WorldTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-		AActor* DesiredTarget = UGameplayStatics::GetPlayerPawn(this, 0);
 		const UReEchoRunSubsystem* Run =
 		    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
-		if (Run && Run->GetCardRules().bEchoTaunts)
-		{
-			float BestDistanceSquared = TNumericLimits<float>::Max();
-			for (TActorIterator<AReEchoEchoActor> EchoIt(GetWorld()); EchoIt; ++EchoIt)
-			{
-				if (EchoIt->IsCombatTargetAlive())
-				{
-					const float DistanceSquared =
-					    FVector::DistSquared2D(GetActorLocation(), EchoIt->GetActorLocation());
-					if (DistanceSquared < BestDistanceSquared)
-					{
-						BestDistanceSquared = DistanceSquared;
-						DesiredTarget = *EchoIt;
-					}
-				}
-			}
-		}
+		const bool bEchoTaunts = Run && Run->GetCardRules().bEchoTaunts;
+		AActor* DesiredTarget = ResolveAggroTarget(UGameplayStatics::GetPlayerPawn(this, 0), bEchoTaunts);
 		if (AActor* TargetActor = DesiredTarget)
 		{
 			Sense.Target = TargetActor;
@@ -1154,9 +1159,8 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 			Sense.bTargetAlive = PlayerCombatant && PlayerCombatant->IsAlive();
 			// DesiredTarget is the authoritative aggro selection for this tick. Echoes only reach this branch as
 			// transform-range candidates when the run's taunt rule selected them above.
-			Sense.bTargetCanAttractAggro =
-			    Cast<AReEchoPlayerPawn>(TargetActor) != nullptr ||
-			    (Run && Run->GetCardRules().bEchoTaunts && Cast<AReEchoEchoActor>(TargetActor) != nullptr);
+			Sense.bTargetCanAttractAggro = Cast<AReEchoPlayerPawn>(TargetActor) != nullptr ||
+			                               (bEchoTaunts && Cast<AReEchoEchoActor>(TargetActor) != nullptr);
 			if (const AReEchoPlayerPawn* ReEchoPlayer = Cast<AReEchoPlayerPawn>(TargetActor))
 			{
 				Sense.bTargetInvulnerable = ReEchoPlayer->IsWeaponInvulnerable();

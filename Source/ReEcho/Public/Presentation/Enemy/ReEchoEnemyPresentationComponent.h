@@ -202,6 +202,7 @@ private:
 
 	void ApplyVisual(FName PresentationId);
 	void ApplyPresentationMotion(const FVector& Offset, const FVector& Scale);
+	void ApplyTerminalDeathMotion(const FVector& Offset);
 	void RefreshFootpointAlignment();
 	void RefreshGroundShadowFromFlipbook();
 	void ResetTransientRoot();
@@ -234,6 +235,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<USceneComponent> FootRoot;
 	UPROPERTY()
+	TObjectPtr<USceneComponent> TerminalDeathMotionRoot;
+	UPROPERTY()
 	TObjectPtr<USceneComponent> GroundRoot;
 	UPROPERTY()
 	TObjectPtr<USceneComponent> FlipbookRoot;
@@ -265,6 +268,7 @@ private:
 	TObjectPtr<UReEcho2DCharacterPresentationProfile> ActiveProfile;
 
 	FVector AuthoredMotionLocation = FVector::ZeroVector;
+	FVector AuthoredTerminalDeathMotionLocation = FVector::ZeroVector;
 	FVector BaseVisualScale = FVector::OneVector;
 	FVector CalculatedFootAlignmentOffset = FVector::ZeroVector;
 	FVector BaseFlipbookLocation = FVector::ZeroVector;

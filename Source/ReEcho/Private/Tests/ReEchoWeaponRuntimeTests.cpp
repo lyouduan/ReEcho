@@ -342,9 +342,6 @@ bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 	AimTarget->AddInstanceComponent(AimTargetRoot);
 	AimTargetRoot->RegisterComponent();
 	AimTarget->SetActorLocation(FVector(0.0f, 1000.0f, 0.0f));
-	Player->FaceAutomaticTarget(*AimTarget);
-	TestTrue(TEXT("Logical aim differs from the unchanged actor forward"),
-	         FVector::DotProduct(Player->GetAttackAimDirection(), FVector::RightVector) > 0.99f);
 
 	UReEchoCombatantComponent* Combatant = Player->GetCombatTargetCombatant();
 	if (!TestNotNull(TEXT("Player combatant exists"), Combatant))
@@ -353,9 +350,22 @@ bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 	}
 	FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_08"));
 	SetBuildStats(Build, Combatant->Stats);
-	AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
-	Weapon->SetOwner(Player);
-	Weapon->InitializeWeapon(&Build, Snapshot);
+	TestTrue(TEXT("Player initializes its ranged weapon from the build"),
+	         Player->InitializeWeaponFromBuild(Build, Snapshot));
+	AReEchoWeaponActor* Weapon = Player->GetWeapon();
+	if (!TestNotNull(TEXT("Player owns the initialized ranged weapon"), Weapon))
+	{
+		return false;
+	}
+	const FVector ProjectileSpawnLocation(200.0f, 0.0f, 0.0f);
+	Weapon->GetWeaponAttackVfxRoot()->SetWorldLocation(ProjectileSpawnLocation);
+	Player->FaceAutomaticTarget(*AimTarget);
+	const FVector ExpectedProjectileDirection =
+	    (AimTarget->GetActorLocation() - ProjectileSpawnLocation).GetSafeNormal2D();
+	TestTrue(TEXT("Automatic ranged aim points from the weapon release anchor to the selected target"),
+	         FVector::DotProduct(Player->GetAttackAimDirection(), ExpectedProjectileDirection) > 0.999f);
+	TestTrue(TEXT("Release-anchor correction differs from the stale owner-centered direction"),
+	         FVector::DotProduct(Player->GetAttackAimDirection(), FVector::RightVector) < 0.99f);
 	TestTrue(TEXT("Player projectile attack executes"), Weapon->ExecuteBasicAttack(Combatant));
 
 	AReEchoProjectileActor* Projectile = nullptr;
@@ -372,8 +382,8 @@ bool FReEchoWeaponPlayerAimDirectionTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	const FVector ProjectileDirection = Projectile->GetVelocity().GetSafeNormal2D();
-	TestTrue(TEXT("Projectile consumes player logical aim instead of actor forward"),
-	         FVector::DotProduct(ProjectileDirection, Player->GetAttackAimDirection()) > 0.99f);
+	TestTrue(TEXT("Projectile consumes the release-anchor-corrected logical aim"),
+	         FVector::DotProduct(ProjectileDirection, ExpectedProjectileDirection) > 0.999f);
 	return true;
 }
 
@@ -1385,10 +1395,11 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	SplitWeapon->SetOwner(SplitOwner);
 	SplitWeapon->InitializeWeapon(&SplitBuild, Snapshot);
 	AReEchoEnemyActor* Direct = SplitFixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 300, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 301, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(250.0f, 50.0f, 0.0f), 302, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(300.0f, -50.0f, 0.0f), 303, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 304, 1000.0f);
+	TArray<AReEchoEnemyActor*> SplitCandidates;
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 301, 1000.0f));
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(250.0f, 50.0f, 0.0f), 302, 1000.0f));
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(300.0f, -50.0f, 0.0f), 303, 1000.0f));
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 304, 1000.0f));
 	FReEchoWeaponAttackCommit SplitCommit;
 	SplitCommit.Attack.Source = SplitOwner;
 	SplitCommit.Attack.Sequence = 1;
@@ -1414,6 +1425,17 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	}
 	SplitWeapon->HandleProjectileResolved(SplitContext, SplitSnapshot, SplitHit, true);
 	TestEqual(TEXT("The same projectile cannot split recursively or twice"), CountProjectiles(SplitFixture.World), 3);
+	const float DirectHealthBeforeChildren = WeaponEnemyHealth(Direct);
+	TickProjectiles(SplitFixture.World, 0.35f);
+	TestEqual(TEXT("Split children never damage the parent contact target"),
+	          WeaponEnemyHealth(Direct),
+	          DirectHealthBeforeChildren);
+	TestTrue(TEXT("At least one split child damages another selected enemy"),
+	         SplitCandidates.ContainsByPredicate(
+	             [](const AReEchoEnemyActor* Candidate)
+	             {
+		             return Candidate && WeaponEnemyHealth(Candidate) < 1000.0f;
+	             }));
 
 	FReEchoWeaponWorldFixture PierceFixture;
 	UReEchoCombatantComponent* PierceCombatant = nullptr;

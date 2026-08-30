@@ -18,6 +18,7 @@
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoMinimapCanvasWidget.h"
 #include "UI/ReEchoPlayerHudWidget.h"
+#include "UObject/UnrealType.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -151,6 +152,16 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(TEXT("Damage-number Blueprint derives from the native actor"),
 		         DamageNumberBlueprintClass->IsChildOf(AReEchoDamageNumberActor::StaticClass()));
+		const FFloatProperty* CriticalSizeScaleProperty =
+		    FindFProperty<FFloatProperty>(DamageNumberBlueprintClass, TEXT("CriticalSizeScale"));
+		TestNotNull(TEXT("Damage-number Blueprint exposes an independent critical size scale"),
+		            CriticalSizeScaleProperty);
+		if (CriticalSizeScaleProperty)
+		{
+			const float CriticalSizeScale =
+			    CriticalSizeScaleProperty->GetPropertyValue_InContainer(DamageNumberBlueprintClass->GetDefaultObject());
+			TestTrue(TEXT("Damage-number critical size scale is positive"), CriticalSizeScale > 0.0f);
+		}
 	}
 
 	TestEqual(TEXT("Encounter label follows the visual spec"),
@@ -354,7 +365,7 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 		}
 	}
 
-	// 暴击跳字：CriticalMultiplier 字段契约（透传链 Intent -> Resolved -> Event）。
+	// 暴击伤害：CriticalMultiplier 仍属于结算透传契约，但不再驱动跳字视觉倍率。
 	FReEchoHitIntent CriticalIntent;
 	CriticalIntent.bCritical = true;
 	CriticalIntent.CriticalMultiplier = 1.5f;
@@ -370,12 +381,6 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 	FReEchoDamageEvent OrdinaryEvent;
 	TestFalse(TEXT("Non-crit damage event is not critical"), OrdinaryEvent.bCritical);
 	TestEqual(TEXT("Non-crit damage event defaults CriticalMultiplier to 1.0"), OrdinaryEvent.CriticalMultiplier, 1.0f);
-
-	// 暴击跳字字号随倍率缩放：基准 52 × (1 + 暴击高出比例)。
-	const float BaseWorldSize = 52.0f;
-	TestEqual(TEXT("Crit damage number world size scales with multiplier"),
-	          BaseWorldSize * CriticalEvent.CriticalMultiplier,
-	          BaseWorldSize * 1.5f);
 	return true;
 }
 

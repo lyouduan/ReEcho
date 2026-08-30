@@ -44,6 +44,7 @@
 
 - 输入是不可变目录、构筑状态副本、确定性种子和类型化生命周期上下文。
 - 输出是新的构筑/遭遇状态、属性与货币候选变化，以及领域无关的规则快照。
+- `Card.TauntEcho` 通过 `FReEchoCardRuleSnapshot::bRetireEchoOnDefeat` 显式声明殉身回响死亡后的世界退场意图；该字段不能由 `bEchoesCanAttack`、生命倍率或自由文本反推。Cards 仍只计算一次 `OnEchoKilled` 属性结果，不销毁 Actor 或清理世界引用。
 - 需要同步实时生命的授予结果通过 `EReEchoHealthAdjustment` 返回类型化意图；例如“血肉铸锋”返回
   `FillToMax`。Cards 只计算意图，不直接写 Actor、ASC 或 UI。
 - 稳定随机结果、跨关延迟结算和永久累计收益同时写入 `ResolvedOutcomes`；它不记录每击、每脉冲等瞬时日志。
@@ -105,6 +106,7 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 - 一个事件只由 Cards 计算一次，并只由对应领域权威执行一次。
 - 唯一/冲突/层级授予必须原子失败或原子成功，不能留下半张卡或半次属性修改。
 - Cards 不读取文件、不创建 Actor、不操作 Widget，也不决定最终伤害或死亡。
+- 殉身回响的死亡奖励与退场是两个边界：Cards 计算奖励并发布显式规则，Combat 裁决死亡，主模块 Echo/GameMode 负责幂等通知与安全世界清理。
 
 ## Plan152：彩蛋卡牌
 

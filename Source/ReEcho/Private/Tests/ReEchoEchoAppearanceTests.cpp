@@ -74,6 +74,9 @@ bool FReEchoDeferredBornRevealTest::RunTest(const FString& Parameters)
 	Echo->QueueBornVfxForTests();
 	Echo->PrepareDeferredBornReveal(0.0f);
 	TestTrue(TEXT("Deferred reveal state is prepared"), Echo->IsDeferredBornRevealPreparedForTests());
+	Echo->SetTransitionGameplaySuspended(true);
+	TestTrue(TEXT("Stage transition suspends Echo gameplay independently from visibility"),
+	         Echo->IsTransitionGameplaySuspended());
 	TestTrue(TEXT("Deferred reveal hides the Echo actor"), Echo->IsHidden());
 	TestTrue(TEXT("Position priming preserves the pending birth VFX"), Echo->IsBornVfxPendingForTests());
 	Echo->CompleteDeferredBornReveal();
@@ -81,6 +84,9 @@ bool FReEchoDeferredBornRevealTest::RunTest(const FString& Parameters)
 	          Echo->IsDeferredBornRevealPreparedForTests());
 	TestFalse(TEXT("Fail-open completion restores Echo visibility"), Echo->IsHidden());
 	TestFalse(TEXT("Fail-open completion prevents duplicate birth VFX"), Echo->IsBornVfxPendingForTests());
+	TestTrue(TEXT("Visual completion does not release the gameplay gate"), Echo->IsTransitionGameplaySuspended());
+	Echo->SetTransitionGameplaySuspended(false);
+	TestFalse(TEXT("Encounter activation releases the Echo gameplay gate"), Echo->IsTransitionGameplaySuspended());
 	return true;
 }
 

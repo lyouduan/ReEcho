@@ -223,6 +223,8 @@ public:
 	{
 		return CardStunnedUntilWorldTime;
 	}
+
+	AActor* ResolveAggroTargetForTests(AActor* DefaultTarget, bool bEchoTaunts) const;
 #endif
 
 protected:
@@ -245,6 +247,7 @@ private:
 	void AdvancePendingBossBlinkSlam(float DeltaSeconds);
 	void AdvancePendingBossPrayerBeam(float DeltaSeconds);
 	void TryApplyPendingBossPrayerBeamHit();
+	AActor* ResolveAggroTarget(AActor* DefaultTarget, bool bEchoTaunts) const;
 	void ApplyBossHit(const struct FReEchoBossIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void ApplySpecialDashHit(const FReEchoEnemyActionIntent& Intent, AActor* Target, const FVector& HitLocation);
 	void DrawBossDamageRangeDebug(const struct FReEchoBossIntent& Intent) const;
@@ -288,6 +291,12 @@ private:
 	          Category = "Character Scene|Ground",
 	          meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> FootRoot;
+	/** Presentation-only parent moved during terminal death so the body and grounded shadow remain together. */
+	UPROPERTY(VisibleAnywhere,
+	          BlueprintReadOnly,
+	          Category = "Character Scene|Presentation",
+	          meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneComponent> TerminalDeathMotionRoot;
 	UPROPERTY(VisibleAnywhere,
 	          BlueprintReadOnly,
 	          Category = "Character Scene|Presentation",

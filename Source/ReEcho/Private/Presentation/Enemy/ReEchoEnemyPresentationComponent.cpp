@@ -85,6 +85,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	PresentationRoot = InPresentationRoot;
 	VisualEffectRoot = InVisualEffectRoot;
 	FootRoot = InFootRoot;
+	TerminalDeathMotionRoot = VisualEffectRoot ? VisualEffectRoot->GetAttachParent() : nullptr;
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
@@ -99,6 +100,8 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	GroundRoot = GroundShadow ? GroundShadow->GetAttachParent() : nullptr;
 	Collision = InCollision;
 	AuthoredMotionLocation = VisualEffectRoot ? VisualEffectRoot->GetRelativeLocation() : FVector::ZeroVector;
+	AuthoredTerminalDeathMotionLocation =
+	    TerminalDeathMotionRoot ? TerminalDeathMotionRoot->GetRelativeLocation() : FVector::ZeroVector;
 	if (PresentationController)
 	{
 		PresentationController->BindCollisionDriver(FrameCollisionDriver);
@@ -262,6 +265,10 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 		VisualEffectRoot->SetRelativeLocation(AuthoredMotionLocation);
 		VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 		BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
+	}
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation);
 	}
 	if (FlipbookRoot)
 	{
@@ -574,11 +581,10 @@ FVector UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(const FVe
 void UReEchoEnemyPresentationComponent::UpdateDeathKnockbackMotion(const float DeltaSeconds)
 {
 	DeathKnockbackElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
-	ApplyPresentationMotion(ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
-	                                                    DeathKnockbackElapsedSeconds,
-	                                                    ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
-	                                                    ReEchoEnemyVisual::DeathKnockbackDistanceCm),
-	                        FVector::OneVector);
+	ApplyTerminalDeathMotion(ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
+	                                                     DeathKnockbackElapsedSeconds,
+	                                                     ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
+	                                                     ReEchoEnemyVisual::DeathKnockbackDistanceCm));
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float DeltaSeconds)
@@ -752,6 +758,19 @@ FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests
 
 void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 {
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation);
+	}
+	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+}
+
+void UReEchoEnemyPresentationComponent::ApplyTerminalDeathMotion(const FVector& Offset)
+{
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation + Offset);
+	}
 	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 }
 
@@ -809,8 +828,12 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalGroundAnchor);
 	if (!bUseAuthoredDeathPivot)
 	{
-		const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
-		GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+		const USceneComponent* GroundParent = GroundRoot->GetAttachParent();
+		const FVector BottomInGroundParent =
+		    GroundParent ? GroundParent->GetComponentTransform().InverseTransformPosition(BottomWorld)
+		                 : FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+		GroundRoot->SetRelativeLocation(
+		    FVector(BottomInGroundParent.X, BottomInGroundParent.Y, AuthoredGroundRootLocation.Z));
 	}
 
 	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
@@ -1161,13 +1184,10 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 		return;
 	}
 	const FLinearColor Color = ReEchoElementReaction::GetDamageNumberColor(Event);
-	// 暴击至少放大到 1.35 倍；低暴击倍率也必须和普通跳字明显区分。
-	const float CritScale = Event.bCritical ? FMath::Max(1.35f, Event.CriticalMultiplier) : 1.0f;
 	AReEchoDamageNumberActor::SpawnDamageNumber(Host ? Host->GetWorld() : nullptr,
 	                                            Event.WorldLocation,
 	                                            ReEchoElementReaction::GetDamageNumberValue(Event),
 	                                            Color,
-	                                            CritScale,
 	                                            Event.bCritical);
 	if (Event.bFatal || bDeathVisualActive)
 	{

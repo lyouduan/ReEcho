@@ -14,8 +14,11 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Components/WidgetSwitcher.h"
 #include "Data/ReEchoCsvDataRegistry.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
 #include "ReEcho.h"
+#include "ReEchoAudioEvents.h"
+#include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
 #include "UObject/ConstructorHelpers.h"
@@ -264,6 +267,20 @@ void UReEchoLoadoutSelectionWidget::NativeConstruct()
 	{
 		ConfirmButton->OnClicked.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleConfirmClicked);
 	}
+	if (BackButton)
+	{
+		BackButton->OnClicked.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleBackClicked);
+		BackButton->OnHovered.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleBackHovered);
+		BackButton->OnUnhovered.AddUniqueDynamic(this, &UReEchoLoadoutSelectionWidget::HandleBackUnhovered);
+		if (UGameInstance* GameInstance = GetGameInstance())
+		{
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GameInstance->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				UIFlow->BindButtonAudioFeedback(BackButton, FReEchoAudioEvents::UiHover, FReEchoAudioEvents::UiCancel);
+			}
+		}
+	}
 	RefreshSelection();
 	SetKeyboardFocus();
 }
@@ -326,15 +343,7 @@ void UReEchoLoadoutSelectionWidget::NativePreConstruct()
 		}
 	}
 	const bool bHasPreview = DesignerPreviewIndex >= 0;
-	if (ConfirmButton)
-	{
-		ConfirmButton->SetVisibility(bHasPreview ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	}
-	if (ConfirmButtonLabel)
-	{
-		ConfirmButtonLabel->SetVisibility(bHasPreview ? ESlateVisibility::HitTestInvisible
-		                                              : ESlateVisibility::Collapsed);
-	}
+	RefreshActionButtons(bHasPreview);
 #endif
 }
 
@@ -494,7 +503,10 @@ void UReEchoLoadoutSelectionWidget::BuildWidgetTree()
 
 	UHorizontalBox* ConfirmRow =
 	    WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ConfirmRow"));
+	BackButton = AddOptionButton(WidgetTree, ConfirmRow, TEXT("BackButton"), TEXT("返回"));
+	BackButtonLabel = Cast<UTextBlock>(BackButton->GetContent());
 	ConfirmButton = AddOptionButton(WidgetTree, ConfirmRow, TEXT("ConfirmButton"), TEXT("确认并进入第 1 关"));
+	ConfirmButtonLabel = Cast<UTextBlock>(ConfirmButton->GetContent());
 	UVerticalBoxSlot* ConfirmSlot = Content->AddChildToVerticalBox(ConfirmRow);
 	ConfirmSlot->SetHorizontalAlignment(HAlign_Center);
 	ConfirmSlot->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
@@ -710,15 +722,31 @@ void UReEchoLoadoutSelectionWidget::RefreshSelection()
 		                                    : ESlateVisibility::Collapsed);
 	}
 	RefreshSelectionArrow();
+	RefreshActionButtons(bHasCurrentPreview && !bFinalConfirmationBroadcast);
+}
+
+void UReEchoLoadoutSelectionWidget::RefreshActionButtons(const bool bCanConfirm)
+{
 	if (ConfirmButton)
 	{
-		ConfirmButton->SetIsEnabled(bHasCurrentPreview);
-		ConfirmButton->SetVisibility(bHasCurrentPreview ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		ConfirmButton->SetIsEnabled(bCanConfirm);
+		ConfirmButton->SetVisibility(ESlateVisibility::Visible);
 	}
 	if (ConfirmButtonLabel)
 	{
-		ConfirmButtonLabel->SetVisibility(bHasCurrentPreview ? ESlateVisibility::HitTestInvisible
-		                                                     : ESlateVisibility::Collapsed);
+		// The authored label is a sibling of the button, so it needs the same disabled state.
+		ConfirmButtonLabel->SetIsEnabled(bCanConfirm);
+		ConfirmButtonLabel->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+	if (BackButton)
+	{
+		BackButton->SetIsEnabled(!bFinalConfirmationBroadcast);
+		BackButton->SetVisibility(ESlateVisibility::Visible);
+	}
+	if (BackButtonLabel)
+	{
+		BackButtonLabel->SetIsEnabled(BackButton && BackButton->GetIsEnabled() && BackButton->IsHovered());
+		BackButtonLabel->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 }
 
@@ -748,6 +776,7 @@ void UReEchoLoadoutSelectionWidget::RefreshSelectionArrow()
 		    350.0f));
 	}
 }
+
 void UReEchoLoadoutSelectionWidget::SetSelectionStage(const ESelectionStage NewStage)
 {
 	SelectionStage = NewStage;
@@ -842,10 +871,38 @@ void UReEchoLoadoutSelectionWidget::HandleConfirmClicked()
 	if (!bFinalConfirmationBroadcast && !SelectedCharacterId.IsNone() && !SelectedWeaponId.IsNone())
 	{
 		bFinalConfirmationBroadcast = true;
-		if (ConfirmButton)
-		{
-			ConfirmButton->SetIsEnabled(false);
-		}
+		RefreshActionButtons(false);
 		OnLoadoutConfirmed.Broadcast(SelectedCharacterId, SelectedWeaponId);
+	}
+}
+
+void UReEchoLoadoutSelectionWidget::HandleBackClicked()
+{
+	if (bFinalConfirmationBroadcast)
+	{
+		return;
+	}
+	if (SelectionStage == ESelectionStage::Weapon)
+	{
+		SelectedWeaponId = NAME_None;
+		SetSelectionStage(ESelectionStage::Character);
+		return;
+	}
+	OnBackRequested.Broadcast();
+}
+
+void UReEchoLoadoutSelectionWidget::HandleBackHovered()
+{
+	if (BackButtonLabel)
+	{
+		BackButtonLabel->SetIsEnabled(BackButton && BackButton->GetIsEnabled());
+	}
+}
+
+void UReEchoLoadoutSelectionWidget::HandleBackUnhovered()
+{
+	if (BackButtonLabel)
+	{
+		BackButtonLabel->SetIsEnabled(false);
 	}
 }

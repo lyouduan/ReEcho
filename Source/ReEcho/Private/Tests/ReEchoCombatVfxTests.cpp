@@ -16,6 +16,7 @@
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraRendererProperties.h"
+#include "NiagaraScript.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemInstance.h"
@@ -142,6 +143,32 @@ bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Paramete
 	         HalfwayOffset.Equals(Direction.GetSafeNormal() * 78.75f, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Fatal presentation reaches the stronger 90 cm displacement"),
 	         EndOffset.Equals(Direction.GetSafeNormal() * 90.0f, KINDA_SMALL_NUMBER));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathMotionHierarchyTest,
+                                 "ReEcho.Presentation.VFX.EnemyDeathMotionHierarchy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyDeathMotionHierarchyTest::RunTest(const FString& Parameters)
+{
+	AReEchoEnemyActor* Enemy = GetMutableDefault<AReEchoEnemyActor>();
+	const USceneComponent* FootRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("FootRoot"))) : nullptr;
+	const USceneComponent* TerminalDeathRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("TerminalDeathMotionRoot"))) : nullptr;
+	const USceneComponent* MotionRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("PresentationMotionRoot"))) : nullptr;
+	const USceneComponent* GroundRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("GroundRoot"))) : nullptr;
+
+	TestNotNull(TEXT("Enemy owns a terminal death presentation root"), TerminalDeathRoot);
+	TestTrue(TEXT("Terminal death root remains presentation-only below FootRoot"),
+	         FootRoot && TerminalDeathRoot && TerminalDeathRoot->GetAttachParent() == FootRoot);
+	TestTrue(TEXT("Body presentation inherits terminal death displacement"),
+	         MotionRoot && MotionRoot->GetAttachParent() == TerminalDeathRoot);
+	TestTrue(TEXT("Ground shadow anchor inherits the same terminal death displacement"),
+	         GroundRoot && GroundRoot->GetAttachParent() == TerminalDeathRoot);
 	return true;
 }
 
@@ -485,10 +512,28 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	                                                                   TEXT("Enemy.Rabbit"))),
 	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn,
 	                                                                   TEXT("Enemy.Fox"))));
+	TestTrue(TEXT("TimeGuard burn resolves the supplied Goat body variant"),
+	         FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn,
+	                                                               TEXT("Enemy.TimeGuard")))
+	             .Contains(TEXT("NS_Element_Fire_Goat")));
+	TestTrue(TEXT("TimeGuard water reactions resolve the supplied Goat body variant"),
+	         FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Vaporize,
+	                                                               TEXT("Enemy.TimeGuard")))
+	             .Contains(TEXT("NS_Element_Water_Goat")));
+	const FReEchoElementReactionVfxPlacement GrowthPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::Growth);
+	const FReEchoElementReactionVfxPlacement EnhanceGrassPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceGrass);
+	const FReEchoElementReactionVfxPlacement EnhanceWaterPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceWater);
+	TestTrue(TEXT("Reaction effects preserve authored world size"), GrowthPlacement.bPreserveWorldSize);
+	TestTrue(TEXT("Growth matches the target Flipbook size"), GrowthPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"), EnhanceGrassPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Water matches the target Flipbook size"), EnhanceWaterPlacement.bMatchTargetFlipbookSize);
 	TestTrue(TEXT("Burn visual lifetime follows the timed Burn status"),
 	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_G")));
-	TestTrue(TEXT("Growth visual lifetime follows authoritative Grass attachments"),
-	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
+	TestFalse(TEXT("Growth is emitted only by its resolved reaction event"),
+	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
 	TestFalse(TEXT("Vaporize remains a target-bound one-shot"),
 	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_W")));
 	const FName DebugReactionNames[] = {
@@ -1161,17 +1206,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::EchoBorn);
 	TestTrue(TEXT("Echo Born keeps a stable world size"),
 	         EchoBornPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	TestTrue(TEXT("Echo Born renders at one quarter of the source circle size"),
-	         EchoBornPlacement.Scale.Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born preserves the source asset's authored component size"),
+	         EchoBornPlacement.Scale.Equals(FVector::OneVector, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Echo Born owns a finite one-shot presentation lifetime"),
 	         FMath::IsNearlyEqual(EchoBornPlacement.PlaybackDurationSeconds, 0.8f));
-	TestTrue(TEXT("Echo Born scale resolves a requested world diameter from authored ground bounds"),
-	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(
-	             120.0f, FBox(FVector(-500.0f, -300.0f, -100.0f), FVector(500.0f, 300.0f, 400.0f)), FVector(0.25f))
-	             .Equals(FVector(0.12f), KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
-	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
-	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
@@ -1205,6 +1243,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			TestFalse(TEXT("Echo Born loads without deferred Niagara compilation"),
 			          System->HasOutstandingCompilationRequests(true));
+			int32 EchoBornMeshScaleParameterCount = 0;
+			FString EchoBornMeshScaleEmitterName;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (EmitterHandle.GetIsEnabled())
@@ -1214,6 +1254,34 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					         EmitterData && EmitterData->bLocalSpace);
 					if (EmitterData)
 					{
+						TArray<UNiagaraScript*> Scripts;
+						EmitterData->GetScripts(Scripts, false, false);
+						for (const UNiagaraScript* Script : Scripts)
+						{
+							if (!Script)
+							{
+								continue;
+							}
+							for (const FNiagaraVariableWithOffset& Parameter :
+							     Script->RapidIterationParameters.ReadParameterVariables())
+							{
+								if (Parameter.GetType() != FNiagaraTypeDefinition::GetVec3Def() ||
+								    !Parameter.GetName().ToString().EndsWith(TEXT("InitializeParticle.Mesh Scale")))
+								{
+									continue;
+								}
+								const FVector3f MeshScale =
+								    Script->RapidIterationParameters.GetParameterValue<FVector3f>(Parameter);
+								++EchoBornMeshScaleParameterCount;
+								EchoBornMeshScaleEmitterName = EmitterHandle.GetName().ToString();
+								TestTrue(TEXT("Echo Born mesh preserves its authored local X size"),
+								         FMath::IsNearlyEqual(MeshScale.X, 25.0f));
+								TestTrue(TEXT("Echo Born mesh preserves its authored local Y size"),
+								         FMath::IsNearlyEqual(MeshScale.Y, 25.0f));
+								TestTrue(TEXT("Echo Born mesh restores its authored visible local Z size"),
+								         FMath::IsNearlyEqual(MeshScale.Z, 40.0f));
+							}
+						}
 						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 						{
 							const UNiagaraSpriteRendererProperties* Sprite =
@@ -1235,6 +1303,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					}
 				}
 			}
+			TestEqual(TEXT("Echo Born owns one authored mesh-scale parameter"), EchoBornMeshScaleParameterCount, 1);
+			TestTrue(TEXT("Echo Born mesh-scale parameter belongs to Fountain004"),
+			         EchoBornMeshScaleEmitterName.Contains(TEXT("Fountain004")));
 		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||
@@ -1642,6 +1713,97 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			         EmitterData && EmitterData->bLocalSpace);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementReactionVfxLifetimeTest,
+                                 "ReEcho.Presentation.VFX.ElementReactionLifetime",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoElementReactionVfxLifetimeTest::RunTest(const FString& Parameters)
+{
+	UNiagaraSystem* GrassSystem = LoadObject<UNiagaraSystem>(
+	    nullptr, FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::EnhanceGrass));
+	if (TestNotNull(TEXT("Grass reaction Niagara loads"), GrassSystem))
+	{
+		for (const FNiagaraEmitterHandle& EmitterHandle : GrassSystem->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(
+			    FString::Printf(TEXT("Grass reaction emitter '%s' uses local space so reaction scale controls range"),
+			                    *EmitterHandle.GetName().ToString()),
+			    EmitterData && EmitterData->bLocalSpace);
+		}
+	}
+	const TCHAR* GoatFirePath =
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.TimeGuard"));
+	const TCHAR* RabbitWaterPath = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    EReEchoElementReactionVfxSemantic::Vaporize, TEXT("Enemy.Rabbit"));
+	const TCHAR* GoatWaterPath = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    EReEchoElementReactionVfxSemantic::Vaporize, TEXT("Enemy.TimeGuard"));
+	TestNotNull(TEXT("Goat Fire reaction Niagara loads"), LoadObject<UNiagaraSystem>(nullptr, GoatFirePath));
+	UNiagaraSystem* RabbitWaterSystem = LoadObject<UNiagaraSystem>(nullptr, RabbitWaterPath);
+	TestNotNull(TEXT("Rabbit Water reaction Niagara loads"), RabbitWaterSystem);
+	UNiagaraSystem* GoatFireSystem = LoadObject<UNiagaraSystem>(nullptr, GoatFirePath);
+	UNiagaraSystem* GoatWaterSystem = LoadObject<UNiagaraSystem>(nullptr, GoatWaterPath);
+	TestNotNull(TEXT("Goat Water reaction Niagara loads"), GoatWaterSystem);
+	auto TestTargetBoundSystemUsesLocalSpace = [this](const TCHAR* Label, const UNiagaraSystem* System)
+	{
+		if (!System)
+		{
+			return;
+		}
+		for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(FString::Printf(TEXT("%s emitter '%s' follows its Boss attachment in local space"),
+			                         Label,
+			                         *EmitterHandle.GetName().ToString()),
+			         EmitterData && EmitterData->bLocalSpace);
+		}
+	};
+	TestTargetBoundSystemUsesLocalSpace(TEXT("Goat Fire"), GoatFireSystem);
+	TestTargetBoundSystemUsesLocalSpace(TEXT("Goat Water"), GoatWaterSystem);
+	if (GrassSystem && RabbitWaterSystem)
+	{
+		constexpr float TestFlipbookDiameterCm = 240.0f;
+		const FVector GrassScale = UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(
+		    GrassSystem, TestFlipbookDiameterCm, 1.0f, FVector::OneVector);
+		const FVector WaterScale = UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(
+		    RabbitWaterSystem, TestFlipbookDiameterCm, 1.0f, FVector::OneVector);
+		const float GrassWorldDiameter = GrassSystem->GetFixedBounds().GetSize().GetMax() * GrassScale.GetMax();
+		const float WaterWorldDiameter = RabbitWaterSystem->GetFixedBounds().GetSize().GetMax() * WaterScale.GetMax();
+		TestTrue(TEXT("Enhance Grass world range matches the target Flipbook"),
+		         FMath::IsNearlyEqual(GrassWorldDiameter, TestFlipbookDiameterCm, 0.1f));
+		TestTrue(TEXT("Enhance Water world range matches the target Flipbook"),
+		         FMath::IsNearlyEqual(WaterWorldDiameter, TestFlipbookDiameterCm, 0.1f));
+	}
+	TestTrue(TEXT("Vaporize has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::Vaporize)));
+	TestTrue(TEXT("Growth has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::Growth)));
+	TestTrue(TEXT("Grass enhance has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::EnhanceGrass)));
+	TestTrue(TEXT("Water enhance has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::EnhanceWater)));
+	TestFalse(TEXT("Grass attachment remains state-owned instead of reaction-timed"),
+	          UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	              static_cast<uint8>(EReEchoElementReactionVfxSemantic::AttachmentGrass)));
+	TestFalse(TEXT("Water attachment remains state-owned instead of reaction-timed"),
+	          UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	              static_cast<uint8>(EReEchoElementReactionVfxSemantic::AttachmentWater)));
 	return true;
 }
 
