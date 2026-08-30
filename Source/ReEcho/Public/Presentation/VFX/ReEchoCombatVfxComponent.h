@@ -64,8 +64,10 @@ public:
 	static float ResolveProjectileCoreDiameter(float CollisionRadiusCm);
 	/** Additive glow extends beyond the core without changing gameplay collision. */
 	static float ResolveProjectileGlowDiameter(float CollisionRadiusCm);
-	/** Burn and Growth visuals follow authoritative status/attachment events instead of duplicating one-shots. */
+	/** Burn follows its authoritative timed reaction status instead of duplicating a one-shot. */
 	static bool IsElementReactionStateDriven(FName ReactionId);
+	/** Target-bound reaction visuals are force-stopped so looping assets cannot become element markers. */
+	static bool IsBoundedElementReactionSemantic(uint8 SemanticValue);
 	/** Resolves and directly previews one reaction VFX without mutating combat element state. */
 	static bool TryResolveDebugElementReactionSemantic(FName ReactionName, uint8& OutSemanticValue);
 	bool PlayElementReactionForDebug(uint8 SemanticValue, AActor* Target) const;
@@ -84,10 +86,16 @@ public:
 	                                             FVector& OutEndParameter);
 	/** Resolves the current rendered Flipbook bounds center in world space. */
 	static bool TryResolveFlipbookCenter(AActor* Target, FVector& OutCenterWorld);
+	/** Resolves the stable final world diameter from the Flipbook render bounds and component transform. */
+	static bool TryResolveFlipbookWorldDiameter(AActor* Target, float& OutDiameterCm);
 	/** Connection-line Path damage keeps target hurt feedback even when that hit is fatal. */
 	static bool ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner);
 	/** Raises the Boss hurt effect halfway from its authored hurt root toward the rendered Flipbook center. */
 	static FVector ResolveBossHurtEffectLocation(const FVector& HurtRootWorld, const FVector& FlipbookCenterWorld);
+	static FVector ResolveTargetMatchedReactionWorldScale(const UNiagaraSystem* ReactionSystem,
+	                                                      float TargetDiameterCm,
+	                                                      float CoverageRatio,
+	                                                      const FVector& FallbackWorldScale);
 	/** Builds finite effect-local bounds containing both moving world endpoints and a ribbon safety margin. */
 	static FBox ResolveConnectionLinkLocalBounds(const FTransform& EffectTransform,
 	                                             const FVector& StartWorld,
@@ -259,7 +267,6 @@ private:
 	FName ResolveElementVfxTargetId(AActor* Target) const;
 	UNiagaraSystem* ResolveElementSystem(uint8 SemanticValue, AActor* Target) const;
 	void RefreshElementEffects(const FReEchoElementState& State);
-	void RefreshElementAttachment(EReEchoElement Element);
 	void RefreshBurnStatus(bool bBurnActive);
 	UNiagaraComponent* SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
 	bool SpawnConductLink(const FReEchoElementReactionLink& Link) const;
@@ -303,11 +310,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> DashEffect;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UNiagaraComponent> ElementAttachmentEffect;
-
-	EReEchoElement ActiveAttachmentElement = EReEchoElement::None;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> BurnStatusEffect;
