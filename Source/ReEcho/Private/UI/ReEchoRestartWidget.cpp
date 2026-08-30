@@ -5,6 +5,7 @@
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -63,6 +64,7 @@ void UReEchoRestartWidget::NativeConstruct()
 	BuildWidgetTree();
 	EnsureAttackModeWidget();
 	BindFormalResultButtonFeedback();
+	ApplySettlementStatLayout();
 
 	if (ResumeButton)
 	{
@@ -257,6 +259,78 @@ void UReEchoRestartWidget::RefreshRunStatsValues()
 	AssignCount(DefeatReactionCountValue, SettlementStats.ReactionTotal);
 	AssignDamage(DefeatMaxHitValue, SettlementStats.MaxSingleHitDamage);
 	AssignCount(DefeatKillCountValue, SettlementStats.KillTotal);
+}
+
+namespace
+{
+	/** 缩短三列间距，并把每个标签/数值留在各自作者化小框内。 */
+	void ConstrainSettlementStats(UWidgetTree* WidgetTree, const TCHAR* Prefix)
+	{
+		if (!WidgetTree)
+		{
+			return;
+		}
+
+		struct FStatColumn
+		{
+			const TCHAR* Label;
+			const TCHAR* Value;
+			float X;
+			float Y;
+		};
+		const TArray<FStatColumn> StatColumns = {
+		    {TEXT("EncounterLabel"), TEXT("EncounterValue"), 340.0f, 398.0f},
+		    {TEXT("TraitCountLabel"), TEXT("TraitCountValue"), 340.0f, 446.0f},
+		    {TEXT("TimeShardsLabel"), TEXT("TimeShardsValue"), 340.0f, 494.0f},
+		    {TEXT("EchoDamageValueLabel"), TEXT("EchoDamageValue"), 690.0f, 398.0f},
+		    {TEXT("PlayerDamageValueLabel"), TEXT("PlayerDamageValue"), 690.0f, 446.0f},
+		    {TEXT("ReactionCountValueLabel"), TEXT("ReactionCountValue"), 690.0f, 494.0f},
+		    {TEXT("MaxHitValueLabel"), TEXT("MaxHitValue"), 1040.0f, 398.0f},
+		    {TEXT("KillCountValueLabel"), TEXT("KillCountValue"), 1040.0f, 446.0f},
+		};
+
+		for (const FStatColumn& StatColumn : StatColumns)
+		{
+			const FString LabelName = FString::Printf(TEXT("%s%s"), Prefix, StatColumn.Label);
+			const FString ValueName = FString::Printf(TEXT("%s%s"), Prefix, StatColumn.Value);
+
+			if (UTextBlock* Label = Cast<UTextBlock>(WidgetTree->FindWidget(*LabelName)))
+			{
+				if (UCanvasPanelSlot* LabelSlot = Cast<UCanvasPanelSlot>(Label->Slot))
+				{
+					LabelSlot->SetPosition(FVector2D(StatColumn.X, StatColumn.Y));
+				}
+				FSlateFontInfo LabelFont = Label->GetFont();
+				LabelFont.Size = 18;
+				Label->SetFont(LabelFont);
+				Label->SetAutoWrapText(false);
+				Label->SetClipping(EWidgetClipping::ClipToBounds);
+				Label->SetJustification(ETextJustify::Left);
+				Label->SetColorAndOpacity(FSlateColor(FLinearColor(0.86f, 0.83f, 0.76f, 1.0f)));
+			}
+
+			if (UTextBlock* Value = Cast<UTextBlock>(WidgetTree->FindWidget(*ValueName)))
+			{
+				if (UCanvasPanelSlot* ValueSlot = Cast<UCanvasPanelSlot>(Value->Slot))
+				{
+					ValueSlot->SetPosition(FVector2D(StatColumn.X + 138.0f, StatColumn.Y));
+				}
+				FSlateFontInfo ValueFont = Value->GetFont();
+				ValueFont.Size = 20;
+				Value->SetFont(ValueFont);
+				Value->SetAutoWrapText(false);
+				Value->SetClipping(EWidgetClipping::ClipToBounds);
+				Value->SetJustification(ETextJustify::Center);
+				Value->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.95f, 0.80f, 1.0f)));
+			}
+		}
+	}
+} // namespace
+
+void UReEchoRestartWidget::ApplySettlementStatLayout()
+{
+	ConstrainSettlementStats(WidgetTree, TEXT("Defeat"));
+	ConstrainSettlementStats(WidgetTree, TEXT("Victory"));
 }
 
 void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation,

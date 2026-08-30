@@ -102,6 +102,8 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	/** 约束结算页统计文案的字号与裁切，保留 WBP 作者化的 3/3/2 坐标。 */
+	void ApplySettlementStatLayout();
 	void RefreshMenuMode();
 	void RefreshSettlementCharacterImages();
 	void RefreshDefeatCardSlots();
