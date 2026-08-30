@@ -79,6 +79,8 @@ private:
 	void BuildCardEntries();
 	void RefreshOffers();
 	void RefreshSelectionVisuals();
+	/** Keeps the pick hint sitting just above the card frames instead of over the page chrome. */
+	void ApplyTitleLayout();
 
 	/** UI art contract for trait cards (Plan 69). Mirrors the weapon-texture resolution convention:
 	    resolve a per-card texture path from the CardId, falling back to a generic icon when absent. */

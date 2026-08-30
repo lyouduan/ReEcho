@@ -53,6 +53,7 @@
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Run/ReEchoRunStatsTracker.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoEncounterTransitionWidget.h"
@@ -1969,6 +1970,11 @@ void AReEchoGameMode::BeginSelectedRun()
 	{
 		return;
 	}
+	// A run never spans across BeginSelectedRun, so the display-only stats restart with it.
+	if (UReEchoRunStatsSubsystem* Stats = GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>())
+	{
+		Stats->ResetRunStats();
+	}
 	if (StartMenuWidget)
 	{
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
@@ -3313,6 +3319,37 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathShardDrop);
 		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
 		                                                         &AReEchoGameMode::HandleCardElementReactionResolved);
+		CombatEvents->OnHurt.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyHurt);
+		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyDeath);
+		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
+		                                                         &AReEchoGameMode::HandleRunStatsElementReaction);
+	}
+}
+
+void AReEchoGameMode::HandleRunStatsEnemyHurt(const FReEchoDamageEvent& Event)
+{
+	if (UReEchoRunStatsSubsystem* Stats =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
+	{
+		Stats->RecordEnemyHurt(Event);
+	}
+}
+
+void AReEchoGameMode::HandleRunStatsEnemyDeath(const FReEchoDamageEvent& Event)
+{
+	if (UReEchoRunStatsSubsystem* Stats =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
+	{
+		Stats->RecordEnemyDeath(Event);
+	}
+}
+
+void AReEchoGameMode::HandleRunStatsElementReaction(const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (UReEchoRunStatsSubsystem* Stats =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
+	{
+		Stats->RecordElementReaction();
 	}
 }
 
@@ -3827,22 +3864,24 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	}
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const int32 OwnedCardCount = RunSubsystem ? RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num() : 0;
+	// Both terminal surfaces show the same owned-card icons; the pause surface intentionally shows none.
+	const TArray<FReEchoShopOffer> SettlementCards =
+	    RunSubsystem ? RunSubsystem->GetOwnedBuildCardView() : TArray<FReEchoShopOffer>();
 	if (bVictoryScreen)
 	{
 		RestartWidget->SetVictoryScreen(RunSubsystem ? RunSubsystem->TimeShards : 0,
 		                                OwnedCardCount,
-		                                RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None);
+		                                RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None,
+		                                SettlementCards);
 	}
 	else
 	{
-		const TArray<FReEchoShopOffer> OwnedCards =
-		    bDeathScreen && RunSubsystem ? RunSubsystem->GetOwnedBuildCardView() : TArray<FReEchoShopOffer>();
 		RestartWidget->SetDeathScreen(bDeathScreen,
 		                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 		                              RunSubsystem ? RunSubsystem->TimeShards : 0,
 		                              OwnedCardCount,
 		                              RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None,
-		                              OwnedCards);
+		                              bDeathScreen ? SettlementCards : TArray<FReEchoShopOffer>());
 	}
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
@@ -4562,7 +4601,8 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
 	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
-	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView());
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(),
+	                                             RunSubsystem->CurrentBuild.CharacterId);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,

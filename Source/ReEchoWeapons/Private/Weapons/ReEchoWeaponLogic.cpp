@@ -236,6 +236,7 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	OutCommit.BehaviorDurationSeconds = ScaledDuration;
 	OutCommit.bInvulnerable = Step->bInvulnerable;
 	OutCommit.bCritical = bCritical;
+	OutCommit.CriticalMultiplier = bCritical ? (1.0f + FMath::Max(0.0f, Stats.CriticalEffect)) : 1.0f;
 
 	++SuccessfulAttackCount;
 	NextStepCursor = (NextStepCursor + 1) % Definition.AttackSteps.Num();

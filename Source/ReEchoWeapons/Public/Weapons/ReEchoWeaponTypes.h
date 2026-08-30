@@ -83,6 +83,8 @@ struct REECHOWEAPONS_API FReEchoWeaponAttackCommit
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float BehaviorDurationSeconds = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bInvulnerable = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CriticalMultiplier = 1.0f;
 };
 
 USTRUCT(BlueprintType)

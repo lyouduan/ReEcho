@@ -510,6 +510,13 @@ private:
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
 	UFUNCTION()
 	void HandleCardElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
+	/** Forwards combat facts into the independent run-stat tracker; never mutates gameplay state. */
+	UFUNCTION()
+	void HandleRunStatsEnemyHurt(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleRunStatsEnemyDeath(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleRunStatsElementReaction(const FReEchoElementReactionResolvedEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);

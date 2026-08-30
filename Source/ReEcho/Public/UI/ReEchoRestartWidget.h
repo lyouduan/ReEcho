@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Run/ReEchoRunStatsTracker.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoAttackModeWidget.h"
 #include "ReEchoRestartWidget.generated.h"
@@ -88,6 +89,8 @@ public:
 	                    const TArray<FReEchoShopOffer>& OwnedCards);
 	/** 切换到胜利结算模式并显示本轮资源与构筑数量。 */
 	void SetVictoryScreen(int32 TimeShards, int32 TraitCount, FName InCharacterId = NAME_None);
+	/** Victory overload mirroring the defeat surface: projects owned card icons and run statistics. */
+	void SetVictoryScreen(int32 TimeShards, int32 TraitCount, FName InCharacterId, const TArray<FReEchoShopOffer>& OwnedCards);
 	/** Pause-menu second step: only return to the game or confirm exit remain actionable. */
 	void SetQuitConfirmation(bool bInQuitConfirmation, bool bInExitToMainMenu = false, int32 InEncounterIndex = 0);
 	void ShowSaveFailure();
@@ -99,9 +102,14 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	/** 约束结算页统计文案的字号与裁切，保留 WBP 作者化的 3/3/2 坐标。 */
+	void ApplySettlementStatLayout();
 	void RefreshMenuMode();
 	void RefreshSettlementCharacterImages();
 	void RefreshDefeatCardSlots();
+	void RefreshCardIconSlots(const TArray<FString>& TexturePaths, const TCHAR* SlotNamePrefix);
+	void CaptureRunStats();
+	void RefreshRunStatsValues();
 	void EnsureAttackModeWidget();
 	void BindFormalResultButtonFeedback();
 
@@ -182,6 +190,10 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtVictoryCharacterFormal;
 
+	/** Legacy time-shard decoration retained in the WBP for editability but hidden at runtime. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtVictoryTimeShardFormal;
+
 	/** Designer-authored formal defeat surface. Runtime only projects state into these optional bindings. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> DefeatCanvas;
@@ -205,6 +217,10 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtDefeatCharacterFormal;
 
+	/** Legacy time-shard decoration retained in the WBP for editability but hidden at runtime. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtDefeatTimeShardFormal;
+
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartDialogPanel;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryContinueButtonFormal;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtDefeatRestartButtonFormal;
@@ -217,6 +233,18 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSecondaryButton;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseTertiaryButton;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtPauseSettings;
+
+	/** Run statistics authored on both settlement surfaces; runtime only projects text into these bindings. */
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> VictoryEchoDamageValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> VictoryPlayerDamageValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> VictoryReactionCountValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> VictoryMaxHitValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> VictoryKillCountValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatEchoDamageValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatPlayerDamageValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatReactionCountValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatMaxHitValue;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> DefeatKillCountValue;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UReEchoAttackModeWidget> AttackModeWidget;
@@ -233,6 +261,10 @@ private:
 	int32 DefeatTimeShards = 0;
 	int32 DefeatTraitCount = 0;
 	TArray<FString> DefeatCardIconTexturePaths;
+	/** Mirrors the defeat card slots on the victory surface, using the DesignerVictoryCardIcon%d naming. */
+	TArray<FString> VictoryCardIconTexturePaths;
+	/** Snapshot of the independent run statistics captured when a settlement screen is opened. */
+	FReEchoRunCombatStats SettlementStats;
 	FName SettlementCharacterId = NAME_None;
 	int32 PauseEncounterIndex = 0;
 	bool bAutomaticAttackMode = true;

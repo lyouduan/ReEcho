@@ -95,6 +95,7 @@ FReEchoHitResolved ApplyDamage(AActor& Target,
 	Intent.ReactionBehaviorId = ReactionBehaviorId;
 	Intent.ReactionEfficiency = Context.ReactionEfficiency;
 	Intent.bCritical = Context.bCritical;
+	Intent.CriticalMultiplier = Context.CriticalMultiplier;
 	Intent.bSourceRulesApplied = Context.bSourceRulesApplied;
 	Intent.SourceLocation = Context.SourceLocation;
 	Intent.HitLocation = Target.GetActorLocation();
@@ -285,6 +286,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 	Result.Element = Candidate.Element;
 	Result.ReactionBehaviorId = Candidate.ReactionBehaviorId;
 	Result.bCritical = Candidate.bCritical;
+	Result.CriticalMultiplier = Candidate.CriticalMultiplier;
 	Result.HitLocation = Candidate.HitLocation;
 	IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Candidate.Target);
 	UReEchoCombatantComponent* Combatant = Target ? Target->GetCombatTargetCombatant() : nullptr;
@@ -322,6 +324,7 @@ FReEchoHitResolved ReEchoHitResolver::ResolveHit(const FReEchoHitIntent& Intent)
 	Context.ReactionEfficiency = Candidate.ReactionEfficiency;
 	Context.SourceElementalAttack = Candidate.RawDamage;
 	Context.bCritical = Candidate.bCritical;
+	Context.CriticalMultiplier = Candidate.CriticalMultiplier;
 	Context.bSourceRulesApplied = true;
 	Context.SourceEchoEfficiency = 1.0f;
 	if (AActor* Source = Intent.Attack.Source.Get())

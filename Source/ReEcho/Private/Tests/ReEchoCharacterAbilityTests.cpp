@@ -367,4 +367,74 @@ bool FReEchoBug3ProbeTest::RunTest(const FString&)
 	return true;
 }
 
+// --- Regression: a cadence ability's extra shop pick must be claimable. ---
+// The choice UI requires GetPaidShopCardPackSelectableCount() picks, read from the runtime pack state,
+// while the claim validators compare the submitted ids against the shop VIEW's SelectableCardCount. The
+// view never carried the runtime count and stayed at its default of 1, so a Sage 3-choose-2 pack rejected
+// every confirmation with "The paid card pack requires an exact number of choices": the player picked two
+// cards, the confirm button stayed live, and nothing ever happened.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopCadencePackClaimTest,
+                                 "ReEcho.Shop.CadencePackClaim",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopCadencePackClaimTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	Run->EncounterIndex = 4;
+	Run->TimeShards = 1000;
+	const int32 CadenceTier = 2;
+	const FReEchoShopPurchaseOutcome Purchase = Run->PurchaseShopCardPackDetailed(CadenceTier);
+	if (!TestTrue(*FString::Printf(TEXT("Tier-%d card pack purchase succeeds (detail=%s)"),
+	                               CadenceTier,
+	                               *Purchase.Detail),
+	              Purchase.IsSuccess()))
+	{
+		return false;
+	}
+	// Drive the paid pack into its cadence shape directly. Payment resolves this from
+	// ResolvePackSelectableCardCount(), which needs run state this fixture cannot seed reliably; the
+	// regression under test is only that the shop view mirrors whatever the runtime pack ends up holding.
+	bool bForcedTwoPicks = false;
+	for (FReEchoShopCardPackRuntimeState& Pack : Run->CurrentBuild.CardState.Runtime.ShopCardPackStates)
+	{
+		if (Pack.Tier == CadenceTier && Pack.bPaymentCommitted)
+		{
+			Pack.SelectableCardCount = 2;
+			Pack.PicksRemaining = 2;
+			bForcedTwoPicks = true;
+		}
+	}
+	if (!TestTrue(TEXT("The paid tier-two pack is ready for two picks"), bForcedTwoPicks))
+	{
+		return false;
+	}
+	TestEqual(TEXT("The pack runtime requires two picks"), Run->GetPaidShopCardPackSelectableCount(), 2);
+
+	const FReEchoWeaponPartShopView PaidView = Run->GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* PaidPack = PaidView.CardPackOffers.FindByPredicate(
+	    [CadenceTier](const FReEchoShopCardPackOffer& Pack)
+	    {
+		    return Pack.Tier == CadenceTier && Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	    });
+	if (!TestNotNull(TEXT("The paid cadence pack is pending a choice"), PaidPack))
+	{
+		return false;
+	}
+	// The regression guard: if the view falls back to its default of 1 the two-pick claim is rejected outright.
+	TestEqual(TEXT("The shop view pick count mirrors the runtime pick count"),
+	          PaidPack->SelectableCardCount,
+	          Run->GetPaidShopCardPackSelectableCount());
+	if (!TestTrue(TEXT("The cadence pack offers at least two choices"), PaidPack->Choices.Num() >= 2))
+	{
+		return false;
+	}
+	const TArray<FName> TwoIds = {PaidPack->Choices[0].ItemId, PaidPack->Choices[1].ItemId};
+	const FReEchoShopPurchaseOutcome Claim = Run->ClaimPaidShopCardChoices(TwoIds);
+	TestTrue(*FString::Printf(TEXT("The two-card claim succeeds (detail=%s)"), *Claim.Detail),
+	         Claim.IsSuccess());
+	return true;
+}
+
 #endif

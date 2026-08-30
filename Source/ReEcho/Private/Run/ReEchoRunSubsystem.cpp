@@ -2357,6 +2357,12 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				const int32 Tier = PackIndex + 1;
 				FReEchoShopCardPackRuntimeState& Pack = CardRuntime.ShopCardPackStates[PackIndex];
 				CardPack.ItemId = MakeShopCardPackOfferId(EncounterIndex, RefreshSequence, Tier);
+				// Mirror the runtime pack's pick count into the view. The choice UI requires exactly
+				// GetPaidShopCardPackSelectableCount() picks (read from the runtime pack), while the claim
+				// validators compare the submitted ids against this view count. Leaving the view at its
+				// default of 1 makes a cadence pack (Sage 3-choose-2) un-claimable: the player picks two,
+				// confirms, and every attempt is rejected with "requires an exact number of choices".
+				CardPack.SelectableCardCount = FMath::Max(1, Pack.SelectableCardCount);
 				if (!ConfiguredCardTierQuantities.Contains(Tier))
 				{
 					continue;

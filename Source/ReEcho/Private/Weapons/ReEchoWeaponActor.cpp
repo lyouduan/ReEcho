@@ -1397,6 +1397,7 @@ FReEchoHitResolved AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
 	Intent.Element = Commit.Element;
 	Intent.ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
 	Intent.bCritical = Commit.bCritical;
+	Intent.CriticalMultiplier = Commit.CriticalMultiplier;
 	Intent.SourceLocation = DamageSource;
 	Intent.HitLocation = Target.GetActorLocation();
 	const float TargetHealthBefore = TargetCombatant->GetSnapshot().CurrentHealth;
