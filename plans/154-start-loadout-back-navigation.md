@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Complete`。
 - 人工验收：`Passed`。
 - 本地规划 / 实现基线：`origin/main@4eb46ce8c806a00235a9e1f68688c0420483bebb`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan154-loadout-back-navigation`，分支 `plan/154-loadout-back-navigation`；Plan 发布后在该工作区基于最新 `origin/main` 继续实现。
@@ -70,9 +70,9 @@
 - [x] 武器页点击返回后准确回到角色页，之前点击的角色仍选中；不广播 `OnLoadoutConfirmed`，再次确认角色进入武器页时没有旧武器候选。
 - [x] 反复执行“角色 → 武器 → 返回 → 武器”不会累计点击绑定、重复广播、遗留说明/箭头或产生不可见焦点；第二次最终确认仍只提交一次准确的 `(CharacterId, WeaponId)`。
 - [x] 存档槽有空位和三槽全满两种情况下，未最终确认就返回主界面均不创建、删除、覆盖存档或预览图；全满时原最旧槽只在最终确认的新 Run 保存成功时被覆盖。
-- [x] `ReEcho.UI.LoadoutSelection` 聚焦自动化、Loadout WBP Compile/Save、CompileAllBlueprints、Development 构建、静态校验通过；最终发布 `-FullRebuild` 留到人工验收通过后的发布轮。
+- [x] `ReEcho.UI.LoadoutSelection` 聚焦自动化、Loadout WBP Compile/Save、CompileAllBlueprints、Development 构建、静态校验及最终发布 `-FullRebuild` 通过。
 - [x] 用户在 PIE 人工确认两个返回路径、按钮视觉/位置、焦点与存档无副作用符合预期。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -115,12 +115,12 @@
 
 ### 证据
 
-- 最新传入审计并重放到 `origin/main@b2bca7e79e579e5ec740df402e81bbe701168fa2`，传入提交只涉及商店 Tooltip 与对应预构建包，没有 Loadout/GameMode 行为冲突。
+- 发布锁内先合入 `origin/main@fe6b0320ae1531d29b850bcf6f49cbd133c73a8e` 的 Plan153 运行时：GameMode 自动合并保留双方语义，旧二进制未选取任一侧，而是从组合源码 FullRebuild。最终又合入 `origin/main@cdba442d` 的 Plan155-only 文档提交；该提交不改 Source/Content/Config/预构建包，因此只重跑静态门禁，不使刚完成的组合源码构建与自动化失效。
 - Plan154 定向迁移首次日志：`created=True back=(601,892,370,128.5285) confirm=(999,892,370,128.5285)`；二次迁移为 `created=False` 且两组几何完全不变，证明重跑不会复位用户手调位置。
-- 资产审计：`style=formal-family designer_owned=True`；Back/Confirm 均为 `LoadoutDesignCanvas` 子控件，各自 Label 为按钮子控件，正式字体、42px 字号、Outline 一致，四态 Brush 均来自正式浅/深按钮资源族。
-- `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 2/2 为 `Result={Success}`；`ReEcho.GameMode.NewGameSaveSlot` 1/1 为 `Result={Success}`。
-- UE 5.8 Development Editor 构建成功（95/95 actions）；`CompileAllBlueprints` 为 `0 errors / 0 warnings / 0 blueprints that failed to load`。
-- `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check`、`git lfs fsck` 与 `git diff --check` 全部通过。精选 Editor 包为 7 modules、Build ID `55116800`、源码指纹 `8cfbcc497c78`。
+- 最终手调资产审计：`style=formal-family designer_owned=True`；Back 位于 `(1680,976)`、尺寸约 `230×90`、正式深色四态、正式宋体 `28px`，Confirm 位于 `(772,892)`、尺寸 `370×128.5`、正式浅色四态、同字体 `42px`；两者均在 1920×1080 作者面内且互不遮挡。
+- FullRebuild 后 `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 2/2、`ReEcho.GameMode.NewGameSaveSlot` 1/1 均为 `Result={Success}`；与传入 Plan153 重叠的 `ReEcho.Recording` 4/4、`ReEcho.Echo.Lifecycle` 1/1、`ReEcho.Encounter` 4/4、`ReEcho.Run.EchoReplayResolver` 3/3 也全部为 `Result={Success}`，所有测试进程 `EXIT CODE: 0`。
+- UE 5.8 Development Editor `-FullRebuild` 成功（95/95 actions），精选包刷新为 7 modules、Build ID `55116800`、源码指纹 `92e661808ec6`；`CompileAllBlueprints` 为 `0 errors / 0 warnings / 0 blueprints that failed to load`。
+- 最终 `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check`、`git lfs fsck`、`git lfs status` 与 `git diff --check` 全部通过。
 
 ### 剩余风险
 
