@@ -6,11 +6,11 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`InProgress`。
-- 人工验收：`PendingBeforeClose`（先由用户复现并提供诊断日志；确认根因并完成修复后再验证分裂实际命中其他怪物）。
+- 任务状态：`Complete`。
+- 人工验收：`Passed`（用户使用 `GMWeapon W_J_08` 与 `GMEquipRune P_BOW_SPLIT_ARROWHEAD_*` 复测，确认分裂子箭已成功攻击其他怪物）。
 - 本地规划 / 实现基线：`origin/main@fe6b0320ae1531d29b850bcf6f49cbd133c73a8e`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan155`、分支 `plan/155-split-arrow-targeting-diagnostics`。
-- 依赖 / 阻塞：第一阶段只建立可关联母箭、子箭预定目标与实际命中目标的诊断证据；最终行为修复等待用户实测日志确认，不凭静态推断直接改变投射物碰撞语义。
+- 依赖 / 阻塞：无；诊断、根因修复和用户人工验收均已完成。
 - Writes:
   - `plans/155-split-arrow-targeting-diagnostics.md`
   - `Source/ReEcho/Public/Graybox/ReEchoProjectileActor.h`
@@ -59,12 +59,12 @@
 
 ## 锁定验收
 
-- [ ] 用户复现日志能以同一母箭/子箭身份串联：母目标、预定目标、生成点、方向、第一次实际接触目标和最终伤害结果。
-- [ ] 日志确认后的修复使每支分裂子箭不再命中母箭首次命中的怪物，并能对其他合法怪物产生伤害。
-- [ ] 无其他合法目标时不生成无目标子箭；候选数量、稳定排序、伤害倍率、爆炸/穿透组合和禁止递归分裂保持既有语义。
+- [x] 用户复现日志能以同一母箭/子箭身份串联：母目标、预定目标、生成点、方向、第一次实际接触目标和最终伤害结果。
+- [x] 日志确认后的修复使每支分裂子箭不再命中母箭首次命中的怪物，并能对其他合法怪物产生伤害。
+- [x] 无其他合法目标时不生成无目标子箭；候选数量、稳定排序、伤害倍率、爆炸/穿透组合和禁止递归分裂保持既有语义。
 - [ ] 自动化实际推进子箭并验证受伤对象；Weapon/Projectile 聚焦测试、Development 构建、静态校验和最终发布构建通过。
-- [ ] 用户在 PIE 使用分裂箭头复测，确认子箭明显朝其他怪物飞行并实际伤害其他怪物，母目标不再吃到全部分裂伤害。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物、完整运行日志或机器本地路径。
+- [x] 用户在 PIE 使用分裂箭头复测，确认子箭明显朝其他怪物飞行并实际伤害其他怪物，母目标不再吃到全部分裂伤害。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物、完整运行日志或机器本地路径。
 
 ## Step 0 门禁
 
@@ -115,10 +115,15 @@
 
 ### 剩余风险
 
+- 本机 UE 5.8 的 LinuxArm64/VisionOS SDK 元数据会在测试发现前阻断通用 `Run-Automation.cmd`，因此新增行为断言只获得 UHT/UBT 编译证据，未冒充自动化运行通过；项目规则将 Unreal 功能自动化列为可选证据，用户实际 PIE 已覆盖本次关闭行为。
+- 子箭仍可被飞行路径上的另一名合法敌人提前拦截，这是统一逻辑投射物的既有语义，不属于“重命中母目标”缺陷。
+
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请从 `ReEcho-plan155` 启动 PIE，装备任一级分裂箭头并在至少 4 名敌人靠近时触发一次分裂；退出 Editor 后由 Planner 读取最新 session log 的 `[SplitArrowTrace]`，再确认并实施根因修复。
+- `Passed`：用户确认通过，允许按规则合入并发布远端 `main`。
 
 ### 架构文档审阅结果
 
-- 待实现/关闭阶段填写。
+- `MOD-ReEchoWeapons.md`：已记录逻辑 Projectile Spec 的 `InitialIgnoredTargets`、首帧并入命中集合及禁止用固定偏移替代的契约。
+- `MOD-ReEcho.md`：已记录 WeaponActor 选择分裂候选、逻辑 Projectile 排除母目标、Combat 独占结算的职责边界。
+- `ARCHITECTURE.md`、`README.md`：已审阅；模块拓扑、依赖方向和入口未改变，无需修改。

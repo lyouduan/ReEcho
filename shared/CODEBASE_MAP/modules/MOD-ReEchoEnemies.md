@@ -20,10 +20,10 @@
 - 怪物 Archetype、行为阶段、攻击冷却、攻击序号与存活行为门控；
 - 兼容 Grunt/Shield/Bomber、开普勒 Slime/Ranged/Elite 和 Boss 的不可变 Definition；生产 Definition 由主模块从独立怪物工作簿生成的 CSV 编译后注入；
 - Host 显式注入的目标感知到移动、朝向和攻击意图的确定性转换；
-- Host 负责应用外部眩晕门和移动倍率，并为当步 Sense 选择存活嘲讽 Echo；首次进入眩晕时通过窄命令取消旧目标锁定动作；`M_SHEEP` 在配置边界启用 Combat 眩晕免疫，并拒绝 Host 卡牌眩晕计时；
+- Host 负责应用外部眩晕门和移动倍率，并为普通敌人的当步 Sense 与已出手投射物选择存活嘲讽 Echo；Boss 始终保留玩家目标；首次进入眩晕时通过窄命令取消旧目标锁定动作；`M_SHEEP` 在配置边界启用 Combat 眩晕免疫，并拒绝 Host 卡牌眩晕计时；
 - Bomber 不可取消引信、范围判定输入与一次性自毁提交；
 - Slime 表驱动接触攻击、Ranged 锁点前摇/范围判定、Elite 正面防御/锁向突进与恢复；
-- Combat Hurt 结果触发的游戏性击退状态，以及 Combat Death 后停止产出行为；
+- 普通敌人由 Combat Hurt 结果触发的游戏性受击硬直/击退状态，以及 Combat Death 后停止产出行为；Boss 在同一权威 Hurt 入口忽略硬直与击退；
 - 表现中立的 EnemyEvents 与只读 LogicSnapshot；
 - 表现中立的特殊动作阶段事件和逻辑投射物 Spawned/Moved/Ended 生命周期；
 - 无世界纯逻辑回归。
@@ -39,7 +39,7 @@
 
 | 状态 | 唯一所有者 | 外部使用方式 |
 |---|---|---|
-| Archetype、Phase、SpawnIndex、攻击冷却、Fuse、受击剩余时间、击退速度、朝向、攻击序号 | `UReEchoEnemyLogicComponent` | `GetSnapshot()`；Host 不复制可写计时器 |
+| Archetype、Phase、SpawnIndex、攻击冷却、Fuse、普通敌人受击剩余时间、击退速度、朝向、攻击序号 | `UReEchoEnemyLogicComponent` | `GetSnapshot()`；Boss 的受击硬直/击退状态始终归零；Host 不复制可写计时器 |
 | 怪物不可变行为参数 | `FReEchoEnemyDefinition` | Host 初始化时按值注入；运行中不回读资源/配置对象 |
 | 目标与世界位置样本 | EnemyHost 每步构造的 `FReEchoEnemySenseSnapshot` | Logic 只消费当步值，不自行搜索 PlayerController/GameMode |
 | Actor Transform、Collision、实际 swept movement | 主模块 EnemyHost | 应用 `FReEchoEnemyActionIntent`；普通移动不回写，Elite Active 冲撞只通过 `ResolveSpecialDashStep` 回报遇阻与首次接触门控 |
@@ -57,7 +57,7 @@
 - `FReEchoEnemyDefinition`：资源无关的不可变行为定义，携带稳定但资源无关的 `PresentationId`。当前 `MakeLegacyEquivalent` 固定现有 Grunt/Shield/Bomber/Boss 数值和兼容 ID，生产定义由主模块从 CSV 编译后注入。
 - `FReEchoEnemySenseSnapshot`：目标弱引用、Self/Target 位置、时间、目标存在/存活/无敌状态，以及 Encounter 注入的 `bSpecialActionPermitted`。Logic 不允许通过 `FindComponentByClass`、GameMode 或全世界扫描补输入。
 - `BindEventSources(EnemyEvents, CombatEvents)`：由 Host 显式注入两个事件源。Logic 订阅 Combat Hurt/Death，不发现兄弟组件。
-- `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。狐狸 Active 冲撞另由 Host 调用 `ResolveSpecialDashStep`，只反馈实际 Sweep 是否遇阻与本次路径是否已消费首次接触，不传世界对象或伤害结果。
+- `NotifyHurt`、`NotifyDeath`、`RestoreSnapshot`：窄命令入口，供 Host/保存适配与测试使用。`NotifyHurt` 对 Boss 直接忽略，不取消技能、不建立硬直或击退；恢复旧 Boss 快照时也清除可能残留的对应状态。狐狸 Active 冲撞另由 Host 调用 `ResolveSpecialDashStep`，只反馈实际 Sweep 是否遇阻与本次路径是否已消费首次接触，不传世界对象或伤害结果。
 - `CancelActiveActionsForStun`：Host 仅在首次进入眩晕时调用；取消普通特殊技或 Boss 当前动作、发布对应终止事件并清空旧锁点，保留普通冷却、Bomber Fuse、受击状态、身份与生命。
 - `ResetEncounterTransientState`：同 Stage 局间边界的窄命令。取消尚未提交的 Fuse/特殊行动/Boss 行动、受击位移和瞬时计时，但保留 Actor 身份、生命、普通攻击冷却、攻击序号及其他持久逻辑；Enemy Host 负责在调用后冻结自己的 World Tick 和逻辑投射物。
 
@@ -116,8 +116,8 @@ Encounter / GameMode 提供世界上下文
 
 ```text
 Combat OnHurt
-  → EnemyLogic 启动游戏性击退状态
-  → 下一步产生击退 MovementDelta
+  → 普通敌人的 EnemyLogic 启动游戏性受击硬直/击退状态
+  → 普通敌人下一步产生击退 MovementDelta；Boss 忽略该控制但仍正常承受已裁决伤害
   → Presentation 独立播放抖动/受击特效
 
 Combat OnDeath
@@ -133,7 +133,7 @@ Combat OnDeath
 
 ### 当前候选接线状态
 
-`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率，并由 GameMode 为普通攻击与 Boss 投射物统一选择最近存活嘲讽 Echo；EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、按 Stage 策略清理、捕获存档和判断全灭；同 Stage 局间由主模块 Host 的显式 suspension 停止 World 推进，并通过 `ResetEncounterTransientState` 取消旧 Encounter 的瞬时动作，普通攻击冷却等持久状态不消耗 UI 时间。Host 仅把 Definition 的 `PresentationId` 传给 `UReEchoEnemyPresentationComponent`；后者在主模块 Catalog 中解析 Profile，EnemyLogic 不依赖 Blueprint、Paper2D 或资产路径。
+`AReEchoEnemyActor` 已成为轻量 Host：显式构造 Sense、推进 Logic、应用 swept movement、把攻击候选交给 Combat，并聚合保存；不再保存 AI cooldown、Fuse、AttackSequence、击退或表现计时器。Plan47 在 Host 层增加卡牌眩晕/移动倍率和存活嘲讽 Echo 选择；当前 Host 的统一目标解析只允许普通敌人的 AI 与已出手投射物改选 Echo，Boss 即使卡牌规则启用仍保留玩家目标。EnemyLogic 仍不读取 Cards。`AReEchoGameMode` 通过 Roster 生成、恢复、按 Stage 策略清理、捕获存档和判断全灭；同 Stage 局间由主模块 Host 的显式 suspension 停止 World 推进，并通过 `ResetEncounterTransientState` 取消旧 Encounter 的瞬时动作，普通攻击冷却等持久状态不消耗 UI 时间。Host 仅把 Definition 的 `PresentationId` 传给 `UReEchoEnemyPresentationComponent`；后者在主模块 Catalog 中解析 Profile，EnemyLogic 不依赖 Blueprint、Paper2D 或资产路径。
 
 敌人死亡只发布类型化最终事实，不拥有时间碎片区间、随机种子、拾取物或余额。主模块在出生与读档恢复共用的装配函数中订阅死亡事件，由 Run 按死亡时 Encounter 解析一次掉落数额，再由 GameMode 在死亡位置生成通用时间碎片拾取物；因此同 Stage 留存敌人不会把出生关次误当奖励关次，玩家与 Echo 击杀也不会形成两条经济路径。
 
@@ -177,11 +177,13 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - `ReEcho.Enemies.Logic.InvulnerableTargetConsumesAttack`：无敌只阻止伤害候选，不回滚动作与 cooldown。
 - `ReEcho.Enemies.Logic.BomberFuse`：Fuse 不可取消、范围语义正确且只自毁一次。
 - `ReEcho.Enemies.Logic.HurtAndSnapshot`：击退、快照恢复与死亡门控。
+- `ReEcho.Enemies.Boss.HitReactionImmunity`：Boss 忽略新受击硬直/击退，并清理旧快照残留状态。
 - `ReEcho.Enemies.Logic.Roster`：去重注册、稳定顺序、无复制存活查询与清理。
 - `ReEcho.Enemies.Logic.RangedAndEliteBehaviors`：兔子锁点可躲避；狐狸在 0.15 秒 Active 内分步积分 650 cm、复用一次 AttackIdentity，并安全保存/恢复一次接触门。
 - `ReEcho.Enemies.Logic.RangedAbilityRotation`：普通远程多能力按 SequenceOrder 循环、活动 AbilityId 跨快照绑定，以及两种施法移动门。
 - `ReEcho.Enemies.Host.StunRetarget`：首次眩晕只取消一次旧锁定动作且保留冷却；解除后的第一步朝向当前目标，冷却结束后新动作锁定当前目标。
 - `ReEcho.Enemies.Host.SheepStunImmunity`：`M_SHEEP` 同时拒绝 Combat 状态眩晕与 Host 卡牌眩晕，且不记录 `Z_Vertigo`。
+- `ReEcho.Enemies.Host.BossEchoTauntImmunity`：普通敌人在规则开启时选择存活 Echo，Boss 仍保留玩家目标，规则关闭时普通敌人也保留玩家目标。
 - 命令：`scripts/ue/Build-Editor.cmd -Configuration Development`；`scripts/ue/Run-Automation.cmd -Filter ReEcho.Enemies.Logic`。
 - `scripts/validate_project.py` 固定模块依赖和 include 边界，并拒绝 World 扫描、隐式兄弟组件发现、直接伤害调用及 Content 资源路径。
 - `ReEcho.Enemies.Host.CompositionAndSave`、`ReEcho.Enemies.Host.RabbitProjectilePipeline`、`ReEcho.Run.SaveSnapshot` 与 Combat ElementReaction World 测试覆盖 Host/Combat/Roster/Save 接缝；Rabbit 测试额外锁定三球方向、四球跨帧连发及恢复、逐球事件身份、单球表驱动半径、路径内/外、命中玩家立即结束、长剑弧内结束事件和当前表值下单球实际扣血 `1`。
@@ -191,7 +193,7 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 ## 不变量与常见错误
 
 - Enemies 拥有行为，Combat 拥有伤害/生命/元素，Host 拥有世界 Transform，Presentation 拥有可见反馈；任何一方不得复制另一方的可写真相。
-- 卡牌眩晕与减速是 Host 当步输入；首次进入眩晕时，Host 调用 `CancelActiveActionsForStun` 取消尚未结束的普通特殊技或 Boss 技能并清空旧锁点，但不得改写普通攻击冷却、Bomber Fuse、受击状态或为 Cards 增加 Enemies 反向依赖。眩晕期间 Host 停止推进 EnemyLogic，并把同一只读眩晕事实交给 Presentation 暂停当前动画帧；解除眩晕的第一帧必须以当前玩家或存活嘲讽 Echo 重新构造 Sense 并立即决策，不得恢复旧目标锁定动作。
+- 卡牌眩晕与减速是 Host 当步输入；首次进入眩晕时，Host 调用 `CancelActiveActionsForStun` 取消尚未结束的普通特殊技或 Boss 技能并清空旧锁点，但不得改写普通攻击冷却、Bomber Fuse、受击状态或为 Cards 增加 Enemies 反向依赖。眩晕期间 Host 停止推进 EnemyLogic，并把同一只读眩晕事实交给 Presentation 暂停当前动画帧；解除眩晕的第一帧必须以当前玩家或普通敌人可选择的存活嘲讽 Echo 重新构造 Sense 并立即决策，不得恢复旧目标锁定动作。Boss 不得因 Echo 嘲讽切换 Sense 或投射物命中目标。
 - EnemyHost 显式声明 `EnemySide`，攻击身份在提交时快照该阵营；敌人不得在自身 Logic 中复制玩家/回响类型判断。Bomber 自毁通过单次 HitIntent 的 `bAllowSameFactionDamage` 明确放行自身伤害，不能为此全局开启敌人互伤。
 - Host 必须显式注入 Sense 和事件组件；组件内部 `FindComponentByClass` 会重新引入隐式装配和悬空 Actor 风险。
 - 同一步可以同时产生移动和攻击；提交攻击不得用新空对象覆盖已计算的移动/朝向意图。
