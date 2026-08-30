@@ -1708,6 +1708,39 @@ void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRun
 		           LeftTarget->GetCombatTargetTieBreakIndex() < RightTarget->GetCombatTargetTieBreakIndex();
 	    });
 	const int32 ChildCount = FMath::Min(Candidates.Num(), FMath::Max(0, FMath::RoundToInt(Effect.ParamValue)));
+#if !UE_BUILD_SHIPPING
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[SplitArrowTrace] ParentImpact parentProjectile=%s attackSequence=%lld parentTarget='%s' "
+	            "hit=(%.2f,%.2f,%.2f) candidateCount=%d childCount=%d range=%.2f"),
+	       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+	       static_cast<long long>(Context->Commit.Attack.Sequence),
+	       *GetNameSafe(Result.Target),
+	       Result.HitLocation.X,
+	       Result.HitLocation.Y,
+	       Result.HitLocation.Z,
+	       Candidates.Num(),
+	       ChildCount,
+	       Context->Commit.RangeCm);
+	for (int32 CandidateIndex = 0; CandidateIndex < Candidates.Num(); ++CandidateIndex)
+	{
+		const IReEchoCombatTarget* CandidateTarget = Cast<IReEchoCombatTarget>(Candidates[CandidateIndex]);
+		const FVector CandidateLocation = CandidateTarget ? CandidateTarget->GetCombatTargetLocation()
+		                                                  : Candidates[CandidateIndex]->GetActorLocation();
+		UE_LOG(LogReEcho,
+		       Log,
+		       TEXT("[SplitArrowTrace] Candidate parentProjectile=%s rank=%d selected=%d actor='%s' "
+		            "location=(%.2f,%.2f,%.2f) distanceFromHit2D=%.2f"),
+		       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       CandidateIndex,
+		       CandidateIndex < ChildCount ? 1 : 0,
+		       *GetNameSafe(Candidates[CandidateIndex]),
+		       CandidateLocation.X,
+		       CandidateLocation.Y,
+		       CandidateLocation.Z,
+		       FVector::Dist2D(Result.HitLocation, CandidateLocation));
+	}
+#endif
 	const bool bPierceOnCritical = Context->Effects.ContainsByPredicate(
 	    [](const FReEchoWeaponRuneEffectSpec& RuneEffect)
 	    {
@@ -1740,6 +1773,13 @@ void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRun
 		                                 this,
 		                                 Context,
 		                                 false);
+#if !UE_BUILD_SHIPPING
+		if (IsValid(Projectile))
+		{
+			Projectile->ConfigureSplitDiagnostics(
+			    Snapshot.ProjectileId.Value, Index, Result.Target, Candidates[Index]);
+		}
+#endif
 	}
 }
 

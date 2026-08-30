@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`InProgress`。
 - 人工验收：`PendingBeforeClose`（先由用户复现并提供诊断日志；确认根因并完成修复后再验证分裂实际命中其他怪物）。
 - 本地规划 / 实现基线：`origin/main@fe6b0320ae1531d29b850bcf6f49cbd133c73a8e`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan155`、分支 `plan/155-split-arrow-targeting-diagnostics`。
@@ -97,13 +97,22 @@
 
 ### 变化
 
+- 第一阶段诊断已加入：分裂母箭命中、候选排序、子箭预定目标/生成信息，以及子箭第一次实际结算目标均使用 `[SplitArrowTrace]` 和 Projectile GUID 串联。
+- 本阶段未改变候选、生成、碰撞或伤害行为，等待用户日志确认根因。
+
 ### 证据
+
+- `python scripts/setup_lfs.py --check`：通过，3 个 LFS 文件均已 hydrated。
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：通过，97 个 action 完成，精选 Editor 预构建包已刷新。
+- `python scripts/validate_project.py`：构建后通过；XLSX/CSV、规则 Schema、预构建指纹均一致。
+- `git diff --check`：通过（仅报告工作树的预期 LF/CRLF 提示）。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons.Runes.ProjectileSplitPierceExplosion`：在测试发现前被本机 UE 5.8 `ValidatePlatforms -AllPlatforms` 的 LinuxArm64/VisionOS `SDK.json MainVersion` 环境门禁阻断；与 Plan111 已记录的本机问题一致，不冒充测试通过。诊断源码已由 UHT/UBT 完整编译。
 
 ### 剩余风险
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待第一阶段诊断候选与用户复现日志。
+- `PendingBeforeClose`：请从 `ReEcho-plan155` 启动 PIE，装备任一级分裂箭头并在至少 4 名敌人靠近时触发一次分裂；退出 Editor 后由 Planner 读取最新 session log 的 `[SplitArrowTrace]`，再确认并实施根因修复。
 
 ### 架构文档审阅结果
 

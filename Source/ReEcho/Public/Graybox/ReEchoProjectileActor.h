@@ -39,6 +39,14 @@ public:
 	                          TSharedPtr<FReEchoWeaponRuneAttackContext> InRuneContext = nullptr,
 	                          bool bInAllowSplit = true);
 
+#if !UE_BUILD_SHIPPING
+	/** Diagnostic-only correlation for a split child; it does not affect targeting or damage. */
+	void ConfigureSplitDiagnostics(const FGuid& InParentProjectileId,
+	                               int32 InChildIndex,
+	                               AActor* InParentHitTarget,
+	                               AActor* InIntendedTarget);
+#endif
+
 	/** Weapon-specific presentation asset contract. Empty means procedural fallback. */
 	static FString ResolveWeaponTexturePath(FName WeaponVisualKey);
 
@@ -87,5 +95,12 @@ private:
 	TWeakObjectPtr<AReEchoWeaponActor> RuneHost;
 	TSharedPtr<FReEchoWeaponRuneAttackContext> RuneContext;
 	bool bAllowSplit = true;
+#if !UE_BUILD_SHIPPING
+	FGuid SplitParentProjectileId;
+	int32 SplitChildIndex = INDEX_NONE;
+	TWeakObjectPtr<AActor> SplitParentHitTarget;
+	TWeakObjectPtr<AActor> SplitIntendedTarget;
+	bool bHasSplitDiagnostics = false;
+#endif
 	void ConfigureWeaponVisual(FName InWeaponVisualKey, const FLinearColor& Color);
 };
