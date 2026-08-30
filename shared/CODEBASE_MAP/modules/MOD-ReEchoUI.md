@@ -41,7 +41,8 @@
 - Plan110 正式商店以 `WBP_ReEchoInventoryShopScreen > DesignerShopPresentationCanvas` 和根级 `DesignerLoadoutCanvas` 为 `1920×1080` 位置权威。前者直接持有正式木框、货币/刷新、3 个配件报价、3 个卡组报价、中部纸张、装配树和保存离店美术；后者直接持有 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerWeaponInteractionButton`、3 个符文槽和 12 个卡牌槽。报价卡、文字、按钮与全部装配槽均是 Canvas 可调节点；`UReEchoInventoryShopWidget` 只按稳定名称写真实文本、价格、图标、Tooltip、显隐和启用状态，并把最多 24 张已拥有卡牌按两页切片投影到同一组 12 个作者化槽位，不覆盖位置/尺寸。配件/符文说明的命中面是整个 `DesignerPartOfferCard*`，卡组说明的命中面是整个 `DesignerPackOfferCard*` / `DesignerPackOfferBase*` 范围；购买按钮仍只负责点击命令，不得缩小说明的悬浮命中区。旧 `Overlay_0` / `Overlay_1` 只保留必要逻辑契约，其旧底板、标题、店员、时钟和槽位素材已从 WBP 层级删除。
 - 进入商店时，`ReEchoGameMode` 将 `CurrentBuild.CharacterId` 显式传给 `UReEchoInventoryShopWidget`；Widget 在本地展示副本中静默合成 `CHARACTER_CARD_<CharacterId>`，使用角色 CSV 的正式名称、被动描述和角色 Icon，仅投影到右侧第一个已拥有卡槽，不写入 Run 背包、不触发购买或领取事务。
 - 武器/符文贴图 Brush 使用源纹理尺寸；商品图标、已装备武器和槽内内容均放在居中的 `ScaleBox(ScaleToFit)` 中，外层 Button/Canvas 只持有作者化槽框几何，禁止用 Fill 把非同宽高比纹理压扁或拉长，也禁止退回默认 32px 中央小图。点击后用独立浮层列出 Run 投影的全部已拥有武器，当前项禁用，其他项只广播装备请求。武器与符文背包统一挂在响应式设计面的根级 `BackpackPopupLayer`，其 ZOrder 高于商店和回响弹层；两种背包的总面板及每个武器/符文条目都复用卡牌悬浮说明的白边、近黑底视觉，符文背包继续复用武器背包的滚动区、等比图标尺寸和文字行对齐。符文槽继续填充纹理、置灰状态与 Tooltip；普通容量使用三个作者化槽，Run 投影任一非核心槽容量扩为 2 时切换到 `DesignerDualAttachmentLayout`，按 `(SlotTypeId, OccurrenceIndex)` 映射为一个核心长槽和四个独立方槽，完整呈现 `1+2+2` 而不复制卡牌状态或改写容量。构筑卡购买成功后把真实卡牌图标立即填入卡牌槽，但不重摇当前商店卡组候选。
-- 已拥有卡牌的 Tooltip 保留原“名称 + 策划描述”面板；当 Run 投影的 `OutcomeText` 非空时，同一 Tooltip 根在其正下方再生成独立描边的“实际效果”面板。UI 不按卡牌 ID、中文描述或当前属性反推玩法结果，空结果不生成第二面板。
+- 商店角色被动、武器、配件、卡牌和卡组的原生 Tooltip 统一实例化 `WBP_ReEchoShopTooltip`；名称与正文分别绑定 `TitleText` / `DescriptionText`，Run 投影的 `OutcomeText` 原样填入同名文字控件，非空显示整个作者化 `OutcomePanel`，空/纯空白折叠且不留间距。主框和独立描边的“实际效果”框在同一 Designer 默认可见并有示例；C++ 不改写字体、宽度、边框、Padding 或对齐，也不按 ID/描述反推玩法结果。
+- 商店角色/时钟属性 Tooltip 由 `WBP_ReEchoAttributeTooltip > AttributeRows` 及实际嵌套的 `WBP_ReEchoAttributeRow` 实例作者化；完整预览提供当前八项属性，每行 `DesignerPreview` 只供设计期使用。商店适配层保持 CSV 顺序和整数/百分比格式，投影 `FReEchoAttributeRowView` 名称/值/图标；运行时复用现有行、折叠并清空剩余行，目录扩展时才按同一行类追加，沿用首行 Slot 样式。图标只替换 Brush Resource，不重设几何。新类仍在 ReEcho 模块中；入口与说明见 `Design/UI/ReEcho_商店浮窗调整指南.md`。
 - 商店/背包页以 `1920×1080` 为作者设计面：`BackgroundImage` 保持直接铺满实际视口，其余根控件及运行时商店/回响弹层由 `ResponsiveContentScale > ResponsiveContentSize > ResponsiveContentCanvas` 统一 `ScaleToFit`。低分辨率按比例缩小完整页面，超宽屏只延展背景；运行时迁移必须保留原 Canvas Slot 的锚点、偏移、自动尺寸和 ZOrder。
 - `UReEchoInventoryShopWidget` 的无资产 fallback 展示 Run 提供的 `EffectivePrice/bCanPurchase`、武器/符文免费与付费剩余刷新次数、刷新禁用和额外卡牌组禁用状态；Widget 不再根据原价、折扣、碎片余额或免费商店卡牌自行重算内容物价格和购买资格。免费次数优先消费且不占用每关付费次数。主刷新只广播武器/符文刷新命令，Run 成功消费并保存后才更新这三个报价槽，卡组候选和已购状态保持不变。诅咒银行仍由 Run 分开保存非负现金与正债务，商店和玩家 HUD 只读展示二者净值，因此赊账后显示负数但购买判断不读取该展示值。
 - 商店逻辑按稳定区块拆分：`ShopLogicScrollBox > ShopLogicPanel` 依次承载 `WeaponPartOfferPanel`（配件购买）、`RunItemOfferPanel`（普通商品）、`ShopControlPanel`（规则/刷新）和 `WeaponLoadoutPanel`（槽位草稿/保存）。现有 WBP 由 C++ 在根 Canvas 上提供有界、显式滚动条的商品视口，战后模式止于底部回响托盘上方；`EchoPanel` 使用独立缩放托盘与显式高 ZOrder。这些名称是后续 WBP 接入的逻辑契约，C++ 不依赖任何美术占位节点。
@@ -54,6 +55,15 @@
 - 关闭、返回、事务拒绝、购买成功、卡牌揭示开始与装备/卸下成功的专用声音由命令结果宿主发布；普通/商店卡牌在有效点选时由卡面按钮发布一次 `UI.CardSelect`，后续确认或领取事务不重复。初次打开或成功逐槽刷新在 Widget 接收权威候选并开始揭示时发布一次 `UI.CardReveal`，装备集合未变化时不发布 `UI.Equip`。按钮基础反馈不代替事务结果，也不得让音频失败改变 UI 行为。
 
 完整页面清单、WBP/C++ 分工、绑定控件名称、动态条目规则和人工验收要求，统一以 [ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md) 为准；本文件不复制第二份控件契约。
+
+### Plan157 背板和选择页按钮状态
+
+- 商店主说明、实际效果和属性 Tooltip 的外 Border 使用开场 `T_UI_Loadout_DescriptionPanel` 同族九宫格，内 Border 使用真实白色纹理着深色；生成器/资产审计验证真实 Brush Resource，不能仅验证颜色或控件存在。
+- 外框 Content Padding 持有内层底板的留边（默认四边 3px）；`UBorderSlot::SetPadding` 会同步覆盖父 Border 的 Padding，生成器不得在挂子控件后统一清零 BorderSlot。资产审计验证父子 Padding 同步且正值；`ReEcho.UI.TooltipRendering.Backplates` 用非 NullRHI 的真实 Slate/GPU 渲染检查三块面板的四边像素，避免仅有 Brush 引用但边框被实心内板遮盖的回归。
+- 属性行的 `AttributeIcon.Brush.ImageSize` 也由 WBP 持有且须非零（默认 28×28），不等同于外层 SizeBox 的占位。运行时仅换资源、不强写尺寸；生成器显式设置非零期望尺寸，资产审计和真实商店适配测试检查图片尺寸/贴图，GPU 测试填充全部八项真实属性图标并验证每张图的屏幕面积与非纯色像素。
+- `ReEchoLoadoutSelectionWidget::RefreshActionButtons` 统一运行时与 Designer 的按钮状态：确认和返回以及独立标签始终可见，确认仅在当前阶段有选择且尚未提交时启用；返回在未最终提交前保持启用。确认标签跟随确认禁用，返回标签仅在 Hover 时启用其正常亮态、离开灰显；这不修改字体、颜色、几何或游戏候选。
+- `WBP_ReEchoLoadoutSelection` 的 Button Style 持有明暗：确认 Disabled 暗，返回 Normal/Disabled 暗、Hovered/Pressed 亮；C++ 不改写 Style。原有角色页回主菜单、武器页回角色选择、防重复提交和点击选中契约不变。
+- 验证入口为 `ReEcho.UI.Shop.TooltipBlueprints`（真实背板引用、数据及样式保留）、`ReEcho.UI.LoadoutSelection.Flow` / `.Assets`（常驻显示、禁用与 Hover 灰显、WBP 明暗状态）。
 
 ## 依赖方向
 
