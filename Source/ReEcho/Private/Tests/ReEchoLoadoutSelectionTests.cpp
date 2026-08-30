@@ -154,12 +154,21 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		{
 			const FButtonStyle& BackStyle = AuthoredWidget->BackButton->GetStyle();
 			const FButtonStyle& ConfirmStyle = AuthoredWidget->ConfirmButton->GetStyle();
-			TestTrue(TEXT("Back and Confirm share the normal Brush resource"),
-			         BackStyle.Normal.GetResourceObject() == ConfirmStyle.Normal.GetResourceObject());
-			TestTrue(TEXT("Back and Confirm share the hovered Brush resource"),
-			         BackStyle.Hovered.GetResourceObject() == ConfirmStyle.Hovered.GetResourceObject());
-			TestTrue(TEXT("Back and Confirm share the pressed Brush resource"),
-			         BackStyle.Pressed.GetResourceObject() == ConfirmStyle.Pressed.GetResourceObject());
+			auto IsFormalButtonBrush = [](const FSlateBrush& Brush)
+			{
+				const UObject* Resource = Brush.GetResourceObject();
+				const FString Path = Resource ? Resource->GetPathName() : FString();
+				return Path.Contains(TEXT("/PauseAndCombat/T_UI_Pause_ButtonLight.")) ||
+				       Path.Contains(TEXT("/PauseAndCombat/T_UI_Pause_ButtonDark."));
+			};
+			TestTrue(TEXT("Back normal Brush remains in the formal button family"),
+			         IsFormalButtonBrush(BackStyle.Normal));
+			TestTrue(TEXT("Back hovered Brush remains in the formal button family"),
+			         IsFormalButtonBrush(BackStyle.Hovered));
+			TestTrue(TEXT("Back pressed Brush remains in the formal button family"),
+			         IsFormalButtonBrush(BackStyle.Pressed));
+			TestTrue(TEXT("Confirm normal Brush remains in the formal button family"),
+			         IsFormalButtonBrush(ConfirmStyle.Normal));
 			TestEqual(TEXT("Back remains visible before a candidate is selected"),
 			          AuthoredWidget->BackButton->GetVisibility(),
 			          ESlateVisibility::Visible);
@@ -169,13 +178,19 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestNotNull(TEXT("Confirm button remains a Designer Canvas child"), ConfirmSlot);
 			if (BackSlot && ConfirmSlot)
 			{
-				TestEqual(
-				    TEXT("Back and Confirm use the same authored size"), BackSlot->GetSize(), ConfirmSlot->GetSize());
-				TestEqual(TEXT("Back and Confirm stay on the same authored row"),
-				          BackSlot->GetPosition().Y,
-				          ConfirmSlot->GetPosition().Y);
-				TestTrue(TEXT("Back is authored to the left of Confirm"),
-				         BackSlot->GetPosition().X < ConfirmSlot->GetPosition().X);
+				const FVector2D BackPosition = BackSlot->GetPosition();
+				const FVector2D BackSize = BackSlot->GetSize();
+				const FVector2D ConfirmPosition = ConfirmSlot->GetPosition();
+				const FVector2D ConfirmSize = ConfirmSlot->GetSize();
+				TestTrue(TEXT("Back keeps a positive authored size"), BackSize.X > 0.0f && BackSize.Y > 0.0f);
+				TestTrue(TEXT("Back stays inside the 1920x1080 authored surface"),
+				         BackPosition.X >= 0.0f && BackPosition.Y >= 0.0f &&
+				             BackPosition.X + BackSize.X <= 1920.0f && BackPosition.Y + BackSize.Y <= 1080.0f);
+				const bool bButtonsOverlap = BackPosition.X < ConfirmPosition.X + ConfirmSize.X &&
+				                             BackPosition.X + BackSize.X > ConfirmPosition.X &&
+				                             BackPosition.Y < ConfirmPosition.Y + ConfirmSize.Y &&
+				                             BackPosition.Y + BackSize.Y > ConfirmPosition.Y;
+				TestFalse(TEXT("Back does not overlap Confirm after Designer tuning"), bButtonsOverlap);
 			}
 		}
 		TestNotNull(TEXT("Designer tree owns the stage switcher"), AuthoredWidget->StageSwitcher.Get());

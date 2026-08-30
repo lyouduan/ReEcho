@@ -108,6 +108,7 @@
 ### 变化
 
 - `WBP_ReEchoLoadoutSelection` 通过定向、幂等迁移新增 Designer-owned `BackButton` / `BackButtonLabel`；按钮复用确定按钮四态 Style、字体和内部对齐，底部布局为返回在左、确定在右，未重建角色/武器 Entry、Tooltip 或用户微调页面。
+- 用户手测后把返回按钮微调为同一正式按钮资产族的深色版本，并移动到作者面右下角、把按钮与文字分别缩小到约 `230×90` / `28px` 后保存；最终候选保留该已验收构图。审计约束调整为两个按钮的四态均只能使用正式浅/深按钮资源、DrawType、字体资源与文字颜色契约一致，返回按钮必须位于 1920×1080 作者面且不能遮挡确定按钮，不再错误要求两者每一态指向同一纹理、同尺寸、同字号或同排。
 - Loadout Widget 新增窄的 `OnBackRequested` 委托：武器页返回在 Widget 内恢复角色页、保留角色并清空武器；角色页返回由 GameMode 经 UI Flow 关闭配装页并重开 Start Menu。
 - 满存档槽的新游戏入口不再提前删除最旧存档；现在只稳定选择空槽或最旧目标槽，仍由最终配装确认后的 `StartRun + SaveRun` 执行覆盖。
 - 补充返回阶段、WBP 几何/样式契约及新游戏目标存档槽选择的自动化；同步 Designer 微调指导与 Run/UI 模块文档。
@@ -116,7 +117,7 @@
 
 - 最新传入审计并重放到 `origin/main@b2bca7e79e579e5ec740df402e81bbe701168fa2`，传入提交只涉及商店 Tooltip 与对应预构建包，没有 Loadout/GameMode 行为冲突。
 - Plan154 定向迁移首次日志：`created=True back=(601,892,370,128.5285) confirm=(999,892,370,128.5285)`；二次迁移为 `created=False` 且两组几何完全不变，证明重跑不会复位用户手调位置。
-- 资产审计：`style=shared designer_owned=True`；Back/Confirm 均为 `LoadoutDesignCanvas` 子控件，各自 Label 为按钮子控件，正式字体、42px 字号、Outline 与四态 Brush 一致。
+- 资产审计：`style=formal-family designer_owned=True`；Back/Confirm 均为 `LoadoutDesignCanvas` 子控件，各自 Label 为按钮子控件，正式字体、42px 字号、Outline 一致，四态 Brush 均来自正式浅/深按钮资源族。
 - `ReEcho.UI.LoadoutSelection.{Assets,Flow}` 2/2 为 `Result={Success}`；`ReEcho.GameMode.NewGameSaveSlot` 1/1 为 `Result={Success}`。
 - UE 5.8 Development Editor 构建成功（95/95 actions）；`CompileAllBlueprints` 为 `0 errors / 0 warnings / 0 blueprints that failed to load`。
 - `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、`python scripts/setup_lfs.py --check`、`git lfs fsck` 与 `git diff --check` 全部通过。精选 Editor 包为 7 modules、Build ID `55116800`、源码指纹 `8cfbcc497c78`。

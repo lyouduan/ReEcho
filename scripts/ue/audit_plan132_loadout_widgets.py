@@ -14,6 +14,17 @@ FONT_PATHS = (
     "/Game/SourceArt/UI/InteractionPlaceholder/Fonts/Titles/汉仪瑞意宋_80W",
 )
 
+FORMAL_BUTTON_RESOURCES = {
+    "/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
+    "T_UI_Pause_ButtonLight.T_UI_Pause_ButtonLight",
+    "/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/"
+    "T_UI_Pause_ButtonDark.T_UI_Pause_ButtonDark",
+}
+
+
+def object_path(value):
+    return value.get_path_name() if value else "<none>"
+
 
 def main():
     toolset = unreal.UMGToolSet.get_default_object()
@@ -220,14 +231,23 @@ def main():
             for state in ("normal", "hovered", "pressed", "disabled"):
                 confirm_brush = confirm_style.get_editor_property(state)
                 back_brush = back_style.get_editor_property(state)
+                confirm_resource = confirm_brush.get_editor_property("resource_object")
+                back_resource = back_brush.get_editor_property("resource_object")
+                unreal.log(
+                    f"[Plan154LoadoutAudit] state={state} "
+                    f"confirm={object_path(confirm_resource)} "
+                    f"back={object_path(back_resource)}"
+                )
                 if (
-                    confirm_brush.get_editor_property("resource_object")
-                    != back_brush.get_editor_property("resource_object")
+                    object_path(confirm_resource) not in FORMAL_BUTTON_RESOURCES
+                    or object_path(back_resource) not in FORMAL_BUTTON_RESOURCES
                     or confirm_brush.get_editor_property("draw_as")
                     != back_brush.get_editor_property("draw_as")
                 ):
                     raise RuntimeError(
-                        f"Plan154 Back button does not reuse Confirm {state} Brush"
+                        f"Plan154 Back/Confirm {state} Brushes leave the formal family: "
+                        f"confirm={object_path(confirm_resource)} "
+                        f"back={object_path(back_resource)}"
                     )
             confirm_slot = confirm_button.get_editor_property("slot")
             back_slot = back_button.get_editor_property("slot")
@@ -237,36 +257,59 @@ def main():
             back_offsets = back_slot.get_editor_property("layout_data").get_editor_property(
                 "offsets"
             )
+            unreal.log(
+                "[Plan154LoadoutAudit] "
+                f"back=({back_offsets.left},{back_offsets.top},"
+                f"{back_offsets.right},{back_offsets.bottom}) "
+                f"confirm=({confirm_offsets.left},{confirm_offsets.top},"
+                f"{confirm_offsets.right},{confirm_offsets.bottom})"
+            )
+            if back_offsets.right <= 0 or back_offsets.bottom <= 0:
+                raise RuntimeError("Plan154 Back button has no authored size")
             if (
-                confirm_offsets.right != back_offsets.right
-                or confirm_offsets.bottom != back_offsets.bottom
-                or confirm_offsets.top != back_offsets.top
+                back_offsets.left < 0
+                or back_offsets.top < 0
+                or back_offsets.left + back_offsets.right > 1920
+                or back_offsets.top + back_offsets.bottom > 1080
             ):
-                raise RuntimeError("Plan154 Back button size/row does not match Confirm")
-            if back_offsets.left >= confirm_offsets.left:
-                raise RuntimeError("Plan154 Back button is not left of Confirm")
+                raise RuntimeError("Plan154 Back button leaves the 1920x1080 authored surface")
+            if (
+                back_offsets.left < confirm_offsets.left + confirm_offsets.right
+                and back_offsets.left + back_offsets.right > confirm_offsets.left
+                and back_offsets.top < confirm_offsets.top + confirm_offsets.bottom
+                and back_offsets.top + back_offsets.bottom > confirm_offsets.top
+            ):
+                raise RuntimeError("Plan154 Back button overlaps Confirm")
             if str(back_label.get_editor_property("text")) != "返回":
                 raise RuntimeError("Plan154 Back label does not use the formal return text")
             back_font = back_label.get_editor_property("font")
             confirm_font = confirm_label.get_editor_property("font")
             back_color = back_label.get_editor_property("color_and_opacity")
             confirm_color = confirm_label.get_editor_property("color_and_opacity")
+            unreal.log(
+                "[Plan154LoadoutAudit] typography "
+                f"back_font={object_path(back_font.get_editor_property('font_object'))} "
+                f"back_size={back_font.get_editor_property('size')} "
+                f"back_color={back_color.get_editor_property('specified_color')} "
+                f"confirm_font={object_path(confirm_font.get_editor_property('font_object'))} "
+                f"confirm_size={confirm_font.get_editor_property('size')} "
+                f"confirm_color={confirm_color.get_editor_property('specified_color')}"
+            )
             if (
-                back_font.get_editor_property("font_object")
-                != confirm_font.get_editor_property("font_object")
-                or back_font.get_editor_property("size")
-                != confirm_font.get_editor_property("size")
+                object_path(back_font.get_editor_property("font_object"))
+                != object_path(confirm_font.get_editor_property("font_object"))
+                or back_font.get_editor_property("size") <= 0
                 or back_color.get_editor_property("specified_color")
                 != confirm_color.get_editor_property("specified_color")
             ):
-                raise RuntimeError("Plan154 Back label typography does not match Confirm")
+                raise RuntimeError("Plan154 Back label leaves the accepted formal typography")
             unreal.log(
                 "[Plan154LoadoutAudit] "
                 f"back=({back_offsets.left},{back_offsets.top},"
                 f"{back_offsets.right},{back_offsets.bottom}) "
                 f"confirm=({confirm_offsets.left},{confirm_offsets.top},"
                 f"{confirm_offsets.right},{confirm_offsets.bottom}) "
-                "style=shared designer_owned=True"
+                "style=formal-family designer_owned=True"
             )
         for info in infos:
             widget = info.widget
