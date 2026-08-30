@@ -194,6 +194,58 @@ def main():
             unreal.log(
                 "[Plan132LoadoutAudit] detached_selection_arrows=[]"
             )
+            confirm_button = widget_by_name.get("ConfirmButton")
+            confirm_label = widget_by_name.get("ConfirmButtonLabel")
+            back_button = widget_by_name.get("BackButton")
+            back_label = widget_by_name.get("BackButtonLabel")
+            if not isinstance(confirm_button, unreal.Button) or not isinstance(
+                back_button, unreal.Button
+            ):
+                raise RuntimeError("Plan154 Loadout Back/Confirm buttons are missing")
+            if not isinstance(confirm_label, unreal.TextBlock) or not isinstance(
+                back_label, unreal.TextBlock
+            ):
+                raise RuntimeError("Plan154 Loadout Back/Confirm labels are missing")
+            if back_button.get_parent() is not design_canvas or back_label.get_parent() is not design_canvas:
+                raise RuntimeError("Plan154 Back controls are not Designer-owned canvas children")
+            confirm_style = confirm_button.get_editor_property("widget_style")
+            back_style = back_button.get_editor_property("widget_style")
+            for state in ("normal", "hovered", "pressed", "disabled"):
+                confirm_brush = confirm_style.get_editor_property(state)
+                back_brush = back_style.get_editor_property(state)
+                if (
+                    confirm_brush.get_editor_property("resource_object")
+                    is not back_brush.get_editor_property("resource_object")
+                    or confirm_brush.get_editor_property("draw_as")
+                    != back_brush.get_editor_property("draw_as")
+                ):
+                    raise RuntimeError(
+                        f"Plan154 Back button does not reuse Confirm {state} Brush"
+                    )
+            confirm_slot = confirm_button.get_editor_property("slot")
+            back_slot = back_button.get_editor_property("slot")
+            confirm_offsets = confirm_slot.get_editor_property(
+                "layout_data"
+            ).get_editor_property("offsets")
+            back_offsets = back_slot.get_editor_property("layout_data").get_editor_property(
+                "offsets"
+            )
+            if (
+                confirm_offsets.right != back_offsets.right
+                or confirm_offsets.bottom != back_offsets.bottom
+                or confirm_offsets.top != back_offsets.top
+            ):
+                raise RuntimeError("Plan154 Back button size/row does not match Confirm")
+            if back_offsets.left >= confirm_offsets.left:
+                raise RuntimeError("Plan154 Back button is not left of Confirm")
+            unreal.log(
+                "[Plan154LoadoutAudit] "
+                f"back=({back_offsets.left},{back_offsets.top},"
+                f"{back_offsets.right},{back_offsets.bottom}) "
+                f"confirm=({confirm_offsets.left},{confirm_offsets.top},"
+                f"{confirm_offsets.right},{confirm_offsets.bottom}) "
+                "style=shared designer_owned=True"
+            )
         for info in infos:
             widget = info.widget
             if widget is None:

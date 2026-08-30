@@ -393,6 +393,9 @@ private:
 	void HandleLoadoutConfirmed(FName CharacterId, FName WeaponId);
 
 	UFUNCTION()
+	void HandleLoadoutBackRequested();
+
+	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
 	/** Confirms several cards at once from the post-encounter pack (cadence ability: 3-choose-2). */
 	UFUNCTION()

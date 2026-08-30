@@ -1635,10 +1635,9 @@ void AReEchoGameMode::HandleNewGameRequested()
 
 		UE_LOG(LogTemp,
 		       Display,
-		       TEXT("[ReEchoStartFlow] Replacing oldest save slot. Slot=%d SavedAtUtc=%s"),
+		       TEXT("[ReEchoStartFlow] Selected oldest save slot for deferred replacement. Slot=%d SavedAtUtc=%s"),
 		       OldestSaveSlot->SlotIndex + 1,
 		       *OldestSaveSlot->SavedAtUtc.ToIso8601());
-		RunSubsystem->DeleteSavedRun();
 	}
 	ShowLoadoutSelection();
 }
@@ -1895,6 +1894,7 @@ void AReEchoGameMode::ShowLoadoutSelection()
 
 	LoadoutSelectionWidget = NewLoadoutSelectionWidget;
 	LoadoutSelectionWidget->OnLoadoutConfirmed.AddDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->OnBackRequested.AddDynamic(this, &AReEchoGameMode::HandleLoadoutBackRequested);
 	LoadoutSelectionWidget->SetVisibility(ESlateVisibility::Visible);
 	SetPlayerMenuAbilityBlocked(true);
 	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Showing first-encounter loadout selection."));
@@ -1920,6 +1920,25 @@ void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FNam
 	       *CharacterId.ToString(),
 	       *WeaponId.ToString());
 	RequestBeginSelectedRun();
+}
+
+void AReEchoGameMode::HandleLoadoutBackRequested()
+{
+	if (!LoadoutSelectionWidget)
+	{
+		return;
+	}
+
+	LoadoutSelectionWidget->OnLoadoutConfirmed.RemoveDynamic(this, &AReEchoGameMode::HandleLoadoutConfirmed);
+	LoadoutSelectionWidget->OnBackRequested.RemoveDynamic(this, &AReEchoGameMode::HandleLoadoutBackRequested);
+	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+	{
+		UIFlow->CloseScreen(EReEchoUIScreen::Loadout);
+	}
+	LoadoutSelectionWidget = nullptr;
+	ShowStartMenu();
+	UE_LOG(LogTemp, Display, TEXT("[ReEchoStartFlow] Loadout cancelled; returned to start menu without saving."));
 }
 
 void AReEchoGameMode::RequestBeginSelectedRun()

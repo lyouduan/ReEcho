@@ -62,13 +62,23 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 	Widget->HandleWeaponClicked(0);
 	TestEqual(TEXT("Mouse click selects the matching weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
 	Widget->HandleWeaponHovered(1);
-	TestEqual(TEXT("Hovering another weapon preserves the clicked weapon"),
-	          Widget->SelectedWeaponId,
-	          FName(TEXT("W_J_04")));
+	TestEqual(
+	    TEXT("Hovering another weapon preserves the clicked weapon"), Widget->SelectedWeaponId, FName(TEXT("W_J_04")));
 	Widget->HandleWeaponClicked(1);
-	TestEqual(TEXT("A later weapon click replaces the selected candidate"),
-	          Widget->SelectedWeaponId,
-	          FName(TEXT("W_J_09")));
+	TestEqual(
+	    TEXT("A later weapon click replaces the selected candidate"), Widget->SelectedWeaponId, FName(TEXT("W_J_09")));
+	Widget->HandleBackClicked();
+	TestTrue(TEXT("Back from weapon selection returns to the character stage"),
+	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Character);
+	TestEqual(TEXT("Back from weapon selection preserves the clicked character"),
+	          Widget->SelectedCharacterId,
+	          FName(TEXT("J_HEART")));
+	TestTrue(TEXT("Back from weapon selection clears the uncommitted weapon"), Widget->SelectedWeaponId.IsNone());
+	TestFalse(TEXT("Back from weapon selection does not submit a final loadout"), Widget->bFinalConfirmationBroadcast);
+	Widget->HandleConfirmClicked();
+	TestTrue(TEXT("Reconfirming the preserved character re-enters weapon selection"),
+	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Weapon);
+	Widget->HandleWeaponClicked(1);
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("Second confirmation submits the final loadout exactly once"), Widget->bFinalConfirmationBroadcast);
 	TestEqual(
@@ -136,6 +146,22 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		UReEchoLoadoutSelectionWidget* AuthoredWidget =
 		    NewObject<UReEchoLoadoutSelectionWidget>(GetTransientPackage(), SelectionClass);
 		TestTrue(TEXT("Authored selection widget initializes its Designer tree"), AuthoredWidget->Initialize());
+		TestNotNull(TEXT("Designer tree owns the Back button"), AuthoredWidget->BackButton.Get());
+		TestNotNull(TEXT("Designer tree owns the Back button label"), AuthoredWidget->BackButtonLabel.Get());
+		if (AuthoredWidget->BackButton && AuthoredWidget->ConfirmButton)
+		{
+			const FButtonStyle& BackStyle = AuthoredWidget->BackButton->GetStyle();
+			const FButtonStyle& ConfirmStyle = AuthoredWidget->ConfirmButton->GetStyle();
+			TestTrue(TEXT("Back and Confirm share the normal Brush resource"),
+			         BackStyle.Normal.GetResourceObject() == ConfirmStyle.Normal.GetResourceObject());
+			TestTrue(TEXT("Back and Confirm share the hovered Brush resource"),
+			         BackStyle.Hovered.GetResourceObject() == ConfirmStyle.Hovered.GetResourceObject());
+			TestTrue(TEXT("Back and Confirm share the pressed Brush resource"),
+			         BackStyle.Pressed.GetResourceObject() == ConfirmStyle.Pressed.GetResourceObject());
+			TestEqual(TEXT("Back remains visible before a candidate is selected"),
+			          AuthoredWidget->BackButton->GetVisibility(),
+			          ESlateVisibility::Visible);
+		}
 		TestNotNull(TEXT("Designer tree owns the stage switcher"), AuthoredWidget->StageSwitcher.Get());
 		if (AuthoredWidget->StageSwitcher)
 		{

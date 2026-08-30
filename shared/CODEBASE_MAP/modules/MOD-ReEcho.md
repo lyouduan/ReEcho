@@ -82,7 +82,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先占用空槽，三槽均满时删除并复用 `SavedAtUtc` 最早的槽位。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
+- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先选择空槽，三槽均满时选择 `SavedAtUtc` 最早的槽位作为待覆盖目标，但进入角色/武器选择页时不删除或覆盖它，只有最终配装确认后的首次 `SaveRun` 才提交新 Run。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -121,7 +121,7 @@ DefaultEngine.ini
   → AReEchoGameMode::StartPlay
       → 校验并消费 Level00 唯一 Arena Scene / EncounterDirector / StartMenu
       → GameInstance 预加载器异步预热 Combat VFX、兔子代理、四武器首用表现与 MoonStaff 辅助表现
-      → 新游戏：角色阶段确认 → 武器阶段确认 → 单次最终组合提交 → RunSubsystem::StartRun
+      → 新游戏：角色阶段（可返回主界面）→ 武器阶段（可返回角色阶段）→ 单次最终组合提交 → RunSubsystem::StartRun + SaveRun
       → 继续：加载安全检查点或暂停遭遇
       → 预加载未完成时保留当前菜单；完成或失败后只进入一次 BeginSelectedRun
       → BeginNextEncounter / ResumeSavedEncounter
@@ -269,7 +269,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous Echo、单条时间锚点记录与 `CardState.Runtime.AnchorRecordingId`、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。不存在运行时回响存储容量或可购买的扩容/“指定回放解锁”商品；旧 SaveGame 的 `StoredEchoes` 恢复时仅折叠到当前锚点，`StorageCapacity` / `SelectedReplayIds` / `SpecificReplayLimit` 只为反序列化兼容，新存档写零/空。三槽运行存档摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。`GetOwnedBuildCardView()` 从 `CardState.OwnedCardIds` 与卡牌目录生成保持获得顺序的已拥有卡牌只读投影，并与商店复用同一 `FReEchoShopOffer` 图标路径和通用卡图回退契约；失败结算只在该投影上按 `Tier` 选取最多五张，不反向修改构筑。
-- 三槽存档：新游戏先选择第一个空槽，此后所有既有 `SaveRun` 调用只写回该活动槽；点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。三槽全满时不覆盖、不删除、不伪造新建入口。
+- 三槽存档：新游戏先选择第一个空槽；若从主菜单的“新游戏”进入且三槽全满，则只把最旧槽选为待覆盖活动槽，不提前删除存档或预览。角色页返回主界面、武器页返回角色页均不得产生持久化副作用；只有最终角色/武器组合确认后的首次 `SaveRun` 才覆盖活动槽，此后所有既有 `SaveRun` 调用继续写回该槽。点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。存档回溯列表在三槽全满时不伪造空槽新建入口。
 - 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
   GameMode 只把该命令转交 Player Combatant。失败事务不得发布，Widget 不订阅该事件反向改生命。
 - 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 完整合法池生成三选一。初始免费页使用本局持久化种子对完整池等权洗牌、无放回取前三张，不再按已拥有叠层分桶；数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级卡组, 2级卡组, 3级卡组]` 三个固定入口，按真实关次读取 `ShopTiers` 逐级启用；每个启用卡组从同 Tier 资格池确定性缓存最多三张候选和一个同 Tier 基础价。入口底部购买键展示 Run 投影的实际卡组总价；付款事务一次扣费、对付款前已拥有卡牌触发一次 `OnPurchase`，立即保存并转为 `PaidPendingChoice` 后才进入三选一。返回商店不退款，入口变为“继续选择”，重进不收费、不重摇；最终领取只执行 `TryGrantCard`，成功才转 `Purchased`，不再次扣费或触发 `OnPurchase`，并通过统一普通卡组计数入口驱动智者奖励。领取失败保留已付款状态、余额、候选和刷新用量以便重试。候选不足只显示实际 1/2 张，零张售罄，禁止跨级补位。初始投放页按 `EncounterIndex` 稳定；若页面生成后经其他效果新获得二、三级候选，则投影即时剔除该卡但不补抽、不重摇。免费和已付款三选一的每个实际候选槽都独立拥有 `shop_refresh_rules` 配置的刷新次数和价格；免费选卡及已付候选领取本身不收费，只有刷新扣款。成功刷新只原位替换所点槽位，并只重播该槽位的卡牌揭示动画；其他候选保持可见且不重播页面指针。替换保持同级，并排除全部已获得卡、当前候选以及当前这一组三选一自生成起曾展示过的全部卡；各商店Tier卡组和免费三选一分别拥有独立展示历史，新开一组才重置。无合法替代、余额不足、次数耗尽或禁刷新均原子失败。商店主刷新不得重建卡组或清除付款/已购状态。初次免费与商店投放仍允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。SaveVersion 22 保存免费页和各Tier卡组的展示历史；旧版本只从当前候选重建最小历史。SaveVersion 20 新增卡组基础价与付款待选状态；v19 已购卡组迁移为已付款并按原页面身份惰性恢复稳定价格。SaveVersion 18 持久化当前免费投放页及逐槽用量，v17 持久化商店卡组和刷新用量；v16 自动补齐商店零用量，v15 及更早的单卡页缓存显式丢弃并确定性重建。
