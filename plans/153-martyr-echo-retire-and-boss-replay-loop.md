@@ -3,13 +3,13 @@
 ## 协调
 
 - Planner 负责人：Codex（程序路线）。
-- Executor 负责人：Unassigned。
+- Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
-- 实现编写方（AI 侧）：`Unassigned`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
+- 实现编写方（AI 侧）：`Gavyn-side AI`。
+- 任务状态：`Review`。
+- 人工验收：`PendingFollowUp`（用户已明确授权发布；本轮未提供 PIE 观察结果，发布后继续接受人工回归反馈）。
 - 本地规划 / 实现基线：`origin/main@3f82fd2d3c5dd02f83dd145be991dabd21e25621`。
-- 本地实现方式（可选，仅作交接说明）：按当前程序工作模式选择；正式实现前以本 Plan 发布后的最新 `origin/main` 为基线。
+- 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan153`、分支 `plan/153-martyr-echo-boss-loop`，实现基线为已发布本 Plan 的 `4eb46ce8`。
 - 依赖 / 阻塞：产品语义已由用户锁定，无待确认项；实现前需审计最新 main 是否又修改 Echo 死亡、卡牌规则快照或 Recording 回放游标。
 - Writes:
   - `plans/153-martyr-echo-retire-and-boss-replay-loop.md`
@@ -62,14 +62,14 @@
 
 ## 锁定验收
 
-- [ ] 未持有 `G_3_04` 时，现有普通回响行为保持不变；持有后回响被击杀只触发一次既有永久生命奖励，并在同一死亡流程结束后不可见、不可碰撞、不可索敌且不再回放。
-- [ ] 殉身回响的重复伤害/重复死亡通知不能重复奖励或重复退场；GameMode 的 Echo 容器、迷雾、连线、小地图及遭遇清理中不存在失效引用。
-- [ ] 普通 Encounter 在 30 秒内保持现有回放；Boss Encounter 在 30 秒处从头开始第二轮，在 60 秒处开始第三轮，位置和技能事件均按轮次重复且每轮只触发一次。
-- [ ] Boss 在 30 秒附近低帧率跨界、暂停/恢复、超过 30 秒后保存并继续、多个回响并行及回响中途死亡均有自动化或确定性测试覆盖。
-- [ ] 现有 `RetireEncounterEchoes` 若被数据启用仍优先清理，循环逻辑不会复活退场回响。
-- [ ] `ReEcho.Cards`、Recording/Echo/Save/Boss 聚焦自动化、Development 构建、项目静态校验和最终发布构建通过。
+- [x] 未持有 `G_3_04` 时，现有普通回响行为保持不变；持有后回响被击杀只触发一次既有永久生命奖励，并在同一死亡流程结束后不可见、不可碰撞、不可索敌且不再回放。
+- [x] 殉身回响的重复伤害/重复死亡通知不能重复奖励或重复退场；GameMode 的 Echo 容器、迷雾、连线、小地图及遭遇清理中不存在失效引用。
+- [x] 普通 Encounter 在 30 秒内保持现有回放；Boss Encounter 在 30 秒处从头开始第二轮，在 60 秒处开始第三轮，位置和技能事件均按轮次重复且每轮只触发一次。
+- [x] Boss 在 30 秒附近低帧率跨界、暂停/恢复、超过 30 秒后保存并继续、多个回响并行及回响中途死亡均有自动化或确定性测试覆盖。
+- [x] 现有 `RetireEncounterEchoes` 若被数据启用仍优先清理，循环逻辑不会复活退场回响。
+- [x] `ReEcho.Cards`、Recording/Echo/Save/Boss 聚焦自动化、Development 构建、项目静态校验和最终发布构建通过。
 - [ ] 用户在 PIE 验证殉身回响死亡立即消失，以及 Boss 战超过 30 秒后回响重新移动并再次释放录制技能。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -104,14 +104,36 @@
 
 ### 变化
 
+- `Card.TauntEcho` 编译出显式 `bRetireEchoOnDefeat`；Echo 的权威死亡通知增加幂等门，奖励结算后只提交退场请求，GameMode 在固定步安全清理 Actor、容器和迷雾引用。
+- Playback 增加由装配方注入的循环周期；普通 Encounter 保持单次回放，Boss 新建/恢复 Echo 使用现有 `EncounterDuration` 作为周期，并在跨周期时先补齐上一轮尾部事件、再重置游标播放新一轮。
+- 新增 Cards 规则、Recording 30/60 秒边界与恢复、Echo 世界生命周期测试；同步 `MOD-ReEcho` 和 `MOD-ReEchoCards`。
+
 ### 证据
+
+- `python scripts/setup_lfs.py --check`：通过，3 个受管对象均已展开。
+- `scripts/ue/Build-Editor.cmd -Configuration Development`：通过；UHT/UBT 成功并刷新当前工作树预构建包。
+- `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：通过，101 个动作完成，精选 7 模块 Editor 预构建包已按最终候选刷新；仅出现既有 `CompressImageArray` 弃用警告。
+- `ReEcho.Recording`：通过；包含 Boss 30/60 秒循环、低帧率跨界、恢复时不补发旧轮次及普通回放不循环。
+- `ReEcho.Cards.Echo.TauntEchoRetiresOnDefeat`：通过；显式退场规则、禁攻、嘲讽和既有击杀奖励语义均成立。
+- `ReEcho.Echo.Lifecycle`、`ReEcho.Encounter`、`ReEcho.Run.EchoReplayResolver`：通过；后者 3/3 成功，退出码 0。
+- FullRebuild 后重新运行 `ReEcho.Recording`、殉身 Cards 聚焦测试、`ReEcho.Echo.Lifecycle`、`ReEcho.Encounter` 和 `ReEcho.Run.EchoReplayResolver`，5 个测试进程均 `TEST COMPLETE. EXIT CODE: 0`。
+- 发布整合取得 `main-publish-lock` 后合入 `origin/main@b2bca7e79e579e5ec740df402e81bbe701168fa2`：远端 Plan154/商店提示热区改动与 Plan153 无源码或逻辑冲突；GameMode/模块文档自动组合，只有精选预构建包发生预期冲突并在最终组合源码上重新生成。
+- 最终组合再次执行 `-FullRebuild`：95 个动作完成，7 模块 Editor 包刷新成功；随后 Plan153 Recording/Cards/Echo 生命周期、Encounter 与 EchoReplayResolver 聚焦测试全部通过。
+- 额外运行远端新合入的 `ReEcho.UI.Shop` 时，既有 `AuthoredLayoutHosts` 在“刷新按钮美术”断言失败；已在独立干净 `origin/main@b2bca7e7` 工作树复现同一失败，确认不是 Plan153 或本次整合引入，故按基线例外记录且不在本 Plan 越界修改 UI。
+- 完整 `ReEcho.Cards` 仍命中实现前已存在的 `ReEcho.Cards.Grant.GrantAllTierOneAddsEveryEnabledCard` 基线失败；Plan153 新增的 Cards 聚焦测试独立通过，未在本任务越界修改卡牌目录基线问题。
 
 ### 剩余风险
 
+- 自动化验证的是位置、轮次、事件游标和世界退场契约；最终视觉上“立即消失”以及 Boss 30/60 秒重新走位/再次释放技能仍需 PIE 人工确认。
+- 当前主动技能回放广播没有新的消费方改动；本 Plan 保证循环事件契约，后续若新增消费方须继续以回放轮次去重，不能用世界 Actor 指针推断轮次。
+
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：等待实现完成后由用户执行锁定 PIE 验收。
+- `PendingFollowUp`：用户于 2026-08-30 明确要求按规则发布并合入远端主分支，但本轮未报告 PIE 观察结果。发布后仍需验证殉身回响死亡立即消失且只奖励一次，并在 Boss 战观察 30 秒、60 秒边界是否从头重新走位/释放录制技能；若失败按新复现证据继续修复。
 
 ### 架构文档审阅结果
 
-- 待执行阶段填写。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已更新，记录 Boss 循环的周期/游标/恢复契约及殉身回响的死亡清理所有者。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoCards.md`：已更新，记录 `Card.TauntEcho` 的显式退场规则，禁止从禁攻状态反推。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅，无需修改；Runtime Module 拓扑、依赖方向和权威状态所有者均未变化。
+- `shared/CODEBASE_MAP/README.md`：已审阅，无需修改；没有新增、删除或移动模块/领域入口，现有路由仍准确。

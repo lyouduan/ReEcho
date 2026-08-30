@@ -3,6 +3,7 @@
 #include "ReEchoGameMode.h"
 
 #include "Misc/AutomationTest.h"
+#include "Run/ReEchoRunSubsystem.h"
 
 #include <limits>
 
@@ -21,6 +22,40 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeSceneAndMoveSpeedTest,
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeEnemyElementAllTest,
                                  "ReEcho.GameMode.GMEnemyElementAll",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGameModeNewGameSaveSlotTest,
+                                 "ReEcho.GameMode.NewGameSaveSlot",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGameModeNewGameSaveSlotTest::RunTest(const FString& Parameters)
+{
+	TArray<FReEchoSaveSlotSummary> Slots;
+	for (int32 SlotIndex = 0; SlotIndex < 3; ++SlotIndex)
+	{
+		FReEchoSaveSlotSummary& Slot = Slots.AddDefaulted_GetRef();
+		Slot.SlotIndex = SlotIndex;
+		Slot.bOccupied = true;
+		Slot.SavedAtUtc = FDateTime(2026, 8, 30, 10 + SlotIndex, 0, 0);
+	}
+	Slots[1].bOccupied = false;
+	TestEqual(
+	    TEXT("New game prefers the first physical empty slot"), AReEchoGameMode::ResolveNewGameSaveSlot(Slots), 1);
+
+	Slots[1].bOccupied = true;
+	Slots[1].SavedAtUtc = FDateTime(2026, 8, 29, 8, 0, 0);
+	TestEqual(TEXT("A full save set selects the oldest slot without deleting it"),
+	          AReEchoGameMode::ResolveNewGameSaveSlot(Slots),
+	          1);
+
+	Slots[0].SavedAtUtc = Slots[1].SavedAtUtc;
+	TestEqual(TEXT("Equal save times choose the lowest stable slot index"),
+	          AReEchoGameMode::ResolveNewGameSaveSlot(Slots),
+	          0);
+	TestEqual(TEXT("An empty summary rejects new game allocation"),
+	          AReEchoGameMode::ResolveNewGameSaveSlot(TArray<FReEchoSaveSlotSummary>()),
+	          INDEX_NONE);
+	return true;
+}
 
 bool FReEchoGameModeSceneAndMoveSpeedTest::RunTest(const FString& Parameters)
 {

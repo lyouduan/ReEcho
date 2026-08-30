@@ -82,7 +82,7 @@
 
 - 稳定 `CharacterId`、`WeaponId`、Card/Part/Element/Reaction ID。
 - `FReEchoBuildSnapshot`、录制样本/事件和 Run Save 版本迁移；v10 组合保存 `CardDomainRevision`/卡牌运行态、Encounter 波次/预警/全局令牌、EnemyLogic/Combatant/Transform 与独立武器配件所有权。
-- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先占用空槽，三槽均满时删除并复用 `SavedAtUtc` 最早的槽位。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
+- SaveVersion 24 在 v23 的三槽元数据基础上增加统一的本局 `RunSeed`；新局只在 `StartRun` 读取一次 UTC 与高精度时钟，商店武器/符文、商店卡组、战后免费选卡和敌人碎片掉落分别从该根种子派生稳定子流。正式运行存档使用 `ReEchoRunSlot1..3` 三个物理槽；新游戏优先选择空槽，三槽均满时选择 `SavedAtUtc` 最早的槽位作为待覆盖目标，但进入角色/武器选择页时不删除或覆盖它，只有最终配装确认后的首次 `SaveRun` 才提交新 Run。`ReEchoRun` 旧固定槽只在物理第 1 槽不存在时作为兼容只读入口出现，不会因枚举或迁移失败而被删除。恢复任意版本存档时还会消费旧卡牌晋升标志：有可靠 `BaseCharacterId` 时恢复原选角色并逆向修正属性差额，缺失可靠原 ID 时保留当前角色而不猜测。
 - `EReEchoUIScreen`、Gameplay Tag/FName、CSV Schema 与 manifest。
 - 对独立模块只暴露值类型、窄接口、同步请求/结果或语义事件，避免暴露主流程私有字段。
 
@@ -121,7 +121,7 @@ DefaultEngine.ini
   → AReEchoGameMode::StartPlay
       → 校验并消费 Level00 唯一 Arena Scene / EncounterDirector / StartMenu
       → GameInstance 预加载器异步预热 Combat VFX、兔子代理、四武器首用表现与 MoonStaff 辅助表现
-      → 新游戏：角色阶段确认 → 武器阶段确认 → 单次最终组合提交 → RunSubsystem::StartRun
+      → 新游戏：角色阶段（可返回主界面）→ 武器阶段（可返回角色阶段）→ 单次最终组合提交 → RunSubsystem::StartRun + SaveRun
       → 继续：加载安全检查点或暂停遭遇
       → 预加载未完成时保留当前菜单；完成或失败后只进入一次 BeginSelectedRun
       → BeginNextEncounter / ResumeSavedEncounter
@@ -269,7 +269,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous Echo、单条时间锚点记录与 `CardState.Runtime.AnchorRecordingId`、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。不存在运行时回响存储容量或可购买的扩容/“指定回放解锁”商品；旧 SaveGame 的 `StoredEchoes` 恢复时仅折叠到当前锚点，`StorageCapacity` / `SelectedReplayIds` / `SpecificReplayLimit` 只为反序列化兼容，新存档写零/空。三槽运行存档摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。`GetOwnedBuildCardView()` 从 `CardState.OwnedCardIds` 与卡牌目录生成保持获得顺序的已拥有卡牌只读投影，并与商店复用同一 `FReEchoShopOffer` 图标路径和通用卡图回退契约；失败结算只在该投影上按 `Tier` 选取最多五张，不反向修改构筑。
-- 三槽存档：新游戏先选择第一个空槽，此后所有既有 `SaveRun` 调用只写回该活动槽；点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。三槽全满时不覆盖、不删除、不伪造新建入口。
+- 三槽存档：新游戏先选择第一个空槽；若从主菜单的“新游戏”进入且三槽全满，则只把最旧槽选为待覆盖活动槽，不提前删除存档或预览。角色页返回主界面、武器页返回角色页均不得产生持久化副作用；只有最终角色/武器组合确认后的首次 `SaveRun` 才覆盖活动槽，此后所有既有 `SaveRun` 调用继续写回该槽。点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。存档回溯列表在三槽全满时不伪造空槽新建入口。
 - 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
   GameMode 只把该命令转交 Player Combatant。失败事务不得发布，Widget 不订阅该事件反向改生命。
 - 战后卡牌投放：Run 按当前 `EncounterIndex` 查询 `shop_drop_levels`；空 `FreeTier` 直接进入战后商店，有效 Tier 只从 Cards 提供的同 Tier `Trait` 完整合法池生成三选一。初始免费页使用本局持久化种子对完整池等权洗牌、无放回取前三张，不再按已拥有叠层分桶；数据缺失或候选不足不得跨 Tier 回退，并安全转入商店。商店始终投影 `[1级卡组, 2级卡组, 3级卡组]` 三个固定入口，按真实关次读取 `ShopTiers` 逐级启用；每个启用卡组从同 Tier 资格池确定性缓存最多三张候选和一个同 Tier 基础价。入口底部购买键展示 Run 投影的实际卡组总价；付款事务一次扣费、对付款前已拥有卡牌触发一次 `OnPurchase`，立即保存并转为 `PaidPendingChoice` 后才进入三选一。返回商店不退款，入口变为“继续选择”，重进不收费、不重摇；最终领取只执行 `TryGrantCard`，成功才转 `Purchased`，不再次扣费或触发 `OnPurchase`，并通过统一普通卡组计数入口驱动智者奖励。领取失败保留已付款状态、余额、候选和刷新用量以便重试。候选不足只显示实际 1/2 张，零张售罄，禁止跨级补位。初始投放页按 `EncounterIndex` 稳定；若页面生成后经其他效果新获得二、三级候选，则投影即时剔除该卡但不补抽、不重摇。免费和已付款三选一的每个实际候选槽都独立拥有 `shop_refresh_rules` 配置的刷新次数和价格；免费选卡及已付候选领取本身不收费，只有刷新扣款。成功刷新只原位替换所点槽位，并只重播该槽位的卡牌揭示动画；其他候选保持可见且不重播页面指针。替换保持同级，并排除全部已获得卡、当前候选以及当前这一组三选一自生成起曾展示过的全部卡；各商店Tier卡组和免费三选一分别拥有独立展示历史，新开一组才重置。无合法替代、余额不足、次数耗尽或禁刷新均原子失败。商店主刷新不得重建卡组或清除付款/已购状态。初次免费与商店投放仍允许已拥有的 1 级卡重复叠加，并排除已拥有的 2、3 级卡。SaveVersion 22 保存免费页和各Tier卡组的展示历史；旧版本只从当前候选重建最小历史。SaveVersion 20 新增卡组基础价与付款待选状态；v19 已购卡组迁移为已付款并按原页面身份惰性恢复稳定价格。SaveVersion 18 持久化当前免费投放页及逐槽用量，v17 持久化商店卡组和刷新用量；v16 自动补齐商店零用量，v15 及更早的单卡页缓存显式丢弃并确定性重建。
@@ -286,8 +286,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 - 代码：`Source/ReEcho/Public/Recording/`、`Source/ReEcho/Private/Recording/`。
 - 首读：`ReEchoRecorderComponent.*`、`ReEchoPlaybackComponent.*`。
-- 权威：活跃录制时间线、样本顺序、完成录制内容和 Playback 游标。
-- 规则：自动普通攻击不进入 Recording；Echo 回放时重新依据当前世界目标和结算。
+- 权威：活跃录制时间线、样本顺序、完成录制内容、Playback 游标与瞬时循环轮次。
+- 规则：自动普通攻击不进入 Recording；Echo 回放时重新依据当前世界目标和结算。普通 Encounter 使用单次回放并保持末帧；Boss Encounter 由 GameMode 注入权威普通 Encounter 时长作为循环周期，Playback 在每个 30 秒边界完成上一轮尾部事件、重置游标并从第 0 秒继续位置与成功主动技能。保存恢复直接进入当前轮次的局部时间，不补发已完成轮次；暂停时权威 Encounter 时间不前进，因此循环也不前进。
 - 扩展：新增可录事件必须定义稳定序列化语义、时间戳和旧存档兼容。
 - 测试：`ReEchoRecordingTests.cpp` 及 Echo/Save 连续性测试。
 
@@ -317,6 +317,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - Arena Scene：`Presentation/Scene/ReEchoArenaSceneActor.*` 是 `/Game/Level00` 中 Editor authored 的场景契约，独立拥有可替换 `MapMaterial`、相机安全边界、玩家活动边界和敌人出生边界；不再持有或采样地图 AO。`UReEchoArenaSceneProfile` 只拥有地图材质、Ground 调色和插片白名单/密度/固定种子/中央安全区等表现默认值；Actor 的 `SceneProfile` 在 Construction 中建立地图 MID 并应用 `GroundTint/GroundBrightness/GroundSaturation/GroundContrast`，但 Profile 不拥有玩法边界、碰撞、遭遇或关卡流程。`ArenaCamera` 独立直属 `SceneRoot`，直接拥有可编辑的位置、旋转、正交宽度和宽高比，不继承地图 Transform；其运行时 MID/Weighted Blendable 只消费 GameMode 的关末倒计时强度，拥有场景重影模糊的参数与清理生命周期，不反向控制 Encounter。默认中心锁定模式在地图安全区内让相机地面焦点严格跟随玩家脚点，边缘/角落仍以地图 Clamp 为先。`MapRoot` 是地图、碰撞和玩法范围的 Editor 平移/缩放节点；Backdrop、Floor 和四墙是其直接子节点，`OnConstruction()` 会修复旧关卡实例遗留的 Attachment。`PlantRoot` 位于 `GroundDetailRoot` 下，Level00 中烘焙的植物卡片可单独选择、移动、缩放、替换材质或删除；Plan52 工具使用 Profile 固定种子并只清理带 `ReEchoGeneratedDecoration_Plan52` 标签的卡片。GameMode、相机 Clamp、脚点排序与视差读取 MapRoot 世界中心，玩家/出生/相机范围消费其 XY Scale。`GameplayPlaneZ` 是 MapRoot 局部脚底平面，统一转换为世界高度；玩家和怪物 Actor 中心始终为该高度加各自 Box 半高，GroundRoot/阴影因此贴合相同平面。`ReEcho2DSceneLightingComponent` 只维护脚点透明排序，不修改角色明暗。Backdrop 与 Collision 各有独立 Auto Layout 开关；关闭后 Construction 保留关卡实例中直接编辑的组件 Transform。GameMode 只验证唯一实例并消费边界；相机按组件当前倾斜正交视锥投影到同一玩法平面的实际 footprint 跟随/钳制，不在运行时生成备用场地或覆盖 Editor 相机参数。
 - Animation2D 状态：Profile 只选择角色真实拥有的 Flipbook 语义 Clip，并以目标 `WorldHeight` 统一归一化同一外观所有序列；共享状态机包含 Move（Walk）、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death。Move 是可选基础循环，其余状态也是可选能力；缺失语义为合法 no-op，保持当前有效表现。Charge 是由玩法事件显式结束的循环动作，Basic/Hit/Transform/Death 为一次性动作；Transform 的锁定优先级高于 Hit/Attack，Death 是终结状态，非终结动作结束后尝试返回 Move。敌人 Actor Rotation 始终保持 Identity，玩法朝向只读 `EnemyLogic` 的 `FacingDirection`，表现仅由相机面片和 Renderer 左右镜像解释。玩家和敌人的 `GroundRoot` 都直属稳定的 `FootRoot`；两类 `PresentationMotionRoot` 都按 `AuthoredMotionLocation + CalculatedFootAlignmentOffset + TransientMotionOffset` 定位，共用当前 Flipbook 完整 RenderBounds、Renderer 缩放/镜像和 FlipbookRoot 相机面片角度的脚点计算，使 authored 非零时底边中心仍严格落在 `FootRoot + Profile.FootpointOffset`。两类 GroundShadow 共用 `UReEcho2DAnimationComponent` 的表现宽度计算：保留 Blueprint authored 的纵深、Z、材质、透明度和地面旋转，只将 XY 同步到当前 Flipbook 底边中心，并将屏幕横向宽度按实际变换匹配；阴影不继承 FlipbookRoot、瞄准或 Actor 的旋转。`FlipbookRoot` 根据当前实际 ViewTarget 相机旋转对齐，并以相机 Right 轴解释左右朝向。玩家和敌人各自只保留一个可继承编辑的 `GroundShadow`；玩家、Grunt、Rabbit、Fox、Goat 分别绑定 `MI_Shadow_*` 材质实例，通过实例的 `ShadowOpacity` 调整强度。运行时表现更新不创建 MID；阴影不进入碰撞或动画状态。Renderer 统一使用 Paper2D 透明 Unlit Sprite 材质消费源纹理 Alpha。
 - Echo 动画映射：`AReEchoEchoActor` 复用 Player 的 `PresentationRoot → FootRoot → PresentationMotionRoot/GroundRoot` 组件树以及 `Catalog/Profile/Controller/UReEcho2DAnimationComponent` 执行链。独立 `DA_EchoPresentationCatalog` 按录制快照中的规范角色 ID 将 `J_HEART/J_SPADE/J_CLOVER/J_DIAMOND` 一一解析到对应 Echo Profile；默认与移动使用各自 `Walk`，默认近战攻击使用 `Attack`，Bow/Gun 与非生产辅助 `MoonStaff` 的 `WeaponVisualKey` 动画集覆盖为 `Attack_Arrow`。Echo Host 只提交移动、朝向和成功攻击语义，Controller 负责单次播放结束回到当前基础状态；原 Billboard 仅在 Profile/Flipbook 缺失时作为不影响玩法的回退。Echo 的武器瞄准与 Player 一样使用独立 `AttackAimDirection`，不再通过旋转 Actor 根节点驱动武器或 Flipbook。
+- Echo 死亡退场：Combat 仍独占死亡裁决并调用一次 `NotifyDefeated`；Echo Host 以幂等门提交卡牌死亡通知。只有 Cards 显式发布 `bRetireEchoOnDefeat` 的殉身回响会标记世界退场，GameMode 在固定步安全清理点销毁 Actor、移出权威 Echo 容器并刷新迷雾/小地图/连线消费面；普通回响不从禁攻、生命倍率或卡牌文本反推该行为。
 - 碰撞边界：根 Box Collision 始终拥有移动 Sweep、阻挡、导航和位置记录权威；`BP_PlayerGameplay` 与四个 `BP_EnemyGameplay_*` 是尺寸/Transform 的 Editor 权威，GameMode 实际生成这些类。匹配序列的 PaperFlipbook 可使用 `EachFrameCollision` 提供 `QueryOnly` 身体轮廓，但不得推动 Actor 或替代根 Box。
 - 命中边界：语义 Body Hurtbox 与 Weapon AttackHitbox 由独立帧轨道表达。只有已提交攻击的只读身份和轨道 active frame 能开放攻击查询；动画时间、像素 alpha、Paper2D 内建碰撞和播放完成都不能产生或裁决伤害。
 - 资产：运行时 Texture2D、PaperSprite、Flipbook 与同目录源图位于 `Content/ReEcho/Art/Animation2D/{Players,Echos,Enemies}/`；Character/Enemy Profile 与 Common FSM 位于 `Content/ReEcho/DataAsset/{Character,Enemy,Common}/`。导入与只读审计工具位于 `scripts/ue/`。
