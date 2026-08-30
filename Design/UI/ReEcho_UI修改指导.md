@@ -28,7 +28,6 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 | 抽卡页面 | `WBP_ReEchoTraitCardChoice` | `UReEchoTraitCardChoiceWidget` | `BuildChoice` | 三个卡槽、标题、确认按钮和揭示动画 |
 | 抽卡条目 | `WBP_ReEchoTraitCardEntry` | `UReEchoTraitCardEntryWidget` | 抽卡页面内部 | 单张卡的按钮、插图、标题、描述和图标 |
 | 背包/商城 | `WBP_ReEchoInventoryShopScreen` | `UReEchoInventoryShopWidget` | `Screen` | 背包与商城共用页面；报价按钮由目录动态生成 |
-| 属性页面 | `WBP_ReEchoStatsScreen` | `UReEchoStatsWidget` | `Screen` | 玩家和回响的两列属性展示 |
 | 天气 | 无独立 WBP | `UReEchoWeatherWidget` | `Weather` | 明确保留的 C++ `NativePaint` 混合绘制面，负责雨和迷雾 |
 | 伤害数字 | 无独立 WBP | `AReEchoDamageNumberActor` | 世界空间 | 使用 `UTextRenderComponent` 的世界空间反馈，不是菜单 UMG |
 | 元素反应字 | `BP_ReEchoElementReactionPopup` | `AReEchoElementReactionPopupActor` | 世界空间 | 每次权威反应在主目标上方显示一次对应透明图片；参数见 [元素反应字调参指南](ReEcho_元素反应字调参指南.md) |
@@ -83,7 +82,6 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 | `WBP_ReEchoRestart` | `TitleText`, `MessageText`, `ResumeButton`, `RestartButton`, `QuitButton`, `SettingsButton`, `QuitButtonText`；暂停样板另提供可选 `RootPanel`, `PauseSettingsButton`, `ResumeButtonLabel`, `RestartButtonLabel`, `ArtPauseDimmer`, `ArtPausePrimaryButton`, `ArtPauseSecondaryButton`, `ArtPauseTertiaryButton`, `ArtPauseSettings`；正式胜利样板提供可选 `VictoryCanvas`, `VictoryEncounterValue`, `VictoryTimeShardsValue`, `VictoryTraitCountValue`, `VictoryContinueButton`, `ArtVictoryCharacterFormal`；正式失败样板提供可选 `DefeatCanvas`, `DefeatEncounterValue`, `DefeatTimeShardsValue`, `DefeatTraitCountValue`, `DefeatRestartButton`, `DefeatMainMenuButton`, `ArtDefeatCharacterFormal` |
 | `WBP_ReEchoTraitCardChoice` | `TraitCardContainer`, `TraitCardSlot0`, `TraitCardSlot1`, `TraitCardSlot2`, `TitleText`, `ConfirmButton`, `ConfirmButtonLabel` |
 | `WBP_ReEchoInventoryShopScreen` | `BackgroundImage`, `InventoryPanel`, `ShopPanel`, `CurrencyText`, `InventoryText`, `CloseButton`, `OfferContainer` |
-| `WBP_ReEchoStatsScreen` | `BackgroundImage`, `PlayerStatsText`, `EchoStatsText`, `CloseButton` |
 
 ### 4.2 动态条目必需绑定
 
@@ -143,7 +141,7 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 所有交互 WBP 的按钮由 Flow Coordinator 统一提供 `1.05` 倍中心悬停缩放。按钮的底图、文字、图标、选中装饰和真实点击区必须属于同一个按钮视觉根：父级若为只含一个 Button 且另有底图/装饰兄弟的 `Overlay`，即使 Button 自身已有文字 Content，也优先缩放该 Overlay；没有这种单按钮 Overlay 时才缩放 Button。不要把多个按钮放进同一个候选悬停根，也不要在各 WBP 的 Blueprint Graph 复制 Hover/Unhover 逻辑。移出时系统会恢复进入前的 Render Scale 和 Pivot，WBP 作者可继续调整原始尺寸与布局。
 
-`WBP_ReEchoSettings`、`WBP_ReEchoRestart`、`WBP_ReEchoTraitCardEntry`、`WBP_ReEchoInventoryShopScreen`、`WBP_ReEchoPlayerHud`、`WBP_ReEchoEncounterHud` 和 `WBP_ReEchoStatsScreen` 已接入 Plan45 对应面板、卡框、立绘和 HUD 装饰。新增 Image 均不参与命中测试；原 `RootPanel`、`InventoryPanel`、`ShopPanel`、`OfferContainer`、按钮和文本绑定名称/类型保持不变。商店与装配室装饰必须继续放在各自原面板内部，使 `UReEchoInventoryShopWidget::Refresh()` 的显隐切换同时覆盖内容和美术层。
+`WBP_ReEchoSettings`、`WBP_ReEchoRestart`、`WBP_ReEchoTraitCardEntry`、`WBP_ReEchoInventoryShopScreen`、`WBP_ReEchoPlayerHud` 和 `WBP_ReEchoEncounterHud` 已接入 Plan45 对应面板、卡框、立绘和 HUD 装饰。新增 Image 均不参与命中测试；原 `RootPanel`、`InventoryPanel`、`ShopPanel`、`OfferContainer`、按钮和文本绑定名称/类型保持不变。商店与装配室装饰必须继续放在各自原面板内部，使 `UReEchoInventoryShopWidget::Refresh()` 的显隐切换同时覆盖内容和美术层。
 
 `WBP_ReEchoSettings` 的 Graphics、Audio、Controls 是固定页面结构。固定的音频 Slider 和 Checkbox 必须由 WBP 正常路径静态提供，布局、间距、样式和焦点表现归 UMG；`UReEchoSettingsWidget` 只绑定控件、刷新状态并把预览/提交/撤销请求交给 `UReEchoAudioService`。只要 WBP 已有作者ing Root，C++ 就不得用 `BuildWidgetTree()` 覆盖整页；该路径只用于设计资产完全没有 Root 时的最低可用 fallback。运行时补充的 ComboBox/Slider 使用稳定名称查找并幂等复用，重复构造不得叠加交互层。所有绑定控件必须勾选 `Is Variable`，并严格使用第 4 节列出的名称和类型。
 
@@ -299,12 +297,11 @@ git diff --check
 1. Start Menu：新游戏、继续、设置、返回。
 2. Loadout：切换角色、切换武器、确认、动态条目焦点。
 3. 战斗 HUD：玩家血量、敌人血条、遭遇倒计时和最后 5 秒警示。
-4. Tab Stats：玩家/回响两列、无回响状态、关闭后恢复输入。
-5. 背包/商城：打开、购买、余额更新、已拥有状态、关闭。
-6. 抽卡：三卡揭示、选择、额外抽卡、抽卡后自动进入商城、商城关闭后进入下一遭遇。
-7. Esc：暂停、设置、退出确认、取消、继续。
-8. 死亡与胜利：标题、按钮集合、重启和退出路径。
-9. Weather/Damage：雨、迷雾、伤害数字不阻塞输入且层级正确。
+4. 背包/商城：打开、购买、余额更新、已拥有状态、关闭。
+5. 抽卡：三卡揭示、选择、额外抽卡、抽卡后自动进入商城、商城关闭后进入下一遭遇。
+6. Esc：暂停、设置、退出确认、取消、继续。
+7. 死亡与胜利：标题、按钮集合、重启和退出路径。
+8. Weather/Damage：雨、迷雾、伤害数字不阻塞输入且层级正确。
 
 ## 10. 代码与资产定位
 

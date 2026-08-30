@@ -30,7 +30,6 @@ class UReEchoRestartWidget;
 class UReEchoSettingsWidget;
 class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
-class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
@@ -57,7 +56,6 @@ public:
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
-	void ToggleStatsMenu();
 
 	/** Development-only console commands. Open the console with ~ and run GMHelp. */
 	UFUNCTION(Exec)
@@ -244,8 +242,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
 
-	UPROPERTY()
-	TObjectPtr<UReEchoStatsWidget> StatsWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
 	UPROPERTY()
@@ -448,11 +444,6 @@ private:
 	void ShowInventoryShopMenu(EReEchoInventoryShopMode Mode);
 	/** Opens the post-choice shop outside the card button's Slate input dispatch. */
 	void ShowPostTraitShop();
-
-	UFUNCTION()
-	void HandleStatsClosed();
-
-	void ShowStatsMenu();
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
