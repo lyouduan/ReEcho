@@ -165,6 +165,41 @@ bool FReEchoEncounterAndConflictOfferRulesTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTauntEchoRetirementRuleTest,
+	                             "ReEcho.Cards.Echo.TauntEchoRetiresOnDefeat",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTauntEchoRetirementRuleTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition TauntEcho =
+	    MakeCard(TEXT("TAUNT_ECHO"), 3, TEXT("Card.TauntEcho"), TEXT("OnCompileRules"), TEXT("EchoHealth"), 2.0f);
+	FReEchoCardEffectDefinition DeathReward;
+	DeathReward.Id = TEXT("TAUNT_ECHO_DEATH");
+	DeathReward.Order = 2;
+	DeathReward.Trigger = TEXT("OnEchoKilled");
+	DeathReward.BehaviorId = TEXT("Card.TauntEcho");
+	DeathReward.Target = TEXT("HpMaxAndPoint");
+	DeathReward.Value = 5.0f;
+	TauntEcho.Effects.Add(DeathReward);
+	const FReEchoCardCatalog Catalog = BuildCatalog({TauntEcho});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {TauntEcho.Id};
+
+	const FReEchoCardRuleSnapshot Rules = ReEchoCardRuntime::CompileRules(Catalog, State);
+	TestFalse(TEXT("Taunt Echo still cannot attack"), Rules.bEchoesCanAttack);
+	TestTrue(TEXT("Taunt Echo explicitly retires after authoritative defeat"), Rules.bRetireEchoOnDefeat);
+	TestTrue(TEXT("Taunt Echo still taunts enemies"), Rules.bEchoTaunts);
+
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 20.0f;
+	Stats.HpPoint = 12.0f;
+	const FReEchoCardEventResult Reward = ReEchoCardRuntime::OnEchoKilled(Catalog, State, Stats);
+	TestEqual(TEXT("Existing defeat reward still increases maximum health"), Reward.Stats.HpMax, 25.0f);
+	TestEqual(TEXT("Existing defeat reward still heals current health"), Reward.Stats.HpPoint, 17.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoReactionHealPercentTest,
                                  "ReEcho.Cards.ReactionHeal.UsesMaxHealthPercentAndConfiguredCooldown",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

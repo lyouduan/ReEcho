@@ -70,6 +70,8 @@ public:
 	                    TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot);
 	/** 将回响推进到指定遭遇时间，补播期间跨过的所有事件。 */
 	void AdvanceEcho(float EncounterTime);
+	/** Positive only in Boss encounters; zero preserves one-shot playback. */
+	void ConfigureReplayLoop(float LoopDurationSeconds);
 	/** 根据录制角色 ID 选择对应的回响形态。 */
 	bool ConfigureEchoAppearance(FName CharacterId);
 	/** Presentation-owned icon for this Echo appearance on the combat minimap. */
@@ -123,6 +125,10 @@ public:
 	virtual void NotifyHitResolved(const FReEchoHitResolved& Result) const override;
 	virtual void NotifyNegativeStatusApplied(FName StatusId) const override;
 	virtual void NotifyDefeated(EReEchoDamageSource DamageSource) const override;
+	bool IsRetirementPending() const
+	{
+		return bRetirementPending;
+	}
 	FString GetPinnedWeaponDomainRevision() const;
 	FName GetEquippedWeaponId() const;
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
@@ -283,4 +289,7 @@ private:
 	bool bAudioLifecycleStarted = false;
 	bool bCanAttack = true;
 	bool bTransitionGameplaySuspended = false;
+	bool bRetireOnDefeat = false;
+	mutable bool bDefeatHandled = false;
+	mutable bool bRetirementPending = false;
 };

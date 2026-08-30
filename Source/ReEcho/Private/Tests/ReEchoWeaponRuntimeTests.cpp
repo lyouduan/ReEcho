@@ -1395,10 +1395,11 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	SplitWeapon->SetOwner(SplitOwner);
 	SplitWeapon->InitializeWeapon(&SplitBuild, Snapshot);
 	AReEchoEnemyActor* Direct = SplitFixture.SpawnEnemy(FVector(100.0f, 0.0f, 0.0f), 300, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 301, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(250.0f, 50.0f, 0.0f), 302, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(300.0f, -50.0f, 0.0f), 303, 1000.0f);
-	SplitFixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 304, 1000.0f);
+	TArray<AReEchoEnemyActor*> SplitCandidates;
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(200.0f, 0.0f, 0.0f), 301, 1000.0f));
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(250.0f, 50.0f, 0.0f), 302, 1000.0f));
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(300.0f, -50.0f, 0.0f), 303, 1000.0f));
+	SplitCandidates.Add(SplitFixture.SpawnEnemy(FVector(350.0f, 0.0f, 0.0f), 304, 1000.0f));
 	FReEchoWeaponAttackCommit SplitCommit;
 	SplitCommit.Attack.Source = SplitOwner;
 	SplitCommit.Attack.Sequence = 1;
@@ -1424,6 +1425,17 @@ bool FReEchoWeaponRuneProjectileCombinationTest::RunTest(const FString& Paramete
 	}
 	SplitWeapon->HandleProjectileResolved(SplitContext, SplitSnapshot, SplitHit, true);
 	TestEqual(TEXT("The same projectile cannot split recursively or twice"), CountProjectiles(SplitFixture.World), 3);
+	const float DirectHealthBeforeChildren = WeaponEnemyHealth(Direct);
+	TickProjectiles(SplitFixture.World, 0.35f);
+	TestEqual(TEXT("Split children never damage the parent contact target"),
+	          WeaponEnemyHealth(Direct),
+	          DirectHealthBeforeChildren);
+	TestTrue(TEXT("At least one split child damages another selected enemy"),
+	         SplitCandidates.ContainsByPredicate(
+	             [](const AReEchoEnemyActor* Candidate)
+	             {
+		             return Candidate && WeaponEnemyHealth(Candidate) < 1000.0f;
+	             }));
 
 	FReEchoWeaponWorldFixture PierceFixture;
 	UReEchoCombatantComponent* PierceCombatant = nullptr;

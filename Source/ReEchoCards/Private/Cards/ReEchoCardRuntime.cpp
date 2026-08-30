@@ -177,6 +177,7 @@ void ApplyRuleEffect(FReEchoCardRuleSnapshot& Rules, const FReEchoCardEffectDefi
 	else if (Effect.BehaviorId == TEXT("Card.TauntEcho"))
 	{
 		Rules.bEchoesCanAttack = false;
+		Rules.bRetireEchoOnDefeat = true;
 		Rules.bEchoTaunts = true;
 		Rules.EchoHealthMultiplier = FMath::Max(Rules.EchoHealthMultiplier, Effect.Value);
 	}

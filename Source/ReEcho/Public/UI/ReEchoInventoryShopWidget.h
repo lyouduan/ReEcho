@@ -169,6 +169,7 @@ private:
 	/** Creates (or reuses) the roman-numeral tier badge layered over a weapon-rune offer icon. */
 	UTextBlock* EnsureRuneTierBadge(class UCanvasPanel* Card, class UImage* Icon, int32 Index);
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
+	UWidget* BuildCardPackTooltip(const FReEchoShopCardPackOffer& Pack);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
 	bool HasEchoStorageCard() const;
 	void
@@ -357,6 +358,8 @@ private:
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferBuyLabels;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UCanvasPanel>> DesignerPackOfferCards;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> DesignerPackOfferBases;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerPackOfferIcons;
 	UPROPERTY(Transient)

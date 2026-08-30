@@ -8,6 +8,7 @@
 #include "Engine/GameInstance.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Recording/ReEchoPlaybackComponent.h"
 #include "Recording/ReEchoRecorderComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 
@@ -29,6 +30,94 @@ bool FReEchoRecordingInterpolationTest::RunTest(const FString& Parameters)
 	         Recording.EvaluatePosition(0.5f).Equals(FVector(50.f, 0.f, 0.f), KINDA_SMALL_NUMBER));
 	TestTrue("Playback holds its final position",
 	         Recording.EvaluatePosition(30.f).Equals(End.Position, KINDA_SMALL_NUMBER));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossPlaybackLoopTest,
+	                             "ReEcho.Recording.BossPlaybackLoopsEveryEncounterDuration",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossPlaybackLoopTest::RunTest(const FString& Parameters)
+{
+	const float LoopDuration = GetDefault<UReEchoBalanceSettings>()->EncounterDuration;
+	FReEchoRecording Recording;
+	FReEchoPositionSample Start;
+	Start.Time = 0.0f;
+	Start.Position = FVector::ZeroVector;
+	FReEchoPositionSample End;
+	End.Time = LoopDuration;
+	End.Position = FVector(300.0f, 0.0f, 0.0f);
+	Recording.Positions = {Start, End};
+	FReEchoSkillEvent EarlySkill;
+	EarlySkill.Time = 0.1f;
+	EarlySkill.SkillId = TEXT("Early");
+	FReEchoSkillEvent LateSkill;
+	LateSkill.Time = LoopDuration - 0.1f;
+	LateSkill.SkillId = TEXT("Late");
+	Recording.Skills = {EarlySkill, LateSkill};
+
+	UReEchoPlaybackComponent* Playback = NewObject<UReEchoPlaybackComponent>(GetTransientPackage());
+	Playback->LoadRecording(Recording);
+	Playback->SetLoopDuration(LoopDuration);
+	Playback->AdvancePlayback(LoopDuration - 0.2f);
+	TestEqual(TEXT("Only the early skill has fired before the first cycle tail"), Playback->GetNextSkillIndexForTests(), 1);
+	Playback->AdvancePlayback(LoopDuration + 0.05f);
+	TestEqual(TEXT("Crossing the boundary enters cycle one"), Playback->GetPlaybackCycleForTests(), int64(1));
+	TestEqual(TEXT("The late tail is completed and the new cycle waits for its early event"),
+	          Playback->GetNextSkillIndexForTests(),
+	          0);
+	Playback->AdvancePlayback(LoopDuration + 0.15f);
+	TestEqual(TEXT("The early event is replayed once in cycle one"), Playback->GetNextSkillIndexForTests(), 1);
+	Playback->AdvancePlayback(2.0f * LoopDuration + 0.15f);
+	TestEqual(TEXT("The second boundary enters cycle two"), Playback->GetPlaybackCycleForTests(), int64(2));
+	TestEqual(TEXT("The early event is replayed once in cycle two"), Playback->GetNextSkillIndexForTests(), 1);
+	TestTrue(TEXT("Boss position wraps to the matching local recording time"),
+	         Playback->ResolvePlaybackTimeForTests(2.0f * LoopDuration + 0.5f) == 0.5f);
+
+	UReEchoPlaybackComponent* RestoredPlayback = NewObject<UReEchoPlaybackComponent>(GetTransientPackage());
+	RestoredPlayback->LoadRecording(Recording);
+	RestoredPlayback->SetLoopDuration(LoopDuration);
+	RestoredPlayback->AdvancePlayback(2.0f * LoopDuration + 0.15f);
+	TestEqual(TEXT("A restored Echo starts directly in the saved cycle"),
+	          RestoredPlayback->GetPlaybackCycleForTests(),
+	          int64(2));
+	TestEqual(TEXT("A restored Echo only catches up the current cycle"),
+	          RestoredPlayback->GetNextSkillIndexForTests(),
+	          1);
+	RestoredPlayback->AdvancePlayback(2.0f * LoopDuration + 0.15f);
+	TestEqual(TEXT("Paused/repeated time does not duplicate the current skill"),
+	          RestoredPlayback->GetNextSkillIndexForTests(),
+	          1);
+
+	UReEchoPlaybackComponent* OrdinaryPlayback = NewObject<UReEchoPlaybackComponent>(GetTransientPackage());
+	OrdinaryPlayback->LoadRecording(Recording);
+	OrdinaryPlayback->AdvancePlayback(2.0f * LoopDuration + 0.15f);
+	TestEqual(TEXT("Ordinary playback consumes its events once"), OrdinaryPlayback->GetNextSkillIndexForTests(), 2);
+	TestEqual(TEXT("Ordinary playback remains in non-looping mode"),
+	          OrdinaryPlayback->GetPlaybackCycleForTests(),
+	          int64(INDEX_NONE));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoMartyrDefeatRetirementTest,
+	                             "ReEcho.Recording.MartyrEchoDefeatRequestsRetirementOnce",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoMartyrDefeatRetirementTest::RunTest(const FString& Parameters)
+{
+	AReEchoEchoActor* OrdinaryEcho = NewObject<AReEchoEchoActor>(GetTransientPackage());
+	OrdinaryEcho->NotifyDefeated(EReEchoDamageSource::Enemy);
+	TestFalse(TEXT("An ordinary Echo does not request retirement"), OrdinaryEcho->IsRetirementPending());
+
+	AReEchoEchoActor* MartyrEcho = NewObject<AReEchoEchoActor>(GetTransientPackage());
+	FReEchoCardRuleSnapshot MartyrRules;
+	MartyrRules.bEchoesCanAttack = false;
+	MartyrRules.bRetireEchoOnDefeat = true;
+	MartyrEcho->ConfigureCardRules(MartyrRules, FReEchoStatBlock{});
+	MartyrEcho->NotifyDefeated(EReEchoDamageSource::Enemy);
+	TestTrue(TEXT("A defeated Martyr Echo requests world retirement"), MartyrEcho->IsRetirementPending());
+	MartyrEcho->NotifyDefeated(EReEchoDamageSource::Enemy);
+	TestTrue(TEXT("A duplicate defeat notification remains idempotent"), MartyrEcho->IsRetirementPending());
 	return true;
 }
 

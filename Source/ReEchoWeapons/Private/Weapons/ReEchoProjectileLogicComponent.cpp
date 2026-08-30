@@ -44,6 +44,13 @@ bool UReEchoProjectileLogicComponent::InitializeProjectile(const FReEchoLogicalP
 	Velocity = (Direction.IsNearlyZero() ? FVector::ForwardVector : Direction) * Spec.SpeedCmPerSecond;
 	TravelledCm = 0.0f;
 	HitTargets.Reset();
+	for (AActor* IgnoredTarget : Spec.InitialIgnoredTargets)
+	{
+		if (IsValid(IgnoredTarget))
+		{
+			HitTargets.Add(IgnoredTarget);
+		}
+	}
 #if !UE_BUILD_SHIPPING
 	DiagnosticLoggedNearTargets.Reset();
 	DiagnosticClosestTarget.Reset();

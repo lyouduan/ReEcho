@@ -17,8 +17,7 @@ enum class EReEchoUIScreen : uint8
 	Restart,
 	EncounterTransition,
 	TraitChoice,
-	InventoryShop,
-	Stats
+	InventoryShop
 };
 
 /** Stable viewport layers for all ReEcho runtime UI. */

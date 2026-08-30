@@ -25,6 +25,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void LoadRecording(const FReEchoRecording& InRecording);
 
+	/** Zero keeps legacy one-shot playback. A positive duration loops position and skill events on that period. */
+	void SetLoopDuration(float InLoopDurationSeconds);
+
 	/** 广播指定时间之前尚未触发的事件，避免低帧率时漏播。 */
 	UFUNCTION(BlueprintCallable)
 	void AdvancePlayback(float EncounterTime);
@@ -38,9 +41,31 @@ public:
 	/** Read-only path sample used by deterministic encounter spawn anchoring. */
 	FVector EvaluateRecordedPosition(float EncounterTime) const;
 
+#if WITH_DEV_AUTOMATION_TESTS
+	int32 GetNextSkillIndexForTests() const
+	{
+		return NextSkillIndex;
+	}
+
+	int64 GetPlaybackCycleForTests() const
+	{
+		return PlaybackCycle;
+	}
+
+	float ResolvePlaybackTimeForTests(float EncounterTime) const
+	{
+		return ResolvePlaybackTime(EncounterTime);
+	}
+#endif
+
 private:
+	float ResolvePlaybackTime(float EncounterTime) const;
+	void BroadcastSkillsThrough(float PlaybackTime);
+
 	UPROPERTY()
 	FReEchoRecording Recording;
 
 	int32 NextSkillIndex = 0;
+	int64 PlaybackCycle = INDEX_NONE;
+	float LoopDurationSeconds = 0.0f;
 };

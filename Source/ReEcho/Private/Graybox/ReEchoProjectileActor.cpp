@@ -1,6 +1,8 @@
 #include "Graybox/ReEchoProjectileActor.h"
 
+#include "ReEcho.h"
 #include "Combat/ReEchoElementReaction.h"
+#include "Combat/ReEchoCombatTarget.h"
 #include "Camera/PlayerCameraManager.h"
 
 #include "Components/SphereComponent.h"
@@ -18,6 +20,18 @@
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 #include "Weapons/ReEchoWeaponActor.h"
+
+namespace ReEchoSplitArrowDiagnostics
+{
+FVector ResolveTargetLocation(AActor* Actor)
+{
+	if (const IReEchoCombatTarget* Target = Cast<IReEchoCombatTarget>(Actor))
+	{
+		return Target->GetCombatTargetLocation();
+	}
+	return Actor ? Actor->GetActorLocation() : FVector::ZeroVector;
+}
+} // namespace ReEchoSplitArrowDiagnostics
 
 AReEchoProjectileActor::AReEchoProjectileActor()
 {
@@ -66,7 +80,8 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const bool bInPierceOnCritical,
                                                   AReEchoWeaponActor* InRuneHost,
                                                   TSharedPtr<FReEchoWeaponRuneAttackContext> InRuneContext,
-                                                  const bool bInAllowSplit)
+                                                  const bool bInAllowSplit,
+                                                  AActor* InInitialIgnoredTarget)
 {
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
@@ -90,6 +105,10 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	Spec.ExplosionRadiusCm = ExplosionRadiusCm;
 	Spec.MaximumRangeCm = FMath::Max(1.0f, InMaxRangeCm);
 	Spec.bPierceOnCritical = bInPierceOnCritical;
+	if (IsValid(InInitialIgnoredTarget))
+	{
+		Spec.InitialIgnoredTargets.Add(InInitialIgnoredTarget);
+	}
 	if (!ProjectileLogic->InitializeProjectile(Spec))
 	{
 		Destroy();
@@ -118,6 +137,46 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 		ElementLabel->SetVisibility(false);
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+void AReEchoProjectileActor::ConfigureSplitDiagnostics(const FGuid& InParentProjectileId,
+                                                       const int32 InChildIndex,
+                                                       AActor* InParentHitTarget,
+                                                       AActor* InIntendedTarget)
+{
+	SplitParentProjectileId = InParentProjectileId;
+	SplitChildIndex = InChildIndex;
+	SplitParentHitTarget = InParentHitTarget;
+	SplitIntendedTarget = InIntendedTarget;
+	bHasSplitDiagnostics = true;
+
+	const FReEchoProjectileSnapshot Snapshot = ProjectileLogic ? ProjectileLogic->GetSnapshot()
+	                                                          : FReEchoProjectileSnapshot{};
+	const FVector ParentLocation =
+	    ReEchoSplitArrowDiagnostics::ResolveTargetLocation(SplitParentHitTarget.Get());
+	const FVector IntendedLocation =
+	    ReEchoSplitArrowDiagnostics::ResolveTargetLocation(SplitIntendedTarget.Get());
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[SplitArrowTrace] ChildSpawn parentProjectile=%s childProjectile=%s childActor='%s' childIndex=%d "
+	            "parentTarget='%s' intendedTarget='%s' spawn=(%.2f,%.2f,%.2f) velocity=(%.2f,%.2f,%.2f) "
+	            "distanceToParent2D=%.2f distanceToIntended2D=%.2f"),
+	       *SplitParentProjectileId.ToString(EGuidFormats::DigitsWithHyphensLower),
+	       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+	       *GetNameSafe(this),
+	       SplitChildIndex,
+	       *GetNameSafe(SplitParentHitTarget.Get()),
+	       *GetNameSafe(SplitIntendedTarget.Get()),
+	       Snapshot.Position.X,
+	       Snapshot.Position.Y,
+	       Snapshot.Position.Z,
+	       Snapshot.Velocity.X,
+	       Snapshot.Velocity.Y,
+	       Snapshot.Velocity.Z,
+	       FVector::Dist2D(Snapshot.Position, ParentLocation),
+	       FVector::Dist2D(Snapshot.Position, IntendedLocation));
+}
+#endif
 
 bool AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKey, const FVector& Direction)
 {
@@ -186,6 +245,35 @@ bool AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKe
 void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnapshot& Snapshot,
                                                     const FReEchoHitResolved& Result)
 {
+#if !UE_BUILD_SHIPPING
+	if (bHasSplitDiagnostics)
+	{
+		UE_LOG(LogReEcho,
+		       Log,
+		       TEXT("[SplitArrowTrace] ChildImpact parentProjectile=%s childProjectile=%s childActor='%s' "
+		            "childIndex=%d parentTarget='%s' intendedTarget='%s' actualTarget='%s' "
+		            "position=(%.2f,%.2f,%.2f) hit=(%.2f,%.2f,%.2f) travelled=%.2f raw=%.3f applied=%.3f "
+		            "blocked=%d killed=%d"),
+		       *SplitParentProjectileId.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       *Snapshot.ProjectileId.Value.ToString(EGuidFormats::DigitsWithHyphensLower),
+		       *GetNameSafe(this),
+		       SplitChildIndex,
+		       *GetNameSafe(SplitParentHitTarget.Get()),
+		       *GetNameSafe(SplitIntendedTarget.Get()),
+		       *GetNameSafe(Result.Target),
+		       Snapshot.Position.X,
+		       Snapshot.Position.Y,
+		       Snapshot.Position.Z,
+		       Result.HitLocation.X,
+		       Result.HitLocation.Y,
+		       Result.HitLocation.Z,
+		       Snapshot.TravelledCm,
+		       Result.RawDamage,
+		       Result.AppliedDamage,
+		       Result.bBlocked ? 1 : 0,
+		       Result.bKilled ? 1 : 0);
+	}
+#endif
 	if (RuneHost.IsValid() && RuneContext.IsValid())
 	{
 		RuneHost->HandleProjectileResolved(RuneContext, Snapshot, Result, bAllowSplit);

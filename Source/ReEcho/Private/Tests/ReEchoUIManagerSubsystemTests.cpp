@@ -7,8 +7,30 @@
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/Framework/ReEchoUIScreenTypes.h"
 #include "UI/ReEchoUIManagerSubsystem.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoUIFlowTerminalRestartRouteTest,
+                                 "ReEcho.UIFlow.TerminalRestartTravelRoute",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoUIFlowTerminalRestartRouteTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	UReEchoUIFlowCoordinatorSubsystem* UIFlow = NewObject<UReEchoUIFlowCoordinatorSubsystem>(GameInstance);
+	if (!TestNotNull(TEXT("UI flow coordinator is instantiated"), UIFlow))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("Ordinary startup has no loadout travel request"), UIFlow->ConsumeLoadoutAfterWorldTravelRequest());
+	UIFlow->RequestLoadoutAfterWorldTravel();
+	TestTrue(TEXT("Terminal restart carries loadout destination across travel"),
+	         UIFlow->ConsumeLoadoutAfterWorldTravelRequest());
+	TestFalse(TEXT("Loadout travel request is consumed exactly once"), UIFlow->ConsumeLoadoutAfterWorldTravelRequest());
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoUIManagerSubsystemResetOnTravelTest,
                                  "ReEcho.UIManagerSubsystem.ResetOnTravel",
