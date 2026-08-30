@@ -67,8 +67,6 @@ FString ReEchoUIInteractionAudit::ScreenName(const EReEchoUIScreen Screen)
 			return TEXT("TraitChoice");
 		case EReEchoUIScreen::InventoryShop:
 			return TEXT("InventoryShop");
-		case EReEchoUIScreen::Stats:
-			return TEXT("Stats");
 		default:
 			return FString::Printf(TEXT("Unknown(%d)"), static_cast<int32>(Screen));
 	}

@@ -10,7 +10,6 @@ ASSET_PATHS = (
     "/Game/ReEcho/UI/WBP_ReEchoTraitCardChoice",
     "/Game/ReEcho/UI/WBP_ReEchoTraitCardEntry",
     "/Game/ReEcho/UI/WBP_ReEchoInventoryShopScreen",
-    "/Game/ReEcho/UI/WBP_ReEchoStatsScreen",
     "/Game/ReEcho/UI/WBP_ReEchoAbout",
 )
 

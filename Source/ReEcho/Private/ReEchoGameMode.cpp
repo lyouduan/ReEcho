@@ -63,7 +63,6 @@
 #include "UI/ReEchoRestartWidget.h"
 #include "UI/ReEchoSettingsWidget.h"
 #include "UI/ReEchoStartMenuWidget.h"
-#include "UI/ReEchoStatsWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/Framework/ReEchoUIFlowCoordinatorSubsystem.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
@@ -3346,8 +3345,7 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 		                                                         &AReEchoGameMode::HandleCardElementReactionResolved);
 		CombatEvents->OnHurt.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyHurt);
 		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyDeath);
-		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
-		                                                         &AReEchoGameMode::HandleRunStatsElementReaction);
+		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsElementReaction);
 	}
 }
 
@@ -3672,8 +3670,8 @@ void AReEchoGameMode::HandleFixedStep(float)
 			}
 			const uint64 EchoKey = static_cast<uint64>(static_cast<uint32>(Echo->GetUniqueID())) << 32;
 			const uint64 PlayerPair = EchoKey | 0xffffffffu;
-			if (Player->IsCombatTargetAlive() && FVector::DistSquared2D(Echo->GetActorLocation(), Player->GetActorLocation()) <=
-			                                         FMath::Square(100.0f))
+			if (Player->IsCombatTargetAlive() &&
+			    FVector::DistSquared2D(Echo->GetActorLocation(), Player->GetActorLocation()) <= FMath::Square(100.0f))
 			{
 				CurrentContacts.Add(PlayerPair);
 				if (!ActiveEasterEchoContactPairs.Contains(PlayerPair))
@@ -3684,8 +3682,8 @@ void AReEchoGameMode::HandleFixedStep(float)
 			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 			{
 				AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
-				if (!Enemy || FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) >
-				                  FMath::Square(100.0f))
+				if (!Enemy ||
+				    FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) > FMath::Square(100.0f))
 				{
 					continue;
 				}
@@ -3936,11 +3934,6 @@ void AReEchoGameMode::TogglePauseMenu()
 	{
 		return;
 	}
-	if (StatsWidget)
-	{
-		HandleStatsClosed();
-		return;
-	}
 	if (bRestartScreenIsTerminal)
 	{
 		return;
@@ -3969,72 +3962,6 @@ void AReEchoGameMode::TogglePauseMenu()
 	}
 	bPauseOpenedOverInventoryShop = false;
 	ShowRestartScreen(false);
-}
-
-void AReEchoGameMode::ToggleStatsMenu()
-{
-	if (StatsWidget)
-	{
-		HandleStatsClosed();
-		return;
-	}
-	ShowStatsMenu();
-}
-
-void AReEchoGameMode::ShowStatsMenu()
-{
-	if (InventoryShopWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal || !Player)
-	{
-		return;
-	}
-
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
-	if (!PlayerController)
-	{
-		return;
-	}
-
-	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
-	StatsWidget =
-	    UIFlow ? Cast<UReEchoStatsWidget>(UIFlow->OpenScreen(PlayerController, EReEchoUIScreen::Stats, false, true))
-	           : nullptr;
-	if (!StatsWidget)
-	{
-		return;
-	}
-
-	FReEchoStatBlock EchoStats;
-	float EchoHealth = 0.0f;
-	bool bHasEcho = false;
-	for (AReEchoEchoActor* Echo : Echoes)
-	{
-		if (Echo)
-		{
-			EchoStats = Echo->GetCurrentStats();
-			EchoHealth = Echo->GetCurrentHealth();
-			bHasEcho = true;
-			break;
-		}
-	}
-
-	StatsWidget->InitializeStats(
-	    Player->Combatant->Stats, Player->Combatant->CurrentHealth, EchoStats, EchoHealth, bHasEcho);
-	StatsWidget->OnClosed.AddDynamic(this, &AReEchoGameMode::HandleStatsClosed);
-	SetPlayerMenuAbilityBlocked(true);
-}
-
-void AReEchoGameMode::HandleStatsClosed()
-{
-	if (StatsWidget)
-	{
-		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
-		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
-		{
-			UIFlow->CloseScreen(EReEchoUIScreen::Stats);
-		}
-		StatsWidget = nullptr;
-	}
-	RestoreGameInput();
 }
 
 void AReEchoGameMode::ToggleInventoryMenu()
@@ -4069,13 +3996,12 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 {
 	UE_LOG(LogReEcho,
 	       Log,
-	       TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Stats=%d Trait=%d Restart=%d Terminal=%d)"),
+	       TEXT("[AttrPanel] ShowInventoryShopMenu entered Mode=%d; guard(Trait=%d Restart=%d Terminal=%d)"),
 	       (int32)Mode,
-	       StatsWidget ? 1 : 0,
 	       TraitCardChoiceWidget ? 1 : 0,
 	       RestartWidget ? 1 : 0,
 	       bRestartScreenIsTerminal ? 1 : 0);
-	if (StatsWidget || TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
+	if (TraitCardChoiceWidget || RestartWidget || bRestartScreenIsTerminal)
 	{
 		UE_LOG(LogReEcho, Warning, TEXT("[AttrPanel] ShowInventoryShopMenu guard TRIPPED - early return"));
 		return;
@@ -4114,8 +4040,8 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
 	InventoryShopWidget->OnCardPackRequested.AddUObject(this, &AReEchoGameMode::HandleShopCardPackRequested);
 	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
-	InventoryShopWidget->OnOwnedPartEquipRequested.AddUObject(
-	    this, &AReEchoGameMode::HandleShopOwnedPartEquipRequested);
+	InventoryShopWidget->OnOwnedPartEquipRequested.AddUObject(this,
+	                                                          &AReEchoGameMode::HandleShopOwnedPartEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
@@ -4171,8 +4097,8 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	// 则下一 tick 的 ShowTraitCardChoice 会弹出特质卡屏。此刻若直接推进遭遇，会与特质卡屏的弹出竞态，
 	// 把 Phase 推进到 Encounter 而屏仍打开——孤儿屏导致刷新/确认双双失效软锁。
 	// 因此当额外选择待解（Phase == CardChoice）时，仅关闭商店、不推进遭遇，先让特质卡屏解完再续流程。
-	const bool bTraitChoicePending = (RunSubsystem && RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
-	                                 || bReturnToOpenShopAfterTraitChoice;
+	const bool bTraitChoicePending =
+	    (RunSubsystem && RunSubsystem->Phase == EReEchoRunPhase::CardChoice) || bReturnToOpenShopAfterTraitChoice;
 	const bool bShouldStartNextEncounter = bContinueRunAfterShop && !bTraitChoicePending;
 	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
@@ -4399,8 +4325,7 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
 	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
-	TraitCardChoiceWidget->OnShopCardChoicesSelected.AddDynamic(
-	    this, &AReEchoGameMode::HandleShopCardChoicesSelected);
+	TraitCardChoiceWidget->OnShopCardChoicesSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoicesSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleShopCardRefreshRequested);
 	TraitCardChoiceWidget->OnShopChoiceCancelled.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoiceCancelled);
@@ -4628,7 +4553,7 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
 	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
 	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(),
-	                                             RunSubsystem->CurrentBuild.CharacterId);
+	                                           RunSubsystem->CurrentBuild.CharacterId);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,
@@ -5916,7 +5841,8 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 		{
 			UE_LOG(LogReEcho,
 			       Warning,
-			       TEXT("[TraitChoice] Refresh rejected on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       TEXT("[TraitChoice] Refresh rejected on orphaned trait choice screen (phase=%d); closing and "
+			            "resuming flow."),
 			       static_cast<int32>(RunSubsystem->Phase));
 			CloseTraitCardChoiceScreen();
 			bContinueRunAfterShop = true;
@@ -6058,7 +5984,8 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 		{
 			UE_LOG(LogReEcho,
 			       Warning,
-			       TEXT("[TraitChoice] Confirm ignored on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       TEXT("[TraitChoice] Confirm ignored on orphaned trait choice screen (phase=%d); closing and "
+			            "resuming flow."),
 			       static_cast<int32>(RunSubsystem->Phase));
 			CloseTraitCardChoiceScreen();
 			bContinueRunAfterShop = true;
