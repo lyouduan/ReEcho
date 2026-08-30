@@ -382,6 +382,7 @@ float AReEchoEchoActor::GetCurrentHealth() const
 void AReEchoEchoActor::ConfigureCardRules(const FReEchoCardRuleSnapshot& Rules, const FReEchoStatBlock& PlayerStats)
 {
 	bCanAttack = Rules.bEchoesCanAttack;
+	bRetireOnDefeat = Rules.bRetireEchoOnDefeat;
 	if (Combatant && Rules.EchoHealthMultiplier > 1.0f)
 	{
 		FReEchoStatBlock Stats = Combatant->Stats;
@@ -498,6 +499,12 @@ void AReEchoEchoActor::NotifyNegativeStatusApplied(const FName StatusId) const
 
 void AReEchoEchoActor::NotifyDefeated(const EReEchoDamageSource DamageSource) const
 {
+	if (bDefeatHandled)
+	{
+		return;
+	}
+	bDefeatHandled = true;
+
 	if (DamageSource == EReEchoDamageSource::Enemy)
 	{
 		if (UReEchoRunSubsystem* Run =
@@ -509,6 +516,10 @@ void AReEchoEchoActor::NotifyDefeated(const EReEchoDamageSource DamageSource) co
 				Player->Combatant->InitializeFromStats(Run->CurrentBuild.Stats, false);
 			}
 		}
+	}
+	if (bRetireOnDefeat)
+	{
+		bRetirementPending = true;
 	}
 }
 
@@ -529,11 +540,23 @@ FVector AReEchoEchoActor::EvaluateRecordedPosition(const float EncounterTime) co
 
 void AReEchoEchoActor::AdvanceEcho(const float EncounterTime)
 {
+	if (bRetirementPending)
+	{
+		return;
+	}
 	Playback->AdvancePlayback(EncounterTime);
 	if (bBornVfxPending && !bDeferredBornReveal)
 	{
 		bBornVfxPending = false;
 		PlayBornVfx();
+	}
+}
+
+void AReEchoEchoActor::ConfigureReplayLoop(const float LoopDurationSeconds)
+{
+	if (Playback)
+	{
+		Playback->SetLoopDuration(LoopDurationSeconds);
 	}
 }
 

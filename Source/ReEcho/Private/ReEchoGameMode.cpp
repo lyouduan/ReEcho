@@ -2185,6 +2185,27 @@ void AReEchoGameMode::ClearEchoes()
 	RefreshFogRevealSources();
 }
 
+void AReEchoGameMode::RemoveRetiredEchoes()
+{
+	const int32 RemovedCount = Echoes.RemoveAll(
+	    [](const TObjectPtr<AReEchoEchoActor>& Echo)
+	    {
+		    if (IsValid(Echo) && !Echo->IsRetirementPending())
+		    {
+			    return false;
+		    }
+		    if (IsValid(Echo))
+		    {
+			    Echo->Destroy();
+		    }
+		    return true;
+	    });
+	if (RemovedCount > 0)
+	{
+		RefreshFogRevealSources();
+	}
+}
+
 bool AReEchoGameMode::ResolveNextStageTransition(FReEchoStageTransitionDecision& OutDecision, FString& OutError) const
 {
 	const UReEchoRunSubsystem* RunSubsystem =
@@ -2596,6 +2617,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 		if (Echo && Echo->InitializeEcho(
 		                Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 		{
+			Echo->ConfigureReplayLoop(IsBossEncounter() ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration : 0.0f);
 			Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 			if (bDeferActivation)
 			{
@@ -2858,6 +2880,9 @@ void AReEchoGameMode::ResumeSavedEncounter()
 				if (Echo->InitializeEcho(
 				        Recording, RunSubsystem->CurrentBuild.Stats.EchoEfficiency, RunSubsystem->GetRunDataSnapshot()))
 				{
+					Echo->ConfigureReplayLoop(IsBossEncounter()
+					                                  ? GetDefault<UReEchoBalanceSettings>()->EncounterDuration
+					                                  : 0.0f);
 					Echo->ConfigureCardRules(RunSubsystem->GetCardRules(), RunSubsystem->CurrentBuild.Stats);
 					Echo->AdvanceEcho(SavedState.EncounterTime);
 					Echoes.Add(Echo);
@@ -3539,6 +3564,7 @@ void AReEchoGameMode::HandleFixedStep(float)
 	{
 		return;
 	}
+	RemoveRetiredEchoes();
 	Player->Recorder->AdvanceRecording(Director->EncounterTime, Player->GetActorLocation());
 	ProcessScheduledSpawnEvents(Director->EncounterTime);
 	for (AReEchoEchoActor* Echo : Echoes)
