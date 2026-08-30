@@ -21,16 +21,18 @@ class UTextBlock;
 class UTexture2D;
 class UVerticalBox;
 class UWidget;
-class UReEchoRunSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopCardPackRequested, int32);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
+/**
+ * Raised when the player picks an already-owned rune from the rune backpack popup. This is a pure
+ * re-equip intent and must never be routed through the purchase transaction.
+ */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoOwnedPartEquipRequested, FName, int32);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
-DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoGuidCommandRequested, FGuid);
-DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoEchoSelectionCommandRequested, const TArray<FGuid>&);
 
 UENUM(BlueprintType)
 enum class EReEchoInventoryShopMode : uint8
@@ -38,15 +40,6 @@ enum class EReEchoInventoryShopMode : uint8
 	Inventory,
 	ManualShop,
 	PostTraitIntermission
-};
-
-UENUM()
-enum class EReEchoShopEchoPendingDecision : uint8
-{
-	Undecided,
-	Stored,
-	Skipped,
-	Replacing
 };
 
 /** 复用同一覆盖层展示背包或商店，并将购买请求交给运行系统处理。 */
@@ -65,17 +58,17 @@ public:
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
 	FReEchoShopCardPackRequested OnCardPackRequested;
 	FReEchoWeaponEquipRequested OnWeaponEquipRequested;
+	FReEchoOwnedPartEquipRequested OnOwnedPartEquipRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
 	FReEchoEchoCommandRequested OnEchoSkipRequested;
-	FReEchoEchoGuidCommandRequested OnEchoReplaceRequested;
-	FReEchoEchoSelectionCommandRequested OnEchoSelectionRequested;
 	FReEchoEchoCommandRequested OnEchoSkipAndCloseRequested;
 
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
-	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView);
+	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView,
+	                          FName CharacterId = NAME_None);
 
 	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards,
@@ -97,7 +90,6 @@ public:
 	                               int32 RefreshSequence = 0);
 	void SetEchoSummary(const FReEchoEchoStorageSummary& EchoSummary);
 	void ShowEchoStatus(const FText& Status);
-	void EnterEchoReplacementMode();
 	void CompletePostTraitClose();
 	void RequestClose();
 
@@ -120,6 +112,8 @@ protected:
 
 private:
 	void BuildWidgetTree();
+	/** Resolves the authored echo-storage modal by stable Designer names and binds its interactions. */
+	void BindEchoPresentation();
 	void EnsureResponsiveLayout();
 	UCanvasPanel* GetLayoutCanvas() const;
 	void BuildShopLogicHost();
@@ -134,6 +128,11 @@ private:
 	void RebuildTargetOfferRows();
 	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
+	/** Silently injects the selected character's passive as a synthetic "character card" into the owned-card
+	 *  view so it shows in the right-side card panel; no grant popup, no RunSubsystem inventory mutation. */
+	void InjectCharacterPassiveCardIntoOwnedView();
+	void BindOwnedCardPagination();
+	void UpdateOwnedCardPaginationControls();
 	void RebuildAttachmentHoverSlots();
 	void RebuildAttachmentSlotMapping();
 	void RebuildEquippedWeaponDisplay();
@@ -167,6 +166,8 @@ private:
 	UFUNCTION()
 	void HandleWeaponBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
+	/** Creates (or reuses) the roman-numeral tier badge layered over a weapon-rune offer icon. */
+	UTextBlock* EnsureRuneTierBadge(class UCanvasPanel* Card, class UImage* Icon, int32 Index);
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
 	bool HasEchoStorageCard() const;
@@ -194,45 +195,21 @@ private:
 
 	UFUNCTION()
 	void HandleEchoStorageCardSlotClicked();
+	UFUNCTION()
+	void HandleOwnedCardPageLeftClicked();
+	UFUNCTION()
+	void HandleOwnedCardPageRightClicked();
 
 	UFUNCTION()
 	void HandleEchoPopupCloseClicked();
 
-	// ---- echo management (inline, mirroring origin/main left-panel layout) ----
-	void RefreshEchoState(UReEchoRunSubsystem* RunSubsystem);
-	void RequestStoreEcho(UReEchoRunSubsystem* RunSubsystem);
-	void RequestSkipEcho(UReEchoRunSubsystem* RunSubsystem);
-	void RequestReplaceEcho(UReEchoRunSubsystem* RunSubsystem, FGuid TargetId);
-	void RequestCancelReplaceEcho();
-	void ToggleReplaySelection(UReEchoRunSubsystem* RunSubsystem, FGuid Id);
+	// ---- single time-anchor management ----
 	void BuildEchoPanel();
-
-	void HandleEchoStoreRequested();
-	void HandleEchoSkipRequested();
-	void HandleEchoReplaceRequested(FGuid RecordingId);
-	void HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds);
-	void HandleEchoSkipAndCloseRequested();
 
 	UFUNCTION()
 	void HandleStoreClicked();
 	UFUNCTION()
 	void HandleSkipClicked();
-	UFUNCTION()
-	void HandleCancelReplaceClicked();
-	UFUNCTION()
-	void HandleReplaceSlot0Clicked();
-	UFUNCTION()
-	void HandleReplaceSlot1Clicked();
-	UFUNCTION()
-	void HandleReplaceSlot2Clicked();
-	UFUNCTION()
-	void HandleSelectSlot0Clicked();
-	UFUNCTION()
-	void HandleSelectSlot1Clicked();
-	UFUNCTION()
-	void HandleSelectSlot2Clicked();
-	void HandleReplaceSlotClicked(int32 SlotIndex);
-	void HandleSelectSlotClicked(int32 SlotIndex);
 	UFUNCTION()
 	void HandleConfirmSkipContinueClicked();
 	UFUNCTION()
@@ -319,6 +296,11 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshText;
 
+	// Runtime overlay text drawn on top of the cleaned refresh-button texture
+	// (the baked-in "刷新" label was removed from the source PNG).
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> ShopRefreshCountText;
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRuleText;
 
@@ -361,6 +343,8 @@ private:
 	TArray<TObjectPtr<UCanvasPanel>> DesignerPartOfferCards;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerPartOfferIcons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferTierBadges;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferDescriptions;
 	UPROPERTY(Transient)
@@ -415,43 +399,53 @@ private:
 	TArray<TObjectPtr<UButton>> DesignerCardSlotButtons;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerCardSlotArts;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> DesignerCardPageCounter;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> DesignerCardPageLeftButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> DesignerCardPageRightButton;
+	UPROPERTY(Transient)
+	TObjectPtr<UReEchoButtonVisualFeedback> DesignerCardPageLeftVisualFeedback;
+	UPROPERTY(Transient)
+	TObjectPtr<UReEchoButtonVisualFeedback> DesignerCardPageRightVisualFeedback;
 
 	TArray<FReEchoShopOffer> DisplayedOwnedCards;
+	/** Stack count per entry in DisplayedOwnedCards; the same card obtained twice shows one icon with ×N. */
+	TArray<int32> DisplayedOwnedCardCounts;
+	int32 ActiveOwnedCardPage = 0;
+	/** Creates (or reuses) the ×N stack-count badge layered over an owned-card slot icon. */
+	UTextBlock* EnsureOwnedCardCountBadge(UWidget* Anchor, int32 Index);
 
-	// ---- inline echo panel (origin/main layout) ----
-	UPROPERTY(Transient)
+	// ---- echo storage popup (authored WBP presentation with C++ fallback) ----
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UUserWidget> EchoStoragePopupWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UScaleBox> EchoPanelScale;
 
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> EchoPanel;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> EchoPopupCloseButton;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoCapacityText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoReplayModeText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> EchoPendingInfoText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> EchoStoreButton;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> EchoStoreLabel;
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> EchoSkipButton;
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EchoReplaceInstructionText;
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> EchoCancelReplaceButton;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTextBlock>> EchoSlotTexts;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> EchoReplaceButtons;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UButton>> EchoSelectButtons;
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTextBlock>> EchoSelectLabels;
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EchoSelectionText;
-	UPROPERTY(Transient)
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UVerticalBox> CloseConfirmWidget;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> EchoConfirmSkipContinue;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> EchoConfirmReturn;
 
 	EReEchoInventoryShopMode Mode = EReEchoInventoryShopMode::Inventory;
 	bool bCloseBroadcasted = false;
@@ -463,6 +457,7 @@ private:
 	bool bCurrentExtraCardPurchaseAllowed = true;
 	int32 CurrentShopRefreshSequence = 0;
 	TArray<FName> CurrentOwnedItems;
+	FName CurrentShopCharacterId = NAME_None;
 	FReEchoWeaponPartShopView CurrentPartShopView;
 	TArray<FReEchoShopOffer> VisibleRunItemOffers;
 	TArray<FReEchoShopOffer> VisibleWeaponPartOffers;
@@ -471,12 +466,7 @@ private:
 	TSet<FName> PurchasedItemIds;
 
 	// echo state mirrors
-	UPROPERTY(Transient)
-	TObjectPtr<UReEchoRunSubsystem> CachedRunSubsystem;
 	FReEchoStatBlock CachedPlayerStats;
 	FReEchoEchoStorageSummary EchoSummary;
-	TArray<FGuid> EchoSelection;
-	TArray<FGuid> EchoSlotGuids;
-	EReEchoShopEchoPendingDecision EchoPendingDecision = EReEchoShopEchoPendingDecision::Undecided;
 	bool bEchoStoragePopupOpen = false;
 };

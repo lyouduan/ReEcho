@@ -53,6 +53,7 @@
 #include "ReEchoAudioEvents.h"
 #include "ReEchoAudioService.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Run/ReEchoRunStatsTracker.h"
 #include "Run/ReEchoShopCatalog.h"
 #include "UI/ReEchoEncounterHudWidget.h"
 #include "UI/ReEchoEncounterTransitionWidget.h"
@@ -1969,6 +1970,11 @@ void AReEchoGameMode::BeginSelectedRun()
 	{
 		return;
 	}
+	// A run never spans across BeginSelectedRun, so the display-only stats restart with it.
+	if (UReEchoRunStatsSubsystem* Stats = GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>())
+	{
+		Stats->ResetRunStats();
+	}
 	if (StartMenuWidget)
 	{
 		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
@@ -2466,6 +2472,19 @@ void AReEchoGameMode::RefreshFogRevealSources()
 
 void AReEchoGameMode::BeginNextEncounter()
 {
+	// 守门式安全网：推进遭遇前若特质卡选择屏仍打开（意外孤儿屏），先关闭并清空 pending 状态，
+	// 避免 Phase 已被推进到非 CardChoice 后屏仍可交互却刷新/确认双双失效的软锁。
+	if (TraitCardChoiceWidget)
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[TraitChoice] BeginNextEncounter invoked while trait choice screen still open (encounter=%d); "
+		            "closing orphan screen and clearing pending offers to avoid soft-lock."),
+		       GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()
+		           ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>()->EncounterIndex
+		           : INDEX_NONE);
+		CloseTraitCardChoiceScreen();
+	}
 	ResetEncounterTransitionPresentation();
 	if (PrepareNextEncounter(false))
 	{
@@ -2570,7 +2589,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 	// Echo actor per recording. Each Echo owns its immutable recording and build snapshot, so its
 	// playback, position, weapon and run state stay independent of the others.
 	const TArray<FReEchoRecording> Recordings =
-	    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+	    RunSubsystem->ResolveReplayRecordings(ReEchoTimeAnchor::MaximumResolvedEchoes);
 	for (const FReEchoRecording& Recording : Recordings)
 	{
 		AReEchoEchoActor* Echo = SpawnEchoActor();
@@ -2830,7 +2849,7 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	if (!bBossPostEchoPhaseTriggered)
 	{
 		const TArray<FReEchoRecording> Recordings =
-		    RunSubsystem->ResolveReplayRecordings(ReEchoEchoStorage::MaxStorageCapacity);
+		    RunSubsystem->ResolveReplayRecordings(ReEchoTimeAnchor::MaximumResolvedEchoes);
 		for (const FReEchoRecording& Recording : Recordings)
 		{
 			AReEchoEchoActor* Echo = SpawnEchoActor();
@@ -3300,6 +3319,37 @@ void AReEchoGameMode::ConfigureEnemyRuntimeBindings(AReEchoEnemyActor* Enemy)
 		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleEnemyDeathShardDrop);
 		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
 		                                                         &AReEchoGameMode::HandleCardElementReactionResolved);
+		CombatEvents->OnHurt.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyHurt);
+		CombatEvents->OnDeath.AddUniqueDynamic(this, &AReEchoGameMode::HandleRunStatsEnemyDeath);
+		CombatEvents->OnElementReactionResolved.AddUniqueDynamic(this,
+		                                                         &AReEchoGameMode::HandleRunStatsElementReaction);
+	}
+}
+
+void AReEchoGameMode::HandleRunStatsEnemyHurt(const FReEchoDamageEvent& Event)
+{
+	if (UReEchoRunStatsSubsystem* Stats =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
+	{
+		Stats->RecordEnemyHurt(Event);
+	}
+}
+
+void AReEchoGameMode::HandleRunStatsEnemyDeath(const FReEchoDamageEvent& Event)
+{
+	if (UReEchoRunStatsSubsystem* Stats =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
+	{
+		Stats->RecordEnemyDeath(Event);
+	}
+}
+
+void AReEchoGameMode::HandleRunStatsElementReaction(const FReEchoElementReactionResolvedEvent& Event)
+{
+	if (UReEchoRunStatsSubsystem* Stats =
+	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
+	{
+		Stats->RecordElementReaction();
 	}
 }
 
@@ -3558,6 +3608,83 @@ void AReEchoGameMode::HandleFixedStep(float)
 			}
 		}
 	}
+	if (CardTick.EasterRandomStunPulseCount > 0 && CardTick.EasterRandomStunRadiusCm > 0.0f)
+	{
+		TArray<AReEchoEnemyActor*> NearbyEnemies;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+			if (Enemy && FVector::Dist2D(Player->GetActorLocation(), Enemy->GetActorLocation()) <=
+			                 CardTick.EasterRandomStunRadiusCm)
+			{
+				NearbyEnemies.Add(Enemy);
+			}
+		}
+		for (int32 PulseOffset = 0; PulseOffset < CardTick.EasterRandomStunPulseCount && !NearbyEnemies.IsEmpty();
+		     ++PulseOffset)
+		{
+			const int32 PulseIndex = CardTick.CardState.Runtime.LastEasterStunPulseIndex - PulseOffset;
+			FRandomStream Random(RunSubsystem->BuildCardEffectRandomSeed(TEXT("G_4_5_STUN_TARGET"), PulseIndex));
+			AReEchoEnemyActor* Target = NearbyEnemies[Random.RandRange(0, NearbyEnemies.Num() - 1)];
+			FReEchoTimedStatusCommand Stun;
+			Stun.StatusId = TEXT("Z_Stun");
+			Stun.CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+			Stun.DurationSeconds = CardTick.EasterRandomStunDuration;
+			Stun.Attack.Source = Player;
+			Stun.Attack.Sequence = PulseIndex;
+			Target->GetCombatantComponent()->ApplyTimedStatus(Stun);
+		}
+	}
+	if (Rules.bEasterEchoContact)
+	{
+		TSet<uint64> CurrentContacts;
+		for (AReEchoEchoActor* Echo : Echoes)
+		{
+			if (!Echo || !Echo->IsCombatTargetAlive())
+			{
+				continue;
+			}
+			const uint64 EchoKey = static_cast<uint64>(static_cast<uint32>(Echo->GetUniqueID())) << 32;
+			const uint64 PlayerPair = EchoKey | 0xffffffffu;
+			if (Player->IsCombatTargetAlive() && FVector::DistSquared2D(Echo->GetActorLocation(), Player->GetActorLocation()) <=
+			                                         FMath::Square(100.0f))
+			{
+				CurrentContacts.Add(PlayerPair);
+				if (!ActiveEasterEchoContactPairs.Contains(PlayerPair))
+				{
+					Player->Combatant->ApplyHealing(Rules.EasterEchoContactHealing);
+				}
+			}
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+			{
+				AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+				if (!Enemy || FVector::DistSquared2D(Echo->GetActorLocation(), Enemy->GetActorLocation()) >
+				                  FMath::Square(100.0f))
+				{
+					continue;
+				}
+				const uint64 PairKey = EchoKey | static_cast<uint32>(Enemy->GetUniqueID());
+				CurrentContacts.Add(PairKey);
+				if (!ActiveEasterEchoContactPairs.Contains(PairKey))
+				{
+					FReEchoHitIntent ContactHit;
+					ContactHit.Attack.Source = Echo;
+					ContactHit.Attack.Sequence = HashCombine(Echo->GetUniqueID(), Enemy->GetUniqueID());
+					ContactHit.Target = Enemy;
+					ContactHit.RawDamage = Rules.EasterEchoContactDamage;
+					ContactHit.DamageSource = EReEchoDamageSource::Echo;
+					ContactHit.SourceLocation = Echo->GetActorLocation();
+					ContactHit.HitLocation = Enemy->GetActorLocation();
+					ReEchoHitResolver::ResolvePhysicalHit(ContactHit);
+				}
+			}
+		}
+		ActiveEasterEchoContactPairs = MoveTemp(CurrentContacts);
+	}
+	else
+	{
+		ActiveEasterEchoContactPairs.Reset();
+	}
 	for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 	{
 		AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
@@ -3737,22 +3864,24 @@ void AReEchoGameMode::ShowRestartScreen(const bool bDeathScreen, const bool bVic
 	}
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const int32 OwnedCardCount = RunSubsystem ? RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num() : 0;
+	// Both terminal surfaces show the same owned-card icons; the pause surface intentionally shows none.
+	const TArray<FReEchoShopOffer> SettlementCards =
+	    RunSubsystem ? RunSubsystem->GetOwnedBuildCardView() : TArray<FReEchoShopOffer>();
 	if (bVictoryScreen)
 	{
 		RestartWidget->SetVictoryScreen(RunSubsystem ? RunSubsystem->TimeShards : 0,
 		                                OwnedCardCount,
-		                                RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None);
+		                                RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None,
+		                                SettlementCards);
 	}
 	else
 	{
-		const TArray<FReEchoShopOffer> OwnedCards =
-		    bDeathScreen && RunSubsystem ? RunSubsystem->GetOwnedBuildCardView() : TArray<FReEchoShopOffer>();
 		RestartWidget->SetDeathScreen(bDeathScreen,
 		                              RunSubsystem ? RunSubsystem->EncounterIndex : 0,
 		                              RunSubsystem ? RunSubsystem->TimeShards : 0,
 		                              OwnedCardCount,
 		                              RunSubsystem ? RunSubsystem->CurrentBuild.CharacterId : NAME_None,
-		                              OwnedCards);
+		                              bDeathScreen ? SettlementCards : TArray<FReEchoShopOffer>());
 	}
 	RestartWidget->OnRestartRequested.AddDynamic(this, &AReEchoGameMode::HandleRestartRequested);
 	RestartWidget->OnResumeRequested.AddDynamic(this, &AReEchoGameMode::HandleResumeRequested);
@@ -3959,14 +4088,14 @@ void AReEchoGameMode::ShowInventoryShopMenu(const EReEchoInventoryShopMode Mode)
 	InventoryShopWidget->OnPurchaseRequested.AddUObject(this, &AReEchoGameMode::HandleShopPurchaseRequested);
 	InventoryShopWidget->OnCardPackRequested.AddUObject(this, &AReEchoGameMode::HandleShopCardPackRequested);
 	InventoryShopWidget->OnWeaponEquipRequested.AddUObject(this, &AReEchoGameMode::HandleShopWeaponEquipRequested);
+	InventoryShopWidget->OnOwnedPartEquipRequested.AddUObject(
+	    this, &AReEchoGameMode::HandleShopOwnedPartEquipRequested);
 	InventoryShopWidget->OnRefreshRequested.AddUObject(this, &AReEchoGameMode::HandleShopRefreshRequested);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		bPostTraitShopClosing = false;
 		InventoryShopWidget->OnEchoStoreRequested.AddUObject(this, &AReEchoGameMode::HandleEchoStoreRequested);
 		InventoryShopWidget->OnEchoSkipRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSkipRequested);
-		InventoryShopWidget->OnEchoReplaceRequested.AddUObject(this, &AReEchoGameMode::HandleEchoReplaceRequested);
-		InventoryShopWidget->OnEchoSelectionRequested.AddUObject(this, &AReEchoGameMode::HandleEchoSelectionRequested);
 		InventoryShopWidget->OnEchoSkipAndCloseRequested.AddUObject(this,
 		                                                            &AReEchoGameMode::HandleEchoSkipAndCloseRequested);
 		RefreshShopPresentation(RunSubsystem, Mode);
@@ -4012,7 +4141,13 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	{
 		bPostTraitShopClosing = true;
 	}
-	const bool bShouldStartNextEncounter = bContinueRunAfterShop;
+	// 守门式（根因修复）：若商店内刚触发了 Sage 额外特质卡选择，Run 阶段仍为 CardChoice（额外选择待解），
+	// 则下一 tick 的 ShowTraitCardChoice 会弹出特质卡屏。此刻若直接推进遭遇，会与特质卡屏的弹出竞态，
+	// 把 Phase 推进到 Encounter 而屏仍打开——孤儿屏导致刷新/确认双双失效软锁。
+	// 因此当额外选择待解（Phase == CardChoice）时，仅关闭商店、不推进遭遇，先让特质卡屏解完再续流程。
+	const bool bTraitChoicePending = (RunSubsystem && RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+	                                 || bReturnToOpenShopAfterTraitChoice;
+	const bool bShouldStartNextEncounter = bContinueRunAfterShop && !bTraitChoicePending;
 	bContinueRunAfterShop = false;
 	if (InventoryShopWidget)
 	{
@@ -4038,6 +4173,41 @@ void AReEchoGameMode::HandleInventoryShopClosed()
 	}
 }
 
+void AReEchoGameMode::HandleShopOwnedPartEquipRequested(const FName PartId, const int32 OccurrenceIndex)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	// 背包重装：从符文背包点选已拥有的配件，只切换装备，不扣钱、不走购买事务。
+	// 独立通道，避免与"重复购买 I 级符文以合成"的购买意图混淆。
+	const bool bWasEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	    [PartId](const FReEchoEquippedPartSnapshot& Part)
+	    {
+		    return Part.PartId == PartId;
+	    });
+	FString EquipError;
+	// Equip into the exact occurrence the player clicked so the twin slot stays untouched.
+	if (!RunSubsystem->TryEquipPurchasedPartAt(PartId, OccurrenceIndex, EquipError))
+	{
+		UE_LOG(LogTemp,
+		       Warning,
+		       TEXT("[ReEchoShop] Owned part '%s' could not be re-equipped: %s"),
+		       *PartId.ToString(),
+		       *EquipError);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	if (!bWasEquipped)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiEquip);
+	}
+	RunSubsystem->SaveRun();
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+}
+
 void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -4048,7 +4218,9 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 	}
 
 	// 背包重装：点击“拥有但未装备”的配件 → 直接重新装备，不扣钱、不走购买防重复。
-	if (RunSubsystem->OwnedPartIds.Contains(ItemId))
+	// 例外：I 级武器符文可以重复购买来合成更高级，必须走真正的购买事务（扣碎片、累计份数、触发合成），
+	// 不能被这里的免费重装分支吞掉。
+	if (!RunSubsystem->IsShopOfferRepeatPurchasable(ItemId) && RunSubsystem->OwnedPartIds.Contains(ItemId))
 	{
 		const bool bWasEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
 		    [ItemId](const FReEchoEquippedPartSnapshot& Part)
@@ -4196,9 +4368,13 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 		return;
 	}
 	ActiveShopCardPackTier = Tier;
+	// Cadence abilities can let this pack hand out two cards; set it before the offers are revealed.
+	TraitCardChoiceWidget->SetSelectableCount(RunSubsystem->GetPaidShopCardPackSelectableCount());
 	TraitCardChoiceWidget->InitializeShopOffers(EffectiveChoices, RunSubsystem->TimeShards, Tier);
 	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnShopCardSelected.AddDynamic(this, &AReEchoGameMode::HandleShopCardSelected);
+	TraitCardChoiceWidget->OnShopCardChoicesSelected.AddDynamic(
+	    this, &AReEchoGameMode::HandleShopCardChoicesSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleShopCardRefreshRequested);
 	TraitCardChoiceWidget->OnShopChoiceCancelled.AddDynamic(this, &AReEchoGameMode::HandleShopCardChoiceCancelled);
@@ -4214,6 +4390,34 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	                                                *TraitCardChoiceWidget->GetName(),
 	                                                EffectiveChoices.Num(),
 	                                                *FString::Join(CandidateIds, TEXT(","))));
+}
+
+void AReEchoGameMode::HandleShopCardChoicesSelected(const TArray<FName>& ItemIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || !InventoryShopWidget || !TraitCardChoiceWidget || ActiveShopCardPackTier <= 0)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
+	const FReEchoShopPurchaseOutcome Outcome = RunSubsystem->ClaimPaidShopCardChoices(ItemIds);
+	if (!Outcome.IsSuccess())
+	{
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoShop] Card-pack multi-claim rejected tx=%s tier=%d code=%d detail=%s"),
+		       *Outcome.TransactionId,
+		       ActiveShopCardPackTier,
+		       static_cast<int32>(Outcome.Result),
+		       *Outcome.Detail);
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
+		return;
+	}
+	RunSubsystem->SaveRun();
+	// Every pick was already granted inside the claim, so no bonus follow-up choice can be pending here.
+	CloseShopCardChoice(true);
+	RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 }
 
 void AReEchoGameMode::HandleShopCardSelected(const FName ItemId)
@@ -4397,7 +4601,8 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 
 	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
 	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
-	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView());
+	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(),
+	                                             RunSubsystem->CurrentBuild.CharacterId);
 	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
 	{
 		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,
@@ -4432,14 +4637,7 @@ FText GetEchoCommandFailureText(const EReEchoEchoStorageResult Result)
 	{
 		case EReEchoEchoStorageResult::NoPendingRecording:
 			return NSLOCTEXT("ReEcho", "EchoNoPendingFailure", "There is no pending echo to resolve.");
-		case EReEchoEchoStorageResult::StorageFull:
-			return NSLOCTEXT("ReEcho", "EchoStorageFullFailure", "Storage is full. Choose an echo to replace.");
-		case EReEchoEchoStorageResult::InvalidReplacementTarget:
-			return NSLOCTEXT("ReEcho", "EchoInvalidReplacementFailure", "That stored echo is no longer available.");
-		case EReEchoEchoStorageResult::ReplayLimitExceeded:
-			return NSLOCTEXT("ReEcho", "EchoReplayLimitFailure", "Too many echoes were selected.");
 		case EReEchoEchoStorageResult::InvalidRecordingId:
-		case EReEchoEchoStorageResult::DuplicateRecordingId:
 			return NSLOCTEXT("ReEcho", "EchoInvalidSelectionFailure", "The echo selection is no longer valid.");
 		default:
 			return NSLOCTEXT("ReEcho", "EchoCommandFailure", "The echo change was rejected.");
@@ -4454,26 +4652,21 @@ void AReEchoGameMode::HandleEchoStoreRequested()
 	{
 		return;
 	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
+	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoTimeAnchor::CardId)))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		InventoryShopWidget->ShowEchoStatus(
 		    NSLOCTEXT("ReEcho", "EchoStorageCardRequired", "需要先获得“时空锚点”才能存储回响。"));
 		return;
 	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecording();
+	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingAsTimeAnchor();
 	if (Result == EReEchoEchoStorageResult::Success)
 	{
 		const bool bSaved = RunSubsystem->SaveRun();
 		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
 		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "Echo stored.")
-		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "Echo stored in this session, but saving failed."));
-	}
-	else if (Result == EReEchoEchoStorageResult::StorageFull)
-	{
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->EnterEchoReplacementMode();
+		    bSaved ? NSLOCTEXT("ReEcho", "EchoStored", "本场回响已设为时间锚点。")
+		           : NSLOCTEXT("ReEcho", "EchoStoreSaveFailed", "本场回响已设为时间锚点，但存档失败。"));
 	}
 	else
 	{
@@ -4498,80 +4691,6 @@ void AReEchoGameMode::HandleEchoSkipRequested()
 		InventoryShopWidget->ShowEchoStatus(
 		    bSaved ? NSLOCTEXT("ReEcho", "EchoSkipped", "Echo skipped.")
 		           : NSLOCTEXT("ReEcho", "EchoSkipSaveFailed", "Echo skipped in this session, but saving failed."));
-	}
-	else
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
-	}
-}
-
-void AReEchoGameMode::HandleEchoReplaceRequested(const FGuid RecordingId)
-{
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
-	{
-		return;
-	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoReplaceCardRequired", "需要先获得“时空锚点”才能替换回响。"));
-		return;
-	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->StorePendingRecordingReplacing(RecordingId);
-	if (Result == EReEchoEchoStorageResult::Success)
-	{
-		const bool bSaved = RunSubsystem->SaveRun();
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoReplaced", "Stored echo replaced.")
-		           : NSLOCTEXT("ReEcho", "EchoReplaceSaveFailed", "Echo replaced in this session, but saving failed."));
-	}
-	else
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(GetEchoCommandFailureText(Result));
-	}
-}
-
-void AReEchoGameMode::HandleEchoSelectionRequested(const TArray<FGuid>& RecordingIds)
-{
-	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
-	if (!RunSubsystem || !InventoryShopWidget)
-	{
-		return;
-	}
-	if (!RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(FName(ReEchoEchoStorage::StorageUnlockCardId)))
-	{
-		PostUiEvent(FReEchoAudioEvents::UiError);
-		InventoryShopWidget->ShowEchoStatus(
-		    NSLOCTEXT("ReEcho", "EchoSelectionCardRequired", "需要先获得“时空锚点”才能选择存储回响。"));
-		return;
-	}
-	const EReEchoEchoStorageResult Result = RunSubsystem->SetSelectedReplayIds(RecordingIds);
-	if (Result == EReEchoEchoStorageResult::Success)
-	{
-		if (RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_3_02")))
-		{
-			if (RecordingIds.Num() == 1)
-			{
-				RunSubsystem->SetCardAnchorRecording(RecordingIds[0]);
-			}
-			else
-			{
-				RunSubsystem->ClearCardAnchorRecording();
-			}
-		}
-		const bool bSaved = RunSubsystem->SaveRun();
-		InventoryShopWidget->SetEchoSummary(RunSubsystem->GetEchoStorageSummary());
-		InventoryShopWidget->ShowEchoStatus(
-		    bSaved ? NSLOCTEXT("ReEcho", "EchoSelectionSaved", "Replay selection saved.")
-		           : NSLOCTEXT(
-		                 "ReEcho", "EchoSelectionSaveFailed", "Selection changed in this session, but saving failed."));
 	}
 	else
 	{
@@ -5683,6 +5802,24 @@ AReEchoEchoActor* AReEchoGameMode::FindStage01To02CameraEcho() const
 	return nullptr;
 }
 
+void AReEchoGameMode::CloseTraitCardChoiceScreen()
+{
+	if (TraitCardChoiceWidget)
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		}
+		TraitCardChoiceWidget = nullptr;
+	}
+	if (UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>())
+	{
+		RunSubsystem->ResetPendingTraitCardChoice();
+	}
+	SetPlayerMenuAbilityBlocked(false);
+}
+
 void AReEchoGameMode::ShowTraitCardChoice()
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -5719,9 +5856,12 @@ void AReEchoGameMode::ShowTraitCardChoice()
 	SetMusicState(FReEchoAudioEvents::MusicShop);
 	StopAmbienceState();
 
+	// Cadence abilities can let this pack hand out two cards; set it before the offers are revealed.
+	TraitCardChoiceWidget->SetSelectableCount(RunSubsystem->GetPendingTraitCardSelectableCount());
 	TraitCardChoiceWidget->InitializeOffers(Offers, RunSubsystem->TimeShards);
 	PostUiEvent(FReEchoAudioEvents::UiCardReveal);
 	TraitCardChoiceWidget->OnCardSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardSelected);
+	TraitCardChoiceWidget->OnCardChoicesSelected.AddDynamic(this, &AReEchoGameMode::HandleTraitCardsSelected);
 	TraitCardChoiceWidget->OnCardSlotRefreshRequested.AddDynamic(this,
 	                                                             &AReEchoGameMode::HandleTraitCardRefreshRequested);
 	SetPlayerMenuAbilityBlocked(true);
@@ -5745,6 +5885,18 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	FString RefreshError;
 	if (!RunSubsystem->TryRefreshTraitCardSlot(SlotIndex, RefreshError))
 	{
+		// 兜底诊断：孤儿屏（Phase 已离开 CardChoice）下刷新被拒时，收敛孤儿屏并续上流程，避免软锁。
+		if (TraitCardChoiceWidget && RunSubsystem->Phase != EReEchoRunPhase::CardChoice)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[TraitChoice] Refresh rejected on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       static_cast<int32>(RunSubsystem->Phase));
+			CloseTraitCardChoiceScreen();
+			bContinueRunAfterShop = true;
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+			return;
+		}
 		ReEchoUIInteractionAudit::Write(
 		    TEXT("FREE_CARD_SLOT_REFRESH_REJECTED"),
 		    FString::Printf(
@@ -5783,6 +5935,87 @@ void AReEchoGameMode::HandleTraitCardRefreshRequested(const int32 SlotIndex)
 	PostUiEvent(FReEchoAudioEvents::UiPurchase);
 }
 
+void AReEchoGameMode::HandleTraitCardsSelected(const TArray<FName>& CardIds)
+{
+	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
+	if (!RunSubsystem || CardIds.Num() <= 0)
+	{
+		return;
+	}
+	// Cadence ability: every picked card is granted in one transaction, so the pack closes at once and the
+	// phase returns to planning. No deferred follow-up choice is ever opened.
+	const bool bApplied = RunSubsystem->ApplyTraitCards(CardIds);
+	if (!bApplied)
+	{
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		if (TraitCardChoiceWidget)
+		{
+			TraitCardChoiceWidget->RestoreChoiceFailure(RunSubsystem->TimeShards);
+		}
+		return;
+	}
+	RunSubsystem->SaveRun();
+
+	const bool bPlayCardChoiceToShop = ShouldPlayCardChoiceToShopTransition(
+	    RunSubsystem->EncounterIndex, RunSubsystem->Phase, bApplied, bReturnToOpenShopAfterTraitChoice);
+	if (bPlayCardChoiceToShop)
+	{
+		bContinueRunAfterShop = true;
+		if (BeginCardChoiceToShopTransition())
+		{
+			return;
+		}
+	}
+
+	if (TraitCardChoiceWidget)
+	{
+		if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+		        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+		{
+			UIFlow->CloseScreen(EReEchoUIScreen::TraitChoice);
+		}
+		TraitCardChoiceWidget = nullptr;
+	}
+	if (bReturnToOpenShopAfterTraitChoice)
+	{
+		if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+			return;
+		}
+		bReturnToOpenShopAfterTraitChoice = false;
+		if (ArenaCameraActor)
+		{
+			ArenaCameraActor->ResetEncounterCountdownPostProcess();
+		}
+		if (InventoryShopWidget)
+		{
+			RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
+			if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
+			        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
+			{
+				if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+				{
+					UIFlow->FocusScreen(PlayerController, EReEchoUIScreen::InventoryShop, true);
+				}
+			}
+			SetPlayerMenuAbilityBlocked(true);
+			return;
+		}
+	}
+	ResumeWorldForMenuTransition();
+
+	if (RunSubsystem->Phase == EReEchoRunPhase::CardChoice)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowTraitCardChoice);
+	}
+	else
+	{
+		bContinueRunAfterShop = true;
+		GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+	}
+}
+
 void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 {
 	UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
@@ -5793,6 +6026,19 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	const bool bApplied = RunSubsystem->ApplyTraitCard(CardId);
 	if (!bApplied)
 	{
+		// 兜底诊断：特质卡屏已沦为孤儿（Phase 已离开 CardChoice）时，确认无法应用。
+		// 此时不应静默 UiError 导致软锁，而应收敛孤儿屏并续上流程（回到下一遭遇前的商店/结算）。
+		if (TraitCardChoiceWidget && RunSubsystem->Phase != EReEchoRunPhase::CardChoice)
+		{
+			UE_LOG(LogReEcho,
+			       Warning,
+			       TEXT("[TraitChoice] Confirm ignored on orphaned trait choice screen (phase=%d); closing and resuming flow."),
+			       static_cast<int32>(RunSubsystem->Phase));
+			CloseTraitCardChoiceScreen();
+			bContinueRunAfterShop = true;
+			GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::ShowPostTraitShop);
+			return;
+		}
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
 	}
@@ -5864,6 +6110,10 @@ void AReEchoGameMode::HandleCardGrantCommitted(const FReEchoStatBlock& Stats,
 	if (HealthAdjustment != EReEchoHealthAdjustment::None && Player && Player->Combatant)
 	{
 		Player->Combatant->ApplyHealthAdjustment(Stats.HpMax, HealthAdjustment);
+		if (HealthAdjustment == EReEchoHealthAdjustment::SetToStatPoint)
+		{
+			Player->Combatant->RestoreCurrentHealth(Stats.HpPoint);
+		}
 	}
 }
 

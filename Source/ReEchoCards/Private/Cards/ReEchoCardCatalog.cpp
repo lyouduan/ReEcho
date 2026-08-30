@@ -78,7 +78,21 @@ const TSet<FName>& SupportedBehaviors()
 	                                   TEXT("Card.VaporizeWaterSplash"),
 	                                   TEXT("Card.ConductDamageGrowth"),
 	                                   TEXT("Card.OverhealCapacity"),
-	                                   TEXT("Card.AlternatingSources")};
+	                                   TEXT("Card.AlternatingSources"),
+	                                   TEXT("Card.EasterShardSwing"),
+	                                   TEXT("Card.EasterIndependentGrant"),
+	                                   TEXT("Card.EasterEchoContact"),
+	                                   TEXT("Card.EasterShardSacrifice"),
+	                                   TEXT("Card.EasterRandomStun"),
+	                                   TEXT("Card.EasterDamageCards"),
+	                                   TEXT("Card.EasterPhysicalLottery"),
+	                                   TEXT("Card.EasterShardComparison"),
+	                                   TEXT("Card.EasterAttendance"),
+                                   TEXT("Card.KillThresholdStatBoost"),
+                                   TEXT("Card.KillThresholdImmunity"),
+                                   TEXT("Card.EndKillShards"),
+                                   TEXT("Card.CollectCoresGrantTiered"),
+                                   TEXT("Card.GrantAllTier1")};
 
 	return Values;
 }
@@ -148,6 +162,20 @@ TArray<FReEchoCardDefinition> FReEchoCardCatalog::GetOfferable(const FName Offer
 		const FReEchoCardDefinition* Card = Cards.Find(CardId);
 		if (Card && Card->bEnabled && Card->bOfferable && Card->OfferGroup == OfferGroup &&
 		    (Tier == INDEX_NONE || Card->Tier == Tier))
+		{
+			Result.Add(*Card);
+		}
+	}
+	return Result;
+}
+
+TArray<FReEchoCardDefinition> FReEchoCardCatalog::GetAll(const int32 Tier) const
+{
+	TArray<FReEchoCardDefinition> Result;
+	for (const FName CardId : CardOrder)
+	{
+		const FReEchoCardDefinition* Card = Cards.Find(CardId);
+		if (Card && Card->bEnabled && (Tier == INDEX_NONE || Card->Tier == Tier))
 		{
 			Result.Add(*Card);
 		}

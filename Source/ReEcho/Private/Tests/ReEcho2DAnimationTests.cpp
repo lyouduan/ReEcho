@@ -693,7 +693,7 @@ bool FReEcho2DAnimationAssetProfilesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Born can be active immediately before terminal Death"),
 	         Controller->PlayAction(ReEcho2DAnimationTags::Born) && EnemyPresentation->IsBornPlaying());
 	TestTrue(TEXT("Terminal Death resolves the authored clip"),
-	         EnemyPresentation->BeginTerminalDeath(FSimpleDelegate::CreateLambda(
+	         EnemyPresentation->BeginTerminalDeath(FVector::ForwardVector, FSimpleDelegate::CreateLambda(
 	                                                   [&DeathCompletionCount]()
 	                                                   {
 		                                                   ++DeathCompletionCount;

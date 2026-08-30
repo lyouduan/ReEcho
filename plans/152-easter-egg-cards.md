@@ -6,7 +6,7 @@
 - Executor 负责人：Codex（程序路线，规划与执行合并）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@a742818b05a2b9a59d7f715fc16e2b2d55f4541d`。
 - 本地实现方式（可选，仅作交接说明）：专属 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-easter-egg-cards`，任务分支 `feature/easter-egg-cards`；正式实现前合入本 Plan 发布后的最新 `origin/main`。
@@ -89,13 +89,13 @@
 
 ## 锁定验收
 
-- [ ] 生产数据包含且只包含九张启用彩蛋卡 `G_4_1`～`G_4_9`，程序说明数值、`EasterEgg` 分类、【独特】和九个 Behavior 均被 Python 与 C++ 读取器验证；普通 Tier 计数不改变。
-- [ ] 关末免费组、商店卡组的三个初始槽和两类单槽刷新分别覆盖独立 1% 判定；自动化用注入/穷举种子证明命中、未命中、多槽命中、彩蛋池耗尽、已拥有/本组历史排除、读档/重复打开稳定。
-- [ ] `Card.GrantTier`、`G_4_6` 及其他随机赠卡不会递归获得彩蛋卡；九张卡拥有后不再投放。
-- [ ] 九张效果各有纯规则或集成自动化，覆盖阈值/边界、随机概率表、原子失败、玩家/Echo来源、接触去重、关末顺序、毛收入统计和存读档。
-- [ ] 九张 icon 的源图、规范命名、Texture2D UI 属性、Cook 路径和卡面/构筑解析路径通过导入审计；彩蛋卡显示三级卡底且不显示为三级玩法池成员。
-- [ ] 所有会产生具体随机/累计结果的彩蛋卡在已拥有卡牌 Tooltip 的第二块“实际效果”面板中显示当前已解析结果。
-- [ ] C++ 格式化、聚焦自动化、`Build-Editor.cmd -Configuration Development`、数据 `--check`、`python scripts/validate_project.py` 与 `git diff --check` 通过；发布 main 前在最终组合候选执行 `-FullRebuild` 并刷新精选预构建包。
+- [x] 生产数据包含且只包含九张启用彩蛋卡 `G_4_1`～`G_4_9`，程序说明数值、`EasterEgg` 分类、【独特】和九个 Behavior 均被 Python 与 C++ 读取器验证；普通 Tier 计数不改变。
+- [x] 关末免费组、商店卡组的三个初始槽和两类单槽刷新分别覆盖独立 1% 判定；自动化用注入/穷举种子证明命中、未命中、多槽命中、彩蛋池耗尽、已拥有/本组历史排除、读档/重复打开稳定。
+- [x] `Card.GrantTier`、`G_4_6` 及其他随机赠卡不会递归获得彩蛋卡；九张卡拥有后不再投放。
+- [x] 九张效果各有纯规则或集成自动化，覆盖阈值/边界、随机概率表、原子失败、玩家/Echo来源、接触去重、关末顺序、毛收入统计和存读档。
+- [x] 九张 icon 的源图、规范命名、Texture2D UI 属性、Cook 路径和卡面/构筑解析路径通过导入审计；彩蛋卡显示三级卡底且不显示为三级玩法池成员。
+- [x] 所有会产生具体随机/累计结果的彩蛋卡在已拥有卡牌 Tooltip 的第二块“实际效果”面板中显示当前已解析结果。
+- [x] C++ 格式化、聚焦自动化、`Build-Editor.cmd -Configuration Development`、数据 `--check`、`python scripts/validate_project.py` 与 `git diff --check` 通过；发布 main 前在最终组合候选执行 `-FullRebuild` 并刷新精选预构建包。
 - [ ] PIE 人工验收至少覆盖：免费组/商店组命中彩蛋、逐槽刷新、三级卡底与九 icon、九张效果的可观察行为、保存退出后恢复。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
@@ -137,17 +137,25 @@
 
 ### 变化
 
-- 待实现。
+- 生产 `ReEchoData.xlsx` / CSV 新增 `G_4_1`～`G_4_9` 与 27 条效果，运行时以 `EasterEgg` 独立牌池识别，不改变普通等级池；九张 icon 已按稳定 ID 导入 Texture2D。
+- 免费组、商店卡组及其逐槽刷新统一走逐槽候选选择器：每槽独立 1%，页面缓存与真实时间初始化的 RunSeed 保证读档/重开稳定，刷新仅重摇目标槽。
+- 九张卡的授予、关末、货币、承伤、最终物理伤害、Echo 接触、周期眩晕与实际效果记录均已接入；存档版本升至 v25 并提供旧档中性迁移。
+- 彩蛋卡业务 Tier 保持为所在卡组等级，新增只读 `PresentationTier` 投影三级卡底，避免把彩蛋误归入三级玩法池。
 
 ### 证据
 
 - 2026-08-28：用 `artifact-tool` 读取可见 `构筑体系G!A70:H78`，确认九张卡、程序说明、稳定源 ID 和【独特】；读取 `投放系统!A1:D10`，确认彩蛋卡独立牌池和任意卡牌组的 1% 规则。
 - 2026-08-28：用户确认三个槽各自独立 1%，复用三级卡底；`G_4_2` 三项各 50% 且允许零项；`G_4_1` 向下取整；`G_4_6` 只抽未拥有普通卡并排除彩蛋；`G_4_8` 统计正向毛收入。
+- 2026-08-28：`sync_xlsx_to_csv.py --check`、`validate_project.py`、`setup_lfs.py --check` 与 `git diff --check` 通过；九卡、27 效果及 XLSX/CSV 字节一致性通过。
+- 2026-08-28：`ReEcho.Trait` 11/11、`ReEcho.Shop` 16/16、`ReEcho.Cards` 20/20、`ReEcho.Run.SaveSnapshot` 1/1 通过；SaveSnapshot 覆盖 v25 彩蛋持有/运行状态/商店缓存页及 v23 中性迁移。
+- 2026-08-28：Development `-FullRebuild` 104/104 action 成功，精选预构建包已刷新（`source=16d37203dead`）。
+- 2026-08-28：扩大回归发现两个不属于 Plan152 修改面的基线失败：敌人碎片投放测试的硬编码期望与当前生产数据不一致；`ElementReactionWorld` 的导电世界测试未形成伤害。其余 `ReEcho.Run` 18/20、`ReEcho.Combat` 12/13 通过，Plan152 聚焦套件无失败。
+- 2026-08-28：发布候选已组合 `origin/main@bbf6c22e`；在组合结果上重新执行 Development `-FullRebuild`，119/119 action 成功，精选预构建包刷新为 `source=70317c57463b`。随后 `sync_xlsx_to_csv.py --check`、`validate_project.py`、`setup_lfs.py --check`、`git diff --check` 通过，`ReEcho.Cards` 20/20、`ReEcho.Trait` 11/11、`ReEcho.Shop` 16/16、`ReEcho.Run.SaveSnapshot` 1/1 全部通过。
 
 ### 剩余风险
 
-- 九种行为跨 Cards、Run、Combat、Echo、UI 和二进制生产 XLSX；必须以小步聚焦测试和最终组合构建防止权威状态重复执行。
-- 1% 人工复现不稳定，自动化必须支持注入/穷举种子，PIE 仅验证真实时间种子下页面稳定与实际表现。
+- 发布候选已组合并验证 `origin/main@bbf6c22e`；推送阶段仍需按发布锁规则再次确认远端 main 未前移。
+- 1% 人工复现不稳定；PIE 重点验证真实时间种子下页面稳定、刷新只影响单槽，以及九张效果的可观察表现。
 
 ### 人工验收结果/请求
 
@@ -155,4 +163,8 @@
 
 ### 架构文档审阅结果
 
-- 待实现后逐项填写。
+- `MOD-ReEchoCards.md`：已更新彩蛋分类、逐槽选择器、随机/累计状态与九行为归属。
+- `MOD-ReEcho.md`：已更新 Run/Save/GameMode 的页面、货币、世界适配和 v25 迁移契约。
+- `MOD-ReEchoCombat.md`：已更新最终物理伤害、生命精确调整、眩晕/接触/承伤接缝。
+- `MOD-ReEchoUI.md`：已更新三级卡底投影、九 icon 与实际效果副浮窗。
+- `ARCHITECTURE.md`、`CODEBASE_MAP/README.md`：已审阅；Runtime Module、依赖拓扑和稳定路由未变化，无需修改。

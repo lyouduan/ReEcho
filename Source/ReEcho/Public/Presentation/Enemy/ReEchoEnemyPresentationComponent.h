@@ -110,12 +110,19 @@ public:
 	/** Saved enemies are already committed; discard only a configuration-started Born and return to the base state. */
 	void CancelBornForRuntimeRestore();
 	/** Enter the only visible death presentation. Returns false when no valid Death clip exists. */
-	bool BeginTerminalDeath(FSimpleDelegate OnCompleted, float& OutExpectedDurationSeconds);
+	bool BeginTerminalDeath(const FVector& KnockbackWorldDirection,
+	                        FSimpleDelegate OnCompleted,
+	                        float& OutExpectedDurationSeconds);
 	/** Freezes the current animation before stun-driven gameplay cancellation events are published. */
 	void SetStunPaused(bool bPaused);
 	void Advance(const FReEchoEnemyPresentationSnapshot& Snapshot, float DeltaSeconds);
 	/** Skill03 keeps gameplay at the locked impact point while its presentation descends into that point. */
 	static FVector ResolveBlinkSlamVisualOffset(float RemainingSeconds, float DurationSeconds, float StartHeightCm);
+	/** Fatal hits use presentation-only displacement because gameplay knockback stops when the enemy enters Dead. */
+	static FVector ResolveDeathKnockbackOffset(const FVector& LocalDirection,
+	                                           float ElapsedSeconds,
+	                                           float DurationSeconds,
+	                                           float DistanceCm);
 	/** MoonStaff billboard pivot is centered, so its stable local tip is half the authored world length upward. */
 	static FVector ResolveBossWeaponTipOffset(float HeldLengthCm);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -162,6 +169,7 @@ private:
 	void ConfigureBossWeapon(FName PresentationId);
 	void UpdateBossWeaponMotion(float DeltaSeconds);
 	void UpdateBossBlinkSlamMotion(float DeltaSeconds);
+	void UpdateDeathKnockbackMotion(float DeltaSeconds);
 	void RefreshBossWeaponFacingOffset(float FacingSign);
 
 	UPROPERTY()
@@ -228,6 +236,8 @@ private:
 	float BossBlinkSlamRemaining = 0.0f;
 	float BossBlinkSlamDuration = 0.0f;
 	float BossBlinkSlamStartHeightCm = 0.0f;
+	FVector DeathKnockbackLocalDirection = FVector::ZeroVector;
+	float DeathKnockbackElapsedSeconds = 0.0f;
 	FRotator BossWeaponRestRotation = FRotator::ZeroRotator;
 	FVector BossWeaponRightFacingOffset = FVector::ZeroVector;
 	FVector BossWeaponLeftFacingOffset = FVector::ZeroVector;

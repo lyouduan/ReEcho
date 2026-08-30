@@ -32,12 +32,14 @@ enum class EReEchoCardOutcomeKind : uint8
 	StatGain,
 	EconomyPenalty,
 	FreeShopRefreshes,
+	TimeShards,
 	CumulativeStatGain,
 	RunReset,
 	FreeShopVisit,
 	UnlimitedRefresh,
 	Debt,
-	WeaponMaster
+	WeaponMaster,
+	RandomDetails
 };
 
 USTRUCT(BlueprintType)
@@ -62,6 +64,9 @@ struct REECHOCARDS_API FReEchoCardOutcomeState
 	EReEchoCardEconomyPenalty EconomyPenalty = EReEchoCardEconomyPenalty::None;
 	/** Actual granted card IDs for deterministic display through the immutable catalog. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> RelatedCardIds;
+	/** Arbitrary resolved stat details for cards with more than two independently rolled outcomes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> DetailTargets;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<float> DetailValues;
 };
 
 USTRUCT(BlueprintType)
@@ -122,6 +127,14 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPaymentCommitted = false;
 	/** A successful card claim consumes this pack for the current page. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPurchased = false;
+	/** Remaining purchase count for this tier slot (from ShopTiers Tier:Count config). 0 = sold out / not configured. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 RemainingPurchases = 0;
+	/** Claims made on this tier slot for the current page. Seeds each repeat purchase so it rolls its own cards. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ClaimCount = 0;
+	/** How many of the three cards this pack lets the player take. 1 normally; 2 on a tiered cadence ability. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 SelectableCardCount = 1;
+	/** Picks still owed by this paid pack. Above 1 the pack stays open for another pick. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PicksRemaining = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -163,6 +176,10 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	/** Weapon/rune refresh-count limit is suspended until the next committed shop purchase. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bUnlimitedWeaponRuneRefresh = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bDragonSoulCompleted = false;
+	/** Stable enemy definition ids whose damage is fully prevented for the rest of the run (兔兔杀手 etc.). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TSet<FName> ImmuneEnemyDefinitionIds;
+	/** One-shot kill-threshold cards that have already resolved, keyed by card id. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) TSet<FName> CompletedKillThresholdCardIds;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bNumericChallengeCompleted = false;
 	/** Final applied damage resolved during the active encounter, split by stable source domain. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterPlayerDamage = 0.0f;
@@ -175,6 +192,14 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float ConductPlayerDamageMultiplier = 1.0f;
 	/** Exact additive EchoEfficiency already materialized by the three-piece Echo set. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EchoTrinityEfficiencyGranted = 0.0f;
+	/** Easter-card encounter state. All fields are save-authoritative and deterministic. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 LastEasterStunPulseIndex = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EasterDamageTaken = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterDamageCardsGranted = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasPreviousEncounterShardIncome = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PreviousEncounterGrossShardIncome = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 CurrentEncounterGrossShardIncome = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterShardIncomeMultiplier = 1.0f;
 	/** SaveVersion <= 16 compatibility only. Weapon/rune and card refreshes no longer share this sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
 	/** Stable build-card pack page for the current encounter. */
@@ -244,6 +269,13 @@ struct REECHOCARDS_API FReEchoCardRuleSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bDisableShopRefresh = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bDisableExtraCardPurchase = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bDisableEnemyShardDrops = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEasterEchoContact = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterEchoContactDamage = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterEchoContactHealing = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEasterRandomStun = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunRadiusCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunDuration = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunInterval = 0.5f;
 };
 
 USTRUCT()
@@ -287,6 +319,9 @@ struct REECHOCARDS_API FReEchoCardEncounterTickResult
 	TArray<float> EnemyStunDurations;
 	int32 EchoAuraPulseCount = 0;
 	int32 EchoHeadCursePulseCount = 0;
+	int32 EasterRandomStunPulseCount = 0;
+	float EasterRandomStunRadiusCm = 0.0f;
+	float EasterRandomStunDuration = 0.0f;
 };
 
 USTRUCT()
@@ -350,4 +385,7 @@ struct REECHOCARDS_API FReEchoCardEventResult
 	float Healing = 0.0f;
 	int32 TimeShardsGranted = 0;
 	int32 FreeShopRefreshesGranted = 0;
+	/** Optional absolute post-effect balance; INDEX_NONE means use TimeShardsGranted as a delta. */
+	int32 ProjectedTimeShards = INDEX_NONE;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 };

@@ -28,8 +28,7 @@ enum class EReEchoShopPurchaseResult : uint8
 	DataUnavailable,
 	GrantRejected,
 	MutationRejected,
-	WeaponSelectionRejected,
-	ReplayUnlockRejected
+	WeaponSelectionRejected
 };
 
 /** Structured result returned by the unified purchase transaction interface. */
@@ -68,6 +67,11 @@ struct REECHO_API FReEchoShopOffer
 	int32 EffectivePrice = 0;
 	/** Authoritative purchase gate. Widgets display this state and never recalculate affordability. */
 	bool bCanPurchase = false;
+	/**
+	 * Tier-I runes can be bought again even when already owned: repeat purchases are what feed
+	 * I->II->III synthesis, so owning one must neither gate the purchase nor hide its price.
+	 */
+	bool bRepeatPurchasable = false;
 };
 
 // One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
@@ -86,6 +90,8 @@ struct REECHO_API FReEchoWeaponSlotOffer
 	int32 Price = 0;
 	int32 EffectivePrice = 0;
 	bool bCanPurchase = false;
+	/** Tier-I rune: can be bought again while already owned, because repeat purchases feed I->II->III synthesis. */
+	bool bRepeatPurchasable = false;
 };
 
 enum class EReEchoShopCardPackStatus : uint8
@@ -105,6 +111,8 @@ struct REECHO_API FReEchoShopCardChoiceOffer
 	FText DisplayName;
 	FText EffectText;
 	TArray<FName> Tags;
+	/** Business tier stays bound to the fixed pack; Easter cards project tier-three art independently. */
+	int32 PresentationTier = 1;
 	int32 Tier = 1;
 	int32 Price = 0;
 	int32 SlotIndex = INDEX_NONE;
@@ -126,6 +134,12 @@ struct REECHO_API FReEchoShopCardPackOffer
 	int32 EffectivePrice = 0;
 	bool bCanPurchase = false;
 	TArray<FReEchoShopCardChoiceOffer> Choices;
+	/** Purchases still available for this tier on the current page (ShopTiers "Tier:Count" config). */
+	int32 RemainingPurchases = 0;
+	/** Total purchases configured for this tier. Above 1 the entrance is a repeatable multi-pack. */
+	int32 TotalPurchases = 0;
+	/** How many of the three cards this pack lets the player take. 2 turns 3-choose-1 into 3-choose-2. */
+	int32 SelectableCardCount = 1;
 
 	bool IsAvailable() const
 	{
@@ -175,26 +189,21 @@ struct REECHO_API FReEchoWeaponPartShopView
 
 inline const TArray<FReEchoShopOffer>& GetReEchoShopCatalog()
 {
-	static const TArray<FReEchoShopOffer> Offers = {
-	    {TEXT("SHOP_RUSTED_SCISSORS"),
-	     NSLOCTEXT("ReEcho", "ShopRustedScissors", "生锈剪刀"),
-	     NSLOCTEXT("ReEcho", "ShopRustedScissorsEffect", "物理攻击 +2"),
-	     15},
-	    {TEXT("SHOP_DREAM_FRUIT"),
-	     NSLOCTEXT("ReEcho", "ShopDreamFruit", "噩梦果实"),
-	     NSLOCTEXT("ReEcho", "ShopDreamFruitEffect", "最大生命 +10"),
-	     20},
-	    {TEXT("SHOP_BLACK_FEATHER"),
-	     NSLOCTEXT("ReEcho", "ShopBlackFeather", "黑羽毛"),
-	     NSLOCTEXT("ReEcho", "ShopBlackFeatherEffect", "移动速度 +10%"),
-	     20},
-	    {TEXT("SHOP_OLD_COIN"),
-	     NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
-	     NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
-	     25},
-	    {TEXT("SHOP_REPLAY_UNLOCK"),
-	     NSLOCTEXT("ReEcho", "ShopReplayUnlock", "指定回放解锁"),
-	     NSLOCTEXT("ReEcho", "ShopReplayUnlockEffect", "在收藏的回响中选择最多 3 场自动回放"),
-	     30}};
+	static const TArray<FReEchoShopOffer> Offers = {{TEXT("SHOP_RUSTED_SCISSORS"),
+	                                                 NSLOCTEXT("ReEcho", "ShopRustedScissors", "生锈剪刀"),
+	                                                 NSLOCTEXT("ReEcho", "ShopRustedScissorsEffect", "物理攻击 +2"),
+	                                                 15},
+	                                                {TEXT("SHOP_DREAM_FRUIT"),
+	                                                 NSLOCTEXT("ReEcho", "ShopDreamFruit", "噩梦果实"),
+	                                                 NSLOCTEXT("ReEcho", "ShopDreamFruitEffect", "最大生命 +10"),
+	                                                 20},
+	                                                {TEXT("SHOP_BLACK_FEATHER"),
+	                                                 NSLOCTEXT("ReEcho", "ShopBlackFeather", "黑羽毛"),
+	                                                 NSLOCTEXT("ReEcho", "ShopBlackFeatherEffect", "移动速度 +10%"),
+	                                                 20},
+	                                                {TEXT("SHOP_OLD_COIN"),
+	                                                 NSLOCTEXT("ReEcho", "ShopOldCoin", "古老硬币"),
+	                                                 NSLOCTEXT("ReEcho", "ShopOldCoinEffect", "回响效率 +10%"),
+	                                                 25}};
 	return Offers;
 }

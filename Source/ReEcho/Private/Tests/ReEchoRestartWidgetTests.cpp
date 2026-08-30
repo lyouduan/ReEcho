@@ -83,6 +83,8 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	UButton* VictoryContinueButton = FindRestartWidget<UButton>(RestartWidget, TEXT("VictoryContinueButton"));
 	UImage* ArtVictoryCharacterFormal =
 	    FindRestartWidget<UImage>(RestartWidget, TEXT("ArtVictoryCharacterFormal"));
+	UImage* ArtVictoryTimeShardFormal =
+	    FindRestartWidget<UImage>(RestartWidget, TEXT("ArtVictoryTimeShardFormal"));
 	UCanvasPanel* DefeatCanvas = FindRestartWidget<UCanvasPanel>(RestartWidget, TEXT("DefeatCanvas"));
 	UTextBlock* DefeatEncounterValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatEncounterValue"));
 	UTextBlock* DefeatTimeShardsValue = FindRestartWidget<UTextBlock>(RestartWidget, TEXT("DefeatTimeShardsValue"));
@@ -90,6 +92,8 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	UButton* DefeatRestartButton = FindRestartWidget<UButton>(RestartWidget, TEXT("DefeatRestartButton"));
 	UButton* DefeatMainMenuButton = FindRestartWidget<UButton>(RestartWidget, TEXT("DefeatMainMenuButton"));
 	UImage* ArtDefeatCharacterFormal = FindRestartWidget<UImage>(RestartWidget, TEXT("ArtDefeatCharacterFormal"));
+	UImage* ArtDefeatTimeShardFormal =
+	    FindRestartWidget<UImage>(RestartWidget, TEXT("ArtDefeatTimeShardFormal"));
 	UImage* ArtVictoryContinueButtonFormal =
 	    FindRestartWidget<UImage>(RestartWidget, TEXT("ArtVictoryContinueButtonFormal"));
 	UImage* ArtDefeatRestartButtonFormal =
@@ -126,6 +130,7 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Formal victory build value exists"), VictoryTraitCountValue);
 	TestNotNull(TEXT("Formal victory continue button exists"), VictoryContinueButton);
 	TestNotNull(TEXT("Formal victory character image exists"), ArtVictoryCharacterFormal);
+	TestNotNull(TEXT("Formal victory time-shard decoration exists"), ArtVictoryTimeShardFormal);
 	TestNotNull(TEXT("Formal defeat canvas exists"), DefeatCanvas);
 	TestNotNull(TEXT("Formal defeat encounter value exists"), DefeatEncounterValue);
 	TestNotNull(TEXT("Formal defeat shard value exists"), DefeatTimeShardsValue);
@@ -133,6 +138,7 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Formal defeat restart button exists"), DefeatRestartButton);
 	TestNotNull(TEXT("Formal defeat main-menu button exists"), DefeatMainMenuButton);
 	TestNotNull(TEXT("Formal defeat character image exists"), ArtDefeatCharacterFormal);
+	TestNotNull(TEXT("Formal defeat time-shard decoration exists"), ArtDefeatTimeShardFormal);
 	TestNotNull(TEXT("Formal victory continue art exists"), ArtVictoryContinueButtonFormal);
 	TestNotNull(TEXT("Formal defeat restart art exists"), ArtDefeatRestartButtonFormal);
 	TestNotNull(TEXT("Formal defeat main-menu art exists"), ArtDefeatMainMenuButtonFormal);
@@ -245,6 +251,9 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 
 	RestartWidget->SetDeathScreen(true, 4, 126, 5);
 	TestEqual(TEXT("Formal defeat canvas is visible"), DefeatCanvas->GetVisibility(), ESlateVisibility::Visible);
+	TestEqual(TEXT("Formal defeat time-shard decoration is hidden"),
+	          ArtDefeatTimeShardFormal->GetVisibility(),
+	          ESlateVisibility::Collapsed);
 	TestEqual(TEXT("Formal defeat encounter value is projected"),
 	          DefeatEncounterValue->GetText().ToString(),
 	          FString(TEXT("4")));
@@ -339,6 +348,9 @@ bool FReEchoRestartWidgetPresentationTest::RunTest(const FString& Parameters)
 	          DefeatCanvas->GetVisibility(),
 	          ESlateVisibility::Collapsed);
 	TestEqual(TEXT("Formal victory canvas is visible"), VictoryCanvas->GetVisibility(), ESlateVisibility::Visible);
+	TestEqual(TEXT("Formal victory time-shard decoration is hidden"),
+	          ArtVictoryTimeShardFormal->GetVisibility(),
+	          ESlateVisibility::Collapsed);
 	TestEqual(TEXT("Formal victory encounter is real balance data"),
 	          VictoryEncounterValue->GetText().ToString(),
 	          FText::AsNumber(GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount()).ToString());

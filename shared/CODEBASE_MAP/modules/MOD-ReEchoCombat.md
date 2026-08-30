@@ -72,6 +72,7 @@ UI 和属性面板只订阅最终通知或读取快照，不得在回调中反�
 
 - `FReEchoHitResolved` 是最终裁决结果；只有 Resolver 能决定实际伤害、格挡与死亡。对应的 `FReEchoDamageEvent::bFatal` 明确标记本次 Hurt 已把存活目标降至零血，表现消费者仍可显示伤害数字，但必须抑制普通受击动画与受击 VFX。反应内部伤害同时携带资源中立的 `ReactionBehaviorId`；Burn 跨 Tick/存档保留该来源，强化被下一次伤害反应消费时发布 `Reaction.Enhance`，表现只据此选色而不得重算元素规则。
 - `UReEchoCombatEventsComponent` 发布 AttackCommitted、Hit、Hurt、HealthChanged、ElementStateChanged、Kill、Death。WeaponActor 的普通攻击与主动攻击只要成功 Confirm，都必须走同一 `AttackCommitted` 出口；事件携带该次攻击最终元素供表现只读消费，Development `GMElement` 覆盖必须在发布前落实，表现不得重新推导元素。输入来源是自动、手动或 Echo 不得改变表现事件契约，未产生新 Commit 的镰刀召回不重复发布。
+- `FReEchoAttackCommittedEvent` 同时快照本次执行的 `EffectiveRangeCm`、原始 AttackStep `BaseRangeCm`、两者倍率与有效角度。它们是资源无关的几何事实，供延迟表现锁定同一次 Commit；表现不得重新读取可变符文状态或反向决定命中。
 - `FReEchoCombatantSnapshot` 和 `FReEchoAttackSnapshot` 是调用瞬间的只读副本，不持久化，也不能被 UI 当成可写缓存。
 - 事件 Payload 只包含稳定 ID、值、弱/受控对象句柄和世界信息，不携带 Widget、Sound、Animation、Texture 或 Material。
 
@@ -492,3 +493,10 @@ Plan76 的晕眩、流血、短暂无敌和临时攻速/移速均通过 `UReEcho
 # Plan73 元素反应表现契约
 
 `UReEchoCombatEventsComponent::OnElementReactionResolved` 只在有效反应完整结算后发布一次资源中立结果，携带 ReactionId、ReactionBehaviorId、RadiusCm、反应前/进入/结算后元素以及玩法确定的受影响目标顺序；表现消费者不得重新计算半径或连锁拓扑。
+
+# Plan152 彩蛋卡牌战斗接缝
+
+- `G_4_7` 由 Cards 在来源增益完成后把 Player/Echo 的物理 `RawDamage` 改写为权重结果，再由 Combat 执行防御、生命和死亡裁决；元素伤害及 Enemy/Path/Reaction 来源不进入该彩票。
+- `G_4_3` 的新接触事件仍通过 `ReEchoHitResolver::ResolvePhysicalHit` 和 `UReEchoCombatantComponent::ApplyHealing`，`G_4_5` 通过 `ApplyTimedStatus(Z_Stun)`；世界宿主不得直接写生命或状态。
+- `G_4_6` 的 55 点阈值累计使用 Combat 返回的最终 `AppliedDamage`，同一次命中不得按原始伤害或多个表现回调重复累计。
+- `EReEchoHealthAdjustment::SetToStatPoint` 是授予时“当前生命调整为精确值”及关末永久生命同步的窄意图；Combatant 仍是实时生命权威。

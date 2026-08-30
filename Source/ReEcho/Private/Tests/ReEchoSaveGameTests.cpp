@@ -54,6 +54,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	Source->OwnedPartIds.Add(TEXT("P_CORE_FLAME"));
 	Source->OwnedWeaponIds.Add(TEXT("W_J_08"));
 	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_1_01"));
+	Source->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_3_02"));
 	FReEchoRecording Recording;
 	Recording.Id = FGuid::NewGuid();
 	Recording.EncounterIndex = 1;
@@ -61,13 +62,8 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Completed encounter stages a pending echo"),
 	          Source->StagePendingRecording(Recording),
 	          EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Pending echo stores into a free slot"),
-	          Source->StorePendingRecording(),
-	          EReEchoEchoStorageResult::Success);
-	TestEqual(
-	    TEXT("Specific single replay unlocks"), Source->SetSpecificReplayLimit(1), EReEchoEchoStorageResult::Success);
-	TestEqual(TEXT("Stored echo is selected for the next encounter"),
-	          Source->SetSelectedReplayIds({Recording.Id}),
+	TestEqual(TEXT("Pending echo becomes the time anchor"),
+	          Source->StorePendingRecordingAsTimeAnchor(),
 	          EReEchoEchoStorageResult::Success);
 	Source->BeginEncounter();
 	const int32 EnemyDrop = Source->ResolveEnemyDeathTimeShardDrop(TEXT("M_Grunt"), 17);
@@ -105,7 +101,7 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Additional weapon ownership restores"), Restored->OwnedWeaponIds.Contains(TEXT("W_J_08")));
 	TestEqual(TEXT("Selected character restores"), Restored->CurrentBuild.CharacterId, FName(TEXT("J_SPADE")));
 	TestEqual(TEXT("Saved current weapon restores"), Restored->CurrentBuild.WeaponId, FName(TEXT("W_J_01")));
-	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 1);
+	TestEqual(TEXT("Build cards restore"), Restored->CurrentBuild.CardState.OwnedCardIds.Num(), 2);
 	const TArray<FReEchoRecording> RestoredRecordings = Restored->GetEchoRecordings(1);
 	TestEqual(TEXT("Legacy facade resolves one echo from the new state"), RestoredRecordings.Num(), 1);
 	if (RestoredRecordings.Num() == 1)
@@ -113,11 +109,46 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Selected stored echo restores"), RestoredRecordings[0].Id, Recording.Id);
 	}
 	const FReEchoEchoStorageSummary RestoredStorage = Restored->GetEchoStorageSummary();
-	TestEqual(TEXT("Stored echo slot restores"), RestoredStorage.StoredEchoes.Num(), 1);
-	TestEqual(TEXT("Specific replay limit restores"), RestoredStorage.SpecificReplayLimit, 1);
-	TestEqual(TEXT("Storage capacity restores"), RestoredStorage.StorageCapacity, 3);
+	TestTrue(TEXT("Time anchor restores"), RestoredStorage.bHasTimeAnchor);
+	TestEqual(TEXT("Time anchor id restores"), RestoredStorage.TimeAnchorRecording.RecordingId, Recording.Id);
 	TestFalse(TEXT("A finalized decision leaves no pending echo"), RestoredStorage.bHasPendingRecording);
 	TestTrue(TEXT("Rolling latest echo restores independently"), RestoredStorage.bHasLatestCompletedRecording);
+
+	UReEchoRunSaveGame* EasterSnapshot = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
+	EasterSnapshot->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_4_8"));
+	FReEchoCardRuntimeState& EasterRuntime = EasterSnapshot->CurrentBuild.CardState.Runtime;
+	EasterRuntime.bHasPreviousEncounterShardIncome = true;
+	EasterRuntime.PreviousEncounterGrossShardIncome = 120;
+	EasterRuntime.CurrentEncounterGrossShardIncome = 45;
+	EasterRuntime.EncounterShardIncomeMultiplier = 1.35f;
+	EasterRuntime.ShopCardOfferEncounterIndex = EasterSnapshot->EncounterIndex;
+	EasterRuntime.ShopCardOfferRefreshSequence = 0;
+	EasterRuntime.ShopCardPackStates.SetNum(3);
+	for (int32 PackIndex = 0; PackIndex < EasterRuntime.ShopCardPackStates.Num(); ++PackIndex)
+	{
+		EasterRuntime.ShopCardPackStates[PackIndex].Tier = PackIndex + 1;
+	}
+	EasterRuntime.ShopCardPackStates[0].CandidateCardIds = {TEXT("G_4_1")};
+	EasterRuntime.ShopCardPackStates[0].OfferHistoryCardIds = {TEXT("G_4_1")};
+	EasterRuntime.ShopCardPackStates[0].SlotRefreshUses = {0};
+	UGameInstance* EasterGameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* EasterRestored = NewObject<UReEchoRunSubsystem>(EasterGameInstance);
+	TestTrue(TEXT("A v25 snapshot restores owned Easter cards, their runtime state, and cached shop offers"),
+	         EasterRestored->RestoreSaveSnapshot(*EasterSnapshot));
+	TestTrue(TEXT("Owned Easter card identity restores"),
+	         EasterRestored->CurrentBuild.CardState.OwnedCardIds.Contains(TEXT("G_4_8")));
+	TestEqual(TEXT("Previous encounter gross shard income restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.PreviousEncounterGrossShardIncome,
+	          120);
+	TestEqual(TEXT("Current encounter gross shard income restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.CurrentEncounterGrossShardIncome,
+	          45);
+	TestEqual(TEXT("Encounter shard multiplier restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          1.35f);
+	TestEqual(TEXT("Cached Easter shop offer restores"),
+	          EasterRestored->CurrentBuild.CardState.Runtime.ShopCardPackStates[0].CandidateCardIds[0],
+	          FName(TEXT("G_4_1")));
 
 	UReEchoRunSaveGame* RetiredCurrentWeapon = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
 	RetiredCurrentWeapon->CurrentBuild.WeaponId = TEXT("W_J_02");
@@ -143,6 +174,10 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	UReEchoRunSaveGame* PreUnifiedSeedSave = DuplicateObject<UReEchoRunSaveGame>(Snapshot, GetTransientPackage());
 	PreUnifiedSeedSave->SaveVersion = 23;
 	PreUnifiedSeedSave->RunSeed = 0;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.bHasPreviousEncounterShardIncome = true;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.PreviousEncounterGrossShardIncome = 999;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.CurrentEncounterGrossShardIncome = 888;
+	PreUnifiedSeedSave->CurrentBuild.CardState.Runtime.EncounterShardIncomeMultiplier = 9.0f;
 	UGameInstance* FirstSeedMigrationGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* FirstSeedMigrationRun = NewObject<UReEchoRunSubsystem>(FirstSeedMigrationGameInstance);
 	UGameInstance* SecondSeedMigrationGameInstance = NewObject<UGameInstance>();
@@ -155,6 +190,17 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	const int32 SecondMigratedRunSeed = SecondSeedMigrationRun->CreateSaveSnapshot()->RunSeed;
 	TestTrue(TEXT("A legacy save receives a non-zero unified run seed"), FirstMigratedRunSeed != 0);
 	TestEqual(TEXT("Legacy unified seed migration is deterministic"), FirstMigratedRunSeed, SecondMigratedRunSeed);
+	TestFalse(TEXT("Pre-v25 saves migrate without Easter shard history"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.bHasPreviousEncounterShardIncome);
+	TestEqual(TEXT("Pre-v25 previous shard income migrates to zero"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.PreviousEncounterGrossShardIncome,
+	          0);
+	TestEqual(TEXT("Pre-v25 current shard income migrates to zero"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.CurrentEncounterGrossShardIncome,
+	          0);
+	TestEqual(TEXT("Pre-v25 shard multiplier migrates to neutral"),
+	          FirstSeedMigrationRun->CurrentBuild.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          1.0f);
 
 	Snapshot->SaveVersion = 12;
 	Snapshot->OwnedWeaponIds.Reset();

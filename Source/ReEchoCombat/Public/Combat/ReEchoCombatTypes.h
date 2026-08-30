@@ -83,7 +83,9 @@ UENUM(BlueprintType)
 enum class EReEchoHealthAdjustment : uint8
 {
 	None,
-	FillToMax
+	FillToMax,
+	/** Keep the authoritative maximum and set current health to the committed build's HpPoint. */
+	SetToStatPoint
 };
 
 /** A weapon-generated candidate hit. It contains no presentation resource and no final result. */
@@ -102,6 +104,8 @@ struct REECHOCOMBAT_API FReEchoHitIntent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ReactionEfficiency = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CriticalMultiplier = 1.0f;
 	/** Internal adjudication guard: source-side rule providers already transformed this intent. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bSourceRulesApplied = false;
 	/** Explicit exception for authored self-damage such as enemy self-destruction. */
@@ -127,6 +131,8 @@ struct REECHOCOMBAT_API FReEchoHitResolved
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CriticalMultiplier = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bKilled = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector HitLocation = FVector::ZeroVector;

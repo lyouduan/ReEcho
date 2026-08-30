@@ -27,9 +27,9 @@ def load_active_cards():
         for row in rows
         if is_true(row["Enabled"]) and is_true(row["Offerable"])
     ]
-    if len(active_cards) != 64:
+    if len(active_cards) != 73:
         raise RuntimeError(
-            f"Active card set drifted: expected 64, got {len(active_cards)}"
+            f"Active card set drifted: expected 73 after Plan152 Easter cards, got {len(active_cards)}"
         )
     if len({row["Id"] for row in active_cards}) != len(active_cards):
         raise RuntimeError("Active card ids are not unique")
@@ -89,6 +89,20 @@ def import_icons():
         if not isinstance(texture, unreal.Texture2D):
             missing_active_icons.append(card_id)
             continue
+
+        texture.set_editor_property("srgb", True)
+        texture.set_editor_property("filter", unreal.TextureFilter.TF_BILINEAR)
+        texture.set_editor_property(
+            "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
+        )
+        texture.set_editor_property(
+            "compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON
+        )
+        texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+        if not unreal.EditorAssetLibrary.save_loaded_asset(
+            texture, only_if_is_dirty=False
+        ):
+            raise RuntimeError(f"Failed to save normalized card icon: {expected_path}")
 
         expected_width, expected_height = source_sizes[card_id]
         actual_width = texture.blueprint_get_size_x()

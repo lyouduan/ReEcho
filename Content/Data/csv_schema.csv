@@ -46,6 +46,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,CharacterAbilities,Value,Float,true,-100000,100000,,,Per-application or per-stack numeric value.
 1,CharacterAbilities,BehaviorId,BehaviorId,true,,,,Character.StaticStat|Character.PersistentGrowth|Character.EveryNth|Character.MissingHealthSteps,Registered character behavior id.
 1,CharacterAbilities,Interval,Float,true,0,100000,,,Every-N count or missing-health fraction; zero when unused.
+1,CharacterAbilities,MinCardPackTier,Int,true,0,1000000,,,Minimum card-pack tier that can trigger the ability; zero when unused.
 1,CharacterAbilities,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,CharacterAbilities,DisabledReason,Text,false,,,,,Required when Enabled is false.
 1,Cards,Id,StableId,true,,,,,Canonical runtime card id.
@@ -70,7 +71,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,CardEffects,Target,StableId,true,,,,HpMax|HpPoint|PhysicalAttack|ElementalAttack|CriticalRate|CriticalEffect|MovementSpeed|EchoEfficiency|ReactionEfficiency|Tier|PhysicalOrElemental|Water|Grass|Damage|TimeShards|ShopDiscount|ShopPrice|HpMaxAndPoint|Stun|EchoCount|AnchorRecording|AllBaseStats|EchoHealth|PhysicalAndElementalAttack|EnemyElementImmunity|RandomElement|ElementCanCrit|CriticalRollCount|MinimumGuaranteedTier|FreeShopRefresh|NonCoreSlotCapacity|WeaponRunes|WeaponRuneShop|ReactionOrCritical|CoreCollection|Status,Typed card effect target.
 1,CardEffects,ValueOp,ValueOp,true,,,,Add|Multiply|Override,Finite value operation.
 1,CardEffects,Value,Float,true,-100000,100000,,,Typed numeric value.
-1,CardEffects,BehaviorId,BehaviorId,true,,,,Card.StatModifier|Card.InstantRecovery|Card.GrantTier|Card.RandomStatTrade|Card.RandomRateTrade|Card.ResetRunes|Card.FreeShopVisit|Card.UnlimitedShopRefresh|Card.CollectCores|Card.NumericChallenge|Card.OverkillHeal|Card.SelfRace|Card.NegativeStatusHeal|Card.TargetKillCurse|Card.RecordReaction|Card.TrackNextKills|Card.TrackNextReactions|Card.EchoElementAura|Card.EchoSlowAura|Card.ElementAttachedCrit|Card.ReactionHeal|Card.DamageSubstitution|Card.NextShardDrop|Card.ShopContract|Card.EncounterStun|Card.DoubleEcho|Card.TimeAnchor|Card.SoloBody|Card.TauntEcho|Card.SoulResonance|Card.EnemyImmunity|Card.CriticalElement|Card.ElementCanCrit|Card.DistanceDamage|Card.DoubleCritRoll|Card.BloodForging|Card.EndKillRefresh|Card.HarvestPenalty|Card.ShardOutgoingDamage|Card.ShardIncomingBarrier|Card.ReactionDiversity|Card.DoubleNonCoreSlots,Registered C++ card behavior id.
+1,CardEffects,BehaviorId,BehaviorId,true,,,,Card.StatModifier|Card.InstantRecovery|Card.GrantTier|Card.RandomStatTrade|Card.RandomRateTrade|Card.ResetRunes|Card.FreeShopVisit|Card.UnlimitedShopRefresh|Card.CollectCores|Card.NumericChallenge|Card.OverkillHeal|Card.SelfRace|Card.NegativeStatusHeal|Card.TargetKillCurse|Card.RecordReaction|Card.TrackNextKills|Card.TrackNextReactions|Card.EchoElementAura|Card.EchoSlowAura|Card.ElementAttachedCrit|Card.ReactionHeal|Card.DamageSubstitution|Card.NextShardDrop|Card.ShopContract|Card.EncounterStun|Card.DoubleEcho|Card.TimeAnchor|Card.SoloBody|Card.TauntEcho|Card.SoulResonance|Card.EnemyImmunity|Card.CriticalElement|Card.ElementCanCrit|Card.DistanceDamage|Card.DoubleCritRoll|Card.BloodForging|Card.EndKillRefresh|Card.HarvestPenalty|Card.ShardOutgoingDamage|Card.ShardIncomingBarrier|Card.ReactionDiversity|Card.DoubleNonCoreSlots|Card.KillThresholdStatBoost|Card.KillThresholdImmunity|Card.EndKillShards|Card.CollectCoresGrantTiered|Card.GrantAllTier1,Registered C++ card behavior id.
 1,CardEffects,ParamName,StableId,true,,,,None|Count|Penalty|PenaltyMultiplier|Threshold|RadiusCm|CooldownSeconds|FreeHitCount|EncounterOffset|TriggerSeconds|EchoKillThreshold|PlayerKillThreshold|DistanceCm|KillThreshold|MinimumHp|MaximumHp|PenaltyChoices|ShardCost|DistinctCount|FreeShopRefresh|RequiredCount,Typed parameter name when needed.
 1,CardEffects,ParamValue,Float,true,-100000,100000,,,Typed numeric parameter when needed.
 1,Elements,Id,StableId,true,,,,Flame|Lightning|Grass|Water,Canonical runtime element id.
@@ -403,9 +404,13 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,shop_price_ranges,MaxPrice,Int,true,1,,,,Max inclusive
 1,shop_drop_levels,EncounterIndex,Int,true,1,,,,Encounter order 1-based
 1,shop_drop_levels,FreeTier,Int,false,1,3,,,Free post-battle drop tier; empty=none
-1,shop_drop_levels,ShopTiers,StableIdList,false,,,,,Shop card-tier drop list pipe-separated e.g. 2|3; empty=none
+1,shop_drop_levels,ShopTiers,Text,false,,,,,Shop card-tier drop list as pipe-separated Tier:Count pairs e.g. 1:3|2:1|3:1; empty=none
 1,shop_refresh_rules,RuleId,StableId,true,,,,,Singleton shop refresh rule id
 1,shop_refresh_rules,CardSlotRefreshLimit,Int,true,0,100,,,Per-visible-card-slot refresh limit for each shop card pack
 1,shop_refresh_rules,WeaponRuneRefreshLimit,Int,true,0,100,,,Weapon/rune page refresh limit per shop encounter
 1,shop_refresh_rules,CardSlotRefreshCost,Int,true,0,1000000,,,Time-shard cost for one card-slot refresh
 1,shop_refresh_rules,WeaponRuneRefreshCost,Int,true,0,1000000,,,Time-shard cost for one weapon/rune page refresh
+
+1,RuneUpgrades,FromPartId,StableId,true,,,,,Source part id consumed by the rune upgrade.
+1,RuneUpgrades,NeedCount,Int,true,1,,,Count of the source part required for the upgrade.
+1,RuneUpgrades,ToPartId,StableId,true,,,,,Resulting upgraded part id.

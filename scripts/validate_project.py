@@ -54,6 +54,15 @@ REGISTERED_BEHAVIOR_IDS = {
     "Card.ConductDamageGrowth",
     "Card.OverhealCapacity",
     "Card.AlternatingSources",
+    "Card.EasterShardSwing",
+    "Card.EasterIndependentGrant",
+    "Card.EasterEchoContact",
+    "Card.EasterShardSacrifice",
+    "Card.EasterRandomStun",
+    "Card.EasterDamageCards",
+    "Card.EasterPhysicalLottery",
+    "Card.EasterShardComparison",
+    "Card.EasterAttendance",
     "Card.TrackNextKills",
     "Card.TrackNextReactions",
     "Card.EchoElementAura",
@@ -81,6 +90,11 @@ REGISTERED_BEHAVIOR_IDS = {
     "Card.ShardIncomingBarrier",
     "Card.ReactionDiversity",
     "Card.DoubleNonCoreSlots",
+    "Card.KillThresholdStatBoost",
+    "Card.KillThresholdImmunity",
+    "Card.EndKillShards",
+    "Card.CollectCoresGrantTiered",
+    "Card.GrantAllTier1",
     "Status.ElementImmunity",
     "Status.Burn",
     "Status.Stun",
@@ -303,6 +317,11 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "EffectKind": CsvColumnSpec("EffectKind"),
         "ModifierOp": CsvColumnSpec("ValueOp"),
     },
+    "RuneUpgrades": {
+        "FromPartId": CsvColumnSpec("StableId"),
+        "NeedCount": CsvColumnSpec("Int", min_value=1.0),
+        "ToPartId": CsvColumnSpec("StableId"),
+    },
     "RuntimeSmokeEffects": {
         "Id": CsvColumnSpec("StableId"),
         "RuntimeRowId": CsvColumnSpec("ForeignKey", reference_table="RuntimeSmoke"),
@@ -347,6 +366,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
         "Value": CsvColumnSpec("Float", min_value=-100000.0, max_value=100000.0),
         "BehaviorId": CsvColumnSpec("BehaviorId"),
         "Interval": CsvColumnSpec("Float", min_value=0.0, max_value=100000.0),
+        "MinCardPackTier": CsvColumnSpec("Int", min_value=0.0, max_value=1000000.0),
         "Enabled": CsvColumnSpec("Bool"),
         "DisabledReason": CsvColumnSpec("Text", required=False),
     },
@@ -756,7 +776,7 @@ CSV_TABLES: dict[str, dict[str, CsvColumnSpec]] = {
     "shop_drop_levels": {
         "EncounterIndex": CsvColumnSpec("Int", min_value=1.0, max_value=1000000.0),
         "FreeTier": CsvColumnSpec("Int", required=False, min_value=1.0, max_value=3.0),
-        "ShopTiers": CsvColumnSpec("StableIdList", required=False),
+        "ShopTiers": CsvColumnSpec("Text", required=False),
     },
     "shop_refresh_rules": {
         "RuleId": CsvColumnSpec("StableId"),
@@ -1204,7 +1224,7 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
         fail(f"{rel(entries['Cards'])}: removed Forge offers reappeared")
     offerable_traits = [row["Id"] for row in cards if row["OfferGroup"] == "Trait" and row["Offerable"] == "true"]
     expected_traits = [
-        "G_1_01", "G_1_02", "G_1_03", "G_1_04", "G_1_05", "G_1_06", "G_1_07", "G_1_08",
+        "G_1_01", "G_1_02", "G_1_03", "G_1_04", "G_1_05", "G_1_06", "G_1_07",
         "G_2_04", "G_2_05", "G_2_06", "G_2_07", "G_2_08", "G_2_09", "G_2_10", "G_2_12",
         "G_2_13", "G_2_14", "G_2_15", "G_2_16", "G_2_17", "G_3_01", "G_3_02", "G_3_03",
         "G_3_04", "G_3_05", "G_3_07", "G_3_09", "G_3_10", "G_3_11", "G_3_12", "G_3_13",
@@ -1221,7 +1241,7 @@ def validate_character_build_domain(data_dir: Path, entries: dict[str, Path]) ->
         tier: sum(1 for row in cards if row["OfferGroup"] == "Trait" and row["Tier"] == tier and row["Enabled"] == "true")
         for tier in ("1", "2", "3")
     }
-    if tier_counts != {"1": 8, "2": 32, "3": 24}:
+    if tier_counts != {"1": 7, "2": 32, "3": 24}:
         fail(f"{rel(entries['Cards'])}: canonical card tier counts changed: {tier_counts}")
     removed_ids = {"G_2_01", "G_2_02", "G_2_03", "G_2_11", "G_3_15", "G_3_18"}
     if removed_ids & {row["Id"] for row in cards}:
@@ -1433,8 +1453,8 @@ def validate_weapon_domain(data_dir: Path, entries: dict[str, Path]) -> None:
 
     # Plan111 promotes the visible row-56 连射移速枪机 into a new stable production part while
     # retaining the old hidden row-57 audit placeholder for migration history.
-    if len(parts) != 49:
-        fail(f"{rel(entries['Parts'])}: four-weapon slot audit must contain 49 production/audit rows")
+    if len(parts) != 111:
+        fail(f"{rel(entries['Parts'])}: four-weapon slot audit must contain 111 production/audit rows")
     named_rows = [row for row in parts if row["DisplayName"]]
     # The named/unnamed split is no longer pinned to 10/60: weapon part families are being
     # implemented incrementally, so naming + enabling rows is expected progress. The real

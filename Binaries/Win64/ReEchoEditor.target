@@ -5768,6 +5768,10 @@
       "Type": "NonUFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/rune_upgrades.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/runtime_smoke.csv",
       "Type": "NonUFS"
     },

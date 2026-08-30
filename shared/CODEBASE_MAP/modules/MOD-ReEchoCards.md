@@ -105,3 +105,11 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 - 一个事件只由 Cards 计算一次，并只由对应领域权威执行一次。
 - 唯一/冲突/层级授予必须原子失败或原子成功，不能留下半张卡或半次属性修改。
 - Cards 不读取文件、不创建 Actor、不操作 Widget，也不决定最终伤害或死亡。
+
+## Plan152：彩蛋卡牌
+
+- `G_4_1`～`G_4_9` 是玩法 Tier 为 `0`、`OfferGroup=EasterEgg`、`StackPolicy=Unique` 的独立牌池；三级仅是 UI 卡底投影，不能用 Tier 3 查询或赠卡获得。
+- `SelectOfferForSlot` 是免费与商店卡牌组三槽共用的逐槽选择契约：先按调用方固定的 `1%` 独立判定彩蛋，再回到原等级普通池；已拥有卡、本组展示历史和正常牌池耗尽都不能把彩蛋概率提升为必出。单槽刷新只重算该槽。
+- `FReEchoCardRuntimeState` 保存彩蛋承伤阈值、眩晕脉冲、上一关/本关碎片毛收入和下一关收入倍率；`ResolvedOutcomes::RandomDetails` 保存三项独立判定、随机属性、关末倍率及实际赠卡结果。
+- `G_4_2` 的三项各自独立 50%；`G_4_6` 仅从未拥有的普通 `Trait` 卡授予最多五张；`G_4_7` 只改写 Player/Echo 的物理伤害；`G_4_8` 只统计遭遇内正向碎片毛收入。
+- 所有彩蛋随机消费由 Run 的真实时间 `RunSeed` 派生的稳定上下文种子或 Cards 的持久 `RandomSequence`；UI、Actor 和自由文本不得另起随机源。

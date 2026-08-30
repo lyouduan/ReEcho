@@ -76,6 +76,57 @@ int32 ResolveExtraTraitChoices(const FReEchoCsvDataSnapshot& Snapshot,
 	return Result;
 }
 
+int32 ResolveExtraTraitChoicesForTier(const FReEchoCsvDataSnapshot& Snapshot,
+                                      const FName CharacterId,
+                                      const int32 NormalSelectionCount,
+                                      const int32 CardPackTier)
+{
+	int32 Result = 0;
+	for (const FReEchoCsvCharacterAbilityRow& Ability :
+	     Snapshot.GetCharacterAbilities(CharacterId, TEXT("OnTraitChoiceApplied")))
+	{
+		const int32 Interval = FMath::RoundToInt(Ability.Interval);
+		if (Ability.BehaviorId != TEXT("Character.EveryNth") || Ability.EffectKind != TEXT("ExtraCardChoice") ||
+		    Ability.Target != TEXT("TraitCardChoice") || Ability.ValueOp != EReEchoCsvValueOp::Add || Interval <= 0 ||
+		    NormalSelectionCount <= 0 || NormalSelectionCount % Interval != 0)
+		{
+			continue;
+		}
+		// Tier gate: MinCardPackTier <= 0 triggers on every pack, otherwise only at or above that tier.
+		if (Ability.MinCardPackTier > 0 && CardPackTier < Ability.MinCardPackTier)
+		{
+			continue;
+		}
+		Result += FMath::Max(0, FMath::RoundToInt(Ability.Value));
+	}
+	return Result;
+}
+
+bool DoesCardPackTierAdvanceTraitBonus(const FReEchoCsvDataSnapshot& Snapshot,
+                                       const FName CharacterId,
+                                       const int32 CardPackTier)
+{
+	bool bFoundCadenceAbility = false;
+	for (const FReEchoCsvCharacterAbilityRow& Ability :
+	     Snapshot.GetCharacterAbilities(CharacterId, TEXT("OnTraitChoiceApplied")))
+	{
+		if (Ability.BehaviorId != TEXT("Character.EveryNth") || Ability.EffectKind != TEXT("ExtraCardChoice") ||
+		    Ability.Target != TEXT("TraitCardChoice") || Ability.ValueOp != EReEchoCsvValueOp::Add ||
+		    FMath::RoundToInt(Ability.Interval) <= 0)
+		{
+			continue;
+		}
+		bFoundCadenceAbility = true;
+		// MinCardPackTier <= 0 counts every pack; otherwise only packs at or above the tier count.
+		if (Ability.MinCardPackTier <= 0 || CardPackTier >= Ability.MinCardPackTier)
+		{
+			return true;
+		}
+	}
+	// No tier-gated cadence ability on this character: leave the legacy counter behaviour untouched.
+	return !bFoundCadenceAbility;
+}
+
 FVector2D ResolveCurrentMissingHealthAttackBonus(const FReEchoCsvDataSnapshot& Snapshot,
                                                   const FName CharacterId,
                                                   const float CurrentHealth,

@@ -32,3 +32,4 @@ SchemaVersion,TableId,FileName,PrimaryKey
 1,shop_price_ranges,shop_price_ranges.csv,PriceCategory
 1,shop_drop_levels,shop_drop_levels.csv,EncounterIndex
 1,shop_refresh_rules,shop_refresh_rules.csv,RuleId
+1,RuneUpgrades,rune_upgrades.csv,FromPartId

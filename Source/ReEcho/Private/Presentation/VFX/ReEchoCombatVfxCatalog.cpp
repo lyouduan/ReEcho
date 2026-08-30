@@ -54,6 +54,16 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 			VisualKey = TEXT("Gun");
 			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
 			break;
+		case EReEchoCombatVfxSemantic::PlayerProjectileImpact:
+			// Reuse the delivered Gun bullet spark for normal Bow and Gun projectile impacts.
+			VisualKey = TEXT("Gun");
+			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact:
+			// The delivered Bow boom is the shared ranged explosion impact asset.
+			VisualKey = TEXT("Bow");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			break;
 		default:
 			return nullptr;
 	}
@@ -141,6 +151,10 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Water_Fly.NS_People_Bullet_Water_Fly");
 		case EReEchoCombatVfxSemantic::PlayerGunMuzzle:
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::AttackCommitted);
+		case EReEchoCombatVfxSemantic::PlayerProjectileImpact:
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::AttackCommitted);
+		case EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact:
+			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		case EReEchoCombatVfxSemantic::EchoWaterAura:
@@ -359,6 +373,19 @@ bool FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(const EReEchoElement Elem
 	}
 }
 
+bool FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(const FName WeaponVisualKey,
+                                                              const float ExplosionRadiusCm,
+                                                              EReEchoCombatVfxSemantic& OutSemantic)
+{
+	if (WeaponVisualKey != TEXT("Bow") && WeaponVisualKey != TEXT("Gun"))
+	{
+		return false;
+	}
+	OutSemantic = ExplosionRadiusCm > 0.0f ? EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact
+	                                       : EReEchoCombatVfxSemantic::PlayerProjectileImpact;
+	return true;
+}
+
 float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)
 {
 	if (IsLongSwordSlashSemantic(Semantic))
@@ -368,8 +395,9 @@ float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSema
 	}
 	if (IsScytheSlashSemantic(Semantic))
 	{
-		const UReEchoWeaponPresentationProfile* Profile = FReEchoWeaponVisualCatalog::ResolveProfile(TEXT("Scythe"));
-		return Profile ? FMath::Max(Profile->MotionDurationSeconds, 0.0f) : 0.0f;
+		// Scythe gameplay resolves its full-sphere hit on the committed frame. Start every default/element slash VFX
+		// on that same frame; MotionDurationSeconds continues to control only the held-weapon spin animation.
+		return 0.0f;
 	}
 	return 0.0f;
 }
@@ -430,6 +458,22 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 		Placement.Scale = Slot->Offset.GetScale3D();
 		Placement.ScalePolicy = Slot->bPreserveWorldSize ? EReEchoVfxScalePolicy::PreserveWorldSize
 		                                                 : EReEchoVfxScalePolicy::InheritAttachment;
+		Placement.bScaleWithAttackRange = Slot->bScaleWithAttackRange;
+		Placement.AttackRangeScaleMask = Slot->AttackRangeScaleMask;
+		Placement.MinAttackRangeMultiplier = Slot->MinAttackRangeMultiplier;
+		Placement.MaxAttackRangeMultiplier = Slot->MaxAttackRangeMultiplier;
+		// Existing profiles predate the editable range fields. Keep a resource-axis migration fallback until those
+		// binary assets can be resaved; an explicit DA configuration takes precedence.
+		if (!Placement.bScaleWithAttackRange && Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+		{
+			Placement.bScaleWithAttackRange = true;
+			Placement.AttackRangeScaleMask = FVector(0.0f, 1.0f, 0.0f);
+		}
+		else if (!Placement.bScaleWithAttackRange && Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+		{
+			Placement.bScaleWithAttackRange = true;
+			Placement.AttackRangeScaleMask = FVector(1.0f, 1.0f, 0.0f);
+		}
 		Placement.bUseWorldDirectionRotation = true;
 		Placement.PlaybackDurationSeconds = FMath::Max(Slot->PlaybackDurationSeconds, 0.01f);
 		return Placement;

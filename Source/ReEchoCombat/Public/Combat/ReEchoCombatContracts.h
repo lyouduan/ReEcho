@@ -22,6 +22,10 @@ struct REECHOCOMBAT_API FReEchoAttackCommittedEvent
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) EReEchoElement Element = EReEchoElement::None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Origin = FVector::ZeroVector;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FVector Direction = FVector::ForwardVector;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EffectiveRangeCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float BaseRangeCm = 0.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float RangeMultiplierFromBase = 1.0f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EffectiveArcDegrees = 0.0f;
 };
 USTRUCT(BlueprintType)
 
@@ -39,6 +43,8 @@ struct REECHOCOMBAT_API FReEchoDamageEvent
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) FName ReactionBehaviorId = NAME_None;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bCritical = false;
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float CriticalMultiplier = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bBlocked = false;
 	/** This damage reduced an alive target to zero health. Consumers must suppress ordinary Hurt presentation. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bFatal = false;

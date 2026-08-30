@@ -28,6 +28,10 @@
 - 在资源缺失时限频报警并安全降级；
 - 通过精确根清单、递归静态依赖和 SHA-256 manifest 复现美术资产导入。
 
+弓和枪的普通投射物命中复用 Gun Profile `AttackCommitted` 中的 Bullet Spark；只有最终编译投射物的
+`ExplosionRadiusCm > 0` 时才改用 Bow Profile 中现有的 Boom 作为共享爆炸命中特效。选择依据是本次投射物已快照化的
+最终玩法事实，而不是硬编码爆炸箭头或爆炸枪口的配件 ID；每颗投射物仍由表现 Actor 去重，只生成一次命中特效。
+
 **不负责：**
 
 - 攻击频率、前摇/恢复计时、伤害、碰撞、阵营、元素、死亡和投射物轨迹；
@@ -41,7 +45,7 @@
 | 输入 | 来源权威 | VFX 行为 |
 |---|---|---|
 | `FReEchoAttackCommittedEvent` | `MOD-ReEchoCombat` / Weapons 提交链 | 长剑/镰刀 Pattern 播放一次刀光；枪 Pattern 在最终武器枪口播放一次 Muzzle |
-| `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击 |
+| `FReEchoDamageEvent::OnHurt` | `MOD-ReEchoCombat` | 仅 `AppliedDamage > 0` 时，在 Target 位置播放对应受击；怪物致命命中改用世界实例以越过死亡清理 |
 | `FReEchoPresentationActionEvent` | EnemyHost 的 CombatPresentationCoordinator | Rabbit/Fox 的同一动作键与有序 Windup、Committed、Recovery、Ended/Cancelled 驱动阶段表现 |
 | `FReEchoEnemyProjectileEvent` | EnemyHost 的逐球逻辑投射物 | 按 `(AttackIdentity, VolleyBallIndex)` 创建、移动和销毁唯一兔子子弹代理；位置直接采用事件快照 |
 | `FReEchoCardEncounterTickResult::EchoAuraPulseCount` + 水草规则 | `MOD-ReEchoCards` / Run | 每次权威 2 秒脉冲在存活 Echo 的角色背景层播放一次 Water/Grass Aura；不另建计时器、不参与 4m 元素结算 |
@@ -51,7 +55,7 @@ VFX 唯一拥有的是 Niagara/Material Billboard 组件实例及其表现生命
 
 Player、Enemy 与 Echo Host 的组件树统一提供 `EffectsRoot → AttackVfxRoot / HurtVfxRoot`。Echo 额外提供 `EchoAuraVfxRoot`：它依据当前 Flipbook 的稳定渲染 Bounds 中心定位，并让卡牌 Aura 使用角色当前透明排序的下一背景层。攻击提交、前摇、方向提示和冲刺读取 `AttackVfxRoot`，最终受伤读取 `HurtVfxRoot`；Aura 不复用这两个前景挂点。美术可在 Gameplay Blueprint 中独立调整挂点，但不能把 Aura 中心或层级改成玩法输入。兔子子弹从 Spawned 起就直接使用逻辑投射物世界位置，离开发射者后继续由逻辑事件覆盖位置，绝不附着人物、叠加挂点偏移或反向修改命中。
 
-TimeGuard Boss 的 `EnemyHurt` 是一次性世界特效，其位置从作者 `HurtVfxRoot` 向当前 Flipbook 渲染 Bounds 中心插值 50%，避免大体型 Boss 的受击表现半埋地下；普通敌人仍附着各自 `HurtVfxRoot`，该修正不改变 Boss 攻击的命中位置。
+TimeGuard Boss 的 `EnemyHurt` 是一次性世界特效，其位置从作者 `HurtVfxRoot` 向当前 Flipbook 渲染 Bounds 中心插值 50%，避免大体型 Boss 的受击表现半埋地下；普通敌人的非致命受击仍附着各自 `HurtVfxRoot`，致命正伤害则在命中世界位置生成一次性实例，避免随目标死亡清理。该修正不改变 Boss 攻击的命中位置。
 
 ```text
 Weapons / EnemyLogic
@@ -88,7 +92,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | EchoWaterAura / EchoGrassAura | `/Game/VFX/Echo/Particle/NS_Echo_Water` / `NS_Echo_Grass` | `G_2_07/G_2_08` 共享 Cards 权威 2 秒脉冲；一次性附着 Echo 专用 Aura 挂点、角色视觉中心、角色 Priority `-1`，双卡同脉冲并发、自动结束 |
 | EchoBorn | `/Game/VFX/Echo/Particle/NS_Echo_Born` | 只在第一关转第二关时自动播放：镜头先定位隐藏 Echo 并保持静止，解除全局暂停但保持玩法门禁，法阵建立 `0.4` 秒后显示 Echo/武器并开始后续镜头，法阵继续播放到原生命周期结束；普通关卡、读档和跳关生成 Echo 时不播放。目标点严格取当前 Flipbook RenderBounds 的下方中心点，并用 Niagara 固定 Bounds 的本地 YZ 中心反算组件原点，使回响处于圆环视觉正中心。资源真实平面为本地 YZ，运行时把本地 X 法线旋转到世界 Up、把本地 Z 箭头轴对齐屏幕向下的地面投影，并以 YZ Bounds 计算尺寸，因此法阵保持贴地而不会随相机竖起；正常尺寸直接使用 Echo 当前表现宽度的 `0.8` 倍，仅在 Bounds 无效时回退源法阵 `0.25` 倍缩放；独立材质使用 `1.65` 中性 HDR 增亮，副本内粒子颜色按原强度映射为 HDR 冰蓝比例 `(0.75, 1.17, 1.50)`；两个法阵 Mesh Emitter 保留 YZ 面内尺寸、把法线厚度压平，使 Mesh 底面与粒子出生平面对齐；全部启用 Sprite Renderer 使用 `CustomFacingVector`，绑定本地法线 `User.GroundNormal=(1,0,0)` 与面内切线 `User.GroundTangent=(0,1,0)`；实例是独立世界组件，不附着 Echo，失败时立即显形并继续；`GMEchoBorn` 复用同一路径 |
 
-`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的默认 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀的 AttackCommitted Slot 播放斩击轨迹，DamageApplied Slot 消费来源侧最终 `OnHit` 并在 `AppliedDamage > 0` 时播放命中；弓的 Travel Slot 附着逻辑载体且 DamageApplied 在首次正伤害结果播放；枪的默认 Travel Slot 附着逻辑载体，`NS_People_Bullet_spark` 由 AttackCommitted Slot 在最终武器枪口播放，不再作为目标命中反馈。长剑/镰刀四元素 Slash 与 Bow/Gun 四元素 Travel 都由 Combat VFX Catalog 消费攻击已经解析的 `EReEchoElement`，不建立第二份玩法元素；Development `GMElement` 在表现事件或投射物初始化前覆盖同一最终元素，使 VFX 与后续 `HitIntent` 一致，棱镜逐弹解析的最终元素也直接驱动对应 Travel。近战命中特效包含致死正伤害，不依赖目标是否还能播放 Hurt。所有需要服从组件方向/位移的武器 System（包括四个元素长剑/镰刀 Slash、Bow/Gun Travel 与 Gun Muzzle）必须保证全部启用发射器使用 Local Space，并由自动化锁定；武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
+`PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的默认 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀的 AttackCommitted Slot 播放斩击轨迹，DamageApplied Slot 消费来源侧最终 `OnHit` 并在 `AppliedDamage > 0` 时播放命中；弓的 Travel Slot 附着逻辑载体且 DamageApplied 在首次正伤害结果播放；枪的默认 Travel Slot 附着逻辑载体，`NS_People_Bullet_spark` 由 AttackCommitted Slot 在最终武器枪口播放，不再作为目标命中反馈。长剑/镰刀四元素 Slash 与 Bow/Gun 四元素 Travel 都由 Combat VFX Catalog 消费攻击已经解析的 `EReEchoElement`，不建立第二份玩法元素；Development `GMElement` 在表现事件或投射物初始化前覆盖同一最终元素，使 VFX 与后续 `HitIntent` 一致，棱镜逐弹解析的最终元素也直接驱动对应 Travel。近战命中特效包含致死正伤害，不依赖目标是否还能播放 Hurt。所有需要服从组件方向/位移的武器 System（包括四个元素长剑/镰刀 Slash、Bow/Gun Travel 与 Gun Muzzle）必须保证全部启用发射器使用 Local Space，并由自动化锁定；长剑与镰刀斩击网格均按资源真实的本地 YZ 平面定向，本地 X 法线映射世界向上、本地 Y 映射攻击方向，Sprite 同步绑定 `User.GroundNormal` 与 `User.GroundTangent`，不得再由相机法线重新竖起。武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
 
 禁止用 `NS_Rabbit_BeAttacked_01` 这个短名查找资产；玩家和怪物受击是两个不同 Package。
 
@@ -165,15 +169,17 @@ VFX 资产（`/Game/VFX/...` 下的 `NS_*`/`M_*`/`MI_*`/`T_*`/`BP_*`，以及 `/
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。
 # 元素反应 Niagara
 
-`FReEchoElementReactionVfxCatalog` 是 Grass/Water 附着及六类反应的唯一语义资产映射，敌人体型只使用生产 Definition 的稳定 `PresentationId`。`UReEchoCombatVfxComponent` 管理可丢弃的持续附着组件，并按 Combat 提供的权威目标及 Conduct 发现边播放瞬时反应；正式根进入首场预加载。旧 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 三件套已经整体删除，不再保留文字、环形或点光源表现双轨。
+`FReEchoElementReactionVfxCatalog` 是六类元素反应的唯一语义资产映射，敌人体型只使用生产 Definition 的稳定 `PresentationId`。任何元素附着状态都不创建标记 Niagara；`UReEchoCombatVfxComponent` 只在 Combat 发布权威反应结果后，按其目标及 Conduct 发现边播放反应特效，正式根进入首场预加载。旧 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 三件套已经整体删除，不再保留文字、环形或点光源表现双轨。
 
 Development `GMReaction` 只调用 `UReEchoCombatVfxComponent` 的直接预览入口：六种语义均在最近存活敌人的 HurtVfxRoot 播放并按调试预览时限停止，不准备元素附着、不调用伤害/反应解析器，也不发布权威 Combat 事件。该入口不得被正式玩法调用。
 
 附着 Niagara 不再隐含固定的零偏移/单位缩放契约：`FReEchoCombatVfxCatalog::ResolvePlacement` 按语义提供资源局部修正和缩放策略。武器语义直接消费对应 Weapon Presentation Slot 的 `Offset` 完整 Transform 与 `bPreserveWorldSize`；例如长剑 `AttackCommitted` 的离地高度、倾角和大小只在武器 DA 配置，不得在语义分支硬编码。运行时先按 Commit 锁定方向对齐特效，再以四元数组合 DA 的局部旋转修正，禁止直接相加欧拉角导致换向后倾角留在旧世界轴。武器方向与弓箭一致，生成后将 Niagara Component 旋转切为绝对世界旋转并显式写入 Commit 方向，父级 AttackVfxRoot 只继续拥有位置和生命周期。世界尺寸型身体/武器特效可抵消角色/DA 的累计缩放，同时保留 DA Scale 作为艺术倍率；地面预警、逻辑投射物、精确命中和定向光束仍使用玩法事件给出的世界空间事实，不经角色附着根换算。
-FullSpin 近战的伤害仍在 Combat Commit 当帧结算；刀光只在 Weapon Profile 的 `MotionDurationSeconds` 结束后按该次 Commit 已锁定方向播放，使武器先完成一周环绕再释放刀光。新 Commit 会替换尚未释放的旧表现计时，不改变攻击冷却或命中权威。
-Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。Conduct 的每条电链必须同时取得来源与目标显式配置的 `HurtVfxRoot` 世界坐标，任一挂点缺失时不生成该电链且不回退 Actor 根节点。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。
 
-卡牌 `G_2_30`（连接，连接！）启用时，GameMode 只把卡牌规则和当前存活 Echo 集合投影给玩家的 `UReEchoCombatVfxComponent`；组件以 Echo Actor 为稳定键维护 `/Game/VFX/Echo/Particle/NS_Echo_Chain`，每个存活 Echo 独立一条。固定步只同步规则与集合生命周期，VFX Component 每个渲染 Tick 通过当前 `UReEcho2DAnimationComponent` 的 Flipbook `RenderBounds.Origin` 计算玩家与 Echo 的真实渲染中心世界坐标，不复用受击挂点。该资源沿用 Beam 模板的参数契约：`User.StartPosition` 为绝对世界位置，`User.EndPosition` 为相对起点的位移；Niagara Component 保持世界原点单位变换。Chain Niagara 的每个启用 Emitter 在 Particle Update 栈执行 `Update Beam`，并把 VFX adapter 设为 Tick prerequisite，在同帧端点写入之后更新现有 Ribbon；持续移动时禁止重初始化或重生。组件还会逐帧用两端的 effect-local 坐标和有限安全边距更新 System Fixed Bounds，避免长距离 Ribbon 超出资产静态 Bounds 后被误剔除，而不采用无限 Bounds。连接线正伤害沿统一 Hurt 事件复用 `EnemyHurt`，在命中世界位置生成一次性特效；致死连接线命中也保留表现，其他致死伤害的既有策略不变。链条生命周期由卡牌玩法状态持有：资源自身播放完成时，只要玩家及对应 Echo 仍存活便重新激活；仅在卡牌关闭、玩家或 Echo 死亡、Echo 清场、Boss 阶段退休 Echo 或组件 EndPlay 时清理。资源或当前 Flipbook 缺失时只缺视觉，不改变连接线穿越伤害。
+Plan148 在上述作者 Scale 之后增加可选攻击范围倍率：Combat 事件提供本次 Commit 的最终/基础范围比，Weapon Slot 只声明局部轴遮罩与表现钳制。长剑默认只扩展资源局部斩击方向，镰刀默认扩展相机平面两个径向轴，法线/厚度轴保持不变；旧二进制 Profile 尚未重存时由同语义迁移默认值保证行为，显式 DA 配置优先。延迟生成必须捕获提交倍率，禁止在 timer 回调中重新读取当前符文。
+FullSpin 近战的伤害仍在 Combat Commit 当帧结算；刀光只在 Weapon Profile 的 `MotionDurationSeconds` 结束后按该次 Commit 已锁定方向播放，使武器先完成一周环绕再释放刀光。新 Commit 会替换尚未释放的旧表现计时，不改变攻击冷却或命中权威。
+Burn Fire 和 Water 反应都按 `PresentationId` 区分 Slime/Rabbit/Fox/TimeGuard(Goat) 体型资源；TimeGuard 的元素反应与受击特效共用 `HurtVfxRoot` 到当前 Flipbook 渲染中心的半高世界位置，再转换成跟随挂点的局部偏移。Burn 由反应产生的 `bBurnActive` 定时状态驱动并绑定目标；Growth、Vaporize、Conduct 和两种 Enhance 只由反应结果事件创建。Burn、Growth、Vaporize 与两种 Enhance 在生成瞬间读取目标 Flipbook 稳定 Render Bounds 经组件最终 Transform 得到的世界直径，再按各 Niagara Fixed Bounds 与语义 `TargetCoverageRatio` 等比归一；随后反向补偿 `HurtVfxRoot` 累计缩放，保证不同怪物和 Boss 的最终特效范围随其最终 Flipbook 大小一致且动画帧切换不引起缩放抖动。`NS_Element_Grass` 的全部启用发射器使用 Local Space，保证运行时归一同时约束粒子位置、速度与大小。Growth、Vaporize 与两种 Enhance 即使复用可循环元素素材，也由适配器在 2 秒硬上限时销毁；不得进入元素附着的状态生命周期。Conduct 是双目标连线，不参与单体 Flipbook 尺寸归一；其每条电链必须同时取得来源与目标显式配置的 `HurtVfxRoot` 世界坐标，任一挂点缺失时不生成该电链且不回退 Actor 根节点。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。
+
+卡牌 `G_2_30`（连接，连接！）启用时，GameMode 只把卡牌规则和当前存活 Echo 集合投影给玩家的 `UReEchoCombatVfxComponent`；组件以 Echo Actor 为稳定键维护 `/Game/VFX/Echo/Particle/NS_Echo_Chain`，每个存活 Echo 独立一条。固定步只同步规则与集合生命周期，VFX Component 每个渲染 Tick 通过当前 `UReEcho2DAnimationComponent` 的 Flipbook `RenderBounds.Origin` 计算玩家与 Echo 的真实渲染中心世界坐标，不复用受击挂点。该资源沿用 Beam 模板的参数契约：`User.StartPosition` 为绝对世界位置，`User.EndPosition` 为相对起点的位移；Niagara Component 保持世界原点单位变换。Chain Niagara 的每个启用 Emitter 在 Particle Update 栈执行 `Update Beam`，并把 VFX adapter 设为 Tick prerequisite，在同帧端点写入之后更新现有 Ribbon；持续移动时禁止重初始化或重生。组件还会逐帧用两端的 effect-local 坐标和有限安全边距更新 System Fixed Bounds，避免长距离 Ribbon 超出资产静态 Bounds 后被误剔除，而不采用无限 Bounds。连接线正伤害沿统一 Hurt 事件复用 `EnemyHurt`，在命中世界位置生成一次性特效；所有怪物致死正伤害均沿同一世界实例策略保留受击表现。链条生命周期由卡牌玩法状态持有：资源自身播放完成时，只要玩家及对应 Echo 仍存活便重新激活；仅在卡牌关闭、玩家或 Echo 死亡、Echo 清场、Boss 阶段退休 Echo 或组件 EndPlay 时清理。资源或当前 Flipbook 缺失时只缺视觉，不改变连接线穿越伤害。
 
 Echo Born 不复用居中的 `EchoAuraVfxRoot`，普通 `InitializeEcho` 也不登记出生表现；只有第一关转第二关的专用延迟显现链路会先定位并隐藏 Echo，再武装并播放法阵。目标点由当前 `EchoAnimation` 的 Flipbook RenderBounds 本地下边缘中心，经组件完整 Transform 转到世界空间；随后扣除 Niagara 固定 Bounds 本地 YZ 中心经过缩放和旋转后的世界偏移，保证资源视觉中心而非组件原点落在回响脚底。Niagara 作为不附着 Echo 的独立世界组件创建，资源本地 YZ 为法阵面、本地 X 为法线、本地 Z 为箭头轴；运行时将本地 X 映射到世界 Up，并只绕该法线把本地 Z 对齐相机屏幕向下方向在地面的投影，再设置本地法线与切线并显式激活，因此朝向可读且法阵不会随相机竖起。第一关转第二关时镜头先定位隐藏 Echo 并保持静止，在最终 CG 遮罩仍存在时先激活法阵，再关闭过渡界面；法阵启动 0.4 秒后显示 Echo/武器并开始后续镜头拉远，法阵继续播放到自身生命周期结束。PreserveWorldSize 保持生成时的世界尺寸，且不阻塞初始化、回放、攻击或伤害。该 System 从 Goat 地面法阵复制为独立资产，其 Sprite/Ribbon/Mesh Renderer 只引用 Echo 目录下 4 个青蓝材质实例；Boss 原 System 和共享材质保持不变。
 

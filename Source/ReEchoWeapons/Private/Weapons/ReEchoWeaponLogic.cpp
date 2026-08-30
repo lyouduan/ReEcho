@@ -236,6 +236,7 @@ bool FReEchoWeaponLogic::TryCommit(AActor* Source,
 	OutCommit.BehaviorDurationSeconds = ScaledDuration;
 	OutCommit.bInvulnerable = Step->bInvulnerable;
 	OutCommit.bCritical = bCritical;
+	OutCommit.CriticalMultiplier = bCritical ? (1.0f + FMath::Max(0.0f, Stats.CriticalEffect)) : 1.0f;
 
 	++SuccessfulAttackCount;
 	NextStepCursor = (NextStepCursor + 1) % Definition.AttackSteps.Num();
@@ -264,7 +265,10 @@ float FReEchoWeaponLogic::ComputeDamage(const FReEchoWeaponStepDefinition& Step,
 	                                               : Stats.ElementalAttack * DamageCoefficient;
 
 	bOutCritical = false;
-	if (Stats.RoleId == TEXT("Hunter"))
+	// Base critical strike (expected rate = CriticalRate) applies to every character on physical
+	// hits. Element damage never crits from this weapon path; it is instead gated by the card layer
+	// (bElementDamageCanCrit, i.e. the 元素会心 / 元素暴击 card) through RNG rolls.
+	if (Element == EReEchoElement::None)
 	{
 		CriticalAccumulator += FMath::Clamp(Stats.CriticalRate, 0.0f, 1.0f);
 		if (CriticalAccumulator >= 1.0f)

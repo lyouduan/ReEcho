@@ -32,6 +32,8 @@ namespace ReEchoEnemyVisual
 constexpr float HitReactionDuration = 0.22f;
 constexpr float BlinkSlamDuration = 0.5f;
 constexpr float BlinkSlamStartHeightCm = 300.0f;
+constexpr float DeathKnockbackDurationSeconds = 0.3f;
+constexpr float DeathKnockbackDistanceCm = 90.0f;
 constexpr TCHAR MoonStaffProfilePath[] =
     TEXT("/Game/ReEcho/DataAsset/Weapon/Profiles/DA_WeaponPresentation_MoonStaff.DA_WeaponPresentation_MoonStaff");
 
@@ -265,7 +267,8 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 	bDeathVisualActive = false;
 }
 
-bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCompleted,
+bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(const FVector& KnockbackWorldDirection,
+	                                                       FSimpleDelegate OnCompleted,
                                                            float& OutExpectedDurationSeconds)
 {
 	OutExpectedDurationSeconds = 0.0f;
@@ -283,6 +286,12 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(FSimpleDelegate OnCom
 	}
 	AttackVisualRemaining = 0.0f;
 	ResetTransientRoot();
+	DeathKnockbackElapsedSeconds = 0.0f;
+	DeathKnockbackLocalDirection = PresentationRoot
+	                                   ? PresentationRoot->GetComponentTransform()
+	                                         .InverseTransformVectorNoScale(KnockbackWorldDirection)
+	                                         .GetSafeNormal2D()
+	                                   : KnockbackWorldDirection.GetSafeNormal2D();
 	if (EffectsRoot)
 	{
 		EffectsRoot->SetVisibility(false, true);
@@ -335,12 +344,7 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 	{
 		bCancelAttackWhenStunClears = false;
 		SetStunPaused(false);
-		RefreshFootpointAlignment();
-		if (VisualEffectRoot)
-		{
-			VisualEffectRoot->SetRelativeLocation(AuthoredMotionLocation + CalculatedFootAlignmentOffset);
-		}
-		RefreshGroundShadowFromFlipbook();
+		UpdateDeathKnockbackMotion(SafeDelta);
 		return;
 	}
 	SetStunPaused(Snapshot.bStunned);
@@ -374,6 +378,31 @@ FVector UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(const fl
 	}
 	const float RemainingRatio = FMath::Clamp(RemainingSeconds / DurationSeconds, 0.0f, 1.0f);
 	return FVector::UpVector * StartHeightCm * FMath::Square(RemainingRatio);
+}
+
+FVector UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(const FVector& LocalDirection,
+	                                                                    const float ElapsedSeconds,
+	                                                                    const float DurationSeconds,
+	                                                                    const float DistanceCm)
+{
+	if (DurationSeconds <= KINDA_SMALL_NUMBER || DistanceCm <= 0.0f || LocalDirection.IsNearlyZero())
+	{
+		return FVector::ZeroVector;
+	}
+	const float Progress = FMath::Clamp(ElapsedSeconds / DurationSeconds, 0.0f, 1.0f);
+	const float EaseOut = 1.0f - FMath::Pow(1.0f - Progress, 3.0f);
+	return LocalDirection.GetSafeNormal2D() * DistanceCm * EaseOut;
+}
+
+void UReEchoEnemyPresentationComponent::UpdateDeathKnockbackMotion(const float DeltaSeconds)
+{
+	DeathKnockbackElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
+	ApplyPresentationMotion(
+	    ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
+	                                DeathKnockbackElapsedSeconds,
+	                                ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
+	                                ReEchoEnemyVisual::DeathKnockbackDistanceCm),
+	    FVector::OneVector);
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float DeltaSeconds)
@@ -720,10 +749,14 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 		return;
 	}
 	const FLinearColor Color = ReEchoElementReaction::GetDamageNumberColor(Event);
+	// 暴击至少放大到 1.35 倍；低暴击倍率也必须和普通跳字明显区分。
+	const float CritScale = Event.bCritical ? FMath::Max(1.35f, Event.CriticalMultiplier) : 1.0f;
 	AReEchoDamageNumberActor::SpawnDamageNumber(Host ? Host->GetWorld() : nullptr,
 	                                            Event.WorldLocation,
 	                                            ReEchoElementReaction::GetDamageNumberValue(Event),
-	                                            Color);
+	                                            Color,
+	                                            CritScale,
+	                                            Event.bCritical);
 	if (Event.bFatal || bDeathVisualActive)
 	{
 		return;

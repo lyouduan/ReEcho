@@ -94,6 +94,55 @@ bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathKnockbackPresentationTest,
+                                 "ReEcho.Presentation.VFX.EnemyDeathKnockbackPresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Parameters)
+{
+	const FVector Direction(3.0f, 4.0f, 0.0f);
+	const FVector StartOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.0f, 0.3f, 90.0f);
+	const FVector HalfwayOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.15f, 0.3f, 90.0f);
+	const FVector EndOffset =
+	    UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(Direction, 0.3f, 0.3f, 90.0f);
+
+	TestTrue(TEXT("Fatal presentation starts without a position jump"), StartOffset.IsNearlyZero());
+	TestTrue(TEXT("Fatal presentation quickly covers most of its displacement"),
+	         HalfwayOffset.Equals(Direction.GetSafeNormal() * 78.75f, KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Fatal presentation reaches the stronger 90 cm displacement"),
+	         EndOffset.Equals(Direction.GetSafeNormal() * 90.0f, KINDA_SMALL_NUMBER));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFatalEnemyHurtVfxPolicyTest,
+                                 "ReEcho.Presentation.VFX.FatalEnemyHurtPolicy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoFatalEnemyHurtVfxPolicyTest::RunTest(const FString& Parameters)
+{
+	AReEchoEnemyActor* Enemy = GetMutableDefault<AReEchoEnemyActor>();
+	AReEchoVfxScenarioTargetActor* NonEnemy = GetMutableDefault<AReEchoVfxScenarioTargetActor>();
+	FReEchoDamageEvent Event;
+	Event.AppliedDamage = 5.0f;
+	Event.DamageSource = EReEchoDamageSource::Player;
+	Event.bFatal = true;
+	Event.Target = Enemy;
+	TestTrue(TEXT("Fatal positive damage keeps enemy hurt feedback"),
+	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, Enemy));
+
+	Event.AppliedDamage = 0.0f;
+	TestFalse(TEXT("Fatal zero damage does not produce enemy hurt feedback"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, Enemy));
+
+	Event.AppliedDamage = 5.0f;
+	Event.Target = NonEnemy;
+	TestFalse(TEXT("Fatal non-enemy damage keeps the existing hurt-feedback policy"),
+	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(Event, NonEnemy));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoFoxDirectionRuntimeTest,
                                  "ReEcho.Presentation.VFX.FoxDirectionRuntime",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -407,10 +456,30 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	                                                                   TEXT("Enemy.Rabbit"))),
 	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn,
 	                                                                   TEXT("Enemy.Fox"))));
+	TestTrue(TEXT("TimeGuard burn resolves the supplied Goat body variant"),
+	         FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn,
+	                                                               TEXT("Enemy.TimeGuard")))
+	             .Contains(TEXT("NS_Element_Fire_Goat")));
+	TestTrue(TEXT("TimeGuard water reactions resolve the supplied Goat body variant"),
+	         FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Vaporize,
+	                                                               TEXT("Enemy.TimeGuard")))
+	             .Contains(TEXT("NS_Element_Water_Goat")));
+	const FReEchoElementReactionVfxPlacement GrowthPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::Growth);
+	const FReEchoElementReactionVfxPlacement EnhanceGrassPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceGrass);
+	const FReEchoElementReactionVfxPlacement EnhanceWaterPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceWater);
+	TestTrue(TEXT("Reaction effects preserve authored world size"), GrowthPlacement.bPreserveWorldSize);
+	TestTrue(TEXT("Growth matches the target Flipbook size"), GrowthPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"),
+	         EnhanceGrassPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Water matches the target Flipbook size"),
+	         EnhanceWaterPlacement.bMatchTargetFlipbookSize);
 	TestTrue(TEXT("Burn visual lifetime follows the timed Burn status"),
 	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_G")));
-	TestTrue(TEXT("Growth visual lifetime follows authoritative Grass attachments"),
-	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
+	TestFalse(TEXT("Growth is emitted only by its resolved reaction event"),
+	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
 	TestFalse(TEXT("Vaporize remains a target-bound one-shot"),
 	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_W")));
 	const FName DebugReactionNames[] = {
@@ -465,7 +534,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Fatal connection-line damage still produces target hurt feedback"),
 	         UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
 	ConnectionHurtEvent.DamageSource = EReEchoDamageSource::Player;
-	TestFalse(TEXT("Existing fatal non-connection damage keeps its prior hurt-feedback policy"),
+	TestFalse(TEXT("Fatal non-enemy damage keeps the existing hurt-feedback policy"),
 	          UReEchoCombatVfxComponent::ShouldPlayTargetHurtEffect(ConnectionHurtEvent, ConductTarget));
 	ConnectionHurtEvent.bFatal = false;
 	ConnectionHurtEvent.AppliedDamage = 0.0f;
@@ -534,6 +603,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Preserved world-size VFX cancels inherited uniform owner scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector::OneVector, FVector(2.0f), true)
 	             .Equals(FVector(0.5f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Attack range scales only the configured local radial axis"),
+	         UReEchoCombatVfxComponent::ResolveAttackRangeScale(
+	             FVector(2.0f, 3.0f, 4.0f), FVector(0.0f, 1.0f, 0.0f), 1.5f, 0.5f, 2.0f)
+	             .Equals(FVector(2.0f, 4.5f, 4.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Attack range multiplier is presentation-clamped without moving unmasked axes"),
+	         UReEchoCombatVfxComponent::ResolveAttackRangeScale(
+	             FVector::OneVector, FVector(1.0f, 1.0f, 0.0f), 3.0f, 0.8f, 2.0f)
+	             .Equals(FVector(2.0f, 2.0f, 1.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement SwordRangePlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerMeleeSlash);
+	TestTrue(TEXT("Sword slash opts into attack-range scaling"), SwordRangePlacement.bScaleWithAttackRange);
+	TestTrue(TEXT("Sword slash scales only its local radial direction"),
+	         SwordRangePlacement.AttackRangeScaleMask.Equals(FVector(0.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+	const FReEchoVfxPlacement ScytheRangePlacement =
+	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::PlayerScytheSlash);
+	TestTrue(TEXT("Scythe slash opts into attack-range scaling"), ScytheRangePlacement.bScaleWithAttackRange);
+	TestTrue(TEXT("Scythe slash scales in both local camera-plane axes"),
+	         ScytheRangePlacement.AttackRangeScaleMask.Equals(FVector(1.0f, 1.0f, 0.0f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Scythe slash keeps the authored ten-percent size margin"),
+	         ScytheRangePlacement.Scale.Equals(FVector(0.55f, 0.55f, 1.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Ordinary attached VFX retains its configured relative scale"),
 	         UReEchoCombatVfxComponent::ResolveAttachedScale(FVector(1.2f, 0.8f, 1.0f), FVector(2.0f), false)
 	             .Equals(FVector(1.2f, 0.8f, 1.0f), KINDA_SMALL_NUMBER));
@@ -543,21 +632,24 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Forward longsword slash releases its VFX immediately"),
 	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerMeleeSlash),
 	          0.0f);
-	TestTrue(TEXT("Scythe slash waits for its full-spin motion"),
-	         FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash) > 0.0f);
+	TestEqual(TEXT("Scythe slash starts on the same committed frame as its sphere damage"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlash),
+	          0.0f);
+	TestEqual(TEXT("Element scythe slash also starts without presentation delay"),
+	          FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(EReEchoCombatVfxSemantic::PlayerScytheSlashFlame),
+	          0.0f);
 	TestTrue(TEXT("Sword slash placement comes from its weapon profile"),
 	         SwordPlacement.LocalOffset.Equals(FVector(0.0f, 0.0f, 60.0f), KINDA_SMALL_NUMBER));
 	TestFalse(TEXT("Sword slash consumes a finite artist-authored rotation"),
 	          SwordPlacement.LocalRotation.ContainsNaN());
-	TestTrue(TEXT("Sword slash corrects the replacement asset's reversed authored axis"),
-	         FMath::IsNearlyEqual(FMath::Abs(SwordPlacement.LocalRotation.Yaw), 180.0f, KINDA_SMALL_NUMBER));
+	TestFalse(TEXT("Sword slash consumes a finite in-plane Roll correction"),
+	          FMath::IsNaN(SwordPlacement.LocalRotation.Roll));
 	TestTrue(
 	    TEXT("Sword slash cancels different host scales"),
 	    UReEchoCombatVfxComponent::ResolveAttachedScale(
 	        SwordPlacement.Scale, FVector(2.0f), SwordPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize)
 	        .Equals(SwordPlacement.Scale * 0.5f, KINDA_SMALL_NUMBER));
 	const FVector SlashDirections[] = {FVector::ForwardVector, FVector::BackwardVector, FVector(0.6f, 0.8f, 0.0f)};
-	const FVector CameraFacingNormal(-0.573576f, 0.0f, 0.819152f);
 	TestEqual(TEXT("Left-side sword slash plays forward"),
 	          UReEchoCombatVfxComponent::ResolveMeleePlayDirection(-FVector::RightVector, FVector::RightVector),
 	          1.0f);
@@ -567,29 +659,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	for (const FVector& SlashDirection : SlashDirections)
 	{
 		const FRotator DirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveCameraPlaneDirectionRotation(SlashDirection, CameraFacingNormal);
-		const FVector ExpectedPlaneDirection =
-		    (SlashDirection - FVector::DotProduct(SlashDirection, CameraFacingNormal) * CameraFacingNormal)
-		        .GetSafeNormal();
+		    UReEchoCombatVfxComponent::ResolveGroundPlaneDirectionRotation(SlashDirection);
+		const FVector ExpectedPlaneDirection = FVector(SlashDirection.X, SlashDirection.Y, 0.0f).GetSafeNormal();
 		TestTrue(
-		    TEXT("Scythe-style VFX rotates in the camera-facing plane toward the committed enemy"),
-		    DirectionRotation.RotateVector(FVector::ForwardVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		    TEXT("Scythe VFX rotates in the ground plane toward the committed enemy"),
+		    DirectionRotation.RotateVector(FVector::RightVector).Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Scythe mesh local X surface normal remains world-up for a floor-parallel 360 sweep"),
+		         DirectionRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
 		const FRotator SwordDirectionRotation =
-		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection, CameraFacingNormal);
-		TestTrue(TEXT("Sword slash presents its authored local X surface normal to the camera"),
-		         SwordDirectionRotation.RotateVector(FVector::ForwardVector)
-		             .Equals(CameraFacingNormal.GetSafeNormal(), KINDA_SMALL_NUMBER));
-		const FRotator ComposedSwordRotation =
-		    UReEchoCombatVfxComponent::ComposeAttachedRotation(SwordDirectionRotation, SwordPlacement.LocalRotation);
-		const FVector ComposedAttackAxis = ComposedSwordRotation.RotateVector(FVector::RightVector);
-		const FRotator FrontFacingSwordRotation =
-		    UReEchoCombatVfxComponent::EnsureSwordFrontFacesCamera(ComposedSwordRotation, CameraFacingNormal);
-		TestTrue(TEXT("Sword DA correction cannot leave the rendered surface back-facing"),
-		         FVector::DotProduct(FrontFacingSwordRotation.RotateVector(FVector::ForwardVector),
-		                             CameraFacingNormal.GetSafeNormal()) >= 0.0f);
+		    UReEchoCombatVfxComponent::ResolveSwordMeshDirectionRotation(SlashDirection);
 		TestTrue(
-		    TEXT("Sword front-face correction preserves its composed attack axis"),
-		    FrontFacingSwordRotation.RotateVector(FVector::RightVector).Equals(ComposedAttackAxis, KINDA_SMALL_NUMBER));
+		    TEXT("Sword slash keeps its authored local X surface normal world-up"),
+		    SwordDirectionRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
+		TestTrue(TEXT("Sword slash maps its authored local Y attack axis to the committed ground direction"),
+		         SwordDirectionRotation.RotateVector(FVector::RightVector)
+		             .Equals(ExpectedPlaneDirection, KINDA_SMALL_NUMBER));
+		const FRotator ComposedSwordRotation = UReEchoCombatVfxComponent::ComposeAttachedRotation(
+		    SwordDirectionRotation, FRotator(0.0f, 0.0f, SwordPlacement.LocalRotation.Roll));
+		TestTrue(
+		    TEXT("Sword in-plane Roll correction preserves its world-up surface normal"),
+		    ComposedSwordRotation.RotateVector(FVector::ForwardVector).Equals(FVector::UpVector, KINDA_SMALL_NUMBER));
 	}
 	const FVector MovedEndWorld(-240.0f, 910.0f, 25.0f);
 	UReEchoCombatVfxComponent::ResolveConductLinkWorldEndpoints(
@@ -923,6 +1012,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Gun muzzle uses the delivered bullet spark"),
 	         FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle)
 	             .Contains(TEXT("NS_People_Bullet_spark")));
+	TestEqual(TEXT("Normal Bow and Gun impacts reuse the Gun bullet spark"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileImpact),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle));
+	TestNotEqual(TEXT("Explosion impact remains distinct from the normal projectile impact"),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileImpact));
+	EReEchoCombatVfxSemantic ProjectileImpactSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Normal Bow resolves a ranged impact"),
+	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Bow"), 0.0f, ProjectileImpactSemantic));
+	TestEqual(TEXT("Normal Bow reuses the shared projectile impact"),
+	          ProjectileImpactSemantic,
+	          EReEchoCombatVfxSemantic::PlayerProjectileImpact);
+	TestTrue(TEXT("Explosive Gun resolves a ranged impact"),
+	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Gun"), 200.0f, ProjectileImpactSemantic));
+	TestEqual(TEXT("A compiled explosion radius selects the shared explosion impact"),
+	          ProjectileImpactSemantic,
+	          EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact);
+	TestFalse(
+	    TEXT("Non-projectile weapon cannot resolve a ranged impact"),
+	    FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Scythe"), 300.0f, ProjectileImpactSemantic));
 
 	struct FGunElementFlightCase
 	{
@@ -996,6 +1105,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerGunFlightGrass,
 	    EReEchoCombatVfxSemantic::PlayerGunFlightWater,
 	    EReEchoCombatVfxSemantic::PlayerGunMuzzle,
+	    EReEchoCombatVfxSemantic::PlayerProjectileImpact,
+	    EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact,
 	    EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,
 	    EReEchoCombatVfxSemantic::EchoGrassAura,
@@ -1181,6 +1292,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			int32 BowSpriteRendererCount = 0;
 			int32 SwordMeshRendererCount = 0;
+			int32 SwordSpriteRendererCount = 0;
+			int32 ScytheMeshRendererCount = 0;
+			int32 ScytheSpriteRendererCount = 0;
 			int32 FoxDirectionEnabledEmitterCount = 0;
 			int32 FoxDirectionEnabledRendererCount = 0;
 			int32 FoxDirectionEnabledSpriteRendererCount = 0;
@@ -1266,7 +1380,7 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 						          FName(TEXT("User.DirectionSpriteRotationDegrees")));
 					}
 				}
-				if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash && EmitterData)
+				if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic) && EmitterData)
 				{
 					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 					{
@@ -1276,6 +1390,53 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 							TestEqual(TEXT("Sword mesh renderer preserves component-space direction"),
 							          Mesh->FacingMode,
 							          ENiagaraMeshFacingMode::Default);
+						}
+						if (const UNiagaraSpriteRendererProperties* Sprite =
+						        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+						{
+							++SwordSpriteRendererCount;
+							TestEqual(TEXT("Sword sprite faces the runtime ground normal"),
+							          Sprite->FacingMode,
+							          ENiagaraSpriteFacingMode::CustomFacingVector);
+							TestEqual(TEXT("Sword sprite uses the runtime ground tangent"),
+							          Sprite->Alignment,
+							          ENiagaraSpriteAlignment::CustomAlignment);
+							TestEqual(TEXT("Sword sprite normal binding is stable"),
+							          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundNormal")));
+							TestEqual(TEXT("Sword sprite tangent binding is stable"),
+							          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundTangent")));
+						}
+					}
+				}
+				if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic) && EmitterData)
+				{
+					for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+					{
+						if (const UNiagaraMeshRendererProperties* Mesh = Cast<UNiagaraMeshRendererProperties>(Renderer))
+						{
+							++ScytheMeshRendererCount;
+							TestEqual(TEXT("Scythe mesh renderer follows component ground-plane rotation"),
+							          Mesh->FacingMode,
+							          ENiagaraMeshFacingMode::Default);
+						}
+						if (const UNiagaraSpriteRendererProperties* Sprite =
+						        Cast<UNiagaraSpriteRendererProperties>(Renderer))
+						{
+							++ScytheSpriteRendererCount;
+							TestEqual(TEXT("Scythe sprite faces the runtime ground normal"),
+							          Sprite->FacingMode,
+							          ENiagaraSpriteFacingMode::CustomFacingVector);
+							TestEqual(TEXT("Scythe sprite uses the runtime ground tangent"),
+							          Sprite->Alignment,
+							          ENiagaraSpriteAlignment::CustomAlignment);
+							TestEqual(TEXT("Scythe sprite normal binding is stable"),
+							          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundNormal")));
+							TestEqual(TEXT("Scythe sprite tangent binding is stable"),
+							          Sprite->SpriteAlignmentBinding.GetParamMapBindableVariable().GetName(),
+							          FName(TEXT("User.GroundTangent")));
 						}
 					}
 				}
@@ -1291,9 +1452,17 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			{
 				TestEqual(TEXT("Bow flight keeps its three authored sprite layers"), BowSpriteRendererCount, 3);
 			}
-			if (Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash)
+			if (FReEchoCombatVfxCatalog::IsLongSwordSlashSemantic(Semantic))
 			{
 				TestTrue(TEXT("Sword slash retains at least one authored mesh renderer"), SwordMeshRendererCount > 0);
+				TestTrue(TEXT("Sword slash retains at least one authored sprite renderer"),
+				         SwordSpriteRendererCount > 0);
+			}
+			if (FReEchoCombatVfxCatalog::IsScytheSlashSemantic(Semantic))
+			{
+				TestTrue(TEXT("Scythe slash retains at least one authored mesh renderer"), ScytheMeshRendererCount > 0);
+				TestTrue(TEXT("Scythe slash retains at least one authored sprite renderer"),
+				         ScytheSpriteRendererCount > 0);
 			}
 			if (Semantic == EReEchoCombatVfxSemantic::PlayerGunMuzzle)
 			{
@@ -1346,6 +1515,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				{
 					continue;
 				}
+				TestTrue(TEXT("Scythe slash emitter positions follow the ground-aligned component transform"),
+				         EmitterData->bLocalSpace);
 				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 				{
 					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
@@ -1360,6 +1531,36 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 				}
 			}
 			TestTrue(TEXT("Goat ground effect contains at least one ground-facing sprite renderer"),
+			         GroundSpriteRendererCount > 0);
+		}
+		if (Semantic == EReEchoCombatVfxSemantic::PlayerScytheSlash)
+		{
+			int32 GroundSpriteRendererCount = 0;
+			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+			{
+				const FVersionedNiagaraEmitterData* EmitterData =
+				    EmitterHandle.GetIsEnabled() ? EmitterHandle.GetEmitterData() : nullptr;
+				if (!EmitterData)
+				{
+					continue;
+				}
+				for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+				{
+					const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+					if (!Sprite || !Sprite->GetIsEnabled())
+					{
+						continue;
+					}
+					++GroundSpriteRendererCount;
+					TestEqual(TEXT("Scythe slash sprite uses a custom ground-facing vector"),
+					          Sprite->FacingMode,
+					          ENiagaraSpriteFacingMode::CustomFacingVector);
+					TestEqual(TEXT("Scythe slash sprite binds the authoritative ground normal"),
+					          Sprite->SpriteFacingBinding.GetParamMapBindableVariable().GetName(),
+					          FName(TEXT("User.GroundNormal")));
+				}
+			}
+			TestTrue(TEXT("Scythe slash contains at least one ground-facing sprite renderer"),
 			         GroundSpriteRendererCount > 0);
 		}
 		if (Semantic == EReEchoCombatVfxSemantic::GoatSkill04Lighting)
@@ -1448,6 +1649,97 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			         EmitterData && EmitterData->bLocalSpace);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementReactionVfxLifetimeTest,
+                                 "ReEcho.Presentation.VFX.ElementReactionLifetime",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoElementReactionVfxLifetimeTest::RunTest(const FString& Parameters)
+{
+	UNiagaraSystem* GrassSystem = LoadObject<UNiagaraSystem>(
+	    nullptr, FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::EnhanceGrass));
+	if (TestNotNull(TEXT("Grass reaction Niagara loads"), GrassSystem))
+	{
+		for (const FNiagaraEmitterHandle& EmitterHandle : GrassSystem->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(
+			    FString::Printf(TEXT("Grass reaction emitter '%s' uses local space so reaction scale controls range"),
+			                    *EmitterHandle.GetName().ToString()),
+			    EmitterData && EmitterData->bLocalSpace);
+		}
+	}
+	const TCHAR* GoatFirePath =
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.TimeGuard"));
+	const TCHAR* RabbitWaterPath = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    EReEchoElementReactionVfxSemantic::Vaporize, TEXT("Enemy.Rabbit"));
+	const TCHAR* GoatWaterPath = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    EReEchoElementReactionVfxSemantic::Vaporize, TEXT("Enemy.TimeGuard"));
+	TestNotNull(TEXT("Goat Fire reaction Niagara loads"), LoadObject<UNiagaraSystem>(nullptr, GoatFirePath));
+	UNiagaraSystem* RabbitWaterSystem = LoadObject<UNiagaraSystem>(nullptr, RabbitWaterPath);
+	TestNotNull(TEXT("Rabbit Water reaction Niagara loads"), RabbitWaterSystem);
+	UNiagaraSystem* GoatFireSystem = LoadObject<UNiagaraSystem>(nullptr, GoatFirePath);
+	UNiagaraSystem* GoatWaterSystem = LoadObject<UNiagaraSystem>(nullptr, GoatWaterPath);
+	TestNotNull(TEXT("Goat Water reaction Niagara loads"), GoatWaterSystem);
+	auto TestTargetBoundSystemUsesLocalSpace = [this](const TCHAR* Label, const UNiagaraSystem* System)
+	{
+		if (!System)
+		{
+			return;
+		}
+		for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(FString::Printf(TEXT("%s emitter '%s' follows its Boss attachment in local space"),
+			                         Label,
+			                         *EmitterHandle.GetName().ToString()),
+			         EmitterData && EmitterData->bLocalSpace);
+		}
+	};
+	TestTargetBoundSystemUsesLocalSpace(TEXT("Goat Fire"), GoatFireSystem);
+	TestTargetBoundSystemUsesLocalSpace(TEXT("Goat Water"), GoatWaterSystem);
+	if (GrassSystem && RabbitWaterSystem)
+	{
+		constexpr float TestFlipbookDiameterCm = 240.0f;
+		const FVector GrassScale = UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(
+		    GrassSystem, TestFlipbookDiameterCm, 1.0f, FVector::OneVector);
+		const FVector WaterScale = UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(
+		    RabbitWaterSystem, TestFlipbookDiameterCm, 1.0f, FVector::OneVector);
+		const float GrassWorldDiameter = GrassSystem->GetFixedBounds().GetSize().GetMax() * GrassScale.GetMax();
+		const float WaterWorldDiameter = RabbitWaterSystem->GetFixedBounds().GetSize().GetMax() * WaterScale.GetMax();
+		TestTrue(TEXT("Enhance Grass world range matches the target Flipbook"),
+		         FMath::IsNearlyEqual(GrassWorldDiameter, TestFlipbookDiameterCm, 0.1f));
+		TestTrue(TEXT("Enhance Water world range matches the target Flipbook"),
+		         FMath::IsNearlyEqual(WaterWorldDiameter, TestFlipbookDiameterCm, 0.1f));
+	}
+	TestTrue(TEXT("Vaporize has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::Vaporize)));
+	TestTrue(TEXT("Growth has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::Growth)));
+	TestTrue(TEXT("Grass enhance has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::EnhanceGrass)));
+	TestTrue(TEXT("Water enhance has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::EnhanceWater)));
+	TestFalse(TEXT("Grass attachment remains state-owned instead of reaction-timed"),
+	          UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	              static_cast<uint8>(EReEchoElementReactionVfxSemantic::AttachmentGrass)));
+	TestFalse(TEXT("Water attachment remains state-owned instead of reaction-timed"),
+	          UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	              static_cast<uint8>(EReEchoElementReactionVfxSemantic::AttachmentWater)));
 	return true;
 }
 

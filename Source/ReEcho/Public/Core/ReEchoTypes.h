@@ -92,9 +92,13 @@ struct REECHO_API FReEchoTraitCardOffer
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FName> Tags;
 
-	/** Card tier (0 = FORGE). Drives the star-frame card art (Plan 69). */
+	/** Gameplay/card-group tier. Easter candidates keep the containing group's tier. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 Tier = 0;
+
+	/** Visual-only card-frame tier. Easter candidates explicitly reuse tier three. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 PresentationTier = 0;
 
 	/** Visible slot identity and refresh projection for post-encounter/free card choices. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -351,20 +355,13 @@ struct REECHO_API FReEchoEncounterRuntimeState
 	TArray<FReEchoEnemyRuntimeState> Enemies;
 };
 
-/** Prototype-locked bounds for the run-local echo storage and specific-replay capabilities. */
-namespace ReEchoEchoStorage
+/** Stable identifiers and bounds for G_3_02's single time anchor. */
+namespace ReEchoTimeAnchor
 {
-/** G_3_02（时空锚点）owns the player-facing permanent echo-storage entry. */
-constexpr const TCHAR* StorageUnlockCardId = TEXT("G_3_02");
-/** Slot count a fresh run starts with; the prototype does not grow or shrink it yet. */
-constexpr int32 DefaultStorageCapacity = 3;
-/** Hard prototype ceiling for stored echo slots. */
-constexpr int32 MaxStorageCapacity = 3;
-/** Sentinel meaning the player has not unlocked specific replay at all. */
-constexpr int32 SpecificReplayUnavailable = 0;
-/** Hard prototype ceiling for how many stored echoes one encounter may replay. */
-constexpr int32 MaxSpecificReplayLimit = 3;
-} // namespace ReEchoEchoStorage
+constexpr const TCHAR* CardId = TEXT("G_3_02");
+/** Upper bound accepted by the replay resolver; actual count is further limited by card rules. */
+constexpr int32 MaximumResolvedEchoes = 3;
+} // namespace ReEchoTimeAnchor
 
 /** Explicit outcome of every echo storage command; commands never partially mutate on failure. */
 UENUM(BlueprintType)
@@ -375,18 +372,6 @@ enum class EReEchoEchoStorageResult : uint8
 	NoPendingRecording,
 	/** A referenced recording id is zero, or is not present in stored echoes. */
 	InvalidRecordingId,
-	/** The recording id already exists in stored echoes, or the request repeats an id. */
-	DuplicateRecordingId,
-	/** Every storage slot is occupied and no explicit replacement target was supplied. */
-	StorageFull,
-	/** The replacement target is not currently stored, so the request is stale. */
-	InvalidReplacementTarget,
-	/** Requested capacity is out of prototype range, or would drop already stored echoes. */
-	InvalidStorageCapacity,
-	/** Requested specific replay limit is out of prototype range. */
-	InvalidReplayLimit,
-	/** More replay selections were requested than the current specific replay limit allows. */
-	ReplayLimitExceeded
 };
 
 /** Read-only description of one stored echo; UI reads this instead of the immutable recording payload. */
@@ -414,9 +399,6 @@ struct REECHO_API FReEchoStoredEchoSummary
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FName WeaponId = NAME_None;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bSelectedForNextEncounter = false;
 };
 
 /** Read-only snapshot of the whole run-local echo storage state. */
@@ -425,17 +407,6 @@ USTRUCT(BlueprintType)
 struct REECHO_API FReEchoEchoStorageSummary
 {
 	GENERATED_BODY()
-
-	/** Explicitly stored echoes, in slot order; never contains the rolling latest recording implicitly. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TArray<FReEchoStoredEchoSummary> StoredEchoes;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	int32 StorageCapacity = ReEchoEchoStorage::DefaultStorageCapacity;
-
-	/** Zero means specific replay is not unlocked; the next encounter defaults to the rolling latest echo. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	int32 SpecificReplayLimit = ReEchoEchoStorage::SpecificReplayUnavailable;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bHasPendingRecording = false;
@@ -447,11 +418,15 @@ struct REECHO_API FReEchoEchoStorageSummary
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bHasLatestCompletedRecording = false;
 
-	/** Only valid when bHasLatestCompletedRecording is true; independent from StoredEchoes. */
+	/** Only valid when bHasLatestCompletedRecording is true. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FReEchoStoredEchoSummary LatestCompletedRecording;
 
-	/** Stable ids chosen for the next encounter; always a subset of StoredEchoes with no duplicates. */
+	/** True only when G_3_02 currently owns one persistent time-anchor recording. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TArray<FGuid> SelectedReplayIds;
+	bool bHasTimeAnchor = false;
+
+	/** The single G_3_02 time anchor. Only valid when bHasTimeAnchor is true. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FReEchoStoredEchoSummary TimeAnchorRecording;
 };

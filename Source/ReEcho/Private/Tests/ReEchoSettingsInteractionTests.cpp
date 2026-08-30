@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -87,14 +88,20 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Designed settings keeps its authored root"),
 	          SettingsWidget->WidgetTree->RootWidget->GetFName(),
 	          FName(TEXT("CanvasPanel_0")));
+	const UBorder* SettingsDimmer = Cast<UBorder>(SettingsWidget->GetWidgetFromName(TEXT("SettingsDimmer")));
+	TestNotNull(TEXT("Settings keeps its authored full-screen dimmer"), SettingsDimmer);
+	TestTrue(TEXT("Settings dimmer is opaque black instead of a colored panel"),
+	         SettingsDimmer && SettingsDimmer->GetBrushColor().R <= KINDA_SMALL_NUMBER &&
+	             SettingsDimmer->GetBrushColor().G <= KINDA_SMALL_NUMBER &&
+	             SettingsDimmer->GetBrushColor().B <= KINDA_SMALL_NUMBER &&
+	             FMath::IsNearlyEqual(SettingsDimmer->GetBrushColor().A, 1.00f, 0.01f));
 	UButton* RestoreDefaults = Cast<UButton>(SettingsWidget->GetWidgetFromName(TEXT("RestoreDefaultsButton")));
 	UButton* ApplyAndReturn = Cast<UButton>(SettingsWidget->GetWidgetFromName(TEXT("ApplyAndReturnButton")));
 	TestNotNull(TEXT("Restore-defaults action button exists"), RestoreDefaults);
 	TestNotNull(TEXT("Apply action button exists"), ApplyAndReturn);
 	const UCanvasPanelSlot* RestoreDesignerSlot =
 	    RestoreDefaults ? Cast<UCanvasPanelSlot>(RestoreDefaults->Slot) : nullptr;
-	const UCanvasPanelSlot* ApplyDesignerSlot =
-	    ApplyAndReturn ? Cast<UCanvasPanelSlot>(ApplyAndReturn->Slot) : nullptr;
+	const UCanvasPanelSlot* ApplyDesignerSlot = ApplyAndReturn ? Cast<UCanvasPanelSlot>(ApplyAndReturn->Slot) : nullptr;
 	TestNotNull(TEXT("Restore-defaults position is authored in a Designer Canvas slot"), RestoreDesignerSlot);
 	TestNotNull(TEXT("Apply position is authored in a Designer Canvas slot"), ApplyDesignerSlot);
 	TestEqual(TEXT("Restore-defaults remains directly adjustable in SettingsLayoutCanvas"),
@@ -109,16 +116,28 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Apply uses the delivered dark button art"),
 	          ApplyAndReturn ? ApplyAndReturn->GetStyle().Normal.GetResourceObject() : nullptr,
 	          static_cast<UObject*>(DarkActionTexture));
-	for (const FName LegacyWidgetName : {
-	         FName(TEXT("ArtSettingsPanel")), FName(TEXT("RootPanel")), FName(TEXT("CategoryTitleText")),
-	         FName(TEXT("DetailText")), FName(TEXT("RestoreDefaultsButtonLabel")),
-	         FName(TEXT("ApplyAndReturnButtonLabel")), FName(TEXT("GraphicsPlaceholderNotice")),
-	         FName(TEXT("ControlsPlaceholderNotice")), FName(TEXT("Graphic_1")), FName(TEXT("Graphic")),
-	         FName(TEXT("Audio_1")), FName(TEXT("Audio")), FName(TEXT("Input_1")), FName(TEXT("Input")),
-	         FName(TEXT("GraphicsSettingsButtonLabel")), FName(TEXT("AudioSettingsButtonLabel")),
-	         FName(TEXT("ControlsSettingsButtonLabel")), FName(TEXT("HorizontalBox_128")),
-	         FName(TEXT("HorizontalBox")), FName(TEXT("HorizontalBox_1")), FName(TEXT("HorizontalBox_2")),
-	         FName(TEXT("HorizontalBox_3"))})
+	for (const FName LegacyWidgetName : {FName(TEXT("ArtSettingsPanel")),
+	                                     FName(TEXT("RootPanel")),
+	                                     FName(TEXT("CategoryTitleText")),
+	                                     FName(TEXT("DetailText")),
+	                                     FName(TEXT("RestoreDefaultsButtonLabel")),
+	                                     FName(TEXT("ApplyAndReturnButtonLabel")),
+	                                     FName(TEXT("GraphicsPlaceholderNotice")),
+	                                     FName(TEXT("ControlsPlaceholderNotice")),
+	                                     FName(TEXT("Graphic_1")),
+	                                     FName(TEXT("Graphic")),
+	                                     FName(TEXT("Audio_1")),
+	                                     FName(TEXT("Audio")),
+	                                     FName(TEXT("Input_1")),
+	                                     FName(TEXT("Input")),
+	                                     FName(TEXT("GraphicsSettingsButtonLabel")),
+	                                     FName(TEXT("AudioSettingsButtonLabel")),
+	                                     FName(TEXT("ControlsSettingsButtonLabel")),
+	                                     FName(TEXT("HorizontalBox_128")),
+	                                     FName(TEXT("HorizontalBox")),
+	                                     FName(TEXT("HorizontalBox_1")),
+	                                     FName(TEXT("HorizontalBox_2")),
+	                                     FName(TEXT("HorizontalBox_3"))})
 	{
 		TestNull(*FString::Printf(TEXT("Legacy Settings node %s was removed"), *LegacyWidgetName.ToString()),
 		         SettingsWidget->GetWidgetFromName(LegacyWidgetName));
@@ -165,20 +184,25 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 	         AudioOutputFieldSlot && FMath::IsNearlyEqual(AudioOutputFieldSlot->GetSize().X, 802.0f) &&
 	             AudioOutputFieldBackground &&
 	             FMath::IsNearlyEqual(AudioOutputFieldBackground->GetBrush().GetImageSize().X, 802.0f));
-	for (const FName DesignerAudioControl : {
-	         FName(TEXT("MasterVolumeLabel")), FName(TEXT("MasterVolumeVisualOverlay")),
-	         FName(TEXT("MasterVolumePercent")), FName(TEXT("MasterMuteCheckBox")),
-	         FName(TEXT("MusicVolumeLabel")), FName(TEXT("MusicVolumeVisualOverlay")),
-	         FName(TEXT("MusicVolumePercent")), FName(TEXT("MusicMuteCheckBox")),
-	         FName(TEXT("CombatSfxVolumeLabel")), FName(TEXT("CombatVolumeVisualOverlay")),
-	         FName(TEXT("CombatVolumePercent")), FName(TEXT("CombatSfxMuteCheckBox")),
-	         FName(TEXT("AudioOutputLabel")), FName(TEXT("AudioOutputField"))})
+	for (const FName DesignerAudioControl : {FName(TEXT("MasterVolumeLabel")),
+	                                         FName(TEXT("MasterVolumeVisualOverlay")),
+	                                         FName(TEXT("MasterVolumePercent")),
+	                                         FName(TEXT("MasterMuteCheckBox")),
+	                                         FName(TEXT("MusicVolumeLabel")),
+	                                         FName(TEXT("MusicVolumeVisualOverlay")),
+	                                         FName(TEXT("MusicVolumePercent")),
+	                                         FName(TEXT("MusicMuteCheckBox")),
+	                                         FName(TEXT("CombatSfxVolumeLabel")),
+	                                         FName(TEXT("CombatVolumeVisualOverlay")),
+	                                         FName(TEXT("CombatVolumePercent")),
+	                                         FName(TEXT("CombatSfxMuteCheckBox")),
+	                                         FName(TEXT("AudioOutputLabel")),
+	                                         FName(TEXT("AudioOutputField"))})
 	{
 		UWidget* Control = SettingsWidget->GetWidgetFromName(DesignerAudioControl);
 		TestNotNull(*FString::Printf(TEXT("Designer audio control %s exists"), *DesignerAudioControl.ToString()),
 		            Control);
-		TestTrue(*FString::Printf(TEXT("%s can be freely moved in the UMG Designer"),
-		                         *DesignerAudioControl.ToString()),
+		TestTrue(*FString::Printf(TEXT("%s can be freely moved in the UMG Designer"), *DesignerAudioControl.ToString()),
 		         Control && Cast<UCanvasPanelSlot>(Control->Slot) != nullptr &&
 		             Control->GetParent() == AudioDesignerCanvas);
 	}
@@ -227,9 +251,7 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Authored audio slider is no longer an invisible interaction overlay"),
 		          MasterSlider->GetRenderOpacity(),
 		          1.0f);
-		TestEqual(TEXT("Authored audio slider thumb tint is visible"),
-		          MasterSlider->GetSliderHandleColor().A,
-		          1.0f);
+		TestEqual(TEXT("Authored audio slider thumb tint is visible"), MasterSlider->GetSliderHandleColor().A, 1.0f);
 		TestFalse(TEXT("Audio thumb reaches both authored track endpoints"), MasterSlider->HasIndentHandle());
 		TestFalse(TEXT("Brightness thumb uses the same full endpoint range"), BrightnessSlider->HasIndentHandle());
 	}
@@ -271,8 +293,7 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Dragging the slider updates its delivered percentage label"),
 	          MasterPercent ? MasterPercent->GetText().ToString() : FString(),
 	          FString(TEXT("42%")));
-	constexpr float ExpectedFillScaleAt42Percent =
-	    ((25.0f / 802.0f) + 0.42f * (1.0f - 50.0f / 802.0f)) / 0.65f;
+	constexpr float ExpectedFillScaleAt42Percent = ((25.0f / 802.0f) + 0.42f * (1.0f - 50.0f / 802.0f)) / 0.65f;
 	TestTrue(TEXT("Decorative fill boundary follows the full-range thumb center"),
 	         MasterFill &&
 	             FMath::IsNearlyEqual(MasterFill->GetRenderTransform().Scale.X, ExpectedFillScaleAt42Percent));

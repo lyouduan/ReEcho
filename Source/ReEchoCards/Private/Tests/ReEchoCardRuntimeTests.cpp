@@ -85,6 +85,41 @@ bool FReEchoOwnedCardTierOfferRulesTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGrantAllTierOneCardsTest,
+                                 "ReEcho.Cards.Grant.GrantAllTierOneAddsEveryEnabledCard",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoGrantAllTierOneCardsTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition TierOneOwned =
+	    MakeCard(TEXT("TIER_ONE_OWNED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	const FReEchoCardDefinition TierOneMissing =
+	    MakeCard(TEXT("TIER_ONE_MISSING"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	FReEchoCardDefinition TierOneDisabled =
+	    MakeCard(TEXT("TIER_ONE_DISABLED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("HpMax"), 1.0f);
+	TierOneDisabled.bEnabled = false;
+	const FReEchoCardDefinition GrantAll =
+	    MakeCard(TEXT("GRANT_ALL_TIER_ONE"), 3, TEXT("Card.GrantAllTier1"), TEXT("OnGrant"), TEXT("Tier"), 1.0f);
+	const FReEchoCardCatalog Catalog = BuildCatalog({TierOneOwned, TierOneMissing, TierOneDisabled, GrantAll});
+
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.CardState.OwnedCardIds = {TierOneOwned.Id};
+	const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, GrantAll.Id, Input);
+
+	TestTrue(TEXT("Grant-all transaction succeeds"), Grant.bSucceeded);
+	TestEqual(TEXT("An already owned enabled tier-one card receives another stack"),
+	          ReEchoCardRuntime::CountOwned(Grant.CardState, TierOneOwned.Id),
+	          2);
+	TestEqual(TEXT("A missing enabled tier-one card is granted"),
+	          ReEchoCardRuntime::CountOwned(Grant.CardState, TierOneMissing.Id),
+	          1);
+	TestEqual(TEXT("A disabled tier-one card is not granted"),
+	          ReEchoCardRuntime::CountOwned(Grant.CardState, TierOneDisabled.Id),
+	          0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEncounterAndConflictOfferRulesTest,
                                  "ReEcho.Cards.Offer.EncounterAndConflictsAreShared",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -305,6 +340,43 @@ bool FReEchoCoreCollectionCardTest::RunTest(const FString&)
 	const FReEchoCardEventResult Repeated =
 	    ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, Complete.CardState, Complete.Stats, 7);
 	TestEqual(TEXT("Collection completion is idempotent"), Repeated.Stats.CriticalRate, Complete.Stats.CriticalRate);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDragonSoulTieredGrantTest,
+                                 "ReEcho.Cards.Inventory.DragonSoulGrantsRepeatableTierOne",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoDragonSoulTieredGrantTest::RunTest(const FString&)
+{
+	const FReEchoCardDefinition TierOne =
+	    MakeCard(TEXT("TIER_ONE"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	const FReEchoCardDefinition TierTwo =
+	    MakeCard(TEXT("TIER_TWO"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	const FReEchoCardDefinition TierThree =
+	    MakeCard(TEXT("TIER_THREE"), 3, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("HpMax"), 1.0f);
+	const FReEchoCardDefinition DragonSoul = MakeCard(TEXT("DRAGON_SOUL"),
+	                                                   3,
+	                                                   TEXT("Card.CollectCoresGrantTiered"),
+	                                                   TEXT("OnInventoryChanged"),
+	                                                   TEXT("CoreCollection"),
+	                                                   1.0f,
+	                                                   TEXT("RequiredCount"),
+	                                                   6.0f,
+	                                                   true);
+	const FReEchoCardCatalog Catalog = BuildCatalog({TierOne, TierTwo, TierThree, DragonSoul});
+
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {DragonSoul.Id, TierOne.Id};
+	const FReEchoCardEventResult Complete = ReEchoCardRuntime::OnCoreInventoryChanged(Catalog, State, {}, 6);
+
+	TestTrue(TEXT("Six cores complete dragon soul"), Complete.CardState.Runtime.bDragonSoulCompleted);
+	TestEqual(TEXT("Dragon soul repeats an already owned tier-one Stackable card"),
+	          ReEchoCardRuntime::CountOwned(Complete.CardState, TierOne.Id),
+	          2);
+	TestEqual(TEXT("Dragon soul grants one tier-two card"), ReEchoCardRuntime::CountOwned(Complete.CardState, TierTwo.Id), 1);
+	TestEqual(TEXT("Dragon soul grants one tier-three card"), ReEchoCardRuntime::CountOwned(Complete.CardState, TierThree.Id), 1);
 	return true;
 }
 
@@ -853,6 +925,400 @@ bool FReEchoTrinityCardRulesTest::RunTest(const FString&)
 	FReEchoCardBuildState EncounterState = ReEchoCardRuntime::BeginEncounter(Grant.CardState, 1);
 	const FReEchoCardEncounterTickResult Tick = ReEchoCardRuntime::AdvanceEncounter(Catalog, EncounterState, 1.6f);
 	TestEqual(TEXT("Complete head pulses every half second"), Tick.EchoHeadCursePulseCount, 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterCardRuntimeTest,
+                                 "ReEcho.Cards.Easter.RuntimeAndOfferContracts",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEasterCardRuntimeTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Swing =
+	    MakeCard(TEXT("G_4_1"), 0, TEXT("Card.EasterShardSwing"), TEXT("OnEncounterEnd"), TEXT("TimeShards"), 2.5f,
+	             TEXT("PositiveMultiplier"), 2.5f, true);
+	Swing.OfferGroup = TEXT("EasterEgg");
+	FReEchoCardEffectDefinition Negative = Swing.Effects[0];
+	Negative.Id = TEXT("G_4_1_NEG");
+	Negative.Order = 2;
+	Negative.Value = 0.5f;
+	Negative.ParamName = TEXT("NegativeMultiplier");
+	Negative.ParamValue = 0.5f;
+	Swing.Effects.Add(Negative);
+	FReEchoCardEffectDefinition Bonus = Swing.Effects[0];
+	Bonus.Id = TEXT("G_4_1_BONUS");
+	Bonus.Order = 3;
+	Bonus.Value = 30.0f;
+	Bonus.ParamName = TEXT("Bonus");
+	Bonus.ParamValue = 30.0f;
+	Swing.Effects.Add(Bonus);
+
+	FReEchoCardDefinition Attendance =
+	    MakeCard(TEXT("G_4_9"), 0, TEXT("Card.EasterAttendance"), TEXT("OnEncounterEnd"), TEXT("HpMaxAndPoint"), 10.0f,
+	             NAME_None, 0.0f, true);
+	Attendance.OfferGroup = TEXT("EasterEgg");
+	for (const TPair<FName, float>& Stat : {TPair<FName, float>(TEXT("ElementalAttack"), 1.0f),
+	                                       TPair<FName, float>(TEXT("PhysicalAttack"), 1.0f)})
+	{
+		FReEchoCardEffectDefinition Effect = Attendance.Effects[0];
+		Effect.Id = FName(*(FString(TEXT("G_4_9_")) + Stat.Key.ToString()));
+		Effect.Order = Attendance.Effects.Num() + 1;
+		Effect.Target = Stat.Key;
+		Effect.Value = Stat.Value;
+		Attendance.Effects.Add(Effect);
+	}
+
+	const FReEchoCardCatalog Catalog = BuildCatalog({Swing, Attendance});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {Swing.Id, Attendance.Id};
+	TestFalse(TEXT("Owned unique tier-zero Easter cards never return to their pool"),
+	          ReEchoCardRuntime::CanOffer(Catalog, State, Swing));
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.HpPoint = 50.0f;
+	Stats.PhysicalAttack = 5.0f;
+	Stats.ElementalAttack = 7.0f;
+	const FReEchoCardEventResult End =
+	    ReEchoCardRuntime::EndEncounter(Catalog, State, Stats, 1, 0, 101, 12345, 0);
+	TestTrue(TEXT("Shard swing floors after the chosen multiplier and then adds thirty"),
+	         End.ProjectedTimeShards == 282 || End.ProjectedTimeShards == 80);
+	TestEqual(TEXT("Attendance grants ten maximum health"), End.Stats.HpMax, 110.0f);
+	TestEqual(TEXT("Attendance grants ten current health"), End.Stats.HpPoint, 60.0f);
+	TestEqual(TEXT("Attendance grants one physical attack"), End.Stats.PhysicalAttack, 6.0f);
+	TestEqual(TEXT("Attendance grants one elemental attack"), End.Stats.ElementalAttack, 8.0f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterDamageCardRewardTest,
+                                 "ReEcho.Cards.Easter.DamageThresholdGrantsOnlyNormalUnownedCards",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEasterDamageCardRewardTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Easter =
+	    MakeCard(TEXT("G_4_6"), 0, TEXT("Card.EasterDamageCards"), TEXT("OnDamageResolved"), TEXT("Damage"), 55.0f,
+	             TEXT("GrantCount"), 5.0f, true);
+	Easter.OfferGroup = TEXT("EasterEgg");
+	TArray<FReEchoCardDefinition> Cards = {Easter};
+	for (int32 Index = 1; Index <= 6; ++Index)
+	{
+		Cards.Add(MakeCard(FName(*FString::Printf(TEXT("NORMAL_%d"), Index)),
+		                   Index <= 2 ? 1 : 2,
+		                   TEXT("Card.StatModifier"),
+		                   TEXT("OnGrant"),
+		                   TEXT("PhysicalAttack"),
+		                   1.0f,
+		                   NAME_None,
+		                   0.0f,
+		                   true));
+	}
+	const FReEchoCardCatalog Catalog = BuildCatalog(Cards);
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {Easter.Id, Cards[1].Id};
+	const FReEchoCardGrantResult Before =
+	    ReEchoCardRuntime::OnPlayerDamageReceived(Catalog, State, FReEchoStatBlock{}, 0, 54.0f, 1, 99);
+	TestEqual(TEXT("Damage below fifty-five grants no card"), Before.GrantedCardIds.Num(), 0);
+	const FReEchoCardGrantResult Triggered =
+	    ReEchoCardRuntime::OnPlayerDamageReceived(Catalog, Before.CardState, Before.Stats, 0, 1.0f, 1, 99);
+	TestEqual(TEXT("The threshold grants five cards when five unowned normal cards remain"),
+	          Triggered.GrantedCardIds.Num(),
+	          5);
+	TestFalse(TEXT("The Easter card never grants itself"), Triggered.GrantedCardIds.Contains(Easter.Id));
+	const FReEchoCardGrantResult Again = ReEchoCardRuntime::OnPlayerDamageReceived(
+	    Catalog, Triggered.CardState, Triggered.Stats, 0, 100.0f, 1, 100);
+	TestEqual(TEXT("The threshold card triggers only once per run"), Again.GrantedCardIds.Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterOfferSelectionTest,
+                                 "ReEcho.Cards.Easter.IndependentOfferSelection",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEasterOfferSelectionTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Normal =
+	    MakeCard(TEXT("NORMAL"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	FReEchoCardDefinition EasterA =
+	    MakeCard(TEXT("EASTER_A"), 0, TEXT("Card.EasterAttendance"), TEXT("OnEncounterEnd"), TEXT("PhysicalAttack"), 1.0f,
+	             NAME_None, 0.0f, true);
+	FReEchoCardDefinition EasterB = EasterA;
+	EasterA.OfferGroup = TEXT("EasterEgg");
+	EasterB.Id = TEXT("EASTER_B");
+	EasterB.Effects[0].Id = TEXT("EASTER_B_E");
+	EasterB.OfferGroup = TEXT("EasterEgg");
+	const FReEchoCardCatalog Catalog = BuildCatalog({Normal, EasterA, EasterB});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+
+	const FName ForcedNormal =
+	    ReEchoCardRuntime::SelectOfferForSlot(Catalog, State, 2, 1, {}, 11, 0.0f);
+	TestEqual(TEXT("A missed Easter roll uses the requested normal tier"), ForcedNormal, Normal.Id);
+	const FName ForcedEaster =
+	    ReEchoCardRuntime::SelectOfferForSlot(Catalog, State, 2, 1, {}, 11, 1.0f);
+	TestTrue(TEXT("A hit uses the independent Easter pool"), ForcedEaster == EasterA.Id || ForcedEaster == EasterB.Id);
+	const FName OtherEaster =
+	    ReEchoCardRuntime::SelectOfferForSlot(Catalog, State, 2, 1, {ForcedEaster}, 11, 1.0f);
+	TestTrue(TEXT("A group history prevents an Easter duplicate"), OtherEaster != ForcedEaster && OtherEaster != Normal.Id);
+	const FName ExhaustedEaster = ReEchoCardRuntime::SelectOfferForSlot(
+	    Catalog, State, 2, 1, {EasterA.Id, EasterB.Id}, 11, 1.0f);
+	TestEqual(TEXT("An exhausted Easter pool falls back to the normal tier"), ExhaustedEaster, Normal.Id);
+	const FName ExhaustedNormal =
+	    ReEchoCardRuntime::SelectOfferForSlot(Catalog, State, 2, 1, {Normal.Id}, 11, 0.0f);
+	TestTrue(TEXT("Normal exhaustion never promotes Easter into a guaranteed offer"), ExhaustedNormal.IsNone());
+
+	int32 EasterHits = 0;
+	for (int32 Seed = 1; Seed <= 4096; ++Seed)
+	{
+		const FName Selected = ReEchoCardRuntime::SelectOfferForSlot(Catalog, State, 2, 1, {}, Seed, 0.01f);
+		EasterHits += Selected == EasterA.Id || Selected == EasterB.Id ? 1 : 0;
+	}
+	TestTrue(TEXT("One-percent production probability produces both hit and miss outcomes"),
+	         EasterHits > 0 && EasterHits < 4096);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterGrantRandomnessTest,
+                                 "ReEcho.Cards.Easter.IndependentGrantAndSacrifice",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEasterGrantRandomnessTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Independent = MakeCard(TEXT("G_4_2"),
+	                                             0,
+	                                             TEXT("Card.EasterIndependentGrant"),
+	                                             TEXT("OnGrant"),
+	                                             TEXT("CriticalRate"),
+	                                             0.3f,
+	                                             TEXT("Chance"),
+	                                             0.5f,
+	                                             true);
+	Independent.OfferGroup = TEXT("EasterEgg");
+	FReEchoCardEffectDefinition Physical = Independent.Effects[0];
+	Physical.Id = TEXT("G_4_2_PHYSICAL");
+	Physical.Order = 2;
+	Physical.Target = TEXT("PhysicalAttack");
+	Physical.Value = 15.0f;
+	Independent.Effects.Add(Physical);
+	FReEchoCardEffectDefinition Health = Independent.Effects[0];
+	Health.Id = TEXT("G_4_2_HP");
+	Health.Order = 3;
+	Health.Target = TEXT("HpPoint");
+	Health.Operation = EReEchoCardValueOperation::Override;
+	Health.Value = 3.0f;
+	Independent.Effects.Add(Health);
+
+	FReEchoCardDefinition Sacrifice = MakeCard(TEXT("G_4_4"),
+	                                           0,
+	                                           TEXT("Card.EasterShardSacrifice"),
+	                                           TEXT("OnGrant"),
+	                                           TEXT("HpMaxAndPoint"),
+	                                           1.0f,
+	                                           TEXT("ShardUnit"),
+	                                           15.0f,
+	                                           true);
+	Sacrifice.OfferGroup = TEXT("EasterEgg");
+	for (const TPair<FName, float>& Reward : {TPair<FName, float>(TEXT("PhysicalAttack"), 1.0f),
+	                                         TPair<FName, float>(TEXT("ElementalAttack"), 1.0f),
+	                                         TPair<FName, float>(TEXT("CriticalRate"), 0.05f),
+	                                         TPair<FName, float>(TEXT("CriticalEffect"), 0.1f),
+	                                         TPair<FName, float>(TEXT("EchoEfficiency"), 0.05f),
+	                                         TPair<FName, float>(TEXT("ReactionEfficiency"), 0.05f)})
+	{
+		FReEchoCardEffectDefinition Effect = Sacrifice.Effects[0];
+		Effect.Id = FName(*(FString(TEXT("G_4_4_")) + Reward.Key.ToString()));
+		Effect.Order = Sacrifice.Effects.Num() + 1;
+		Effect.Target = Reward.Key;
+		Effect.Value = Reward.Value;
+		Sacrifice.Effects.Add(Effect);
+	}
+	const FReEchoCardCatalog Catalog = BuildCatalog({Independent, Sacrifice});
+	bool bSawNone = false;
+	bool bSawAll = false;
+	for (int32 Seed = 1; Seed <= 512; ++Seed)
+	{
+		FReEchoCardGrantInput Input;
+		Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+		Input.Stats.HpMax = 100.0f;
+		Input.Stats.HpPoint = 50.0f;
+		Input.RandomSeed = Seed;
+		const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, Independent.Id, Input);
+		const int32 HitCount = (Grant.Stats.CriticalRate > Input.Stats.CriticalRate ? 1 : 0) +
+		                       (Grant.Stats.PhysicalAttack > Input.Stats.PhysicalAttack ? 1 : 0) +
+		                       (Grant.Stats.HpPoint == 3.0f ? 1 : 0);
+		bSawNone |= HitCount == 0;
+		bSawAll |= HitCount == 3;
+	}
+	TestTrue(TEXT("Three independent fifty-percent rolls can all miss"), bSawNone);
+	TestTrue(TEXT("Three independent fifty-percent rolls can all hit"), bSawAll);
+
+	FReEchoCardGrantInput SacrificeInput;
+	SacrificeInput.CardState.DomainRevision = Catalog.GetDomainRevision();
+	SacrificeInput.Stats.HpMax = 100.0f;
+	SacrificeInput.Stats.HpPoint = 50.0f;
+	SacrificeInput.TimeShards = 31;
+	SacrificeInput.RandomSeed = 2468;
+	const FReEchoCardGrantResult SacrificeGrant =
+	    ReEchoCardRuntime::TryGrantCard(Catalog, Sacrifice.Id, SacrificeInput);
+	TestTrue(TEXT("The shard sacrifice commits atomically"), SacrificeGrant.bSucceeded);
+	TestEqual(TEXT("The shard sacrifice removes the entire balance including remainder"), SacrificeGrant.TimeShards, 0);
+	const FReEchoCardOutcomeState* SacrificeOutcome = SacrificeGrant.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	    [](const FReEchoCardOutcomeState& Outcome)
+	    {
+		    return Outcome.CardId == TEXT("G_4_4") && Outcome.Kind == EReEchoCardOutcomeKind::RandomDetails;
+	    });
+	TestTrue(TEXT("The shard sacrifice records concrete rewards"), SacrificeOutcome != nullptr);
+	if (SacrificeOutcome)
+	{
+		TestEqual(TEXT("Thirty-one shards produce two reward draws"), SacrificeOutcome->ResolutionCount, 2);
+		TestEqual(TEXT("Recorded targets and values stay aligned"),
+		          SacrificeOutcome->DetailTargets.Num(),
+		          SacrificeOutcome->DetailValues.Num());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterEncounterRulesTest,
+                                 "ReEcho.Cards.Easter.EncounterRulesAndShardComparison",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEasterEncounterRulesTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Contact = MakeCard(TEXT("G_4_3"),
+	                                        0,
+	                                        TEXT("Card.EasterEchoContact"),
+	                                        TEXT("OnCompileRules"),
+	                                        TEXT("Damage"),
+	                                        12.0f,
+	                                        TEXT("PlayerHealing"),
+	                                        6.0f,
+	                                        true);
+	Contact.OfferGroup = TEXT("EasterEgg");
+	FReEchoCardDefinition Stun = MakeCard(TEXT("G_4_5"),
+	                                     0,
+	                                     TEXT("Card.EasterRandomStun"),
+	                                     TEXT("OnEncounterTick"),
+	                                     TEXT("Stun"),
+	                                     1.0f,
+	                                     TEXT("PulseInterval"),
+	                                     0.5f,
+	                                     true);
+	Stun.OfferGroup = TEXT("EasterEgg");
+	FReEchoCardEffectDefinition Radius = Stun.Effects[0];
+	Radius.Id = TEXT("G_4_5_RADIUS");
+	Radius.Order = 2;
+	Radius.Target = TEXT("Damage");
+	Radius.Value = 400.0f;
+	Radius.ParamName = TEXT("RadiusCm");
+	Radius.ParamValue = 400.0f;
+	Stun.Effects.Add(Radius);
+	FReEchoCardDefinition Compare = MakeCard(TEXT("G_4_8"),
+	                                        0,
+	                                        TEXT("Card.EasterShardComparison"),
+	                                        TEXT("OnEncounterEnd"),
+	                                        TEXT("TimeShards"),
+	                                        -0.01f,
+	                                        TEXT("Step"),
+	                                        5.0f,
+	                                        true);
+	Compare.OfferGroup = TEXT("EasterEgg");
+	FReEchoCardEffectDefinition Less = Compare.Effects[0];
+	Less.Id = TEXT("G_4_8_LESS");
+	Less.Order = 2;
+	Less.Value = 0.05f;
+	Compare.Effects.Add(Less);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Contact, Stun, Compare});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {Contact.Id, Stun.Id, Compare.Id};
+	const FReEchoCardRuleSnapshot Rules = ReEchoCardRuntime::CompileRules(Catalog, State);
+	TestTrue(TEXT("Echo contact rules compile"), Rules.bEasterEchoContact);
+	TestEqual(TEXT("Echo contact damage comes from data"), Rules.EasterEchoContactDamage, 12.0f);
+	TestEqual(TEXT("Echo contact healing comes from data"), Rules.EasterEchoContactHealing, 6.0f);
+	TestTrue(TEXT("Random stun rules compile"), Rules.bEasterRandomStun);
+	TestEqual(TEXT("Random stun radius is four metres"), Rules.EasterRandomStunRadiusCm, 400.0f);
+
+	State = ReEchoCardRuntime::BeginEncounter(State, 1);
+	FReEchoCardEncounterTickResult Tick = ReEchoCardRuntime::AdvanceEncounter(Catalog, State, 0.49f);
+	TestEqual(TEXT("No stun pulse occurs before half a second"), Tick.EasterRandomStunPulseCount, 0);
+	Tick = ReEchoCardRuntime::AdvanceEncounter(Catalog, Tick.CardState, 0.5f);
+	TestEqual(TEXT("One stun pulse occurs at half a second"), Tick.EasterRandomStunPulseCount, 1);
+	Tick = ReEchoCardRuntime::AdvanceEncounter(Catalog, Tick.CardState, 1.6f);
+	TestEqual(TEXT("Elapsed pulse boundaries are caught up exactly once"), Tick.EasterRandomStunPulseCount, 2);
+
+	FReEchoCardEventResult End = ReEchoCardRuntime::EndEncounter(Catalog, Tick.CardState, {}, 1, 0, 0, 1, 20);
+	TestTrue(TEXT("The first completed encounter establishes a comparison baseline"),
+	         End.CardState.Runtime.bHasPreviousEncounterShardIncome);
+	TestEqual(TEXT("The baseline keeps a neutral next-encounter multiplier"),
+	          End.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          1.0f);
+	End = ReEchoCardRuntime::EndEncounter(Catalog, End.CardState, {}, 2, 0, 0, 2, 30);
+	TestEqual(TEXT("Ten more gross shards reduce the next multiplier by two percent"),
+	          End.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          0.98f);
+	End = ReEchoCardRuntime::EndEncounter(Catalog, End.CardState, {}, 3, 0, 0, 3, 20);
+	TestEqual(TEXT("Ten fewer gross shards increase the next multiplier by ten percent"),
+	          End.CardState.Runtime.EncounterShardIncomeMultiplier,
+	          1.1f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterPhysicalLotteryTest,
+                                 "ReEcho.Cards.Easter.PhysicalDamageLottery",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEasterPhysicalLotteryTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Lottery = MakeCard(TEXT("G_4_7"),
+	                                        0,
+	                                        TEXT("Card.EasterPhysicalLottery"),
+	                                        TEXT("BeforeOutgoingHit"),
+	                                        TEXT("Damage"),
+	                                        0.0f,
+	                                        TEXT("Probability"),
+	                                        0.15f,
+	                                        true);
+	Lottery.OfferGroup = TEXT("EasterEgg");
+	const TArray<TPair<float, float>> Outcomes = {{10.0f, 0.35f}, {100.0f, 0.40f}, {1000.0f, 0.08f}, {10000.0f, 0.02f}};
+	for (const TPair<float, float>& Config : Outcomes)
+	{
+		FReEchoCardEffectDefinition Effect = Lottery.Effects[0];
+		Effect.Id = FName(*FString::Printf(TEXT("G_4_7_%d"), Lottery.Effects.Num() + 1));
+		Effect.Order = Lottery.Effects.Num() + 1;
+		Effect.Value = Config.Key;
+		Effect.ParamValue = Config.Value;
+		Lottery.Effects.Add(Effect);
+	}
+	const FReEchoCardCatalog Catalog = BuildCatalog({Lottery});
+	FReEchoCardBuildState State;
+	State.DomainRevision = Catalog.GetDomainRevision();
+	State.OwnedCardIds = {Lottery.Id};
+	TMap<int32, int32> Counts;
+	for (int32 Seed = 1; Seed <= 20000; ++Seed)
+	{
+		FReEchoCardOutgoingHitInput Hit;
+		Hit.RawDamage = 37.0f;
+		Hit.RandomSeed = Seed;
+		Hit.DamageSource = Seed % 2 == 0 ? EReEchoDamageSource::Player : EReEchoDamageSource::Echo;
+		Hit.Element = EReEchoElement::None;
+		const float Damage = ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit).RawDamage;
+		Counts.FindOrAdd(FMath::RoundToInt(Damage))++;
+	}
+	const TMap<int32, float> Expected = {{0, 0.15f}, {10, 0.35f}, {100, 0.40f}, {1000, 0.08f}, {10000, 0.02f}};
+	for (const TPair<int32, float>& Pair : Expected)
+	{
+		const float Actual = Counts.FindRef(Pair.Key) / 20000.0f;
+		TestTrue(*FString::Printf(TEXT("Damage outcome %d follows its configured weight"), Pair.Key),
+		         FMath::Abs(Actual - Pair.Value) < 0.025f);
+	}
+	FReEchoCardOutgoingHitInput Elemental;
+	Elemental.RawDamage = 37.0f;
+	Elemental.RandomSeed = 1;
+	Elemental.Element = EReEchoElement::Flame;
+	TestEqual(TEXT("Elemental damage bypasses the physical lottery"),
+	          ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Elemental).RawDamage,
+	          37.0f);
 	return true;
 }
 

@@ -64,8 +64,10 @@ public:
 	static float ResolveProjectileCoreDiameter(float CollisionRadiusCm);
 	/** Additive glow extends beyond the core without changing gameplay collision. */
 	static float ResolveProjectileGlowDiameter(float CollisionRadiusCm);
-	/** Burn and Growth visuals follow authoritative status/attachment events instead of duplicating one-shots. */
+	/** Burn follows its authoritative timed reaction status instead of duplicating a one-shot. */
 	static bool IsElementReactionStateDriven(FName ReactionId);
+	/** Target-bound reaction visuals are force-stopped so looping assets cannot become element markers. */
+	static bool IsBoundedElementReactionSemantic(uint8 SemanticValue);
 	/** Resolves and directly previews one reaction VFX without mutating combat element state. */
 	static bool TryResolveDebugElementReactionSemantic(FName ReactionName, uint8& OutSemanticValue);
 	bool PlayElementReactionForDebug(uint8 SemanticValue, AActor* Target) const;
@@ -84,10 +86,16 @@ public:
 	                                             FVector& OutEndParameter);
 	/** Resolves the current rendered Flipbook bounds center in world space. */
 	static bool TryResolveFlipbookCenter(AActor* Target, FVector& OutCenterWorld);
+	/** Resolves the stable final world diameter from the Flipbook render bounds and component transform. */
+	static bool TryResolveFlipbookWorldDiameter(AActor* Target, float& OutDiameterCm);
 	/** Connection-line Path damage keeps target hurt feedback even when that hit is fatal. */
 	static bool ShouldPlayTargetHurtEffect(const FReEchoDamageEvent& Event, const AActor* Owner);
 	/** Raises the Boss hurt effect halfway from its authored hurt root toward the rendered Flipbook center. */
 	static FVector ResolveBossHurtEffectLocation(const FVector& HurtRootWorld, const FVector& FlipbookCenterWorld);
+	static FVector ResolveTargetMatchedReactionWorldScale(const UNiagaraSystem* ReactionSystem,
+	                                                      float TargetDiameterCm,
+	                                                      float CoverageRatio,
+	                                                      const FVector& FallbackWorldScale);
 	/** Builds finite effect-local bounds containing both moving world endpoints and a ribbon safety margin. */
 	static FBox ResolveConnectionLinkLocalBounds(const FTransform& EffectTransform,
 	                                             const FVector& StartWorld,
@@ -102,18 +110,21 @@ public:
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
+	static FVector ResolveAttackRangeScale(const FVector& AuthoredScale,
+	                                       const FVector& ScaleMask,
+	                                       float RangeMultiplier,
+	                                       float MinMultiplier,
+	                                       float MaxMultiplier);
 	/** Gun presentation is horizontally authored: discard aim elevation and retain only its screen-side sign. */
 	static FVector ResolveGunMuzzleHorizontalDirection(const FVector& AimDirection, const FVector& CameraRight);
 	/** Applies the DA correction in effect-local space after aligning the authored effect to the attack direction. */
 	static FRotator ComposeAttachedRotation(const FRotator& DirectionRotation, const FRotator& LocalRotation);
 	/** Generic camera-plane convention: local X follows direction and local Z faces camera. */
 	static FRotator ResolveCameraPlaneDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Delivered 0811_01 sword mesh: local X is its surface normal and local Y follows the projected attack direction.
-	 */
-	static FRotator ResolveSwordMeshDirectionRotation(const FVector& Direction, const FVector& CameraFacingNormal);
-	/** Keeps the composed sword direction/DA correction but flips a culled local-X back face around its local-Y attack
-	 * axis. */
-	static FRotator EnsureSwordFrontFacesCamera(const FRotator& ComposedRotation, const FVector& CameraFacingNormal);
+	/** Ground sweep convention: local X follows the horizontal attack direction and local Z faces world up. */
+	static FRotator ResolveGroundPlaneDirectionRotation(const FVector& Direction);
+	/** Delivered 0811_01 sword mesh: local X faces world-up and local Y follows the ground attack direction. */
+	static FRotator ResolveSwordMeshDirectionRotation(const FVector& Direction);
 	/** Left side is forward (+1), right side is reverse (-1), in current camera screen space. */
 	static float ResolveMeleePlayDirection(const FVector& AttackDirection, const FVector& CameraRight);
 	/** Setting an absent Niagara user parameter is a silent no-op, so replacement assets are checked explicitly. */
@@ -245,7 +256,8 @@ private:
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
-	                                 bool bAutoDestroy = true) const;
+	                                 bool bAutoDestroy = true,
+	                                 float AttackRangeMultiplier = 1.0f) const;
 	USceneComponent* ResolveBossWeaponVfxRoot() const;
 	USceneComponent* ResolveWeaponAttackVfxRoot() const;
 	USceneComponent* ResolveAttackVfxRoot() const;
@@ -264,7 +276,6 @@ private:
 	FName ResolveElementVfxTargetId(AActor* Target) const;
 	UNiagaraSystem* ResolveElementSystem(uint8 SemanticValue, AActor* Target) const;
 	void RefreshElementEffects(const FReEchoElementState& State);
-	void RefreshElementAttachment(EReEchoElement Element);
 	void RefreshBurnStatus(bool bBurnActive);
 	UNiagaraComponent* SpawnElementReactionAt(uint8 SemanticValue, AActor* Target) const;
 	bool SpawnConductLink(const FReEchoElementReactionLink& Link) const;
@@ -308,11 +319,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> DashEffect;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UNiagaraComponent> ElementAttachmentEffect;
-
-	EReEchoElement ActiveAttachmentElement = EReEchoElement::None;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> BurnStatusEffect;

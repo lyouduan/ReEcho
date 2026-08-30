@@ -5,6 +5,7 @@
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.h"
 #include "Run/ReEchoRunSubsystem.h"
+#include "Misc/FileHelper.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -170,9 +171,12 @@ bool FReEchoSageMixedCardGroupCadenceTest::RunTest(const FString&)
 	TestEqual(TEXT("The claimed shop group is the fifth ordinary group"),
 	          FCString::Atoi(*Run->CurrentBuild.RuleFlags.FindRef(TEXT("NormalTraitSelections"))),
 	          5);
-	TestEqual(TEXT("The fifth mixed-source group opens exactly one Sage bonus choice"),
-	          Run->Phase,
-	          EReEchoRunPhase::CardChoice);
+	// The Sage bonus is no longer a deferred extra choice: it is resolved inside the qualifying pack as
+	// extra picks, so claiming must never leave the run sitting in the card-choice phase without a screen.
+	TestFalse(TEXT("The cadence group does not open a deferred bonus choice"),
+	          Run->Phase == EReEchoRunPhase::CardChoice);
+	TestFalse(TEXT("The deferred bonus-choice flag is no longer written"),
+	          Run->CurrentBuild.RuleFlags.Contains(TEXT("BonusTraitChoicesRemaining")));
 	TestFalse(TEXT("Claiming the same paid group twice is rejected"),
 	          Run->ClaimPaidShopCardChoice(ClaimedItemId).IsSuccess());
 	TestEqual(TEXT("A rejected duplicate claim does not advance the Sage cadence"),
@@ -271,6 +275,165 @@ bool FReEchoDataDrivenCharacterAbilitiesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("A failed encounter does not grant Poet growth"),
 	          FailedPoetRun->CurrentBuild.Stats.ReactionEfficiency,
 	          FailedReactionBefore);
+	return true;
+}
+
+// --- Bug #3 probe: reproduce the Sage two-card choice in both the shop pack and free choice paths. ---
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBug3ProbeTest,
+                                 "ReEcho.Bug3Probe",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBug3ProbeTest::RunTest(const FString&)
+{
+	FString Report;
+
+	// ---- Shop pack two-card claim (ClaimPaidShopCardChoices) ----
+	{
+		UGameInstance* GameInstance = NewObject<UGameInstance>();
+		UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+		Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+		Run->CurrentBuild.Stats.RoleId = TEXT("Sage");
+		Run->CurrentBuild.RuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+		Run->CurrentBuild.EquipmentBaseStats.RoleId = TEXT("Sage");
+		Run->CurrentBuild.EquipmentBaseRuleFlags.Add(TEXT("Promoted"), TEXT("1"));
+		Run->EncounterIndex = 4;
+		for (int32 GroupIndex = 0; GroupIndex < 4; ++GroupIndex)
+		{
+			Run->Phase = EReEchoRunPhase::CardChoice;
+			const TArray<FReEchoTraitCardOffer> Offers = Run->GenerateTraitCardOffers(3);
+			if (Offers.Num() == 0 || !Run->ApplyTraitCard(Offers[0].CardId))
+			{
+				Report += TEXT("SHOP_SETUP_FAIL_FREE\n");
+				FFileHelper::SaveStringToFile(Report, TEXT("c:/Users/Cadmanwwang/Desktop/Echo/bug3_probe.txt"));
+				return true;
+			}
+		}
+		Run->TimeShards = 1000;
+		const FReEchoWeaponPartShopView ShopView = Run->GetWeaponPartShopView();
+		const FReEchoShopCardPackOffer* AvailablePack = ShopView.CardPackOffers.FindByPredicate(
+			[](const FReEchoShopCardPackOffer& Pack)
+			{
+				return Pack.IsAvailable();
+			});
+		if (!AvailablePack)
+		{
+			Report += TEXT("SHOP_SETUP_FAIL_NO_PACK\n");
+			FFileHelper::SaveStringToFile(Report, TEXT("c:/Users/Cadmanwwang/Desktop/Echo/bug3_probe.txt"));
+			return true;
+		}
+		const int32 Tier = AvailablePack->Tier;
+		FReEchoShopPurchaseOutcome Purchase = Run->PurchaseShopCardPackDetailed(Tier);
+		Report += FString::Printf(TEXT("SHOP_PURCHASE=%d\n"), Purchase.IsSuccess() ? 1 : 0);
+		const FReEchoWeaponPartShopView PaidView = Run->GetWeaponPartShopView();
+		const FReEchoShopCardPackOffer* PaidPack = PaidView.CardPackOffers.FindByPredicate(
+			[Tier](const FReEchoShopCardPackOffer& Pack)
+			{
+				return Pack.Tier == Tier && Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+			});
+		if (!PaidPack)
+		{
+			Report += TEXT("SHOP_SETUP_FAIL_NO_PAID\n");
+			FFileHelper::SaveStringToFile(Report, TEXT("c:/Users/Cadmanwwang/Desktop/Echo/bug3_probe.txt"));
+			return true;
+		}
+		Report += FString::Printf(TEXT("SHOP_CHOICES=%d SELECTABLE=%d\n"), PaidPack->Choices.Num(), PaidPack->SelectableCardCount);
+		if (PaidPack->Choices.Num() >= 2)
+		{
+			const TArray<FName> TwoIds = {PaidPack->Choices[0].ItemId, PaidPack->Choices[1].ItemId};
+			FReEchoShopPurchaseOutcome Claim = Run->ClaimPaidShopCardChoices(TwoIds);
+			Report += FString::Printf(TEXT("SHOP_CLAIM2=%d RESULT=%d DETAIL=%s\n"),
+			                          Claim.IsSuccess() ? 1 : 0, (int32)Claim.Result, *Claim.Detail);
+		}
+	}
+
+	// ---- Free choice two-card grant (ApplyTraitCards) ----
+	{
+		UGameInstance* GameInstance = NewObject<UGameInstance>();
+		UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+		Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+		Run->EncounterIndex = 2;
+		Run->Phase = EReEchoRunPhase::CardChoice;
+		const TArray<FReEchoTraitCardOffer> Offers = Run->GenerateTraitCardOffers(3);
+		Report += FString::Printf(TEXT("FREE_OFFERS=%d SELECTABLE=%d\n"),
+		                          Offers.Num(), Run->GetPendingTraitCardSelectableCount());
+		if (Offers.Num() >= 2)
+		{
+			const bool b = Run->ApplyTraitCards({Offers[0].CardId, Offers[1].CardId});
+			Report += FString::Printf(TEXT("FREE_APPLY2=%d PHASE=%d\n"), b ? 1 : 0, (int32)Run->Phase);
+		}
+	}
+
+	FFileHelper::SaveStringToFile(Report, TEXT("c:/Users/Cadmanwwang/Desktop/Echo/bug3_probe.txt"));
+	return true;
+}
+
+// --- Regression: a cadence ability's extra shop pick must be claimable. ---
+// The choice UI requires GetPaidShopCardPackSelectableCount() picks, read from the runtime pack state,
+// while the claim validators compare the submitted ids against the shop VIEW's SelectableCardCount. The
+// view never carried the runtime count and stayed at its default of 1, so a Sage 3-choose-2 pack rejected
+// every confirmation with "The paid card pack requires an exact number of choices": the player picked two
+// cards, the confirm button stayed live, and nothing ever happened.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopCadencePackClaimTest,
+                                 "ReEcho.Shop.CadencePackClaim",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopCadencePackClaimTest::RunTest(const FString&)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	Run->EncounterIndex = 4;
+	Run->TimeShards = 1000;
+	const int32 CadenceTier = 2;
+	const FReEchoShopPurchaseOutcome Purchase = Run->PurchaseShopCardPackDetailed(CadenceTier);
+	if (!TestTrue(*FString::Printf(TEXT("Tier-%d card pack purchase succeeds (detail=%s)"),
+	                               CadenceTier,
+	                               *Purchase.Detail),
+	              Purchase.IsSuccess()))
+	{
+		return false;
+	}
+	// Drive the paid pack into its cadence shape directly. Payment resolves this from
+	// ResolvePackSelectableCardCount(), which needs run state this fixture cannot seed reliably; the
+	// regression under test is only that the shop view mirrors whatever the runtime pack ends up holding.
+	bool bForcedTwoPicks = false;
+	for (FReEchoShopCardPackRuntimeState& Pack : Run->CurrentBuild.CardState.Runtime.ShopCardPackStates)
+	{
+		if (Pack.Tier == CadenceTier && Pack.bPaymentCommitted)
+		{
+			Pack.SelectableCardCount = 2;
+			Pack.PicksRemaining = 2;
+			bForcedTwoPicks = true;
+		}
+	}
+	if (!TestTrue(TEXT("The paid tier-two pack is ready for two picks"), bForcedTwoPicks))
+	{
+		return false;
+	}
+	TestEqual(TEXT("The pack runtime requires two picks"), Run->GetPaidShopCardPackSelectableCount(), 2);
+
+	const FReEchoWeaponPartShopView PaidView = Run->GetWeaponPartShopView();
+	const FReEchoShopCardPackOffer* PaidPack = PaidView.CardPackOffers.FindByPredicate(
+	    [CadenceTier](const FReEchoShopCardPackOffer& Pack)
+	    {
+		    return Pack.Tier == CadenceTier && Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+	    });
+	if (!TestNotNull(TEXT("The paid cadence pack is pending a choice"), PaidPack))
+	{
+		return false;
+	}
+	// The regression guard: if the view falls back to its default of 1 the two-pick claim is rejected outright.
+	TestEqual(TEXT("The shop view pick count mirrors the runtime pick count"),
+	          PaidPack->SelectableCardCount,
+	          Run->GetPaidShopCardPackSelectableCount());
+	if (!TestTrue(TEXT("The cadence pack offers at least two choices"), PaidPack->Choices.Num() >= 2))
+	{
+		return false;
+	}
+	const TArray<FName> TwoIds = {PaidPack->Choices[0].ItemId, PaidPack->Choices[1].ItemId};
+	const FReEchoShopPurchaseOutcome Claim = Run->ClaimPaidShopCardChoices(TwoIds);
+	TestTrue(*FString::Printf(TEXT("The two-card claim succeeds (detail=%s)"), *Claim.Detail),
+	         Claim.IsSuccess());
 	return true;
 }
 
