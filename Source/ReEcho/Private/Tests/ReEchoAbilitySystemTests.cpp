@@ -227,4 +227,49 @@ bool FReEchoGasDeathAndTagsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTransientAttackSpeedStackParityTest,
+                                 "ReEcho.GAS.TransientAttackSpeedStackParity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTransientAttackSpeedStackParityTest::RunTest(const FString& Parameters)
+{
+	// Regression guard: the player binds an ability system while Echoes do not, so a transient stat stack
+	// must be owned by exactly one backend. Writing the fallback delta on top of a live Gameplay Effect
+	// double counted it on grant, and expiry removed the effect first - restoring Stats from the attribute -
+	// then subtracted the same delta again, draining player attack speed below base on every single expiry.
+	FReEchoGasFixture GasFixture;
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.AttackSpeed = 1.0f;
+	Stats.MovementSpeed = 1.0f;
+	GasFixture.Combatant->InitializeFromStats(Stats, true);
+
+	AActor* EchoOwner = GasFixture.World->SpawnActor<AActor>();
+	UReEchoCombatantComponent* Echo = NewObject<UReEchoCombatantComponent>(EchoOwner, TEXT("TestEchoCombatant"));
+	Echo->RegisterComponent();
+	Echo->InitializeFromStats(Stats, true);
+
+	const FName StackSource(TEXT("Test.AttackSpeedRune"));
+	const float BonusFraction = 0.10f;
+	const float DurationSeconds = 10.0f;
+	const int32 MaxStacks = 8;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		GasFixture.Combatant->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+		Echo->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+	}
+
+	TestTrue(TEXT("Ability-system owner gains attack speed"), GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Echo gains attack speed"), Echo->Stats.AttackSpeed > 1.0f);
+
+	GasFixture.Combatant->AdvanceTimedRuneEffectsForTests(1000.0f);
+	Echo->AdvanceTimedRuneEffectsForTests(1000.0f);
+
+	TestEqual(TEXT("Ability-system owner returns to base attack speed"), GasFixture.Combatant->Stats.AttackSpeed, 1.0f, 0.001f);
+	TestEqual(TEXT("Echo returns to base attack speed"), Echo->Stats.AttackSpeed, 1.0f, 0.001f);
+	TestEqual(TEXT("Ability-system owner clears transient stacks"), GasFixture.Combatant->GetTransientStatStackCount(StackSource), 0);
+	TestEqual(TEXT("Echo clears transient stacks"), Echo->GetTransientStatStackCount(StackSource), 0);
+	return true;
+}
+
 #endif
