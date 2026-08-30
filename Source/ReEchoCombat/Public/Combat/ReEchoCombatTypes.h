@@ -151,6 +151,9 @@ struct REECHOCOMBAT_API FReEchoStatBlock
 {
 	GENERATED_BODY()
 
+	/** 攻击速度倍率硬上限 = 300%（即 3.0 倍基础攻速）。角色与回响统一适用。 */
+	static constexpr float MaxAttackSpeedMultiplier = 3.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float HpPoint = 15.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float HpMax = 100.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float PhysicalAttack = 10.f;
