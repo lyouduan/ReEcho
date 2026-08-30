@@ -7,7 +7,7 @@
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 人工验收：`PendingFollowUp`（用户已明确授权发布；本轮未提供 PIE 观察结果，发布后继续接受人工回归反馈）。
 - 本地规划 / 实现基线：`origin/main@3f82fd2d3c5dd02f83dd145be991dabd21e25621`。
 - 本地实现方式（可选，仅作交接说明）：独立工作树 `ReEcho-plan153`、分支 `plan/153-martyr-echo-boss-loop`，实现基线为已发布本 Plan 的 `4eb46ce8`。
 - 依赖 / 阻塞：产品语义已由用户锁定，无待确认项；实现前需审计最新 main 是否又修改 Echo 死亡、卡牌规则快照或 Recording 回放游标。
@@ -117,6 +117,9 @@
 - `ReEcho.Cards.Echo.TauntEchoRetiresOnDefeat`：通过；显式退场规则、禁攻、嘲讽和既有击杀奖励语义均成立。
 - `ReEcho.Echo.Lifecycle`、`ReEcho.Encounter`、`ReEcho.Run.EchoReplayResolver`：通过；后者 3/3 成功，退出码 0。
 - FullRebuild 后重新运行 `ReEcho.Recording`、殉身 Cards 聚焦测试、`ReEcho.Echo.Lifecycle`、`ReEcho.Encounter` 和 `ReEcho.Run.EchoReplayResolver`，5 个测试进程均 `TEST COMPLETE. EXIT CODE: 0`。
+- 发布整合取得 `main-publish-lock` 后合入 `origin/main@b2bca7e79e579e5ec740df402e81bbe701168fa2`：远端 Plan154/商店提示热区改动与 Plan153 无源码或逻辑冲突；GameMode/模块文档自动组合，只有精选预构建包发生预期冲突并在最终组合源码上重新生成。
+- 最终组合再次执行 `-FullRebuild`：95 个动作完成，7 模块 Editor 包刷新成功；随后 Plan153 Recording/Cards/Echo 生命周期、Encounter 与 EchoReplayResolver 聚焦测试全部通过。
+- 额外运行远端新合入的 `ReEcho.UI.Shop` 时，既有 `AuthoredLayoutHosts` 在“刷新按钮美术”断言失败；已在独立干净 `origin/main@b2bca7e7` 工作树复现同一失败，确认不是 Plan153 或本次整合引入，故按基线例外记录且不在本 Plan 越界修改 UI。
 - 完整 `ReEcho.Cards` 仍命中实现前已存在的 `ReEcho.Cards.Grant.GrantAllTierOneAddsEveryEnabledCard` 基线失败；Plan153 新增的 Cards 聚焦测试独立通过，未在本任务越界修改卡牌目录基线问题。
 
 ### 剩余风险
@@ -126,7 +129,7 @@
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：请打开 `ReEcho-plan153/ReEcho.uproject`，验证殉身回响死亡立即消失且只奖励一次，并在 Boss 战观察 30 秒、60 秒边界是否从头重新走位/释放录制技能。
+- `PendingFollowUp`：用户于 2026-08-30 明确要求按规则发布并合入远端主分支，但本轮未报告 PIE 观察结果。发布后仍需验证殉身回响死亡立即消失且只奖励一次，并在 Boss 战观察 30 秒、60 秒边界是否从头重新走位/释放录制技能；若失败按新复现证据继续修复。
 
 ### 架构文档审阅结果
 
