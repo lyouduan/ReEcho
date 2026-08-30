@@ -256,6 +256,6 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **目标 / Acceptance**：结算界面继续暂停当前 World；只有点击「重新开始」时才删除当前存档并完整重载当前关卡。新 World 必须直接进入角色/武器选择，普通启动仍进入主菜单；跨 World 启动意图只能消费一次，旧局 Actor、计时器和弹道不得进入新局。
 - **改动 / Changes**：UI Flow Coordinator 以 GameInstance 生命周期保存一次性 Loadout 旅行意图；终局重开在 `OpenLevel` 前写入意图并恢复跨 World 复活音频队列。新 GameMode 的 `StartPlay()` 消费意图后选择 Loadout，否则保持主菜单路径。删除 #12 的就地 `ClearCombatants` 和本 GameMode 标志复位。
 - **影响面 / Impact**：`MOD-ReEcho / AREA-UI / AREA-Encounter`；不改变结算内容、存档格式、角色/武器选择、普通启动、退出到主菜单或遭遇内局间连续性。
-- **验证 / Verification**：实现完成后的 Development Editor `-FullRebuild` 98/98 通过；撤回两处无关排版后，本地验收候选再以增量构建 4/4 通过并刷新 7 个精选预构建模块（源码指纹 `45e60d073bfa`）。`ReEcho.UIFlow.TerminalRestartTravelRoute` 找到 1 项并以 `Result={Success}` 完成。取得发布锁后已合入 `origin/main@4b6c57d3`；传入的 Boss 控制免疫和暴击伤害数字与启动/重开链路无逻辑冲突，最终组合门禁待本轮重跑。
+- **验证 / Verification**：实现完成后的 Development Editor `-FullRebuild` 98/98 通过；撤回两处无关排版后，本地验收候选再以增量构建 4/4 通过。取得发布锁并合入 `origin/main@4b6c57d3` 后，最终组合候选完成 Development Editor `-FullRebuild`（95/95），刷新 7 个精选预构建模块（源码指纹 `0e7fa61eefdb`）。`ReEcho.UIFlow.TerminalRestartTravelRoute` 找到 1 项并以 `Result={Success}` 完成；`validate_project.py`、LFS checkout/status/fsck 与 `git diff --check` 均通过。传入的 Boss 控制免疫和暴击伤害数字与启动/重开链路无逻辑冲突。
 - **文档审阅 / Documentation review**：`MOD-ReEcho` 同步终局重载与一次性 UI 旅行路由；`ARCHITECTURE.md`、`CODEBASE_MAP/README.md` 无模块拓扑或稳定标识变化，已审阅、无需修改。
-- **状态 / Status**：InProgress。用户已完成人工验收并授权发布，等待最终组合门禁。
+- **状态 / Status**：Closed。用户已完成人工验收并授权发布，最终组合门禁已通过。
