@@ -22,7 +22,7 @@ DESTINATION_ROOT = "/Game/ReEcho/Fonts/DamageNumbers"
 FONT_PATH = f"{DESTINATION_ROOT}/F_DamageNumber_MFYuYue_Font"
 LEGACY_FONT_FACE_PATH = f"{DESTINATION_ROOT}/F_DamageNumber_MFYuYue"
 FONT_FAMILY_NAME = "MFYuYueNoncommercial"
-DAMAGE_CHARACTERS = "0123456789"
+DAMAGE_CHARACTERS = "0123456789_"
 REIMPORT_EXISTING = (
     "-ReimportDamageNumberFont" in unreal.SystemLibrary.get_command_line()
 )

@@ -2,8 +2,8 @@ Id,DisplayName,Description,BaseAttackPatternId,SlotProfileId,BaseIntervalSeconds
 LongSword,长剑,"挥剑攻击正面的所有敌人，造成较多伤害，攻击范围较远
 ——剑锋交错往复，以沉稳的力量扫清前路。",Pattern.LongSwordCombo,SP_LONGSWORD,1,400,180,0,0,0,0.8,true,武器体系W,2,
 Scythe,镰刀,"挥动镰刀，攻击身边所有的敌人，造成中等伤害，攻击范围较近
-——镰刃环身而舞，弧光舒展之处，锋芒正盛。",Pattern.ScytheSweep,SP_SCYTHE,0.7,250,360,0,0,0,0,true,武器体系W,3,
+——镰刃环身而舞，弧光舒展之处，锋芒正盛。",Pattern.ScytheSweep,SP_SCYTHE,0.8,350,360,0,0,0,0,true,武器体系W,3,
 Bow,弓,"射速较慢，但单发伤害较高
-——弦响虽迟，离弦之箭却足以贯穿远方的噩梦。",Pattern.BowShot,SP_BOW,1,1000,0,1,0,0,0,true,武器体系W,4,
+——弦响虽迟，离弦之箭却足以贯穿远方的噩梦。",Pattern.BowShot,SP_BOW,0.8,1000,0,1,0,0,0,true,武器体系W,4,
 Gun,枪,"射速较快，但单发伤害较低
 ——枪火追逐倒流的刻度，以疾风骤雨撕碎漫漫长夜。",Pattern.GunShot,SP_GUN,0.4,1500,0,1,0,0,0,true,武器体系W,5,

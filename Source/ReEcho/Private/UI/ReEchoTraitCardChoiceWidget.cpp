@@ -103,6 +103,7 @@ void UReEchoTraitCardChoiceWidget::NativeConstruct()
 	SetIsFocusable(true);
 	SetVisibility(ESlateVisibility::Visible);
 	BuildWidgetTree();
+	EnsureConfirmButton();
 	EnsureShopCancelButton();
 	BuildCardEntries();
 
@@ -292,6 +293,7 @@ void UReEchoTraitCardChoiceWidget::RestoreChoiceFailure(const int32 InTimeShards
 {
 	CurrentTimeShards = InTimeShards;
 	SelectedOfferIndex = INDEX_NONE;
+	SelectedOfferIndices.Reset();
 	bRevealComplete = true;
 	RefreshOffers();
 }
@@ -350,6 +352,31 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 
 	TraitCardContainer = RootCanvas;
 	RefreshOffers();
+}
+
+void UReEchoTraitCardChoiceWidget::EnsureConfirmButton()
+{
+	if (!WidgetTree || ConfirmButton)
+	{
+		return;
+	}
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return;
+	}
+	ConfirmButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("TraitCardChoiceConfirmButton"));
+	ConfirmButton->SetBackgroundColor(FLinearColor(0.20f, 0.14f, 0.05f, 0.96f));
+	UTextBlock* Label =
+	    CreateCenteredText(WidgetTree, TEXT("TraitCardChoiceConfirmText"), 24, FLinearColor(0.96f, 0.87f, 0.62f));
+	Label->SetText(NSLOCTEXT("ReEcho", "TraitCardChoiceConfirm", "确认选择"));
+	ConfirmButton->SetContent(Label);
+	UCanvasPanelSlot* ConfirmSlot = RootCanvas->AddChildToCanvas(ConfirmButton);
+	ConfirmSlot->SetAnchors(FAnchors(0.5f, 0.92f));
+	ConfirmSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+	ConfirmSlot->SetSize(FVector2D(220.0f, 64.0f));
+	ConfirmSlot->SetZOrder(20);
+	ConfirmButton->OnClicked.AddUniqueDynamic(this, &UReEchoTraitCardChoiceWidget::HandleConfirmClicked);
 }
 
 void UReEchoTraitCardChoiceWidget::EnsureShopCancelButton()
@@ -547,18 +574,31 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
 	if (TitleText)
 	{
-		TitleText->SetText(bShopMode ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择1张{0}构筑卡牌"),
-		                                             FText::FromString(ShopTier == 1   ? TEXT("一级")
-		                                                               : ShopTier == 2 ? TEXT("二级")
-		                                                                               : TEXT("三级")))
-		                             : NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择1张构筑卡牌"));
+		const FText PickCount = FText::AsNumber(SelectableCount);
+		TitleText->SetText(
+		    SelectableCount > 1
+		        ? FText::Format(NSLOCTEXT("ReEcho",
+		                                  "CardChoiceCadenceTitle",
+		                                  "从破碎的刻度中，你读出了更多的可能...本次可以选择{0}张！"),
+		                        PickCount)
+		        : (bShopMode ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择{0}张{1}构筑卡牌"),
+		                                     PickCount,
+		                                     FText::FromString(ShopTier == 1   ? TEXT("一级")
+		                                                       : ShopTier == 2 ? TEXT("二级")
+		                                                                       : TEXT("三级")))
+		                     : FText::Format(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择{0}张构筑卡牌"), PickCount)));
 	}
 	if (SubtitleText)
 	{
+		// The cadence flavour line now lives in the title, so keep the subtitle a short actionable hint
+		// instead of rendering the same sentence twice.
 		SubtitleText->SetText(
-		    bShopMode
-		        ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "卡牌组已付款；选择1张卡牌完成领取")
-		        : NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具"));
+		    SelectableCount > 1
+		        ? FText::Format(NSLOCTEXT("ReEcho", "CardChoiceCadenceHint", "请选满 {0} 张后点击确认"),
+		                        FText::AsNumber(SelectableCount))
+		        : (bShopMode
+		               ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "卡牌组已付款；选择1张卡牌完成领取")
+		               : NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具")));
 	}
 	if (CurrencyText)
 	{
@@ -621,23 +661,84 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 		                                            Offer.RefreshCost <= CurrentTimeShards);
 	}
 	RefreshSelectionVisuals();
+	ApplyTitleLayout();
+}
+
+/** Vertical breathing room between the pick hint and the top of the tallest card frame. */
+static constexpr float TraitChoiceTitleCardGap = 26.0f;
+
+void UReEchoTraitCardChoiceWidget::ApplyTitleLayout()
+{
+	if (!TitleText)
+	{
+		return;
+	}
+	// The card frames are the runtime layout authority. Park the pick hint just above their top edge so it
+	// can never sit on top of the page chrome the designer laid out further up the canvas.
+	float CardTopY = TNumericLimits<float>::Max();
+	for (const TObjectPtr<USizeBox>& CardPanel : CardPanels)
+	{
+		const UCanvasPanelSlot* CardSlot = CardPanel ? Cast<UCanvasPanelSlot>(CardPanel->Slot) : nullptr;
+		if (!CardSlot)
+		{
+			continue;
+		}
+		CardTopY =
+		    FMath::Min(CardTopY, CardSlot->GetPosition().Y - CardSlot->GetSize().Y * CardSlot->GetAlignment().Y);
+	}
+	if (!FMath::IsFinite(CardTopY))
+	{
+		return;
+	}
+	UCanvasPanelSlot* TitleSlot = Cast<UCanvasPanelSlot>(TitleText->Slot);
+	if (!TitleSlot)
+	{
+		// The authored layout may keep the hint inside a header container. Move that container instead so
+		// the fallback layout and any designer grouping are both covered.
+		UWidget* Ancestor = TitleText->GetParent();
+		while (Ancestor && !TitleSlot)
+		{
+			TitleSlot = Cast<UCanvasPanelSlot>(Ancestor->Slot);
+			Ancestor = Ancestor->GetParent();
+		}
+	}
+	if (!TitleSlot)
+	{
+		return;
+	}
+	const FVector2D TitleSize = TitleSlot->GetSize();
+	// Keep the designer's X placement; only move the hint vertically so its bottom edge clears the cards.
+	const float TitleBottomY = CardTopY - TraitChoiceTitleCardGap;
+	TitleSlot->SetPosition(
+	    FVector2D(TitleSlot->GetPosition().X, TitleBottomY - TitleSize.Y * (1.0f - TitleSlot->GetAlignment().Y)));
 }
 
 void UReEchoTraitCardChoiceWidget::RefreshSelectionVisuals()
 {
-	const bool bHasSelection = Offers.IsValidIndex(SelectedOfferIndex);
+	const bool bHasSelection = !SelectedOfferIndices.IsEmpty();
 	for (int32 CardIndex = 0; CardIndex < CardEntries.Num(); ++CardIndex)
 	{
-		CardEntries[CardIndex]->SetSelectedVisual(CardIndex == SelectedOfferIndex, bHasSelection);
+		CardEntries[CardIndex]->SetSelectedVisual(SelectedOfferIndices.Contains(CardIndex), bHasSelection);
 	}
 	for (int32 CardIndex = 0; CardIndex < CardButtons.Num(); ++CardIndex)
 	{
-		CardButtons[CardIndex]->SetRenderOpacity(!bHasSelection || CardIndex == SelectedOfferIndex ? 1.0f : 0.38f);
+		CardButtons[CardIndex]->SetRenderOpacity(
+		    !bHasSelection || SelectedOfferIndices.Contains(CardIndex) ? 1.0f : 0.38f);
 	}
 	if (ConfirmButton)
 	{
-		ConfirmButton->SetIsEnabled(bRevealComplete && bHasSelection && CanSelectOffer(SelectedOfferIndex));
-		ConfirmButton->SetRenderOpacity(bHasSelection ? 1.0f : 0.48f);
+		bool bAllSelectable = true;
+		for (const int32 OfferIndex : SelectedOfferIndices)
+		{
+			if (!CanSelectOffer(OfferIndex))
+			{
+				bAllSelectable = false;
+			}
+		}
+		// 智者双选必须恰好选满两张后才能确认，避免少选直接结算。
+		const bool bCanConfirm = bRevealComplete && SelectedOfferIndices.Num() == SelectableCount && bAllSelectable;
+		ConfirmButton->SetIsEnabled(bCanConfirm);
+		ConfirmButton->SetRenderOpacity(bCanConfirm ? 1.0f : 0.48f);
 	}
 }
 
@@ -646,6 +747,7 @@ void UReEchoTraitCardChoiceWidget::ResetRevealAnimation()
 	RevealElapsed = 0.0f;
 	bRevealComplete = false;
 	SelectedOfferIndex = INDEX_NONE;
+	SelectedOfferIndices.Reset();
 	RevealingCardIndex = INDEX_NONE;
 	for (int32 CardIndex = 0; CardIndex < CardPanels.Num(); ++CardIndex)
 	{
@@ -737,15 +839,88 @@ void UReEchoTraitCardChoiceWidget::HandleCardClicked(const int32 OfferIndex)
 		return;
 	}
 
-	// The code-only fallback has no confirmation control, so preserve its one-click behavior.
+	// Every supported layout must expose an explicit confirmation control.
 	if (!ConfirmButton)
 	{
-		SelectOffer(OfferIndex);
 		return;
 	}
 
+	// Cadence packs only collect selections here. The player may click a selected card again to cancel it;
+	// after exactly the required number is selected, the dedicated confirmation button performs the grant.
+	if (SelectableCount > 1)
+	{
+		if (SelectedOfferIndices.Contains(OfferIndex))
+		{
+			SelectedOfferIndices.Remove(OfferIndex);
+		}
+		else if (SelectedOfferIndices.Num() < SelectableCount)
+		{
+			SelectedOfferIndices.Add(OfferIndex);
+		}
+		SelectedOfferIndex = SelectedOfferIndices.IsEmpty() ? INDEX_NONE : SelectedOfferIndices[0];
+		RefreshSelectionVisuals();
+		return;
+	}
+
+	SelectedOfferIndices.Reset();
+	SelectedOfferIndices.Add(OfferIndex);
 	SelectedOfferIndex = OfferIndex;
 	RefreshSelectionVisuals();
+}
+
+void UReEchoTraitCardChoiceWidget::CommitSelectedChoices()
+{
+	// Shop packs identify cards by ItemId, the free post-encounter pack by CardId.
+	TArray<FName> CardIds;
+	for (const int32 OfferIndex : SelectedOfferIndices)
+	{
+		if (bShopMode)
+		{
+			if (ShopOffers.IsValidIndex(OfferIndex))
+			{
+				CardIds.Add(ShopOffers[OfferIndex].ItemId);
+			}
+		}
+		else if (Offers.IsValidIndex(OfferIndex))
+		{
+			CardIds.Add(Offers[OfferIndex].CardId);
+		}
+	}
+	if (CardIds.Num() != SelectableCount)
+	{
+		return;
+	}
+	bRevealComplete = false;
+	for (UButton* CardButton : CardButtons)
+	{
+		CardButton->SetIsEnabled(false);
+	}
+	for (UReEchoTraitCardEntryWidget* CardEntry : CardEntries)
+	{
+		CardEntry->SetSelectionEnabled(false);
+	}
+	if (CardIds.Num() > 1)
+	{
+		if (bShopMode)
+		{
+			OnShopCardChoicesSelected.Broadcast(CardIds);
+		}
+		else
+		{
+			OnCardChoicesSelected.Broadcast(CardIds);
+		}
+	}
+	else
+	{
+		if (bShopMode)
+		{
+			OnShopCardSelected.Broadcast(CardIds[0]);
+		}
+		else
+		{
+			OnCardSelected.Broadcast(CardIds[0]);
+		}
+	}
 }
 
 void UReEchoTraitCardChoiceWidget::HandleCardRefreshClicked(const int32 OfferIndex)
@@ -778,7 +953,24 @@ void UReEchoTraitCardChoiceWidget::HandleCardRefreshClicked(const int32 OfferInd
 
 void UReEchoTraitCardChoiceWidget::HandleConfirmClicked()
 {
-	SelectOffer(SelectedOfferIndex);
+	if (!bRevealComplete || SelectedOfferIndices.Num() != SelectableCount)
+	{
+		UE_LOG(LogTemp,
+		       Warning,
+		       TEXT("[CardChoice] Confirm ignored: reveal=%d picks=%d required=%d"),
+		       bRevealComplete ? 1 : 0,
+		       SelectedOfferIndices.Num(),
+		       SelectableCount);
+		return;
+	}
+	CommitSelectedChoices();
+}
+
+void UReEchoTraitCardChoiceWidget::SetSelectableCount(const int32 InSelectableCount)
+{
+	SelectableCount = FMath::Max(1, InSelectableCount);
+	SelectedOfferIndices.Reset();
+	SelectedOfferIndex = INDEX_NONE;
 }
 
 void UReEchoTraitCardChoiceWidget::HandleShopCancelClicked()

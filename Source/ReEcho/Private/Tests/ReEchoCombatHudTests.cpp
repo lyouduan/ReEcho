@@ -353,6 +353,29 @@ bool FReEchoCombatHudFormattingTest::RunTest(const FString& Parameters)
 			TestNotNull(*ProfileOwnsIconWhat, Profile->MinimapIcon.Get());
 		}
 	}
+
+	// 暴击跳字：CriticalMultiplier 字段契约（透传链 Intent -> Resolved -> Event）。
+	FReEchoHitIntent CriticalIntent;
+	CriticalIntent.bCritical = true;
+	CriticalIntent.CriticalMultiplier = 1.5f;
+	FReEchoHitResolved CriticalResolved;
+	CriticalResolved.bCritical = CriticalIntent.bCritical;
+	CriticalResolved.CriticalMultiplier = CriticalIntent.CriticalMultiplier;
+	FReEchoDamageEvent CriticalEvent;
+	CriticalEvent.bCritical = CriticalResolved.bCritical;
+	CriticalEvent.CriticalMultiplier = CriticalResolved.CriticalMultiplier;
+	TestTrue(TEXT("Crit damage event preserves bCritical"), CriticalEvent.bCritical);
+	TestEqual(TEXT("Crit damage event carries CriticalMultiplier"), CriticalEvent.CriticalMultiplier, 1.5f);
+
+	FReEchoDamageEvent OrdinaryEvent;
+	TestFalse(TEXT("Non-crit damage event is not critical"), OrdinaryEvent.bCritical);
+	TestEqual(TEXT("Non-crit damage event defaults CriticalMultiplier to 1.0"), OrdinaryEvent.CriticalMultiplier, 1.0f);
+
+	// 暴击跳字字号随倍率缩放：基准 52 × (1 + 暴击高出比例)。
+	const float BaseWorldSize = 52.0f;
+	TestEqual(TEXT("Crit damage number world size scales with multiplier"),
+	          BaseWorldSize * CriticalEvent.CriticalMultiplier,
+	          BaseWorldSize * 1.5f);
 	return true;
 }
 

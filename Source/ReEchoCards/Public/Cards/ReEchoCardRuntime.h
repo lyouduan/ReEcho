@@ -40,7 +40,8 @@ REECHOCARDS_API FReEchoCardOutgoingHitResult ModifyOutgoingHit(const FReEchoCard
 REECHOCARDS_API FReEchoCardIncomingHitResult ModifyIncomingHit(const FReEchoCardCatalog& Catalog,
                                                                const FReEchoCardBuildState& State,
                                                                float RawDamage,
-                                                               int32 TimeShards);
+                                                               int32 TimeShards,
+                                                               const FName AttackerDefinitionId = NAME_None);
 REECHOCARDS_API FReEchoCardEventResult OnReaction(const FReEchoCardCatalog& Catalog,
                                                   const FReEchoCardBuildState& State,
                                                   const FReEchoStatBlock& Stats,

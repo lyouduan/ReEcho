@@ -704,6 +704,14 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	PurchasedCard.IconTexturePath =
 	    TEXT("/Game/ReEcho/Textures/UI/Cards/Icon/T_UI_CardIcon_G_1_01.T_UI_CardIcon_G_1_01");
 	PartShopView.RunItemOffers.Add(PurchasedCard);
+	Widget->SetWeaponPartShopView(PartShopView, TEXT("J_HEART"));
+	UImage* CharacterCardArt = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerCardSlotArt0")));
+	UTexture2D* ExpectedCharacterCardIcon = LoadObject<UTexture2D>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/Textures/UI/IconCatalog/Characters/T_UI_CharacterIcon_J_HEART.T_UI_CharacterIcon_J_HEART"));
+	TestTrue(TEXT("Authored shop projects the explicit character passive card first"),
+	         CharacterCardArt && ExpectedCharacterCardIcon &&
+	             CharacterCardArt->GetBrush().GetResourceObject() == ExpectedCharacterCardIcon);
 	Widget->SetWeaponPartShopView(PartShopView);
 	UImage* DesignerClock = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerShopClock")));
 	UCanvasPanelSlot* DesignerClockSlot = DesignerClock ? Cast<UCanvasPanelSlot>(DesignerClock->Slot) : nullptr;

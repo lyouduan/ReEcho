@@ -14,6 +14,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoSta
 
 struct FReEchoCsvDataSnapshot;
 struct FReEchoCsvCardRow;
+struct FReEchoCardBuildState;
 
 USTRUCT(BlueprintType)
 struct REECHO_API FReEchoSaveSlotSummary
@@ -96,6 +97,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TSet<FName> OwnedWeaponIds;
 
+	/**
+	 * Copies of each rune currently held (backpack + equipped). OwnedPartIds is a de-duplicated ownership
+	 * set, so repeated purchases of the same rune are counted here to drive I->II->III synthesis.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TMap<FName, int32> RuneAcquisitionCounts;
+
+	/** Runes already bought from the current shop page; their slots stay sold until the page regenerates. */
+	TSet<FName> PurchasedWeaponPartOfferIds;
+
 	UFUNCTION(BlueprintCallable)
 	void StartRun(FName CharacterId, FName WeaponId);
 
@@ -115,6 +126,22 @@ public:
 	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在 OwnedPartIds（回落背包）。
 	 */
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
+	/**
+	 * Equips a part into a specific occurrence of its slot type. Dual weapon slots render two independent
+	 * slots of the same type, so switching one slot must replace only that occurrence and leave the other
+	 * untouched (TryEquipPurchasedPart instead squeezes the oldest one, which visibly disturbs both slots).
+	 */
+	bool TryEquipPurchasedPartAt(FName PartId, int32 TargetOccurrenceIndex, FString& OutError);
+	/** Consumes redundant lower-tier runes per rune_upgrades.csv and synthesizes the next tier after a rune is acquired. */
+	void ProcessRuneSynthesis(const FReEchoCsvDataSnapshot& Snapshot);
+	/**
+	 * Rolls a fresh set of three cards for a tier pack. A tier configured with several purchases must behave
+	 * like several distinct packs, so each repeat purchase re-rolls instead of reusing the page's first roll.
+	 */
+	void ReRollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
+	                                  FReEchoCardBuildState& CardState,
+	                                  FReEchoShopCardPackRuntimeState& Pack,
+	                                  int32 Tier);
 	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
 	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
 	/** Read-only owned-card presentation shared by the shop and terminal result screens. */
@@ -123,6 +150,26 @@ public:
 	/** Cash minus Curse Bank debt; presentation-only and never used for purchase authority. */
 	int32 GetDisplayedTimeShardBalance() const;
 	TSharedPtr<const FReEchoCsvDataSnapshot> GetRunDataSnapshot() const;
+	/**
+	 * True for tier-I runes, which stay purchasable while already owned because repeat purchases are what
+	 * feed I->II->III synthesis. The shop must route these through the real purchase transaction instead
+	 * of the free "re-equip an owned part" shortcut.
+	 */
+	bool IsShopOfferRepeatPurchasable(FName ItemId) const;
+	/**
+	 * How many cards a pack of the given tier lets the player take. Cadence abilities (for example the Sage
+	 * taking two cards from every fourth non-tier-1 pack) raise this above 1. Evaluated before the choice
+	 * screen opens so the UI can require that many picks.
+	 */
+	int32 ResolvePackSelectableCardCount(int32 CardPackTier) const;
+	/** How many cards the pending post-encounter card pack lets the player take (1 normally, 2 on cadence). */
+	int32 GetPendingTraitCardSelectableCount() const { return PendingTraitCardSelectableCount; }
+	/** How many cards the shop pack waiting to be claimed lets the player take (1 normally, 2 on cadence). */
+	int32 GetPaidShopCardPackSelectableCount() const;
+	/** Applies several cards from the pending post-encounter pack at once (cadence ability: 3-choose-2). */
+	bool ApplyTraitCards(const TArray<FName>& CardIds);
+	/** Claims several cards from an already-paid shop pack at once (cadence ability: 3-choose-2). */
+	FReEchoShopPurchaseOutcome ClaimPaidShopCardChoices(const TArray<FName>& ItemIds);
 	int32 GetTotalEncounterCount() const;
 
 	UFUNCTION(BlueprintCallable)
@@ -149,6 +196,11 @@ public:
 	/** Replaces one post-encounter/free card choice in-place using the shared card-slot refresh rule. */
 	bool TryRefreshTraitCardSlot(int32 SlotIndex, FString& OutError);
 
+	/** Clears any in-flight free/bonus trait-card choice offers. Used by the GameMode gate so an orphaned
+	 *  trait-choice screen can never survive an encounter advance (which would leave the screen interactable
+	 *  while Phase != CardChoice, soft-locking refresh/confirm). */
+	void ResetPendingTraitCardChoice();
+
 	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM
 	 * 命令调用，Shipping 构建不暴露。 */
 	UFUNCTION(BlueprintCallable)
@@ -162,7 +214,7 @@ public:
 	                           float NearestEchoDistanceCm,
 	                           bool bHasLivingEcho,
 	                           bool bTargetHasElement);
-	float ModifyCardIncomingHit(float RawDamage);
+	float ModifyCardIncomingHit(float RawDamage, FName AttackerDefinitionId = NAME_None);
 	float NotifyCardReaction(FName ReactionId, bool bTriggeredByPlayer);
 	void NotifyCardReactionAffectedTargets(FName ReactionId, const TArray<int32>& AffectedSpawnIndices);
 	float GetCardReactionDamageMultiplier(FName ReactionId) const;
@@ -370,6 +422,10 @@ private:
 	FReEchoEncounterRuntimeState PendingEncounterResume;
 
 	TSharedPtr<const FReEchoCsvDataSnapshot> RunDataSnapshot;
+	/** Cards the pending post-encounter pack lets the player take; >1 when a cadence ability fires on it. */
+	int32 PendingTraitCardSelectableCount = 1;
+	/** Picks still owed by the pending post-encounter pack. The pack stays open until this reaches zero. */
+	int32 PendingTraitCardPicksRemaining = 1;
 	bool bPendingCardEchoRemoval = false;
 
 	void SetPhase(EReEchoRunPhase NewPhase);

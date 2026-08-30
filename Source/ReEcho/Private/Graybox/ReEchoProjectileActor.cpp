@@ -150,7 +150,7 @@ bool AReEchoProjectileActor::ConfigureWeaponNiagara(const FName InWeaponVisualKe
 		// Presentation failure must not change the logical projectile. Retain the element text and use the weapon's
 		// configured default Travel system when the dedicated asset is missing or unloadable.
 		Semantic = InWeaponVisualKey == TEXT("Bow") ? EReEchoCombatVfxSemantic::PlayerBowFlight
-		                                             : EReEchoCombatVfxSemantic::PlayerGunFlight;
+		                                            : EReEchoCombatVfxSemantic::PlayerGunFlight;
 		System = LoadObject<UNiagaraSystem>(nullptr, *FReEchoCombatVfxCatalog::ResolvePath(Semantic));
 		bElementSpecificFlight = false;
 	}
@@ -201,11 +201,7 @@ void AReEchoProjectileActor::HandleProjectileImpact(const FReEchoProjectileSnaps
 void AReEchoProjectileActor::SpawnWeaponImpactNiagara(const FVector& Location, const FVector& Direction)
 {
 	EReEchoCombatVfxSemantic Semantic;
-	if (WeaponVisualKey == TEXT("Bow"))
-	{
-		Semantic = EReEchoCombatVfxSemantic::PlayerBowImpact;
-	}
-	else
+	if (!FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(WeaponVisualKey, ExplosionRadiusCm, Semantic))
 	{
 		return;
 	}

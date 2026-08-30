@@ -26,6 +26,11 @@ DECLARE_MULTICAST_DELEGATE(FReEchoInventoryShopClosed);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopPurchaseRequested, FName);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoShopCardPackRequested, int32);
 DECLARE_MULTICAST_DELEGATE_OneParam(FReEchoWeaponEquipRequested, FName);
+/**
+ * Raised when the player picks an already-owned rune from the rune backpack popup. This is a pure
+ * re-equip intent and must never be routed through the purchase transaction.
+ */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoOwnedPartEquipRequested, FName, int32);
 DECLARE_MULTICAST_DELEGATE(FReEchoShopRefreshRequested);
 DECLARE_MULTICAST_DELEGATE(FReEchoEchoCommandRequested);
 
@@ -53,6 +58,7 @@ public:
 	FReEchoShopPurchaseRequested OnPurchaseRequested;
 	FReEchoShopCardPackRequested OnCardPackRequested;
 	FReEchoWeaponEquipRequested OnWeaponEquipRequested;
+	FReEchoOwnedPartEquipRequested OnOwnedPartEquipRequested;
 	FReEchoShopRefreshRequested OnRefreshRequested;
 
 	FReEchoEchoCommandRequested OnEchoStoreRequested;
@@ -61,7 +67,8 @@ public:
 
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
-	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView);
+	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView,
+	                          FName CharacterId = NAME_None);
 
 	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards,
@@ -121,6 +128,9 @@ private:
 	void RebuildTargetOfferRows();
 	void RefreshAuthoredOfferCards();
 	void RebuildOwnedCardSlots();
+	/** Silently injects the selected character's passive as a synthetic "character card" into the owned-card
+	 *  view so it shows in the right-side card panel; no grant popup, no RunSubsystem inventory mutation. */
+	void InjectCharacterPassiveCardIntoOwnedView();
 	void BindOwnedCardPagination();
 	void UpdateOwnedCardPaginationControls();
 	void RebuildAttachmentHoverSlots();
@@ -156,6 +166,8 @@ private:
 	UFUNCTION()
 	void HandleWeaponBackpackItemClicked(int32 ItemIndex);
 	UTexture2D* ResolveWeaponPartIcon(FName PartId) const;
+	/** Creates (or reuses) the roman-numeral tier badge layered over a weapon-rune offer icon. */
+	UTextBlock* EnsureRuneTierBadge(class UCanvasPanel* Card, class UImage* Icon, int32 Index);
 	UWidget* BuildSlotTooltip(const FReEchoShopOffer& Offer);
 	UWidget* BuildCardPackTooltip(const FReEchoShopCardPackOffer& Pack);
 	UWidget* BuildAttributePanel(const FReEchoStatBlock& Stats) const;
@@ -285,6 +297,11 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshText;
 
+	// Runtime overlay text drawn on top of the cleaned refresh-button texture
+	// (the baked-in "刷新" label was removed from the source PNG).
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> ShopRefreshCountText;
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRuleText;
 
@@ -327,6 +344,8 @@ private:
 	TArray<TObjectPtr<UCanvasPanel>> DesignerPartOfferCards;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UImage>> DesignerPartOfferIcons;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferTierBadges;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> DesignerPartOfferDescriptions;
 	UPROPERTY(Transient)
@@ -395,7 +414,11 @@ private:
 	TObjectPtr<UReEchoButtonVisualFeedback> DesignerCardPageRightVisualFeedback;
 
 	TArray<FReEchoShopOffer> DisplayedOwnedCards;
+	/** Stack count per entry in DisplayedOwnedCards; the same card obtained twice shows one icon with ×N. */
+	TArray<int32> DisplayedOwnedCardCounts;
 	int32 ActiveOwnedCardPage = 0;
+	/** Creates (or reuses) the ×N stack-count badge layered over an owned-card slot icon. */
+	UTextBlock* EnsureOwnedCardCountBadge(UWidget* Anchor, int32 Index);
 
 	// ---- echo storage popup (authored WBP presentation with C++ fallback) ----
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -437,6 +460,7 @@ private:
 	bool bCurrentExtraCardPurchaseAllowed = true;
 	int32 CurrentShopRefreshSequence = 0;
 	TArray<FName> CurrentOwnedItems;
+	FName CurrentShopCharacterId = NAME_None;
 	FReEchoWeaponPartShopView CurrentPartShopView;
 	TArray<FReEchoShopOffer> VisibleRunItemOffers;
 	TArray<FReEchoShopOffer> VisibleWeaponPartOffers;

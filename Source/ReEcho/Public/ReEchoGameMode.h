@@ -30,7 +30,6 @@ class UReEchoRestartWidget;
 class UReEchoSettingsWidget;
 class UReEchoStartMenuWidget;
 class UReEchoTraitCardChoiceWidget;
-class UReEchoStatsWidget;
 class UReEchoWeatherWidget;
 class UReEchoEnemyRosterComponent;
 class UReEcho2DPresentationCatalog;
@@ -57,7 +56,6 @@ public:
 	void TogglePauseMenu();
 	void ToggleInventoryMenu();
 	void ToggleShopMenu();
-	void ToggleStatsMenu();
 
 	/** Development-only console commands. Open the console with ~ and run GMHelp. */
 	UFUNCTION(Exec)
@@ -245,8 +243,6 @@ private:
 	TObjectPtr<UReEchoInventoryShopWidget> InventoryShopWidget;
 
 	UPROPERTY()
-	TObjectPtr<UReEchoStatsWidget> StatsWidget;
-	UPROPERTY()
 	TObjectPtr<UReEchoEncounterHudWidget> EncounterHudWidget;
 	UPROPERTY()
 	TObjectPtr<UReEchoEncounterTransitionWidget> EncounterTransitionWidget;
@@ -398,6 +394,12 @@ private:
 
 	UFUNCTION()
 	void HandleTraitCardSelected(FName CardId);
+	/** Confirms several cards at once from the post-encounter pack (cadence ability: 3-choose-2). */
+	UFUNCTION()
+	void HandleTraitCardsSelected(const TArray<FName>& CardIds);
+	/** Confirms several cards at once from a paid shop pack (cadence ability: 3-choose-2). */
+	UFUNCTION()
+	void HandleShopCardChoicesSelected(const TArray<FName>& ItemIds);
 	void HandleCardGrantCommitted(const FReEchoStatBlock& Stats, EReEchoHealthAdjustment HealthAdjustment);
 	UFUNCTION()
 	void HandleTraitCardRefreshRequested(int32 SlotIndex);
@@ -425,6 +427,8 @@ private:
 	void HandleShopCardChoiceCancelled();
 	void CloseShopCardChoice(bool bRestoreShopFocus);
 	void HandleShopWeaponEquipRequested(FName WeaponId);
+	/** Re-equips an already-owned rune picked from the rune backpack. Never charges shards. */
+	void HandleShopOwnedPartEquipRequested(FName PartId, int32 OccurrenceIndex);
 	void HandleShopRefreshRequested();
 	void RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem, EReEchoInventoryShopMode Mode);
 
@@ -440,11 +444,6 @@ private:
 	void ShowInventoryShopMenu(EReEchoInventoryShopMode Mode);
 	/** Opens the post-choice shop outside the card button's Slate input dispatch. */
 	void ShowPostTraitShop();
-
-	UFUNCTION()
-	void HandleStatsClosed();
-
-	void ShowStatsMenu();
 
 	/** 根据当前运行阶段清理旧对象并启动下一场遭遇。 */
 	void BeginNextEncounter();
@@ -502,6 +501,13 @@ private:
 	void HandleEnemyDeathShardDrop(const FReEchoDamageEvent& Event);
 	UFUNCTION()
 	void HandleCardElementReactionResolved(const FReEchoElementReactionResolvedEvent& Event);
+	/** Forwards combat facts into the independent run-stat tracker; never mutates gameplay state. */
+	UFUNCTION()
+	void HandleRunStatsEnemyHurt(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleRunStatsEnemyDeath(const FReEchoDamageEvent& Event);
+	UFUNCTION()
+	void HandleRunStatsElementReaction(const FReEchoElementReactionResolvedEvent& Event);
 	int32 GetTotalEncounterCount() const;
 	bool IsBossEncounter() const;
 	static bool ShouldCompleteBossEncounter(bool bBossSuccessfullySpawned, int32 LivingBossCount);
@@ -525,6 +531,9 @@ private:
 	void ShowSettingsScreen(bool bReturnToStartMenu);
 	void ShowAboutScreen(bool bReturnToStartMenu);
 	void ShowTraitCardChoice();
+	/** Closes any open trait-card choice screen, clears the Run's pending offer state, and restores menu input.
+	 *  Centralizes orphan-screen cleanup used by the encounter-advance gate and the graceful-degradation handlers. */
+	void CloseTraitCardChoiceScreen();
 	void ShowStartMenu();
 	void ShowLoadoutSelection();
 	void RequestBeginSelectedRun();

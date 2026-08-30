@@ -54,6 +54,16 @@ const FReEchoWeaponVfxSlot* ResolveWeaponSlot(const EReEchoCombatVfxSemantic Sem
 			VisualKey = TEXT("Gun");
 			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
 			break;
+		case EReEchoCombatVfxSemantic::PlayerProjectileImpact:
+			// Reuse the delivered Gun bullet spark for normal Bow and Gun projectile impacts.
+			VisualKey = TEXT("Gun");
+			SlotMember = &UReEchoWeaponPresentationProfile::AttackCommitted;
+			break;
+		case EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact:
+			// The delivered Bow boom is the shared ranged explosion impact asset.
+			VisualKey = TEXT("Bow");
+			SlotMember = &UReEchoWeaponPresentationProfile::DamageApplied;
+			break;
 		default:
 			return nullptr;
 	}
@@ -141,6 +151,10 @@ FString FReEchoCombatVfxCatalog::ResolvePath(const EReEchoCombatVfxSemantic Sema
 			return TEXT("/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Water_Fly.NS_People_Bullet_Water_Fly");
 		case EReEchoCombatVfxSemantic::PlayerGunMuzzle:
 			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::AttackCommitted);
+		case EReEchoCombatVfxSemantic::PlayerProjectileImpact:
+			return ResolveWeaponSlot(TEXT("Gun"), &UReEchoWeaponPresentationProfile::AttackCommitted);
+		case EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact:
+			return ResolveWeaponSlot(TEXT("Bow"), &UReEchoWeaponPresentationProfile::DamageApplied);
 		case EReEchoCombatVfxSemantic::EnemyHurt:
 			return TEXT("/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01.NS_Rabbit_BeAttacked_01");
 		case EReEchoCombatVfxSemantic::EchoWaterAura:
@@ -357,6 +371,19 @@ bool FReEchoCombatVfxCatalog::ResolveBowFlightSemantic(const EReEchoElement Elem
 		default:
 			return false;
 	}
+}
+
+bool FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(const FName WeaponVisualKey,
+                                                              const float ExplosionRadiusCm,
+                                                              EReEchoCombatVfxSemantic& OutSemantic)
+{
+	if (WeaponVisualKey != TEXT("Bow") && WeaponVisualKey != TEXT("Gun"))
+	{
+		return false;
+	}
+	OutSemantic = ExplosionRadiusCm > 0.0f ? EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact
+	                                       : EReEchoCombatVfxSemantic::PlayerProjectileImpact;
+	return true;
 }
 
 float FReEchoCombatVfxCatalog::ResolveMeleeSlashDelay(const EReEchoCombatVfxSemantic Semantic)

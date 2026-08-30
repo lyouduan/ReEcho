@@ -28,6 +28,10 @@
 - 在资源缺失时限频报警并安全降级；
 - 通过精确根清单、递归静态依赖和 SHA-256 manifest 复现美术资产导入。
 
+弓和枪的普通投射物命中复用 Gun Profile `AttackCommitted` 中的 Bullet Spark；只有最终编译投射物的
+`ExplosionRadiusCm > 0` 时才改用 Bow Profile 中现有的 Boom 作为共享爆炸命中特效。选择依据是本次投射物已快照化的
+最终玩法事实，而不是硬编码爆炸箭头或爆炸枪口的配件 ID；每颗投射物仍由表现 Actor 去重，只生成一次命中特效。
+
 **不负责：**
 
 - 攻击频率、前摇/恢复计时、伤害、碰撞、阵营、元素、死亡和投射物轨迹；
@@ -165,7 +169,7 @@ VFX 资产（`/Game/VFX/...` 下的 `NS_*`/`M_*`/`MI_*`/`T_*`/`BP_*`，以及 `/
 - 当前是主模块内领域；只有依赖和团队边界确实稳定、能避免循环时才考虑拆独立 Runtime Module。
 # 元素反应 Niagara
 
-`FReEchoElementReactionVfxCatalog` 是 Grass/Water 附着及六类反应的唯一语义资产映射，敌人体型只使用生产 Definition 的稳定 `PresentationId`。`UReEchoCombatVfxComponent` 管理可丢弃的持续附着组件，并按 Combat 提供的权威目标及 Conduct 发现边播放瞬时反应；正式根进入首场预加载。旧 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 三件套已经整体删除，不再保留文字、环形或点光源表现双轨。
+`FReEchoElementReactionVfxCatalog` 是六类元素反应的唯一语义资产映射，敌人体型只使用生产 Definition 的稳定 `PresentationId`。任何元素附着状态都不创建标记 Niagara；`UReEchoCombatVfxComponent` 只在 Combat 发布权威反应结果后，按其目标及 Conduct 发现边播放反应特效，正式根进入首场预加载。旧 `ElementAuraRing + ElementAttachmentLabel + ElementAuraLight` 三件套已经整体删除，不再保留文字、环形或点光源表现双轨。
 
 Development `GMReaction` 只调用 `UReEchoCombatVfxComponent` 的直接预览入口：六种语义均在最近存活敌人的 HurtVfxRoot 播放并按调试预览时限停止，不准备元素附着、不调用伤害/反应解析器，也不发布权威 Combat 事件。该入口不得被正式玩法调用。
 
@@ -173,7 +177,7 @@ Development `GMReaction` 只调用 `UReEchoCombatVfxComponent` 的直接预览�
 
 Plan148 在上述作者 Scale 之后增加可选攻击范围倍率：Combat 事件提供本次 Commit 的最终/基础范围比，Weapon Slot 只声明局部轴遮罩与表现钳制。长剑默认只扩展资源局部斩击方向，镰刀默认扩展相机平面两个径向轴，法线/厚度轴保持不变；旧二进制 Profile 尚未重存时由同语义迁移默认值保证行为，显式 DA 配置优先。延迟生成必须捕获提交倍率，禁止在 timer 回调中重新读取当前符文。
 FullSpin 近战的伤害仍在 Combat Commit 当帧结算；刀光只在 Weapon Profile 的 `MotionDurationSeconds` 结束后按该次 Commit 已锁定方向播放，使武器先完成一周环绕再释放刀光。新 Commit 会替换尚未释放的旧表现计时，不改变攻击冷却或命中权威。
-Burn Fire 由 `bBurnActive` 状态驱动并绑定目标，Growth 由各目标最终 Grass 附着驱动；Vaporize、Conduct 和两种 Enhance 以短生命周期 Niagara 绑定各自存活目标。Conduct 的每条电链必须同时取得来源与目标显式配置的 `HurtVfxRoot` 世界坐标，任一挂点缺失时不生成该电链且不回退 Actor 根节点。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。
+Burn Fire 和 Water 反应都按 `PresentationId` 区分 Slime/Rabbit/Fox/TimeGuard(Goat) 体型资源；TimeGuard 的元素反应与受击特效共用 `HurtVfxRoot` 到当前 Flipbook 渲染中心的半高世界位置，再转换成跟随挂点的局部偏移。Burn 由反应产生的 `bBurnActive` 定时状态驱动并绑定目标；Growth、Vaporize、Conduct 和两种 Enhance 只由反应结果事件创建。Burn、Growth、Vaporize 与两种 Enhance 在生成瞬间读取目标 Flipbook 稳定 Render Bounds 经组件最终 Transform 得到的世界直径，再按各 Niagara Fixed Bounds 与语义 `TargetCoverageRatio` 等比归一；随后反向补偿 `HurtVfxRoot` 累计缩放，保证不同怪物和 Boss 的最终特效范围随其最终 Flipbook 大小一致且动画帧切换不引起缩放抖动。`NS_Element_Grass` 的全部启用发射器使用 Local Space，保证运行时归一同时约束粒子位置、速度与大小。Growth、Vaporize 与两种 Enhance 即使复用可循环元素素材，也由适配器在 2 秒硬上限时销毁；不得进入元素附着的状态生命周期。Conduct 是双目标连线，不参与单体 Flipbook 尺寸归一；其每条电链必须同时取得来源与目标显式配置的 `HurtVfxRoot` 世界坐标，任一挂点缺失时不生成该电链且不回退 Actor 根节点。多目标特效按目标自身动画排序，缺失元素 Niagara 只告警且不得影响玩法。
 
 卡牌 `G_2_30`（连接，连接！）启用时，GameMode 只把卡牌规则和当前存活 Echo 集合投影给玩家的 `UReEchoCombatVfxComponent`；组件以 Echo Actor 为稳定键维护 `/Game/VFX/Echo/Particle/NS_Echo_Chain`，每个存活 Echo 独立一条。固定步只同步规则与集合生命周期，VFX Component 每个渲染 Tick 通过当前 `UReEcho2DAnimationComponent` 的 Flipbook `RenderBounds.Origin` 计算玩家与 Echo 的真实渲染中心世界坐标，不复用受击挂点。该资源沿用 Beam 模板的参数契约：`User.StartPosition` 为绝对世界位置，`User.EndPosition` 为相对起点的位移；Niagara Component 保持世界原点单位变换。Chain Niagara 的每个启用 Emitter 在 Particle Update 栈执行 `Update Beam`，并把 VFX adapter 设为 Tick prerequisite，在同帧端点写入之后更新现有 Ribbon；持续移动时禁止重初始化或重生。组件还会逐帧用两端的 effect-local 坐标和有限安全边距更新 System Fixed Bounds，避免长距离 Ribbon 超出资产静态 Bounds 后被误剔除，而不采用无限 Bounds。连接线正伤害沿统一 Hurt 事件复用 `EnemyHurt`，在命中世界位置生成一次性特效；所有怪物致死正伤害均沿同一世界实例策略保留受击表现。链条生命周期由卡牌玩法状态持有：资源自身播放完成时，只要玩家及对应 Echo 仍存活便重新激活；仅在卡牌关闭、玩家或 Echo 死亡、Echo 清场、Boss 阶段退休 Echo 或组件 EndPlay 时清理。资源或当前 Flipbook 缺失时只缺视觉，不改变连接线穿越伤害。
 

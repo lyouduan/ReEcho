@@ -87,6 +87,13 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<FName> OwnedWeaponIds;
 
+	/**
+	 * Copies of each rune currently held (backpack + equipped). OwnedPartIds is a de-duplicated ownership
+	 * set and cannot express "two copies", so tier synthesis (2x I -> 1x II) counts copies here instead.
+	 */
+	UPROPERTY(SaveGame)
+	TMap<FName, int32> RuneAcquisitionCounts;
+
 	/** Added in v14. Stable weapon/rune offers for one encounter + refresh-sequence page. */
 	UPROPERTY(SaveGame)
 	int32 WeaponPartShopOfferEncounterIndex = INDEX_NONE;

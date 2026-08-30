@@ -339,7 +339,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ### `AREA-UI`：`UI`屏幕与交互
 
-**设计意图：** 通过稳定屏幕 ID、中央 Widget 注册、统一焦点/输入/暂停策略管理开始、装载、HUD、特质、商店、Echo 管理、属性和暂停等界面。
+**设计意图：** 通过稳定屏幕 ID、中央 Widget 注册、统一焦点/输入/暂停策略管理开始、装载、HUD、特质、商店、Echo 管理和暂停等界面。局内不再注册或保留独立的 Tab 属性屏幕。
 
 - 代码：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`。
 - 首读：`UI/Framework/*`、`ReEchoUIManagerSubsystem.*`、各屏幕 Widget、`ReEchoGameMode` 的类型化端点。

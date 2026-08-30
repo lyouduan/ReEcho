@@ -11,6 +11,8 @@ struct REECHOCOMBAT_API FReEchoElementHitContext
 	float SourceElementalAttack = 0.0f;
 	float SourceEchoEfficiency = 1.0f;
 	bool bCritical = false;
+	/** Multiplier applied to base damage for a critical hit (1.0 + CriticalEffect). Drives crit damage-number scaling. */
+	float CriticalMultiplier = 1.0f;
 	bool bSourceRulesApplied = false;
 };
 

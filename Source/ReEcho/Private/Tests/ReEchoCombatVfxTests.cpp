@@ -95,8 +95,8 @@ bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathKnockbackPresentationTest,
-	                             "ReEcho.Presentation.VFX.EnemyDeathKnockbackPresentation",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Presentation.VFX.EnemyDeathKnockbackPresentation",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Parameters)
 {
@@ -456,10 +456,30 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	                                                                   TEXT("Enemy.Rabbit"))),
 	             FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn,
 	                                                                   TEXT("Enemy.Fox"))));
+	TestTrue(TEXT("TimeGuard burn resolves the supplied Goat body variant"),
+	         FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn,
+	                                                               TEXT("Enemy.TimeGuard")))
+	             .Contains(TEXT("NS_Element_Fire_Goat")));
+	TestTrue(TEXT("TimeGuard water reactions resolve the supplied Goat body variant"),
+	         FString(FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Vaporize,
+	                                                               TEXT("Enemy.TimeGuard")))
+	             .Contains(TEXT("NS_Element_Water_Goat")));
+	const FReEchoElementReactionVfxPlacement GrowthPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::Growth);
+	const FReEchoElementReactionVfxPlacement EnhanceGrassPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceGrass);
+	const FReEchoElementReactionVfxPlacement EnhanceWaterPlacement =
+	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceWater);
+	TestTrue(TEXT("Reaction effects preserve authored world size"), GrowthPlacement.bPreserveWorldSize);
+	TestTrue(TEXT("Growth matches the target Flipbook size"), GrowthPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"),
+	         EnhanceGrassPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Water matches the target Flipbook size"),
+	         EnhanceWaterPlacement.bMatchTargetFlipbookSize);
 	TestTrue(TEXT("Burn visual lifetime follows the timed Burn status"),
 	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_G")));
-	TestTrue(TEXT("Growth visual lifetime follows authoritative Grass attachments"),
-	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
+	TestFalse(TEXT("Growth is emitted only by its resolved reaction event"),
+	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_L_G")));
 	TestFalse(TEXT("Vaporize remains a target-bound one-shot"),
 	          UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_W")));
 	const FName DebugReactionNames[] = {
@@ -992,6 +1012,26 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Gun muzzle uses the delivered bullet spark"),
 	         FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle)
 	             .Contains(TEXT("NS_People_Bullet_spark")));
+	TestEqual(TEXT("Normal Bow and Gun impacts reuse the Gun bullet spark"),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileImpact),
+	          FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerGunMuzzle));
+	TestNotEqual(TEXT("Explosion impact remains distinct from the normal projectile impact"),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact),
+	             FReEchoCombatVfxCatalog::ResolvePath(EReEchoCombatVfxSemantic::PlayerProjectileImpact));
+	EReEchoCombatVfxSemantic ProjectileImpactSemantic = EReEchoCombatVfxSemantic::EnemyHurt;
+	TestTrue(TEXT("Normal Bow resolves a ranged impact"),
+	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Bow"), 0.0f, ProjectileImpactSemantic));
+	TestEqual(TEXT("Normal Bow reuses the shared projectile impact"),
+	          ProjectileImpactSemantic,
+	          EReEchoCombatVfxSemantic::PlayerProjectileImpact);
+	TestTrue(TEXT("Explosive Gun resolves a ranged impact"),
+	         FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Gun"), 200.0f, ProjectileImpactSemantic));
+	TestEqual(TEXT("A compiled explosion radius selects the shared explosion impact"),
+	          ProjectileImpactSemantic,
+	          EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact);
+	TestFalse(
+	    TEXT("Non-projectile weapon cannot resolve a ranged impact"),
+	    FReEchoCombatVfxCatalog::ResolveProjectileImpactSemantic(TEXT("Scythe"), 300.0f, ProjectileImpactSemantic));
 
 	struct FGunElementFlightCase
 	{
@@ -1065,6 +1105,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    EReEchoCombatVfxSemantic::PlayerGunFlightGrass,
 	    EReEchoCombatVfxSemantic::PlayerGunFlightWater,
 	    EReEchoCombatVfxSemantic::PlayerGunMuzzle,
+	    EReEchoCombatVfxSemantic::PlayerProjectileImpact,
+	    EReEchoCombatVfxSemantic::PlayerProjectileExplosionImpact,
 	    EReEchoCombatVfxSemantic::EnemyHurt,
 	    EReEchoCombatVfxSemantic::EchoWaterAura,
 	    EReEchoCombatVfxSemantic::EchoGrassAura,
@@ -1591,6 +1633,97 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 			         EmitterData && EmitterData->bLocalSpace);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoElementReactionVfxLifetimeTest,
+                                 "ReEcho.Presentation.VFX.ElementReactionLifetime",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoElementReactionVfxLifetimeTest::RunTest(const FString& Parameters)
+{
+	UNiagaraSystem* GrassSystem = LoadObject<UNiagaraSystem>(
+	    nullptr, FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::EnhanceGrass));
+	if (TestNotNull(TEXT("Grass reaction Niagara loads"), GrassSystem))
+	{
+		for (const FNiagaraEmitterHandle& EmitterHandle : GrassSystem->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(
+			    FString::Printf(TEXT("Grass reaction emitter '%s' uses local space so reaction scale controls range"),
+			                    *EmitterHandle.GetName().ToString()),
+			    EmitterData && EmitterData->bLocalSpace);
+		}
+	}
+	const TCHAR* GoatFirePath =
+	    FReEchoElementReactionVfxCatalog::ResolvePath(EReEchoElementReactionVfxSemantic::Burn, TEXT("Enemy.TimeGuard"));
+	const TCHAR* RabbitWaterPath = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    EReEchoElementReactionVfxSemantic::Vaporize, TEXT("Enemy.Rabbit"));
+	const TCHAR* GoatWaterPath = FReEchoElementReactionVfxCatalog::ResolvePath(
+	    EReEchoElementReactionVfxSemantic::Vaporize, TEXT("Enemy.TimeGuard"));
+	TestNotNull(TEXT("Goat Fire reaction Niagara loads"), LoadObject<UNiagaraSystem>(nullptr, GoatFirePath));
+	UNiagaraSystem* RabbitWaterSystem = LoadObject<UNiagaraSystem>(nullptr, RabbitWaterPath);
+	TestNotNull(TEXT("Rabbit Water reaction Niagara loads"), RabbitWaterSystem);
+	UNiagaraSystem* GoatFireSystem = LoadObject<UNiagaraSystem>(nullptr, GoatFirePath);
+	UNiagaraSystem* GoatWaterSystem = LoadObject<UNiagaraSystem>(nullptr, GoatWaterPath);
+	TestNotNull(TEXT("Goat Water reaction Niagara loads"), GoatWaterSystem);
+	auto TestTargetBoundSystemUsesLocalSpace = [this](const TCHAR* Label, const UNiagaraSystem* System)
+	{
+		if (!System)
+		{
+			return;
+		}
+		for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+		{
+			if (!EmitterHandle.GetIsEnabled())
+			{
+				continue;
+			}
+			const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			TestTrue(FString::Printf(TEXT("%s emitter '%s' follows its Boss attachment in local space"),
+			                         Label,
+			                         *EmitterHandle.GetName().ToString()),
+			         EmitterData && EmitterData->bLocalSpace);
+		}
+	};
+	TestTargetBoundSystemUsesLocalSpace(TEXT("Goat Fire"), GoatFireSystem);
+	TestTargetBoundSystemUsesLocalSpace(TEXT("Goat Water"), GoatWaterSystem);
+	if (GrassSystem && RabbitWaterSystem)
+	{
+		constexpr float TestFlipbookDiameterCm = 240.0f;
+		const FVector GrassScale = UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(
+		    GrassSystem, TestFlipbookDiameterCm, 1.0f, FVector::OneVector);
+		const FVector WaterScale = UReEchoCombatVfxComponent::ResolveTargetMatchedReactionWorldScale(
+		    RabbitWaterSystem, TestFlipbookDiameterCm, 1.0f, FVector::OneVector);
+		const float GrassWorldDiameter = GrassSystem->GetFixedBounds().GetSize().GetMax() * GrassScale.GetMax();
+		const float WaterWorldDiameter = RabbitWaterSystem->GetFixedBounds().GetSize().GetMax() * WaterScale.GetMax();
+		TestTrue(TEXT("Enhance Grass world range matches the target Flipbook"),
+		         FMath::IsNearlyEqual(GrassWorldDiameter, TestFlipbookDiameterCm, 0.1f));
+		TestTrue(TEXT("Enhance Water world range matches the target Flipbook"),
+		         FMath::IsNearlyEqual(WaterWorldDiameter, TestFlipbookDiameterCm, 0.1f));
+	}
+	TestTrue(TEXT("Vaporize has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::Vaporize)));
+	TestTrue(TEXT("Growth has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::Growth)));
+	TestTrue(TEXT("Grass enhance has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::EnhanceGrass)));
+	TestTrue(TEXT("Water enhance has a bounded reaction-only lifetime"),
+	         UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	             static_cast<uint8>(EReEchoElementReactionVfxSemantic::EnhanceWater)));
+	TestFalse(TEXT("Grass attachment remains state-owned instead of reaction-timed"),
+	          UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	              static_cast<uint8>(EReEchoElementReactionVfxSemantic::AttachmentGrass)));
+	TestFalse(TEXT("Water attachment remains state-owned instead of reaction-timed"),
+	          UReEchoCombatVfxComponent::IsBoundedElementReactionSemantic(
+	              static_cast<uint8>(EReEchoElementReactionVfxSemantic::AttachmentWater)));
 	return true;
 }
 

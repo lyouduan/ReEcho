@@ -907,6 +907,40 @@ FVector AReEchoWeaponActor::ResolveOwnerAimDirection() const
 	return OwnerForward.IsNearlyZero() ? FVector::ForwardVector : OwnerForward;
 }
 
+FVector AReEchoWeaponActor::ResolveAutomaticAimDirectionToTarget(const FVector& TargetLocation) const
+{
+	const AActor* WeaponOwner = GetOwner();
+	if (!WeaponOwner)
+	{
+		return FVector::ForwardVector;
+	}
+
+	const FVector OwnerLocation = WeaponOwner->GetActorLocation();
+	FVector OwnerToTarget = TargetLocation - OwnerLocation;
+	OwnerToTarget.Z = 0.0f;
+	const FVector OwnerDirection = OwnerToTarget.GetSafeNormal2D();
+	if (OwnerDirection.IsNearlyZero())
+	{
+		return ResolveOwnerAimDirection();
+	}
+
+	const FName VisualKey = GetEquippedWeaponVisualKey();
+	if (VisualKey != TEXT("Bow") && VisualKey != TEXT("Gun"))
+	{
+		return OwnerDirection;
+	}
+
+	const bool bHasWeaponAnchor = IsValid(WeaponAttackVfxRoot);
+	const FVector WeaponAnchorLocation =
+	    bHasWeaponAnchor ? WeaponAttackVfxRoot->GetComponentLocation() : FVector::ZeroVector;
+	const FVector SpawnLocation = ReEchoWeaponVisual::ResolveProjectileSpawnLocation(
+	    WeaponAnchorLocation, OwnerLocation, OwnerDirection, bHasWeaponAnchor);
+	FVector SpawnToTarget = TargetLocation - SpawnLocation;
+	SpawnToTarget.Z = 0.0f;
+	const FVector ProjectileDirection = SpawnToTarget.GetSafeNormal2D();
+	return ProjectileDirection.IsNearlyZero() ? OwnerDirection : ProjectileDirection;
+}
+
 EReEchoDamageSource AReEchoWeaponActor::ResolveOwnerDamageSource() const
 {
 	return ReEchoCombatRelations::ResolveActorDamageSource(GetOwner(), EReEchoDamageSource::Player);
@@ -1397,6 +1431,7 @@ FReEchoHitResolved AReEchoWeaponActor::ApplyDamageToTarget(AActor& Target,
 	Intent.Element = Commit.Element;
 	Intent.ReactionEfficiency = Combatant ? Combatant->Stats.ReactionEfficiency : 1.0f;
 	Intent.bCritical = Commit.bCritical;
+	Intent.CriticalMultiplier = Commit.CriticalMultiplier;
 	Intent.SourceLocation = DamageSource;
 	Intent.HitLocation = Target.GetActorLocation();
 	const float TargetHealthBefore = TargetCombatant->GetSnapshot().CurrentHealth;

@@ -5,10 +5,12 @@
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Texture2D.h"
 #include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "UI/ReEchoMenuWidgetHelpers.h"
@@ -62,6 +64,7 @@ void UReEchoRestartWidget::NativeConstruct()
 	BuildWidgetTree();
 	EnsureAttackModeWidget();
 	BindFormalResultButtonFeedback();
+	ApplySettlementStatLayout();
 
 	if (ResumeButton)
 	{
@@ -138,6 +141,28 @@ void UReEchoRestartWidget::BindFormalResultButtonFeedback()
 	BindVisual(DefeatMainMenuButton, DefeatMainMenuLabel);
 }
 
+namespace
+{
+	/** Ranks owned cards by tier and returns the icon paths for the authored settlement slots. */
+	TArray<FString> BuildSettlementCardIconPaths(const TArray<FReEchoShopOffer>& OwnedCards, const int32 SlotCount)
+	{
+		TArray<FReEchoShopOffer> RankedCards = OwnedCards;
+		RankedCards.StableSort(
+		    [](const FReEchoShopOffer& Left, const FReEchoShopOffer& Right)
+		    {
+			    return Left.Tier > Right.Tier;
+		    });
+		const int32 VisibleCardCount = FMath::Min(SlotCount, RankedCards.Num());
+		TArray<FString> Paths;
+		Paths.Reserve(VisibleCardCount);
+		for (int32 Index = 0; Index < VisibleCardCount; ++Index)
+		{
+			Paths.Add(RankedCards[Index].IconTexturePath);
+		}
+		return Paths;
+	}
+} // namespace
+
 void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
                                           const int32 EncounterIndex,
                                           const int32 TimeShards,
@@ -159,20 +184,10 @@ void UReEchoRestartWidget::SetDeathScreen(const bool bInDeathScreen,
 	DefeatEncounterIndex = FMath::Max(0, EncounterIndex);
 	DefeatTimeShards = FMath::Max(0, TimeShards);
 	DefeatTraitCount = FMath::Max(0, TraitCount);
-	DefeatCardIconTexturePaths.Reset();
-	TArray<FReEchoShopOffer> RankedCards = OwnedCards;
-	RankedCards.StableSort(
-	    [](const FReEchoShopOffer& Left, const FReEchoShopOffer& Right)
-	    {
-		    return Left.Tier > Right.Tier;
-	    });
-	const int32 VisibleCardCount = FMath::Min(DefeatCardSlotCount, RankedCards.Num());
-	DefeatCardIconTexturePaths.Reserve(VisibleCardCount);
-	for (int32 Index = 0; Index < VisibleCardCount; ++Index)
-	{
-		DefeatCardIconTexturePaths.Add(RankedCards[Index].IconTexturePath);
-	}
+	DefeatCardIconTexturePaths = BuildSettlementCardIconPaths(OwnedCards, DefeatCardSlotCount);
+	VictoryCardIconTexturePaths.Reset();
 	SettlementCharacterId = InCharacterId;
+	CaptureRunStats();
 	RefreshMenuMode();
 	if (bInDeathScreen && DefeatRestartButton)
 	{
@@ -184,12 +199,138 @@ void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards,
                                             const int32 TraitCount,
                                             const FName InCharacterId)
 {
+	SetVictoryScreen(TimeShards, TraitCount, InCharacterId, {});
+}
+
+void UReEchoRestartWidget::SetVictoryScreen(const int32 TimeShards,
+                                            const int32 TraitCount,
+                                            const FName InCharacterId,
+                                            const TArray<FReEchoShopOffer>& OwnedCards)
+{
 	ScreenMode = EReEchoRestartScreenMode::Victory;
 	QuitPromptState = EReEchoQuitPromptState::None;
-	VictoryTimeShards = TimeShards;
-	VictoryTraitCount = TraitCount;
+	VictoryTimeShards = FMath::Max(0, TimeShards);
+	VictoryTraitCount = FMath::Max(0, TraitCount);
+	VictoryCardIconTexturePaths = BuildSettlementCardIconPaths(OwnedCards, DefeatCardSlotCount);
+	DefeatCardIconTexturePaths.Reset();
 	SettlementCharacterId = InCharacterId;
+	CaptureRunStats();
 	RefreshMenuMode();
+}
+
+void UReEchoRestartWidget::CaptureRunStats()
+{
+	if (const UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (const UReEchoRunStatsSubsystem* Stats = GameInstance->GetSubsystem<UReEchoRunStatsSubsystem>())
+		{
+			SettlementStats = Stats->GetRunStats();
+			return;
+		}
+	}
+	SettlementStats.Reset();
+}
+
+void UReEchoRestartWidget::RefreshRunStatsValues()
+{
+	const auto AssignDamage = [](const TObjectPtr<UTextBlock>& Widget, const float Value)
+	{
+		if (UTextBlock* Text = Widget.Get())
+		{
+			Text->SetText(FText::AsNumber(FMath::RoundToInt(Value)));
+		}
+	};
+	const auto AssignCount = [](const TObjectPtr<UTextBlock>& Widget, const int32 Value)
+	{
+		if (UTextBlock* Text = Widget.Get())
+		{
+			Text->SetText(FText::AsNumber(Value));
+		}
+	};
+
+	AssignDamage(VictoryEchoDamageValue, SettlementStats.EchoDamageTotal);
+	AssignDamage(VictoryPlayerDamageValue, SettlementStats.PlayerDamageTotal);
+	AssignCount(VictoryReactionCountValue, SettlementStats.ReactionTotal);
+	AssignDamage(VictoryMaxHitValue, SettlementStats.MaxSingleHitDamage);
+	AssignCount(VictoryKillCountValue, SettlementStats.KillTotal);
+
+	AssignDamage(DefeatEchoDamageValue, SettlementStats.EchoDamageTotal);
+	AssignDamage(DefeatPlayerDamageValue, SettlementStats.PlayerDamageTotal);
+	AssignCount(DefeatReactionCountValue, SettlementStats.ReactionTotal);
+	AssignDamage(DefeatMaxHitValue, SettlementStats.MaxSingleHitDamage);
+	AssignCount(DefeatKillCountValue, SettlementStats.KillTotal);
+}
+
+namespace
+{
+	/** 缩短三列间距，并把每个标签/数值留在各自作者化小框内。 */
+	void ConstrainSettlementStats(UWidgetTree* WidgetTree, const TCHAR* Prefix)
+	{
+		if (!WidgetTree)
+		{
+			return;
+		}
+
+		struct FStatColumn
+		{
+			const TCHAR* Label;
+			const TCHAR* Value;
+			float X;
+			float Y;
+		};
+		const TArray<FStatColumn> StatColumns = {
+		    {TEXT("EncounterLabel"), TEXT("EncounterValue"), 340.0f, 398.0f},
+		    {TEXT("TraitCountLabel"), TEXT("TraitCountValue"), 340.0f, 446.0f},
+		    {TEXT("TimeShardsLabel"), TEXT("TimeShardsValue"), 340.0f, 494.0f},
+		    {TEXT("EchoDamageValueLabel"), TEXT("EchoDamageValue"), 690.0f, 398.0f},
+		    {TEXT("PlayerDamageValueLabel"), TEXT("PlayerDamageValue"), 690.0f, 446.0f},
+		    {TEXT("ReactionCountValueLabel"), TEXT("ReactionCountValue"), 690.0f, 494.0f},
+		    {TEXT("MaxHitValueLabel"), TEXT("MaxHitValue"), 1040.0f, 398.0f},
+		    {TEXT("KillCountValueLabel"), TEXT("KillCountValue"), 1040.0f, 446.0f},
+		};
+
+		for (const FStatColumn& StatColumn : StatColumns)
+		{
+			const FString LabelName = FString::Printf(TEXT("%s%s"), Prefix, StatColumn.Label);
+			const FString ValueName = FString::Printf(TEXT("%s%s"), Prefix, StatColumn.Value);
+
+			if (UTextBlock* Label = Cast<UTextBlock>(WidgetTree->FindWidget(*LabelName)))
+			{
+				if (UCanvasPanelSlot* LabelSlot = Cast<UCanvasPanelSlot>(Label->Slot))
+				{
+					LabelSlot->SetPosition(FVector2D(StatColumn.X, StatColumn.Y));
+				}
+				FSlateFontInfo LabelFont = Label->GetFont();
+				LabelFont.Size = 18;
+				Label->SetFont(LabelFont);
+				Label->SetAutoWrapText(false);
+				Label->SetClipping(EWidgetClipping::ClipToBounds);
+				Label->SetJustification(ETextJustify::Left);
+				Label->SetColorAndOpacity(FSlateColor(FLinearColor(0.86f, 0.83f, 0.76f, 1.0f)));
+			}
+
+			if (UTextBlock* Value = Cast<UTextBlock>(WidgetTree->FindWidget(*ValueName)))
+			{
+				if (UCanvasPanelSlot* ValueSlot = Cast<UCanvasPanelSlot>(Value->Slot))
+				{
+					ValueSlot->SetPosition(FVector2D(StatColumn.X + 138.0f, StatColumn.Y));
+				}
+				FSlateFontInfo ValueFont = Value->GetFont();
+				ValueFont.Size = 20;
+				Value->SetFont(ValueFont);
+				Value->SetAutoWrapText(false);
+				Value->SetClipping(EWidgetClipping::ClipToBounds);
+				Value->SetJustification(ETextJustify::Center);
+				Value->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.95f, 0.80f, 1.0f)));
+			}
+		}
+	}
+} // namespace
+
+void UReEchoRestartWidget::ApplySettlementStatLayout()
+{
+	ConstrainSettlementStats(WidgetTree, TEXT("Defeat"));
+	ConstrainSettlementStats(WidgetTree, TEXT("Victory"));
 }
 
 void UReEchoRestartWidget::SetQuitConfirmation(const bool bInQuitConfirmation,
@@ -284,10 +425,15 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	const bool bFormalResult = bVictoryScreen || bDeathScreen;
 	RefreshSettlementCharacterImages();
 	RefreshDefeatCardSlots();
+	RefreshRunStatsValues();
 
 	if (VictoryCanvas)
 	{
 		VictoryCanvas->SetVisibility(bVictoryScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (ArtVictoryTimeShardFormal)
+	{
+		ArtVictoryTimeShardFormal->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	if (VictoryEncounterValue)
 	{
@@ -308,6 +454,10 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	if (DefeatCanvas)
 	{
 		DefeatCanvas->SetVisibility(bDeathScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (ArtDefeatTimeShardFormal)
+	{
+		ArtDefeatTimeShardFormal->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	if (DefeatEncounterValue)
 	{
@@ -469,22 +619,28 @@ void UReEchoRestartWidget::RefreshSettlementCharacterImages()
 
 void UReEchoRestartWidget::RefreshDefeatCardSlots()
 {
+	RefreshCardIconSlots(DefeatCardIconTexturePaths, TEXT("DesignerDefeatCardIcon"));
+	RefreshCardIconSlots(VictoryCardIconTexturePaths, TEXT("DesignerVictoryCardIcon"));
+}
+
+void UReEchoRestartWidget::RefreshCardIconSlots(const TArray<FString>& TexturePaths, const TCHAR* SlotNamePrefix)
+{
 	UTexture2D* DefaultCardTexture = nullptr;
 	for (int32 Index = 0; Index < DefeatCardSlotCount; ++Index)
 	{
-		UImage* CardIcon = Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("DesignerDefeatCardIcon%d"), Index)));
+		UImage* CardIcon = Cast<UImage>(GetWidgetFromName(*FString::Printf(TEXT("%s%d"), SlotNamePrefix, Index)));
 		if (!CardIcon)
 		{
 			continue;
 		}
-		if (!DefeatCardIconTexturePaths.IsValidIndex(Index))
+		if (!TexturePaths.IsValidIndex(Index))
 		{
 			CardIcon->SetVisibility(ESlateVisibility::Hidden);
 			continue;
 		}
 
 		UTexture2D* CardTexture = nullptr;
-		const FString& TexturePath = DefeatCardIconTexturePaths[Index];
+		const FString& TexturePath = TexturePaths[Index];
 		if (!TexturePath.IsEmpty())
 		{
 			CardTexture = LoadObject<UTexture2D>(nullptr, *TexturePath);
