@@ -190,6 +190,10 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtVictoryCharacterFormal;
 
+	/** Legacy time-shard decoration retained in the WBP for editability but hidden at runtime. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtVictoryTimeShardFormal;
+
 	/** Designer-authored formal defeat surface. Runtime only projects state into these optional bindings. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UCanvasPanel> DefeatCanvas;
@@ -212,6 +216,10 @@ private:
 	/** Existing authored character image; runtime replaces only its Brush, never its WBP geometry. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtDefeatCharacterFormal;
+
+	/** Legacy time-shard decoration retained in the WBP for editability but hidden at runtime. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ArtDefeatTimeShardFormal;
 
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtRestartDialogPanel;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UImage> ArtVictoryContinueButtonFormal;

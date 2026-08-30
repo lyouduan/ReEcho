@@ -431,6 +431,10 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	{
 		VictoryCanvas->SetVisibility(bVictoryScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	}
+	if (ArtVictoryTimeShardFormal)
+	{
+		ArtVictoryTimeShardFormal->SetVisibility(ESlateVisibility::Collapsed);
+	}
 	if (VictoryEncounterValue)
 	{
 		VictoryEncounterValue->SetText(FText::AsNumber(GetDefault<UReEchoBalanceSettings>()->GetTotalEncounterCount()));
@@ -450,6 +454,10 @@ void UReEchoRestartWidget::RefreshMenuMode()
 	if (DefeatCanvas)
 	{
 		DefeatCanvas->SetVisibility(bDeathScreen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (ArtDefeatTimeShardFormal)
+	{
+		ArtDefeatTimeShardFormal->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	if (DefeatEncounterValue)
 	{
