@@ -155,6 +155,8 @@ Plan93 源图与参考图归档在 `Content/SourceArt/UI/CombatHud/Plan93/`；Pl
 
 正式 Death 的布局权威是 `DefeatCanvas`。标题、到达关卡/构筑数量/时间碎片三组标签与数值、五个样例卡槽、角色、枯花、底板、两个按钮底图、按钮文字和透明真实按钮同样是 Canvas 直属子项，可在 Designer 中独立移动和缩放。运行时覆盖 `DefeatEncounterValue`、`DefeatTimeShardsValue`、`DefeatTraitCountValue`，并按本轮所选角色替换 `ArtDefeatCharacterFormal` 的 Brush；未知角色或纹理缺失时回退红帽 J_HEART。角色节点同样保持同 Canvas 最高 ZOrder 和 `HitTestInvisible`。`DefeatRestartButton` 复用既有整局重开委托，`DefeatMainMenuButton` 复用既有返回主菜单委托。不要在 WBP 中复制重开、存档或开关关卡逻辑。
 
+结算统计文字（Plan156）：在 `WBP_ReEchoRestart > VictoryCanvas / DefeatCanvas` 中选择对应 `Victory*` / `Defeat*` 文本，直接调整 Slot 位置/尺寸以及字体、字号、颜色、对齐、换行和裁切；程序不再强制三列坐标或 18/20 字号。两页分别保存自己的布局。三组基础数值后还有 `EchoDamageValue`、`PlayerDamageValue`、`ReactionCountValue`、`MaxHitValue`、`KillCountValue`，对应标签在这些名字末尾再加 `Label`；基础标签为 `EncounterLabel`、`TraitCountLabel`、`TimeShardsLabel`。保留前缀、完整控件名和 `Is Variable`，数字样例在局内被真实统计替换，标签文案保持蓝图值。调整后 Compile/Save；无需重跑历史整页 authoring 脚本。
+
 正式结算接入后，旧 `ArtRestartCharacter`、`ArtResultSummaryPanel`、`ArtSelectedCardsPanel`、`ArtVictoryTitle`、`ArtDefeatTitle` 及其占位纹理/源图已经删除。不要为兼容旧脚本重新创建这些节点，也不要恢复旧的“时间线收束”“回响中断”、Boss 摘要或死亡提示文本；Victory/Death 只使用上述两个正式 Canvas。`ArtRestartDialogPanel` 不属于废弃结算层，它仍服务保存失败兜底弹窗，必须保留。
 
 1. 普通暂停。

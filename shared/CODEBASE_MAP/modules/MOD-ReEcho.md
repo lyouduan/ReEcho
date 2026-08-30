@@ -347,6 +347,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：活跃屏幕实例、Viewport 层、焦点、输入模式和屏幕暂停策略。
 - 输入：玩法只读摘要、用户选择和稳定 ID。
 - 输出：类型化命令，不直接写 Run/Combat/Weapon 内部状态。
+- 结算统计：`UReEchoRestartWidget` 只向 `VictoryCanvas` / `DefeatCanvas` 的八组统计数值写入现有只读快照；全部标签与数值的几何、字体、颜色、对齐、换行和裁切由 `WBP_ReEchoRestart` 保存，不在构造或结果页切换时回填程序布局。统计采集、重开和主菜单请求保持原契约。
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
 - 终局重开：死亡/胜利结算界面只暂停当前 World；玩家确认「重新开始」后必须通过 `OpenLevel` 完整替换 World，不能依赖逐类清理瞬态 Actor。GameInstance 生命周期的 UI Flow 只保存并一次性消费旅行后的 Loadout 目标，使新 `StartPlay()` 跳过主菜单；普通启动和退出到主菜单不设置该目标。
 - 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。武器背包和符文背包共用该设计面的根级高层浮层，不能继续嵌在装配室局部 Canvas 下被兄弟表现层遮挡。右侧卡牌装配树固定为两页、每页 12 张：翻页只切换 Run 已拥有卡牌只读投影的数组窗口，并复用同一组 WBP 槽位几何，不能复制卡牌状态或创建第二套槽位布局。

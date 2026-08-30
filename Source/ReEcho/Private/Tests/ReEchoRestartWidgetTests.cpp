@@ -2,12 +2,14 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Core/ReEchoBalanceSettings.h"
 #include "UI/ReEchoRestartWidget.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -28,6 +30,153 @@ FReEchoShopOffer MakeOwnedCardOffer(const FName CardId, const int32 Tier, const 
 	return Offer;
 }
 } // namespace
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRestartWidgetAuthoredStatsTest,
+                                 "ReEcho.UI.RestartWidgetAuthoredStats",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoRestartWidgetAuthoredStatsTest::RunTest(const FString& Parameters)
+{
+	UClass* RestartClass =
+	    LoadClass<UReEchoRestartWidget>(nullptr, TEXT("/Game/ReEcho/UI/WBP_ReEchoRestart.WBP_ReEchoRestart_C"));
+	if (!TestNotNull(TEXT("Authored restart widget class loads"), RestartClass))
+	{
+		return false;
+	}
+
+	// Check both the saved Designer defaults and arbitrary edits made before runtime construction.
+	for (const bool bCustomize : {false, true})
+	{
+		UReEchoRestartWidget* Widget = NewObject<UReEchoRestartWidget>(GetTransientPackage(), RestartClass);
+		if (!TestTrue(TEXT("Authored restart widget initializes"), Widget->Initialize()))
+		{
+			return false;
+		}
+
+		struct FAuthoredProperty
+		{
+			UObject* Owner;
+			FProperty* Property;
+			FString Expected;
+		};
+
+		TArray<FAuthoredProperty> Snapshots;
+		const auto Capture = [this, &Snapshots](UObject* Owner, const FName PropertyName)
+		{
+			FProperty* Property = FindFProperty<FProperty>(Owner->GetClass(), PropertyName);
+			if (TestNotNull(*FString::Printf(TEXT("Authored property %s exists"), *PropertyName.ToString()), Property))
+			{
+				FString Value;
+				Property->ExportText_InContainer(0, Value, Owner, nullptr, Owner, PPF_None);
+				Snapshots.Add({Owner, Property, Value});
+			}
+		};
+
+		int32 TextCount = 0;
+		for (const TCHAR* Prefix : {TEXT("Victory"), TEXT("Defeat")})
+		{
+			for (const TCHAR* Suffix : {TEXT("EncounterLabel"),
+			                            TEXT("EncounterValue"),
+			                            TEXT("TraitCountLabel"),
+			                            TEXT("TraitCountValue"),
+			                            TEXT("TimeShardsLabel"),
+			                            TEXT("TimeShardsValue"),
+			                            TEXT("EchoDamageValueLabel"),
+			                            TEXT("EchoDamageValue"),
+			                            TEXT("PlayerDamageValueLabel"),
+			                            TEXT("PlayerDamageValue"),
+			                            TEXT("ReactionCountValueLabel"),
+			                            TEXT("ReactionCountValue"),
+			                            TEXT("MaxHitValueLabel"),
+			                            TEXT("MaxHitValue"),
+			                            TEXT("KillCountValueLabel"),
+			                            TEXT("KillCountValue")})
+			{
+				const FString Name = FString::Printf(TEXT("%s%s"), Prefix, Suffix);
+				UTextBlock* Text = FindRestartWidget<UTextBlock>(Widget, *Name);
+				if (!TestNotNull(*Name, Text))
+				{
+					return false;
+				}
+				++TextCount;
+				UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Text->Slot);
+				if (bCustomize)
+				{
+					FSlateFontInfo Font = Text->GetFont();
+					Font.Size = 29 + TextCount;
+					Text->SetFont(Font);
+					Text->SetColorAndOpacity(FSlateColor(FLinearColor(0.23f, 0.51f, 0.71f, 0.82f)));
+					Text->SetAutoWrapText(true);
+					Text->SetWrapTextAt(210.0f + TextCount);
+					Text->SetJustification(ETextJustify::Right);
+					Text->SetClipping(EWidgetClipping::Inherit);
+					Text->SetRenderTranslation(FVector2D(7.0f, -3.0f));
+					if (Slot)
+					{
+						Slot->SetPosition(FVector2D(73.0f + TextCount * 11.0f, 127.0f + TextCount * 7.0f));
+						Slot->SetSize(FVector2D(220.0f + TextCount, 61.0f));
+						Slot->SetAlignment(FVector2D(0.25f, 0.75f));
+					}
+				}
+
+				for (const TCHAR* PropertyName : {TEXT("Font"),
+				                                  TEXT("ColorAndOpacity"),
+				                                  TEXT("Justification"),
+				                                  TEXT("AutoWrapText"),
+				                                  TEXT("WrapTextAt"),
+				                                  TEXT("Clipping"),
+				                                  TEXT("RenderTransform"),
+				                                  TEXT("RenderTransformPivot")})
+				{
+					Capture(Text, PropertyName);
+				}
+				if (Name.EndsWith(TEXT("Label")))
+				{
+					Capture(Text, TEXT("Text"));
+				}
+				if (Slot)
+				{
+					Capture(Slot, TEXT("LayoutData"));
+					Capture(Slot, TEXT("bAutoSize"));
+					Capture(Slot, TEXT("ZOrder"));
+				}
+			}
+		}
+		TestEqual(TEXT("Both surfaces expose eight label/value pairs"), TextCount, 32);
+
+		const auto Verify = [this, &Snapshots, bCustomize](const TCHAR* Phase)
+		{
+			for (const FAuthoredProperty& Snapshot : Snapshots)
+			{
+				FString Actual;
+				Snapshot.Property->ExportText_InContainer(0, Actual, Snapshot.Owner, nullptr, Snapshot.Owner, PPF_None);
+				TestEqual(*FString::Printf(TEXT("%s %s: %s.%s remains Designer-owned"),
+				                           bCustomize ? TEXT("Edited") : TEXT("Saved"),
+				                           Phase,
+				                           *Snapshot.Owner->GetName(),
+				                           *Snapshot.Property->GetName()),
+				          Actual,
+				          Snapshot.Expected);
+			}
+		};
+		Widget->TakeWidget();
+		Verify(TEXT("Construct"));
+		Widget->SetDeathScreen(true, 4, 12345, 17);
+		Verify(TEXT("Defeat"));
+		TestEqual(TEXT("Defeat values still update"),
+		          FindRestartWidget<UTextBlock>(Widget, TEXT("DefeatTimeShardsValue"))->GetText().ToString(),
+		          FText::AsNumber(12345).ToString());
+		Widget->SetVictoryScreen(9876, 23);
+		Verify(TEXT("Victory"));
+		TestEqual(TEXT("Victory values still update"),
+		          FindRestartWidget<UTextBlock>(Widget, TEXT("VictoryTraitCountValue"))->GetText().ToString(),
+		          FText::AsNumber(23).ToString());
+		Widget->ReleaseSlateResources(true);
+		Widget->TakeWidget();
+		Verify(TEXT("Reconstruct"));
+	}
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRestartWidgetPresentationTest,
                                  "ReEcho.UI.RestartWidgetPresentation",
