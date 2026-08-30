@@ -259,3 +259,14 @@ Demo 稳定化阶段（P0）持续暴露零散小问题：单个修复体量不�
 - **验证 / Verification**：实现完成后的 Development Editor `-FullRebuild` 98/98 通过；撤回两处无关排版后，本地验收候选再以增量构建 4/4 通过。取得发布锁并合入 `origin/main@4b6c57d3` 后，最终组合候选完成 Development Editor `-FullRebuild`（95/95），刷新 7 个精选预构建模块（源码指纹 `0e7fa61eefdb`）。`ReEcho.UIFlow.TerminalRestartTravelRoute` 找到 1 项并以 `Result={Success}` 完成；`validate_project.py`、LFS checkout/status/fsck 与 `git diff --check` 均通过。传入的 Boss 控制免疫和暴击伤害数字与启动/重开链路无逻辑冲突。
 - **文档审阅 / Documentation review**：`MOD-ReEcho` 同步终局重载与一次性 UI 旅行路由；`ARCHITECTURE.md`、`CODEBASE_MAP/README.md` 无模块拓扑或稳定标识变化，已审阅、无需修改。
 - **状态 / Status**：Closed。用户已完成人工验收并授权发布，最终组合门禁已通过。
+
+### #28 — 删除怪物出生预备阶段的球形调试线框
+
+- **需求**：出生动画前的球形网格在编辑器与游戏包中均不再出现；保留正式 Born 动画。
+- **基线与范围**：从 `origin/main@83cb1e0e` 建立独立工作树。修改 `ReEchoGameMode.cpp`、测试友元声明、`ReEchoGameModeTests.cpp`、本文档及 `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`，影响 `MOD-ReEcho / AREA-Encounter`；不修改资产、配表、出生位置、名额预留、Warning/Commit 时序、存档或 Born Gameplay Gate。
+- **定位与意图**：`ProcessScheduledSpawnEvents` 在 Warning 事件中对每个预留位置无条件调用 `DrawDebugSphere`。它是运行时调试绘制，不是网格资产；从共享代码路径删除绘制及无用 include，禁止以 Editor/Shipping 宏或默认关闭的开关保留该入口。
+- **验证计划**：Editor/Game World 的普通与 Boss 预备事件回归检查调试批次为空、预留位置及游标不变；执行格式化、Editor 编译、项目校验及差异检查。不打包、不推送，待用户测试。
+- **文档审阅**：`MOD-ReEcho` 补充无可视化 Warning 的契约。`MOD-ReEchoEnemies` 与 `MOD-ReEchoPresentation` 的 AI/Born/表现职责未变，已审阅、无需修改；架构和索引未发生拓扑或路由变化，无需修改。
+- **验证结果**：Development Editor `-FullRebuild` 97/97 通过，精选预构建包源码指纹 `e059898e53ed`；Development Game 非 Editor 目标编译 78/78 通过。`ReEcho.GameMode.SpawnWarningNoDebugGeometry` 1/1 通过，覆盖 Editor/Game World 的普通怪及 Boss 预备事件；`ReEcho.Encounter` 4/4 通过，覆盖波次 Warning/Commit 时序、确定性位置、预留容量与 Boss 时长。`validate_project.py`、预构建一致性、LFS 检出与 `git diff --check` 通过。未 Cook、未打包、未推送，不声称已验证新游戏包的实际视觉效果；桌面旧包不包含本修改。
+- **耦合审查**：生产实现仅删除调试 include 和绘制代码；绘制返回值未被玩法消费，删除的显示时长只控制线框生命周期。`PrepareScheduledSpawnBatch` 的容量预留与位置锁定、`SpawnScheduledBatch` 的完整位置提交与失败日志、Boss 胜利门禁、待出生批次存档恢复及 `TryPlayBorn` / Born Gameplay Gate 均保持不变。复查远端主线仍为 `83cb1e0e`，无新增主线实现需要整合。
+- **状态**：Review。用户已明确授权在耦合审查通过后发布并清理本任务工作树；待持锁完成最终候选构建与发布验证，不将此授权记为已完成人工视觉测试。
