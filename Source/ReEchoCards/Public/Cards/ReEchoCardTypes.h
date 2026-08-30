@@ -240,6 +240,8 @@ struct REECHOCARDS_API FReEchoCardRuleSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 MaximumEchoes = 1;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoesDisabled = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoesCanAttack = true;
+	/** Card.TauntEcho only: retire an Echo from the world after its authoritative death is resolved. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bRetireEchoOnDefeat = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EchoHealthMultiplier = 1.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bEchoTaunts = false;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bWaterEchoAura = false;

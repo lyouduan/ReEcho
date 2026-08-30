@@ -168,6 +168,18 @@ public:
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
+	void AddEchoForTests(AReEchoEchoActor* Echo)
+	{
+		Echoes.Add(Echo);
+	}
+	void RemoveRetiredEchoesForTests()
+	{
+		RemoveRetiredEchoes();
+	}
+	int32 GetEchoCountForTests() const
+	{
+		return Echoes.Num();
+	}
 	static int32 ClearTimeShardPickupsInWorldForTests(UWorld* World);
 	static bool ShouldGrantPostEntryInvulnerabilityForTests(int32 EncounterIndex, float DurationSeconds);
 #endif
@@ -526,6 +538,7 @@ private:
 	FVector ResolveStageEntryLocation() const;
 	void ClearEnemyRoster();
 	void ClearEchoes();
+	void RemoveRetiredEchoes();
 	void ClearCombatants();
 	void ClearTimeShardPickups();
 	static int32 ClearTimeShardPickupsInWorld(UWorld* World);
