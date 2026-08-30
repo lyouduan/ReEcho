@@ -372,11 +372,11 @@ void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
 		Stack.GameplayEffectHandle = ReEchoGameplayEffects::ApplyTransientStatMultiplier(
 		    *BoundAbilitySystem, Stack.AttackSpeedMultiplier, Stack.MovementSpeedMultiplier);
 	}
-	else
-	{
-		Stats.AttackSpeed += Stack.FallbackAttackSpeedDelta;
-		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
-	}
+	// Keep the raw stat block in sync for BOTH backends. Echoes (no ability system) and the player
+	// (ability-system bound) must both see transient attack/move speed in weapon cadence and movement.
+	// Previously only the no-ability-system fallback mutated Stats, so player attack-speed runes had no effect.
+	Stats.AttackSpeed += Stack.FallbackAttackSpeedDelta;
+	Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
 	RefreshTickState();
 }
 
@@ -464,11 +464,8 @@ void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)
 	{
 		BoundAbilitySystem->RemoveActiveGameplayEffect(Stack.GameplayEffectHandle);
 	}
-	else if (!BoundAbilitySystem)
-	{
-		Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
-		Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
-	}
+	Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
+	Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
 	TransientStatStacks.RemoveAt(Index);
 }
 
