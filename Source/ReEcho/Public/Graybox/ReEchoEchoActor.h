@@ -82,6 +82,12 @@ public:
 	/** Replays only the one-shot birth presentation at this Echo's current GroundRoot. */
 	bool PlayBornVfx();
 	bool IsBornVfxPlaying() const;
+	/** Freezes replay and attacks during presentation-only stage transitions while leaving visual Tick active. */
+	void SetTransitionGameplaySuspended(bool bSuspended);
+	bool IsTransitionGameplaySuspended() const
+	{
+		return bTransitionGameplaySuspended;
+	}
 	/** Positions this Echo for a paused transition while withholding its actor/weapon presentation and birth VFX. */
 	void PrepareDeferredBornReveal(float EncounterTime);
 	/** Hides this Echo at its current playback position and arms a fresh birth reveal. */
@@ -276,4 +282,5 @@ private:
 	bool bHasPresentationLocation = false;
 	bool bAudioLifecycleStarted = false;
 	bool bCanAttack = true;
+	bool bTransitionGameplaySuspended = false;
 };

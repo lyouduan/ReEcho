@@ -16,6 +16,7 @@
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraRendererProperties.h"
+#include "NiagaraScript.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemInstance.h"
@@ -1152,17 +1153,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::EchoBorn);
 	TestTrue(TEXT("Echo Born keeps a stable world size"),
 	         EchoBornPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	TestTrue(TEXT("Echo Born renders at one quarter of the source circle size"),
-	         EchoBornPlacement.Scale.Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born preserves the source asset's authored component size"),
+	         EchoBornPlacement.Scale.Equals(FVector::OneVector, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Echo Born owns a finite one-shot presentation lifetime"),
 	         FMath::IsNearlyEqual(EchoBornPlacement.PlaybackDurationSeconds, 0.8f));
-	TestTrue(TEXT("Echo Born scale resolves a requested world diameter from authored ground bounds"),
-	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(
-	             120.0f, FBox(FVector(-500.0f, -300.0f, -100.0f), FVector(500.0f, 300.0f, 400.0f)), FVector(0.25f))
-	             .Equals(FVector(0.12f), KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
-	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
-	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
@@ -1196,6 +1190,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			TestFalse(TEXT("Echo Born loads without deferred Niagara compilation"),
 			          System->HasOutstandingCompilationRequests(true));
+			int32 EchoBornMeshScaleParameterCount = 0;
+			FString EchoBornMeshScaleEmitterName;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (EmitterHandle.GetIsEnabled())
@@ -1205,6 +1201,34 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					         EmitterData && EmitterData->bLocalSpace);
 					if (EmitterData)
 					{
+						TArray<UNiagaraScript*> Scripts;
+						EmitterData->GetScripts(Scripts, false, false);
+						for (const UNiagaraScript* Script : Scripts)
+						{
+							if (!Script)
+							{
+								continue;
+							}
+							for (const FNiagaraVariableWithOffset& Parameter :
+							     Script->RapidIterationParameters.ReadParameterVariables())
+							{
+								if (Parameter.GetType() != FNiagaraTypeDefinition::GetVec3Def() ||
+								    !Parameter.GetName().ToString().EndsWith(TEXT("InitializeParticle.Mesh Scale")))
+								{
+									continue;
+								}
+								const FVector3f MeshScale =
+								    Script->RapidIterationParameters.GetParameterValue<FVector3f>(Parameter);
+								++EchoBornMeshScaleParameterCount;
+								EchoBornMeshScaleEmitterName = EmitterHandle.GetName().ToString();
+								TestTrue(TEXT("Echo Born mesh preserves its authored local X size"),
+								         FMath::IsNearlyEqual(MeshScale.X, 25.0f));
+								TestTrue(TEXT("Echo Born mesh preserves its authored local Y size"),
+								         FMath::IsNearlyEqual(MeshScale.Y, 25.0f));
+								TestTrue(TEXT("Echo Born mesh restores its authored visible local Z size"),
+								         FMath::IsNearlyEqual(MeshScale.Z, 40.0f));
+							}
+						}
 						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 						{
 							const UNiagaraSpriteRendererProperties* Sprite =
@@ -1226,6 +1250,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					}
 				}
 			}
+			TestEqual(TEXT("Echo Born owns one authored mesh-scale parameter"), EchoBornMeshScaleParameterCount, 1);
+			TestTrue(TEXT("Echo Born mesh-scale parameter belongs to Fountain004"),
+			         EchoBornMeshScaleEmitterName.Contains(TEXT("Fountain004")));
 		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||

@@ -164,7 +164,7 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	          AReEchoGameMode::ShouldCompleteEncounterTransition(true, false, false, 30.0f));
 	TestTrue(TEXT("Encounter 1 proceeds directly to its CG"), AReEchoGameMode::ShouldPlayStage01To02Cg(1));
 	TestFalse(TEXT("Encounter 2 retains the normal post-card shop"), AReEchoGameMode::ShouldPlayStage01To02Cg(2));
-	TestEqual(TEXT("Echo reveals after the birth circle has established for 0.4 seconds"),
+	TestEqual(TEXT("Echo and birth circle appear together before the 0.4-second camera hold"),
 	          AReEchoGameMode::GetStage01To02EchoRevealDelaySeconds(),
 	          0.4f);
 	TestEqual(TEXT("Echo birth reveal has a bounded Niagara completion fallback"),

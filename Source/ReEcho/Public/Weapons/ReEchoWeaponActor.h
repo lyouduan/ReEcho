@@ -68,6 +68,11 @@ public:
 	}
 
 	float GetAttackCooldownRemaining() const;
+	/** Pauses weapon gameplay time while retaining held-weapon presentation updates. */
+	void SetTransitionGameplaySuspended(bool bSuspended)
+	{
+		bTransitionGameplaySuspended = bSuspended;
+	}
 #if WITH_DEV_AUTOMATION_TESTS
 	static float ResolveHeldWorldLengthForTests(const UReEchoWeaponPresentationProfile& WeaponProfile,
 	                                            float CharacterReferenceHeight,
@@ -260,6 +265,7 @@ private:
 
 	TArray<FTimedRangeStack> TimedRangeStacks;
 	float LastRuneAttackWorldTime = -1.0f;
+	bool bTransitionGameplaySuspended = false;
 	float NextComboDecayWorldTime = -1.0f;
 	bool bScytheThrown = false;
 	bool bScytheStationary = false;
