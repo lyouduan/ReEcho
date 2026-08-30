@@ -994,7 +994,9 @@ float AReEchoPlayerPawn::GetAutomaticAttackRange() const
 
 void AReEchoPlayerPawn::FaceAutomaticTarget(AActor& Target)
 {
-	FVector ToTarget = Target.GetActorLocation() - GetActorLocation();
+	const IReEchoCombatTarget* CombatTarget = Cast<IReEchoCombatTarget>(&Target);
+	const FVector TargetLocation = CombatTarget ? CombatTarget->GetCombatTargetLocation() : Target.GetActorLocation();
+	FVector ToTarget = TargetLocation - GetActorLocation();
 	ToTarget.Z = 0.0f;
 	if (!ToTarget.IsNearlyZero())
 	{
@@ -1007,7 +1009,8 @@ void AReEchoPlayerPawn::FaceAutomaticTarget(AActor& Target)
 		{
 			VisualFacingSign = HorizontalAim >= 0.0f ? 1.0f : -1.0f;
 		}
-		AttackAimDirection = ToTarget.GetSafeNormal2D();
+		AttackAimDirection = Weapon ? Weapon->ResolveAutomaticAimDirectionToTarget(TargetLocation)
+		                              : ToTarget.GetSafeNormal2D();
 	}
 }
 

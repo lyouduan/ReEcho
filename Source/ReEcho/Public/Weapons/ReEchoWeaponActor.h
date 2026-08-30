@@ -152,6 +152,9 @@ public:
 		return WeaponAttackVfxRoot;
 	}
 
+	/** Resolves automatic aim from the actual ranged release point; melee keeps owner-centered aim. */
+	FVector ResolveAutomaticAimDirectionToTarget(const FVector& TargetLocation) const;
+
 	FString GetEquippedWeaponLabel() const;
 	const FReEchoBuildSnapshot& GetBuildSnapshot() const;
 	FString GetPinnedWeaponDomainRevision() const;

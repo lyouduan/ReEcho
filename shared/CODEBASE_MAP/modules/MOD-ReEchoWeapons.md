@@ -140,6 +140,8 @@ Plan126 为每个 Weapon Profile 增加中心化局部 `AttackVfxAnchorRatio` �
 
 `AReEchoWeaponActor` 通过单一 `ResolveOwnerAimDirection` 把宿主状态编译为武器世界方向。玩家宿主读取 `AReEchoPlayerPawn::AttackAimDirection`，Echo 宿主读取 `AReEchoEchoActor::AttackAimDirection`，两者都无需旋转根 Actor；其他宿主才回退到 `Owner` 前向。攻击位移、Commit 事件、近战查询、Projectile 与 MoonStaff 辅助 Wave 必须消费同一结果，禁止各自重新读取 Actor Rotation/Forward，否则会再次出现逻辑瞄准与碰撞/表现解耦后攻击方向固定的问题。
 
+玩家自动索敌时，弓和枪必须通过 `ResolveAutomaticAimDirectionToTarget` 从最终 `WeaponAttackVfxRoot` 投射物生成点指向目标的 `GetCombatTargetLocation()`；不得继续用角色中心到目标中心的平行方向。近战仍以角色中心求方向，手动鼠标瞄准也不受该自动索敌修正影响。
+
 ## 代码位置与阅读路线
 
 | 目的 | 先读代码 | 说明 |
