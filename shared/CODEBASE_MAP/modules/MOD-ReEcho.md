@@ -245,6 +245,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 **设计意图：** 提供可暂停、确定性的 60 Hz 固定步遭遇时钟、表驱动波次门、单一出生解析和纯值 Stage 过渡决策，让 Recording/Echo/敌人生成共享同一时间语义，同时不让 GameMode 保存刷怪平衡常量。Stage 是连续战场，Encounter 只界定时钟、波次、录制和 Echo；结束一场不等于重建同 Stage 的 Actor。
 
+- 出生 `Warning` 只预留容量、锁定最终位置并记录日志，不绘制球形网格或调试线框；此约束在 Editor、Development 与 Shipping 共用路径生效，不依赖构建开关。`Commit` 时序与 Host 提交后的可选 Born 动画保持不变。`ReEcho.GameMode.SpawnWarningNoDebugGeometry` 检查 Editor/Game World 下普通怪与 Boss 的预备事件不向调试批次添加几何。
+
 - 代码：`Source/ReEcho/Public/Encounter/`、`Source/ReEcho/Private/Encounter/`。
 - 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
 - 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只消费 GameMode 传入的墙体派生世界 `FBox2D` 并做纯确定性计算；越界候选不 Clamp，最终 fallback 也必须同时满足 Bounds、玩家/Echo 距离和既有出生间距，否则失败关闭；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
@@ -254,6 +256,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。
 - 结算表现：每个普通限时 Encounter 在 Director 剩余时间进入 3 秒阈值后，GameMode 只把权威时间投影为规范化强度；`AReEchoArenaCameraActor` 用 Post Process Material 对场景颜色执行非对称多点采样，使 03→01 的空间重影/模糊平滑增强、01→00 保持峰值，UMG HUD 不参与后处理。第一关是窄例外：结算后直接清除该关 CardChoice，使用局间门停止玩家、Echo、敌人模拟和关卡推进；停止当前Music State后进入全局暂停，玩家与怪物停止，相机用1秒锁定玩家并推进至标准正交宽度的 `0.325`，再保持玩家近景0.5秒。随后解除全局暂停，通过 WmfMedia/HAP 播放无音轨 `Stage01To02.mov`，首个有效视频帧出现后独立播放对应 SoundWave，保证媒体时钟不被冻结。CG完整结束后 GameMode 在全屏媒体仍覆盖视口时静默准备 Encounter 2 的场景、玩家和 Echo，并先按同一 `0.325` 比例把后台相机瞬时定位到 Echo，再进入全局暂停并关闭媒体层；玩家、怪物与Echo均停止，且不启动录制、Director、敌人模拟、输入或关卡音乐。相机先用1秒保持焦点锁定Echo并把正交宽度拉回标准值，再用独立1秒保持标准宽度并把焦点平移到玩家，完成后解除暂停并正式激活 Encounter 2。GameMode显式使用 `AReEchoPlayerController`；GameMode与ArenaCamera在每次序列开始时运行时强制启用暂停Tick，不依赖关卡Actor已序列化的旧默认值；统一暂停边界还临时启用 PlayerController 的完整暂停Tick，使 PlayerCameraManager 持续刷新实际视口，解除暂停或重置时恢复原配置。相机或目标缺失、媒体打开/首帧/时钟停滞失败时按阶段 fail-open，不得卡死。第二关及以后在权威倒计时到 0 后清零相机效果、冻结局间状态并从第 0 帧播放 40 FPS Hap Alpha MOV，媒体完成后才进入 Run 指定的 TraitChoice 或 Shop。Boss、死亡和非计时结束保持原流程。`GMTransition4` 通过 Director 权威时钟从剩余 4 秒开始提供完整预览。
+- Stage01To02 镜头不使用 Actor 根节点充当构图中心。玩家与 Echo 在每段镜头开始时锁存当前可见 Flipbook `RenderBounds.Origin` 的完整世界变换，再沿倾斜相机视线投影到 Gameplay Plane；`0.325` 近景默认绕过 Arena Clamp，使视觉中心严格落在视口中心，拉回标准视角时平滑重新进入边界 Clamp，普通战斗跟随仍保持脚点与边界 Clamp 契约。
 - Stage01To02 已观看资格是独立账号进度，不属于任一 Run 槽。只有媒体自然完整结束且 `ReEchoPlayerProgress` 保存成功才授予；播放失败或中途退出不授予。后续播放时 GameMode 允许右上角跳过，主动跳过立即停止视频和 CG 音乐，并继续使用同一个回响近景、回到主角、解除暂停的 CG 后流程。
 - 测试：`Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp` 的 `ReEcho.StageTransition.*` 覆盖生产矩阵、非法边界与原 Host 局间连续性。
 - 禁止：持有构筑、货币、存档或 Widget 状态。

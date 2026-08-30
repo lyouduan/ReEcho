@@ -489,7 +489,7 @@ FReEchoVfxPlacement FReEchoCombatVfxCatalog::ResolvePlacement(const EReEchoComba
 	else if (Semantic == EReEchoCombatVfxSemantic::EchoBorn)
 	{
 		Placement.ScalePolicy = EReEchoVfxScalePolicy::PreserveWorldSize;
-		Placement.Scale = FVector(0.25f);
+		Placement.Scale = FVector::OneVector;
 		Placement.PlaybackDurationSeconds = 0.8f;
 	}
 	return Placement;

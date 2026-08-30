@@ -27,7 +27,6 @@
 #include "UnrealClient.h"
 #include "EngineUtils.h"
 #include "ImageUtils.h"
-#include "DrawDebugHelpers.h"
 #include "Graybox/ReEchoEchoActor.h"
 #include "Graybox/ReEchoEnemyActor.h"
 #include "Graybox/ReEchoTimeShardPickupActor.h"
@@ -1415,24 +1414,9 @@ void AReEchoGameMode::GMEchoSummon()
 			continue;
 		}
 		++PlayedCount;
-		const TWeakObjectPtr<AReEchoEchoActor> WeakEcho(Echo);
-		FTimerHandle RevealTimer;
-		GetWorldTimerManager().SetTimer(
-		    RevealTimer,
-		    [WeakEcho]()
-		    {
-			    if (AReEchoEchoActor* ActiveEcho = WeakEcho.Get())
-			    {
-				    ActiveEcho->CompleteDeferredBornReveal();
-			    }
-		    },
-		    GetStage01To02EchoRevealDelaySeconds(),
-		    false);
 	}
 	PrintGMResult(PlayedCount > 0
-	                  ? FString::Printf(TEXT("Replayed Echo summon reveal on %d living Echo(es); reveal delay %.1fs."),
-	                                    PlayedCount,
-	                                    GetStage01To02EchoRevealDelaySeconds())
+	                  ? FString::Printf(TEXT("Replayed simultaneous Echo summon on %d living Echo(es)."), PlayedCount)
 	                  : TEXT("GMEchoSummon requires at least one living Echo and a valid Echo Born system."),
 	              PlayedCount > 0);
 }
@@ -2665,6 +2649,7 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 			if (bDeferActivation)
 			{
 				Echo->PrepareDeferredBornReveal(0.0f);
+				Echo->SetTransitionGameplaySuspended(true);
 			}
 			Echoes.Add(Echo);
 		}
@@ -2715,6 +2700,13 @@ void AReEchoGameMode::ActivatePreparedEncounter()
 	RestoreGameInput();
 	GrantPostEntryInvulnerability(RunSubsystem->EncounterIndex);
 	Director->StartEncounter();
+	for (AReEchoEchoActor* Echo : Echoes)
+	{
+		if (IsValid(Echo))
+		{
+			Echo->SetTransitionGameplaySuspended(false);
+		}
+	}
 	ProcessScheduledSpawnEvents(0.0f);
 	GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoGameMode::CaptureActiveSaveSlotPreview);
 	UE_LOG(LogReEcho,
@@ -3109,17 +3101,6 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 			       Event.Count,
 			       Pending ? Pending->Locations.Num() : 0,
 			       Event.SpawnSeconds);
-			if (Pending && GetWorld())
-			{
-				const float FixedStepGraceSeconds =
-				    1.0f / FMath::Max(1.0f, GetDefault<UReEchoBalanceSettings>()->FixedStepHz);
-				const float DisplaySeconds =
-				    FMath::Max(0.15f, Event.SpawnSeconds - Event.EventSeconds) + FixedStepGraceSeconds;
-				for (const FVector& Location : Pending->Locations)
-				{
-					DrawDebugSphere(GetWorld(), Location, 65.0f, 12, FColor::Red, false, DisplaySeconds, 0, 5.0f);
-				}
-			}
 			continue;
 		}
 		SpawnScheduledBatch(Event);
@@ -5625,17 +5606,18 @@ void AReEchoGameMode::CompleteStage01To02Cg(const bool bFailed, const bool bSkip
 		       *GetNameSafe(EchoTarget));
 	}
 	// Encounter 2 remains prepared but inactive, with input and enemy simulation still gated. Leave the world
-	// unpaused so Niagara's system manager can actually simulate the birth effect before the Echo is revealed.
+	// unpaused so Niagara's system manager can simulate the birth effect while the Echo is visible.
 	SetEncounterTransitionWorldPaused(false);
-	// Start the birth circle while the final opaque CG frame still covers the world. Closing the transition screen
-	// afterwards guarantees the first returned gameplay frame already contains the running effect.
-	const bool bEchoRevealStarted = bEchoPrepositioned && BeginStage01To02EchoReveal();
+	// Remove the opaque CG layer before Niagara activation. Starting the one-shot behind the media widget consumed its
+	// important opening frames before the game viewport became visible, unlike the working GMEchoSummon path.
 	if (UReEchoUIFlowCoordinatorSubsystem* UIFlow =
 	        GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>())
 	{
 		UIFlow->CloseScreen(EReEchoUIScreen::EncounterTransition);
 	}
 	EncounterTransitionWidget = nullptr;
+	// The UI close and reveal still happen in one game tick, so the next rendered frame contains both Echo and circle.
+	const bool bEchoRevealStarted = bEchoPrepositioned && BeginStage01To02EchoReveal();
 	if (bEchoPrepositioned)
 	{
 		if (bEchoRevealStarted)
@@ -5772,6 +5754,9 @@ bool AReEchoGameMode::BeginStage01To02EchoReveal()
 			bPlayedAnyBornVfx |= Echo->BeginDeferredBornReveal();
 		}
 	}
+	// BeginDeferredBornReveal atomically reveals each Echo, refreshes its Flipbook transform, and activates Niagara.
+	// The following delay only holds the camera; this completion remains a fail-open cleanup for invalid Echoes.
+	CompleteStage01To02EchoReveal();
 	return bPlayedAnyBornVfx;
 }
 

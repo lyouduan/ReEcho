@@ -775,9 +775,10 @@ bool UReEchoCombatVfxComponent::SetEchoBornMeshHeightScale(UNiagaraSystem* Syste
 				{
 					continue;
 				}
-				const FVector3f Current = Script->RapidIterationParameters.GetParameterValue<FVector3f>(Parameter);
 				Script->Modify();
-				Script->RapidIterationParameters.SetParameterValue(FVector3f(Current.X, Current.Y, 0.1f), Parameter);
+				// Fountain004 retains the source asset's complete authored size. Its relative layer size is owned by
+				// Niagara; only the runtime component applies the common Echo Born world-scale normalization.
+				Script->RapidIterationParameters.SetParameterValue(FVector3f(25.0f, 25.0f, 40.0f), Parameter);
 				bModified = true;
 			}
 		}
@@ -1041,25 +1042,7 @@ void UReEchoCombatVfxComponent::TickComponent(const float DeltaTime,
 	}
 }
 
-FVector UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(const float DesiredWorldDiameterCm,
-                                                             const FBox& AuthoredSystemBounds,
-                                                             const FVector& FallbackScale)
-{
-	if (DesiredWorldDiameterCm <= UE_SMALL_NUMBER || !AuthoredSystemBounds.IsValid)
-	{
-		return FallbackScale;
-	}
-	const FVector AuthoredSize = AuthoredSystemBounds.GetSize();
-	const float AuthoredGroundDiameter = FMath::Max(AuthoredSize.X, AuthoredSize.Y);
-	if (AuthoredGroundDiameter <= UE_SMALL_NUMBER)
-	{
-		return FallbackScale;
-	}
-	return FVector(DesiredWorldDiameterCm / AuthoredGroundDiameter);
-}
-
-bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation,
-                                                            const float DesiredWorldDiameterCm) const
+bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation) const
 {
 	const EReEchoCombatVfxSemantic Semantic = EReEchoCombatVfxSemantic::EchoBorn;
 	UNiagaraComponent* Effect =
@@ -1075,10 +1058,6 @@ bool UReEchoCombatVfxComponent::PlayEchoBornAtWorldLocation(const FVector& Groun
 	Effect->SetTranslucentSortPriority(ResolveOwnerAuraSortPriority());
 	Effect->SetVariableVec3(TEXT("User.GroundNormal"), FVector::UpVector);
 	Effect->SetVariableVec3(TEXT("User.GroundTangent"), FVector::ForwardVector);
-	const UNiagaraSystem* System = Effect->GetAsset();
-	const FBox AuthoredBounds = System ? System->GetFixedBounds() : FBox(EForceInit::ForceInit);
-	Effect->SetWorldScale3D(ResolveEchoBornWorldScale(
-	    DesiredWorldDiameterCm, AuthoredBounds, FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).Scale));
 	EchoBornEffect = Effect;
 	Effect->Activate(true);
 	const float DurationSeconds = FReEchoCombatVfxCatalog::ResolvePlacement(Semantic).PlaybackDurationSeconds;

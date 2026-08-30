@@ -45,7 +45,20 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Stage camera ease clamps after completion"),
 	          AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(2.0f),
 	          1.0f);
+	const FVector TiltedCameraForward(0.6f, 0.0f, -0.8f);
+	const FVector2D ElevatedVisualFocus = AReEchoArenaCameraActor::CalculateStage01To02GroundFocus(
+	    FVector(100.0f, 25.0f, 80.0f), 0.0f, TiltedCameraForward);
+	TestEqual(TEXT("Elevated visual center projects along the camera ray onto the gameplay plane"),
+	          ElevatedVisualFocus,
+	          FVector2D(160.0f, 25.0f));
+	const FVector2D HorizontalFallback = AReEchoArenaCameraActor::CalculateStage01To02GroundFocus(
+	    FVector(100.0f, 25.0f, 80.0f), 0.0f, FVector::ForwardVector);
+	TestEqual(TEXT("A camera parallel to the gameplay plane safely falls back to visual-center XY"),
+	          HorizontalFallback,
+	          FVector2D(100.0f, 25.0f));
 	const AReEchoArenaCameraActor* CameraDefaults = GetDefault<AReEchoArenaCameraActor>();
+	TestTrue(TEXT("Stage01To02 close-ups default to exact visual centering"),
+	         CameraDefaults->ShouldStage01To02AllowExactCenter());
 	TestEqual(TEXT("Pre-CG camera push lasts one second while globally paused"),
 	          CameraDefaults->GetStage01To02PlayerFocusDuration(),
 	          1.0f);
@@ -86,6 +99,12 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	          CardChoiceFramePosition.Y,
 	          87.0,
 	          0.01);
+	TestEqual(TEXT("Stage CG uses a one and a half times music-bus multiplier"),
+	          UReEchoEncounterTransitionWidget::CalculateStageCgMusicVolume(1.0f, 1.0f),
+	          1.5f);
+	TestEqual(TEXT("Stage CG follows master and music bus volume"),
+	          UReEchoEncounterTransitionWidget::CalculateStageCgMusicVolume(0.8f, 0.5f),
+	          0.6f);
 	TestEqual(TEXT("Card-to-shop stays framed before the masked figure enters"),
 	          UReEchoEncounterTransitionWidget::CalculateCardChoiceToShopCollapseAlpha(0.249),
 	          0.0f);
@@ -145,7 +164,7 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	          AReEchoGameMode::ShouldCompleteEncounterTransition(true, false, false, 30.0f));
 	TestTrue(TEXT("Encounter 1 proceeds directly to its CG"), AReEchoGameMode::ShouldPlayStage01To02Cg(1));
 	TestFalse(TEXT("Encounter 2 retains the normal post-card shop"), AReEchoGameMode::ShouldPlayStage01To02Cg(2));
-	TestEqual(TEXT("Echo reveals after the birth circle has established for 0.4 seconds"),
+	TestEqual(TEXT("Echo and birth circle appear together before the 0.4-second camera hold"),
 	          AReEchoGameMode::GetStage01To02EchoRevealDelaySeconds(),
 	          0.4f);
 	TestEqual(TEXT("Echo birth reveal has a bounded Niagara completion fallback"),

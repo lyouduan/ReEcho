@@ -2248,7 +2248,10 @@ void AReEchoWeaponActor::AdvanceScytheThrow(const float DeltaSeconds)
 void AReEchoWeaponActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	WeaponLogic.Tick(DeltaSeconds);
+	if (!bTransitionGameplaySuspended)
+	{
+		WeaponLogic.Tick(DeltaSeconds);
+	}
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	WeaponHandAnchorLocation =
 	    ResolveOwnerVisualFacingSign() < 0.0f ? LeftWeaponHandAnchorLocation : RightWeaponHandAnchorLocation;

@@ -29,6 +29,10 @@ public:
 	void SetEncounterCountdownPostProcessIntensity(float Intensity);
 	void ResetEncounterCountdownPostProcess();
 	static float CalculateStage01To02CameraEaseAlpha(float LinearAlpha);
+	static FVector2D CalculateStage01To02GroundFocus(const FVector& VisualCenterWorld,
+	                                                 float GameplayPlaneWorldZ,
+	                                                 const FVector& CameraForward);
+	static bool TryResolveStage01To02VisualCenter(AActor* Target, FVector& OutVisualCenterWorld);
 	void BeginStage01To02CameraSequence();
 	bool FocusStage01To02Target(AActor* Target, float OrthoWidthRatio, float DurationSeconds);
 	bool FocusStage01To02TargetAtStandardWidth(AActor* Target, float DurationSeconds);
@@ -64,6 +68,11 @@ public:
 	float GetStage01To02MoveToPlayerDuration() const
 	{
 		return Stage01To02MoveToPlayerDuration;
+	}
+
+	bool ShouldStage01To02AllowExactCenter() const
+	{
+		return bStage01To02AllowExactCenter;
 	}
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena Camera")
@@ -148,6 +157,8 @@ public:
 	float Stage01To02MoveToPlayerDuration = 1.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Encounter Transition|Stage01To02")
 	TObjectPtr<UCurveFloat> Stage01To02CameraEaseCurve;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Encounter Transition|Stage01To02")
+	bool bStage01To02AllowExactCenter = true;
 
 private:
 	void EnsureEncounterCountdownPostProcess();

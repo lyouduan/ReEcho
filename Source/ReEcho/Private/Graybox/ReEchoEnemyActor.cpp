@@ -103,14 +103,16 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
 	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
+	TerminalDeathMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("TerminalDeathMotionRoot"));
+	TerminalDeathMotionRoot->SetupAttachment(FootRoot);
 	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
-	PresentationMotionRoot->SetupAttachment(FootRoot);
+	PresentationMotionRoot->SetupAttachment(TerminalDeathMotionRoot);
 	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
 	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
-	GroundRoot->SetupAttachment(FootRoot);
+	GroundRoot->SetupAttachment(TerminalDeathMotionRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
@@ -208,9 +210,10 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 
 	AttachIfNeeded(PresentationRoot, RootComponent);
 	AttachIfNeeded(FootRoot, PresentationRoot);
-	AttachIfNeeded(PresentationMotionRoot, FootRoot);
+	AttachIfNeeded(TerminalDeathMotionRoot, FootRoot);
+	AttachIfNeeded(PresentationMotionRoot, TerminalDeathMotionRoot);
 	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
-	AttachIfNeeded(GroundRoot, FootRoot);
+	AttachIfNeeded(GroundRoot, TerminalDeathMotionRoot);
 	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
