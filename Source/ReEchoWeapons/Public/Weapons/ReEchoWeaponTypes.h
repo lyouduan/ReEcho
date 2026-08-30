@@ -130,6 +130,8 @@ struct REECHOWEAPONS_API FReEchoLogicalProjectileSpec
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float ExplosionRadiusCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float MaximumRangeCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) bool bPierceOnCritical = false;
+	/** Targets this projectile must never resolve against, such as the parent contact of a split child. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TArray<TObjectPtr<AActor>> InitialIgnoredTargets;
 };
 
 USTRUCT(BlueprintType)

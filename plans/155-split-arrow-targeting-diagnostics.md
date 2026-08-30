@@ -98,7 +98,9 @@
 ### 变化
 
 - 第一阶段诊断已加入：分裂母箭命中、候选排序、子箭预定目标/生成信息，以及子箭第一次实际结算目标均使用 `[SplitArrowTrace]` 和 Projectile GUID 串联。
-- 本阶段未改变候选、生成、碰撞或伤害行为，等待用户日志确认根因。
+- 用户日志已确认根因：子箭预定目标正确，但固定 18 cm 生成偏移仍处于母目标 Hurtbox 内，逻辑路径扫描会在首步重新命中母目标。
+- `FReEchoLogicalProjectileSpec::InitialIgnoredTargets` 成为资源无关的初始排除契约；分裂子箭把母目标传入，逻辑组件在首帧扫描前合入 `HitTargets`，同时阻止直击和爆炸再次结算母目标。
+- 既有分裂组合自动化已扩为推进子箭并检查实际生命变化：母目标生命保持不变、至少一名其他候选受到伤害。
 
 ### 证据
 
@@ -107,6 +109,9 @@
 - `python scripts/validate_project.py`：构建后通过；XLSX/CSV、规则 Schema、预构建指纹均一致。
 - `git diff --check`：通过（仅报告工作树的预期 LF/CRLF 提示）。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Weapons.Runes.ProjectileSplitPierceExplosion`：在测试发现前被本机 UE 5.8 `ValidatePlatforms -AllPlatforms` 的 LinuxArm64/VisionOS `SDK.json MainVersion` 环境门禁阻断；与 Plan111 已记录的本机问题一致，不冒充测试通过。诊断源码已由 UHT/UBT 完整编译。
+- 用户复现日志 `ReEcho-session-20260830-204156-pid42552.log`：108 次子箭结算中 82 次实际目标等于母目标、22 次等于预定目标、4 次被路径上的其他目标拦截；母目标重命中的飞行距离为 7.92–10.61 cm（平均 8.02 cm）。典型批次 `d8d64154-...` 为三支子箭分别预定 Slime 146/138/130，却全部在 10.61 cm 后重命中母目标 Slime 99，证明方向和候选排序不是根因。
+- 同步 `origin/main@1273f930` 时，远端 Plan154/暴击跳字源码与本任务无真实或逻辑冲突；仅精选 DLL/manifest 发生生成物冲突，已先采用远端生成物并计划在最终组合源码上 FullRebuild，不选择任一侧旧二进制作为交付。
+- 修复候选基于 `origin/main@1273f930` 完成 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild`：98 个 action 完成，UHT/UBT `Result: Succeeded`，精选 7 模块 Editor 包由组合源码重新生成。
 
 ### 剩余风险
 

@@ -37,7 +37,8 @@ public:
 	                          bool bInPierceOnCritical = false,
 	                          AReEchoWeaponActor* InRuneHost = nullptr,
 	                          TSharedPtr<FReEchoWeaponRuneAttackContext> InRuneContext = nullptr,
-	                          bool bInAllowSplit = true);
+	                          bool bInAllowSplit = true,
+	                          AActor* InInitialIgnoredTarget = nullptr);
 
 #if !UE_BUILD_SHIPPING
 	/** Diagnostic-only correlation for a split child; it does not affect targeting or damage. */

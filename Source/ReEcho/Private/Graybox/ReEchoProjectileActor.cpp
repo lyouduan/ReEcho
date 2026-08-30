@@ -80,7 +80,8 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
                                                   const bool bInPierceOnCritical,
                                                   AReEchoWeaponActor* InRuneHost,
                                                   TSharedPtr<FReEchoWeaponRuneAttackContext> InRuneContext,
-                                                  const bool bInAllowSplit)
+                                                  const bool bInAllowSplit,
+                                                  AActor* InInitialIgnoredTarget)
 {
 	Damage = FMath::Max(0.f, InDamage);
 	Element = InElement;
@@ -104,6 +105,10 @@ void AReEchoProjectileActor::InitializeProjectile(const FVector& Direction,
 	Spec.ExplosionRadiusCm = ExplosionRadiusCm;
 	Spec.MaximumRangeCm = FMath::Max(1.0f, InMaxRangeCm);
 	Spec.bPierceOnCritical = bInPierceOnCritical;
+	if (IsValid(InInitialIgnoredTarget))
+	{
+		Spec.InitialIgnoredTargets.Add(InInitialIgnoredTarget);
+	}
 	if (!ProjectileLogic->InitializeProjectile(Spec))
 	{
 		Destroy();

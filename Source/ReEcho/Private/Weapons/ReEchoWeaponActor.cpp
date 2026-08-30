@@ -1772,7 +1772,8 @@ void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRun
 		                                 bPierceOnCritical,
 		                                 this,
 		                                 Context,
-		                                 false);
+		                                 false,
+		                                 Result.Target);
 #if !UE_BUILD_SHIPPING
 		if (IsValid(Projectile))
 		{
