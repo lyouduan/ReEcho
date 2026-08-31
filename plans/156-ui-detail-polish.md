@@ -6,17 +6,18 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（首项结算统计文字所见即所得已完成，待人工验收）。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Review`（结算统计文字所见即所得及胜利到失败的一次性同步已完成，待人工验收）。
+- 人工验收：`Passed`（用户再次微调保存后要求发布，并确认结算 UI 冲突以本次蓝图为准）。
 - 本地规划 / 实现基线：`origin/main@11dc24d2d3e36a3bcec5898bb40dd05385046156`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan156-ui-detail-polish`，分支 `plan/156-ui-detail-polish`。
-- 依赖 / 阻塞：用户已确认将胜利/失败结算统计文字改为所见即所得，并已保存关闭 Editor；本项不修改或重建 `.uasset`，保留现有 Designer 布局。
+- 依赖 / 阻塞：用户已保存关闭 Editor，并明确授权将胜利页八组统计文字的布局/样式一次性同步到失败页；只同步指定 16 个文本，不重建页面。
 - Writes:
   - `plans/156-ui-detail-polish.md`
   - `Source/ReEcho/Public/UI/ReEchoRestartWidget.h`
   - `Source/ReEcho/Private/UI/ReEchoRestartWidget.cpp`
   - `Source/ReEcho/Private/Tests/ReEchoRestartWidgetTests.cpp`
-  - `Content/ReEcho/UI/WBP_ReEchoRestart.uasset`（用户保存的胜利页微调；本轮不向失败页自动同步）
+  - `Content/ReEcho/UI/WBP_ReEchoRestart.uasset`（保留用户胜利页微调，仅将统计文本的表现属性同步到失败页）
+  - `scripts/ue/sync_plan156_settlement_stat_layout.py`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
   - `Design/UI/ReEcho_UI修改指导.md`
@@ -34,7 +35,7 @@
 1. 按用户后续逐项提供的截图、控件名和目标效果，修正现有 UI 的视觉与交互细节，使 PIE/局内结果与目标一致。
 2. 在不破坏运行时数据填充的前提下，优先让需要人工微调的几何、字体、Brush 和样式在 Blueprint Designer 中所见即所得且可直接调整。
 3. 保持目标页面现有功能逻辑、事件绑定、输入/焦点、导航、Tooltip、存档与玩法语义不变；视觉修正不得引入第二套状态或在 C++ 中重新覆盖 Designer 已保存参数。
-4. 首项锁定为 `WBP_ReEchoRestart` 的 `VictoryCanvas` / `DefeatCanvas`：八组统计标签与数值的位置、尺寸、字体、字号、颜色、对齐、换行和裁切均保留 Blueprint 保存值；删除 `ApplySettlementStatLayout` / `ConstrainSettlementStats`，程序仅继续投影真实数值。不重排、改名或重建现有资产。
+4. 首项锁定为 `WBP_ReEchoRestart` 的 `VictoryCanvas` / `DefeatCanvas`：八组统计标签与数值的位置、尺寸、字体、字号、颜色、对齐、换行和裁切均保留 Blueprint 保存值；删除 `ApplySettlementStatLayout` / `ConstrainSettlementStats`，程序仅继续投影真实数值。按用户后续“同步过去吧”授权，一次性将已保存 Victory 统计文本表现复制到 Defeat 对应 16 个节点；不复制文本内容，不改名或重建，失败页标题/角色/卡槽/按钮及业务逻辑保持不变，后续仍可独立编辑。
 
 ## 架构影响与设计决策
 
@@ -93,6 +94,11 @@
 
 ### 变化
 
+- 最终发布准备：用户保存后的蓝图 blob 为 `25db061d72d6aba390d9131b05d08d348e6b9491`；直接保留，不再执行同步脚本以免覆盖最新微调。用户在获知远端同一蓝图/运行时排版冲突后明确回复“按建议的改”：结算文字以本次 Designer 为准，取消运行时排版覆盖，其余主线变化全部保留。远端被替代的表现可从 `352de32a`、`5c3b3b14`、`5f13909a` 恢复，不改写其历史。
+- 发布前外部审计：main 为 `d2049efd`；传入为回响/敌人/Boss 表现、战斗与卡牌修复、生产表、Plan157 商店浮窗和结算样式。结算 `.uasset`、Restart 排版函数和头文件存在物理及逻辑冲突，已由用户选择本地 Designer 权威；共享模块文档组合保留，预构建包在获锁合并后完整重建，其他运行时/数据改动不回退。Plan156 已发布且无编号冲突。当前其他发布者持有 `12c41899` 锁（额外卡牌测试/文档及预构建），尚未进入 main；未抢锁、未合入 main、未执行最终发布构建。
+- Editor 自动改写的 `ReEcho.uproject` 已单独备份在 stash `390c6e4fe87d214f2a72290c7c7267baf0e0fa20`；其内容与当前远端描述符一致，后续正常合并取得远端版本，不把机器改写当本项功能提交。
+- 2026-08-31 用户授权一次性同步胜利统计到失败页；已准备 `sync_plan156_settlement_stat_layout.py`，仅复制 16 个对应 TextBlock 的表现与 Canvas Slot 属性，预检节点、验证胜利原样/层级/文本内容不变后才保存。执行前检测到同克隆 `ReEcho-fix-remove-spawn-debug-spheres` 的交互式 Editor（PID 44040）正在运行，故尚未执行资产迁移，等待用户关闭；不终止其他任务进程。
+- 用户随后确认保存关闭；确认无 Editor/commandlet 后，经共享 Unreal 锁执行上述迁移，16 对统计文本的几何/样式一致性、胜利参数未变、控件命名/父子关系/文本内容未变全部通过，Compile/Save 成功。失败页标题、角色、卡槽、按钮未写入，C++ 与统计/按钮业务逻辑未改。此前等待已解除，迁移已完成。
 - 2026-08-31 首项：用户确认将结算统计小字改为所见即所得。删除 `NativeConstruct -> ApplySettlementStatLayout -> ConstrainSettlementStats` 调用链以及失效声明/包含；它原本会覆盖两页八组统计的坐标、18/20 字号、颜色、对齐、换行和裁切。
 - 保留 `WBP_ReEchoRestart.uasset` 字节与现有层级，不改名、不重建、不迁移布局；`RefreshRunStatsValues`、关卡/碎片/构筑数值投影、结果页显隐及按钮行为未改。
 - 新增 `ReEcho.UI.RestartWidgetAuthoredStats`：对保存默认值与人工自定义参数分别检查全部 32 个统计文本，验证构造、失败页、胜利页和 Slate 重构造都保留样式/Slot/标签文案，并断言真实数值继续更新。
@@ -110,10 +116,12 @@
 - 构建完成后 `python scripts/validate_project.py`、`git diff --check`：通过。先前构建进行中的静态检查因 bundle 尚未刷新失败，已在构建结束后重跑通过。
 - 用户胜利页保存后的复核：`Build-Editor.cmd -Configuration Development` 通过并按仓库 `ReEcho.uproject` 刷新 manifest；`ReEcho.UI.RestartWidget` 仍 2/2 Success，日志 `Saved/Logs/ReEcho-session-20260831-005828-pid16112.log`，静态校验与 LFS fsck 通过。UE 只读核查前后蓝图 blob 为 `3b9e5edca94dc32ef29dede429e8d1e23d39b687`，未被脚本另行改写。
 - 未提交的 Editor 机器关联变化已保存在 stash `587bef38ddcdc4e001035eed6989d49c00a383ec`（`Plan156 preserve editor-only ReEcho.uproject association`），本项提交不含该变化。
+- 一次性统计布局同步：`Run-EditorPythonLocked.ps1 -ScriptPath scripts/ue/sync_plan156_settlement_stat_layout.py` 退出 0；`Saved/Logs/ReEcho-session-20260831-010805-pid3776.log` 记录 16 对 `matched`、`SUCCESS pairs=16 verify_only=False`，资产成功保存。`setup_lfs.py --check`、`validate_project.py` 和 `git diff --check` 通过。本次无源码/配置/预构建变化，不另行构建。
+- 保存后的独立重载核查在启动前被保护检查拦下：同克隆 Plan157 的交互式 Editor（PID 42772）已启动；因此本次未执行独立重载或重新运行自动化，不将此前 2/2 自动化作为新资产的测试结果。已经完成的编译、保存前属性一致性审计及保存成功证据有效；PIE 视觉效果待用户验收。不终止其他任务进程，不绕过互斥保护。
 
 ### 剩余风险
 
-- 取消代码覆盖后，原先被掩盖的 Blueprint 排版问题会直接呈现。用户已调整胜利页，失败页仍需在 `DefeatCanvas` 单独微调，或由用户明确要求同步胜利样式；不能再以 C++ 固定坐标掩盖。
+- 失败页统计已按授权同步到胜利页保存的样式；两页之后仍独立编辑，不会自动互相跟随。最终视觉与实际数据长度适配仍需人工 PIE 验收，不能再以 C++ 固定坐标掩盖。
 
 ### 人工验收结果/请求
 
