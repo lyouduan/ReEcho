@@ -418,6 +418,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development`。
 - 自动化：`scripts/ue/Run-Automation.cmd -Filter <focused>`。
 - 静态：`python scripts/validate_project.py`、`git diff --check`、预构建包检查。
+- Plan159 回归消费现行效果/价格配置与分级符文 ID，并区分“已购符文槽为空”和“未购报价保持稳定”；多份卡组逐次支付/领取直至耗尽。v22 迁移测试按用户确认的当前角色表差值验证，保留历史输入和二次读档幂等性；不代表跨历史平衡版本的构筑保真承诺。
 - 边界：自动化不能替代用户对手感、视觉、音频可听性和可用性的判断。
 
 ## 常见任务阅读路线

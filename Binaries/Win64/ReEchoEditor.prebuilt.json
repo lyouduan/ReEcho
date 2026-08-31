@@ -1,7 +1,7 @@
 {
   "binaries": {
     "ReEchoEditor.target": "41dbe66d9c5da88f98e7cd92701a860bf82d9043a2759bcce47e4e8b2350ba34",
-    "UnrealEditor-ReEcho.dll": "5e93ef97a75c4d1c6c544c3f8f488be343584e38a1d745dd69ccf1724bf23cdd",
+    "UnrealEditor-ReEcho.dll": "bd76bf57a54c8b78679c9921cb986ee6a34819ec02f1d9af8fc30f67520dfd9d",
     "UnrealEditor-ReEchoAudio.dll": "0c025c77d85a4fc8ecbcc688303c9cee885b7db357a87158321bdb044633244d",
     "UnrealEditor-ReEchoCards.dll": "5060667beed9aa2cc2c7fc6401b17a6aee8d87e42e4ff4ccf9112eeddcc52fb1",
     "UnrealEditor-ReEchoCombat.dll": "56d4434a850c304fffe9a61eab4ef56b3197ca7d524b246ba121bc7e1eb3fdec",
@@ -122,17 +122,17 @@
     "Source/ReEcho/Private/Tests/ReEchoRecordingTests.cpp": "c2b9f12593bd334b3747a2ff0b6135ae43bc5332b76d9b7dbf03be9da92f9013",
     "Source/ReEcho/Private/Tests/ReEchoRestartWidgetTests.cpp": "29a59da5d3336b43650bb45acde60864af9148f22c40a5c9e23ac451f029579d",
     "Source/ReEcho/Private/Tests/ReEchoRuntimeAssetPreloadTests.cpp": "bde14e2fdc527364cd2d8b6ef8ca64de2557e5888339175b8ea0a67b7211707d",
-    "Source/ReEcho/Private/Tests/ReEchoSaveGameTests.cpp": "338f5fa45c70ac12fb7026179d24fba7b134655ca85541c5bff2d0da25f98531",
+    "Source/ReEcho/Private/Tests/ReEchoSaveGameTests.cpp": "84830e0c65ccb45a44f3adb76e7b6792f0ec39919638f7767dd135afb456574d",
     "Source/ReEcho/Private/Tests/ReEchoSettingsInteractionTests.cpp": "1087a87be8b60ebbc6974121977737e572cd693211bb2edf76baced3b0b72611",
     "Source/ReEcho/Private/Tests/ReEchoShopBalanceTests.cpp": "754dc96c4c22af29882b730dfcce509fda6a23e6b6d9d1e058b080f09efb1762",
     "Source/ReEcho/Private/Tests/ReEchoShopEchoSelectionTests.cpp": "a7a903948318e41d9d7b5d6656c2437d553800275d4d45f98873ebb73e0645af",
     "Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp": "86da6abd6f5ff86d604b150ba558d54448714b6985ab9508d23124b4d0b5d324",
     "Source/ReEcho/Private/Tests/ReEchoShopRefreshTextTests.cpp": "6978d4a03982bf687eaef918659be41ee56abf4edcecf881d00f315c585d9889",
-    "Source/ReEcho/Private/Tests/ReEchoShopTests.cpp": "e75878ab715611002768f269c89e09aefc90356416a525a58900bbaeaab68400",
+    "Source/ReEcho/Private/Tests/ReEchoShopTests.cpp": "061fec1c44779c09a125df8735ca60361b3c986ecaf8a8005b0e258604910448",
     "Source/ReEcho/Private/Tests/ReEchoShopTooltipTests.cpp": "7101695656925196702e90bd29f953e7a25aeb302587952983edc06cb8d4ec48",
     "Source/ReEcho/Private/Tests/ReEchoSpadeAppearanceTests.cpp": "4fd80c2c4e19877c19adc95b2dde3aca3317d6d480ada7cc88943df2fded82c7",
     "Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp": "14d8b2841cdc385fc456e23472142a37c35d47026e9832c98e5f84f2d2f7e936",
-    "Source/ReEcho/Private/Tests/ReEchoTraitTests.cpp": "18a1d67da0b3c61f9bb8589b0a94e68a813e328189aa84b8d8caac396c9e3a3a",
+    "Source/ReEcho/Private/Tests/ReEchoTraitTests.cpp": "075b1f487c3e582f7f96139c3fd1b20e6fa4701d527c7f51d11694f58829107f",
     "Source/ReEcho/Private/Tests/ReEchoUIIntegrationTests.cpp": "71c490f6ce16c81967a68fa528a12af596c234b2e50c7ef642989fcac8b8da0f",
     "Source/ReEcho/Private/Tests/ReEchoUIManagerSubsystemTests.cpp": "f9a7054e7bf30b8bc956fd82841ddc2da78837abab5f7e5c61aed38bcaef4aa5",
     "Source/ReEcho/Private/Tests/ReEchoVfxPreviewTests.cpp": "64c07365fd8021f21799c56ad37f9a21ca38a56a14bef3de0ffd8131be26d837",
@@ -369,6 +369,6 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "d5e7823c6eef0a467451c0e90f9e09f09d3c297f0f897173971f86e3c0bd07cd",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
-  "source_fingerprint": "1169a89079e615c8d2c57e00f2b10ba0e80fcc9c70a4385367175cb30fd4d886",
+  "source_fingerprint": "8ebca95f113e3d8fb3c8bf3683f634f5f0e44bf975b59bdab856863bb1606afc",
   "target": "ReEchoEditor"
 }

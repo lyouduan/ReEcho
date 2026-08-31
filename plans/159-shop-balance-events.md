@@ -6,7 +6,7 @@
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`（现有商店与选卡叠层交互回归）。
+- 人工验收：`Passed`（2026-08-31 用户确认“当前表现是对的，应该按当前表现来算。然后合并远端主分支”；不代表 AI 完成 PIE 主观验收）。
 - 规划基线：`ac4bbb3e`（origin/main）；实现可组合本对话上一轮的本地提交 `8b36a501`（刷新文字作者化）。该组合不随本次 Plan-only 发布进入远端。
 - 本地实现方式：独立 `ReEcho-plan159-shop-balance-events` / `fix/shop-balance-events`。
 - 依赖 / 阻塞：既有 `Card.EasterShardThreshold` 静态校验白名单失败；用户于 2026-08-31 明确允许仅本次 Plan 文档发布跳过这一项既有失败。实现构建、专项测试和后续实现发布不继承豁免。
@@ -91,7 +91,19 @@
 - `validate_project.py` 仍报 `Content/Data/card_effects.csv:78: Card.EasterShardThreshold` 未在校验白名单注册。本次只记录、不改验证器；此前 Plan-only 豁免不覆盖实现发布，也不把上述既有自动化失败视为通过。
 - 状态为本地代码评审候选，不宣称全部技术门禁或人工验收已通过。后续需用户验证商店第二页开卡组→刷新→返回、GM改余额以及重新打开；实现进入主线前还需处理或针对准确候选明确接受既有失败，重新取得 main 发布锁、合入最新基线并执行 FullRebuild。
 
-### 架构文档审阅结果
+### 当前行为确认与发布准备（2026-08-31）
+
+- 用户在收到九项失败的逐项分析（含旧存档按当前角色表差值混算风险）后，确认原文：“当前表现是对的，应该按当前表现来算。然后合并远端主分支。”
+- 本轮仅调整三个测试文件，保持现有运行时、生产 CSV/XLSX、存档算法及 Blueprint 不变。测试读取现有配表效果/价格，改用正式分级符文 ID；保留未购报价不变、已购符文槽为空、每次付款只消费一份卡组、最终用尽后不可再付款的断言。
+- v22 测试继续保留历史生命20/元攻5输入，预期改为用户接受的“当前角色表差值”语义，并补充装备基础属性及再次存读档不重复应用差值的断言。这是当前行为特征测试，不宣称解决任意旧版本平衡数据迁移；历史构筑保真风险仍记录。
+- 静态校验的 `Card.EasterShardThreshold` C++ 已登记但 Python 清单缺项，与本轮九项测试独立；是否补齐该检查登记正向用户单独确认，不沿用此前 Plan-only 豁免。
+- 发布前 fetch 到 `origin/main@a7eb82a5`：相对原批准基线仅新增 Plan160 文档，无规则、源码、数据或资源传入变化。Plan160 后续会调整符文购买入包/合成和存档，涉及本轮 Shop/Save 测试；本次不提前实现它，后续集成需重新审计并按新规则重跑。
+- 本轮 Development 开发构建成功（`Saved/Plan159/build-accepted.log`），精选包7模块校验通过，Build ID `55116800`，源码指纹 `8ebca95f113e3d8fb3c8bf3683f634f5f0e44bf975b59bdab856863bb1606afc`。
+- 相同过滤器 `ReEcho.Shop+ReEcho.UI.Shop+ReEcho.Traits+ReEcho.Run.Save` 45/45通过，退出码0；此前九项失败全部通过，新增余额测试及商店UI仍通过。日志 `Saved/Plan159/accepted.log`（对应 `accepted-console.log`）。本轮既不改产品逻辑，也不移除测试；这是用户批准的预期更新后的新证据，不覆盖此前失败记录。
+- `git diff --check`、LFS还原、`git lfs fsck`、`prebuilt_editor.py check` 通过。`validate_project.py` 仍被独立的 `Card.EasterShardThreshold` 登记缺项阻止；等待具名补登记授权。
+- 尚未获取 main 发布锁、未合入传入 Plan160、未推送、未删除工作分支；不占锁等待人工答复。最终发布仍须独占锁后 merge 最新主线、FullRebuild，并重跑准确候选的验证。
+
+### 架构文档审阅结果（延续）
 
 - `modules/MOD-ReEcho.md`：已更新 AREA-Run 最终余额通知、覆盖/排除边界与 AREA-UI 消费契约。
 - `modules/MOD-ReEchoUI.md`：已更新初始化/生命周期绑定、局部刷新、样式保护、GM旧路径清理与专项测试入口。

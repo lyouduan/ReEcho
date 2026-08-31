@@ -126,29 +126,58 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_16"));
 	RunSubsystem->TimeShards = 50;
 	const float InitialHpMax = RunSubsystem->CurrentBuild.Stats.HpMax;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+	const FReEchoCardDefinition* Contract =
+	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() ? Snapshot->CardCatalog->Find(TEXT("G_2_16")) : nullptr;
+	if (!TestNotNull(TEXT("Prosperity contract is present in the current catalog"), Contract))
+	{
+		return false;
+	}
+	const FReEchoCardEffectDefinition* Discount = Contract->Effects.FindByPredicate(
+	    [](const FReEchoCardEffectDefinition& Effect)
+	    {
+		    return Effect.Target == TEXT("ShopDiscount");
+	    });
+	const FReEchoCardEffectDefinition* Growth = Contract->Effects.FindByPredicate(
+	    [](const FReEchoCardEffectDefinition& Effect)
+	    {
+		    return Effect.Trigger == TEXT("OnPurchase");
+	    });
+	if (!TestNotNull(TEXT("Contract defines its discount"), Discount) ||
+	    !TestNotNull(TEXT("Contract defines its purchase growth"), Growth))
+	{
+		return false;
+	}
+	const int32 ExpectedPrice = FMath::CeilToInt(15.0f * (1.0f - Discount->Value));
+	const int32 ExpectedBalance = 50 - ExpectedPrice;
 
 	TestEqual(TEXT("Prosperity contract shows the same rounded price that purchase charges"),
 	          RunSubsystem->GetDiscountedShopPrice(15),
-	          12);
+	          ExpectedPrice);
 	TestTrue(TEXT("Discounted purchase succeeds"), RunSubsystem->PurchaseShopItem(TEXT("SHOP_RUSTED_SCISSORS")));
-	TestEqual(TEXT("Discounted purchase deducts 12 shards"), RunSubsystem->TimeShards, 38);
+	TestEqual(
+	    TEXT("Discounted purchase deducts the authored rounded price"), RunSubsystem->TimeShards, ExpectedBalance);
 	TestEqual(TEXT("Successful purchase applies permanent maximum health growth"),
 	          RunSubsystem->CurrentBuild.Stats.HpMax,
-	          InitialHpMax + 2.0f);
+	          InitialHpMax + Growth->Value);
 
 	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
 	const FReEchoWeaponPartShopView InitialRefreshView = RunSubsystem->GetWeaponPartShopView();
 	TestTrue(TEXT("Free refresh is consumed before currency"), RunSubsystem->TryConsumeShopRefresh(0));
-	TestEqual(TEXT("Free refresh leaves currency unchanged"), RunSubsystem->TimeShards, 38);
+	TestEqual(TEXT("Free refresh leaves currency unchanged"), RunSubsystem->TimeShards, ExpectedBalance);
 	TestEqual(TEXT("Free refresh preserves the paid weapon/rune refresh budget"),
 	          RunSubsystem->GetWeaponPartShopView().WeaponRuneRefreshesRemaining,
 	          InitialRefreshView.WeaponRuneRefreshesRemaining);
 	TestTrue(TEXT("The first paid weapon/rune refresh uses the configured cost"),
 	         RunSubsystem->TryConsumeShopRefresh(0));
-	TestEqual(TEXT("Paid weapon/rune refresh deducts five configured shards"), RunSubsystem->TimeShards, 33);
+	TestEqual(TEXT("Paid weapon/rune refresh deducts the configured cost"),
+	          RunSubsystem->TimeShards,
+	          ExpectedBalance - InitialRefreshView.WeaponRuneRefreshCost);
 	TestTrue(TEXT("The second paid weapon/rune refresh remains available after a free refresh"),
 	         RunSubsystem->TryConsumeShopRefresh(0));
-	TestEqual(TEXT("The second paid refresh deducts the configured cost"), RunSubsystem->TimeShards, 28);
+	TestEqual(TEXT("The second paid refresh deducts the configured cost"),
+	          RunSubsystem->TimeShards,
+	          ExpectedBalance - 2 * InitialRefreshView.WeaponRuneRefreshCost);
 	TestFalse(TEXT("Per-encounter weapon/rune refresh limit prevents an infinite refresh"),
 	          RunSubsystem->TryConsumeShopRefresh(0));
 
@@ -190,7 +219,9 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 		        return Outcome.CardId == TEXT("G_2_16") && Outcome.Kind == EReEchoCardOutcomeKind::CumulativeStatGain;
 	        });
 	const float PurchaseGrowthAfterPayment = OutcomeAfterPayment ? OutcomeAfterPayment->PrimaryValue : 0.0f;
-	TestTrue(TEXT("Prepaying a card pack fires the owned OnPurchase card"), PurchaseGrowthAfterPayment >= 4.0f);
+	TestEqual(TEXT("Prepaying a card pack fires the owned OnPurchase card exactly once"),
+	          PurchaseGrowthAfterPayment,
+	          2.0f * Growth->Value);
 	TestTrue(TEXT("The paid card can be claimed"), RunSubsystem->ClaimPaidShopCardChoice(PaidChoiceId).IsSuccess());
 	const FReEchoCardOutcomeState* OutcomeAfterClaim =
 	    RunSubsystem->CurrentBuild.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
@@ -279,7 +310,7 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	RunSubsystem->TimeShards = 1000;
 	TestTrue(TEXT("Core purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_CORE_FLAME")));
 	TestTrue(TEXT("Arrowhead purchase succeeds when it is on the current page"),
-	         FindAndBuy(TEXT("P_BOW_SPLIT_ARROWHEAD")));
+	         FindAndBuy(TEXT("P_BOW_SPLIT_ARROWHEAD_I")));
 	TestTrue(TEXT("Purchased rune enters part ownership"), RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
 	          RunSubsystem->InventoryItems.Contains(TEXT("P_CORE_FLAME")));
@@ -293,7 +324,7 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
 	             [](const FReEchoEquippedPartSnapshot& Part)
 	             {
-		             return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD");
+		             return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
 	             }));
 	const int32 ShardsAfterDuplicate = RunSubsystem->TimeShards;
 	TestFalse(TEXT("Duplicate rune purchase is rejected"), RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
@@ -324,7 +355,7 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 
 	// The public equip operation remains available for owned/backpack selection and idempotent re-commit.
 	TestTrue(TEXT("Core and arrowhead equip as one loadout"),
-	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
+	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD_I")}, Error));
 	TestEqual(TEXT("Committed loadout contains both equipped slot groups"),
 	          RunSubsystem->CurrentBuild.EquippedParts.Num(),
 	          2);
@@ -376,10 +407,15 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	TSet<FName> PurchasedRuneIds;
 	for (const FReEchoWeaponSlotOffer& OriginalOffer : InitialPage.SlotOffers)
 	{
 		TestTrue(TEXT("Every original weapon/rune offer remains purchasable after earlier purchases"),
 		         RunSubsystem->PurchaseShopItem(OriginalOffer.ItemId));
+		if (OriginalOffer.Kind == EReEchoShopOfferKind::Part)
+		{
+			PurchasedRuneIds.Add(OriginalOffer.ItemId);
+		}
 		const FReEchoWeaponPartShopView PageAfterPurchase = RunSubsystem->GetWeaponPartShopView();
 		if (OriginalOffer.Kind == EReEchoShopOfferKind::Part)
 		{
@@ -402,6 +438,15 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 		}
 		for (int32 SlotIndex = 0; SlotIndex < InitialPage.SlotOffers.Num(); ++SlotIndex)
 		{
+			if (PurchasedRuneIds.Contains(InitialPage.SlotOffers[SlotIndex].ItemId))
+			{
+				TestTrue(TEXT("A rune bought on this page leaves an empty slot until refresh"),
+				         PageAfterPurchase.SlotOffers[SlotIndex].ItemId.IsNone());
+				TestEqual(TEXT("A consumed rune slot has no price"), PageAfterPurchase.SlotOffers[SlotIndex].Price, 0);
+				TestFalse(TEXT("A consumed rune slot cannot be purchased"),
+				          PageAfterPurchase.SlotOffers[SlotIndex].bCanPurchase);
+				continue;
+			}
 			TestEqual(TEXT("Purchase preserves the other weapon/rune offer ids"),
 			          PageAfterPurchase.SlotOffers[SlotIndex].ItemId,
 			          InitialPage.SlotOffers[SlotIndex].ItemId);
@@ -498,7 +543,7 @@ bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
 
 	Error.Reset();
 	TestTrue(TEXT("Bow accepts a universal core and bow-specific arrowhead"),
-	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
+	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD_I")}, Error));
 	TestTrue(TEXT("An owned alternate weapon can be equipped for free"),
 	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_01"), Error));
 	TestEqual(TEXT("Owned weapon selection updates the authoritative build"),
@@ -514,7 +559,7 @@ bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
 	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
 	              [](const FReEchoEquippedPartSnapshot& Part)
 	              {
-		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD");
+		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
 	              }));
 
 	const FReEchoBuildSnapshot BeforeRejectedSwitch = RunSubsystem->CurrentBuild;
@@ -542,7 +587,14 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* RunSubsystem = NewObject<UReEchoRunSubsystem>(GameInstance);
 	RunSubsystem->StartRun(TEXT("J_CAT"), TEXT("W_J_08"));
 	RunSubsystem->TimeShards = 1000;
-	const TArray<TArray<int32>> ExpectedShopTiers = {{}, {1}, {1}, {2, 3}, {1, 3}, {1, 2}, {1, 3}, {}};
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+	if (!TestTrue(TEXT("Card-pack test has current data and card catalog"),
+	              Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()))
+	{
+		return false;
+	}
+	const TArray<TArray<int32>> ExpectedShopTiers = {{}, {1}, {1}, {1, 2, 3}, {1, 3}, {1, 2}, {1, 3}, {}};
+	const TArray<int32> ExpectedTierOneQuantities = {0, 3, 3, 3, 3, 3, 10, 0};
 	for (int32 EncounterIndex = 1; EncounterIndex <= ExpectedShopTiers.Num(); ++EncounterIndex)
 	{
 		RunSubsystem->EncounterIndex = EncounterIndex;
@@ -564,12 +616,22 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 			          bExpectedOffered);
 			if (Pack.Status == EReEchoShopCardPackStatus::Available)
 			{
+				const int32 ExpectedQuantity = Pack.Tier == 1 ? ExpectedTierOneQuantities[EncounterIndex - 1] : 1;
+				TestEqual(
+				    TEXT("Each pack exposes its configured purchase quantity"), Pack.TotalPurchases, ExpectedQuantity);
+				TestEqual(TEXT("A fresh pack starts with all configured purchases"),
+				          Pack.RemainingPurchases,
+				          ExpectedQuantity);
 				TestTrue(TEXT("An offered pack exposes between one and three choices"),
 				         Pack.Choices.Num() >= 1 && Pack.Choices.Num() <= ReEchoShopOfferCountPerGroup);
-				const int32 MinPrice = Pack.Tier == 1 ? 30 : Pack.Tier == 2 ? 100 : 150;
-				const int32 MaxPrice = Pack.Tier == 1 ? 50 : Pack.Tier == 2 ? 120 : 200;
+				const FReEchoCsvShopPriceRangeRow* PriceRange =
+				    Snapshot->ShopPriceRanges.Find(FName(*FString::Printf(TEXT("Card_T%d"), Pack.Tier)));
+				if (!TestNotNull(TEXT("Each pack tier has an authored price range"), PriceRange))
+				{
+					return false;
+				}
 				TestTrue(TEXT("Each pack carries one configured tier price"),
-				         Pack.Price >= MinPrice && Pack.Price <= MaxPrice);
+				         Pack.Price >= PriceRange->MinPrice && Pack.Price <= PriceRange->MaxPrice);
 				TSet<FName> UniqueChoices;
 				for (const FReEchoShopCardChoiceOffer& Choice : Pack.Choices)
 				{
@@ -589,11 +651,6 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	}
 
 	RunSubsystem->EncounterIndex = 2;
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
-	if (!TestTrue(TEXT("Card-pack test has a card catalog"), Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()))
-	{
-		return false;
-	}
 	TArray<FName> TierOneCardIds;
 	for (const FReEchoCardDefinition& Card : Snapshot->CardCatalog->GetOfferable(TEXT("Trait"), 1))
 	{
@@ -629,15 +686,39 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          ReEchoCardRuntime::CountOwned(RunSubsystem->CurrentBuild.CardState, RepeatedTierOneOffer.CardId),
 	          TierOneStackCountBefore + 1);
 	const FReEchoWeaponPartShopView ConsumedTierOnePage = RunSubsystem->GetWeaponPartShopView();
-	TestEqual(TEXT("A successful choice marks only its pack purchased"),
+	TestEqual(TEXT("A multi-purchase pack becomes available again after one completed purchase"),
 	          ConsumedTierOnePage.CardPackOffers[0].Status,
-	          EReEchoShopCardPackStatus::Purchased);
+	          EReEchoShopCardPackStatus::Available);
+	TestEqual(TEXT("A completed purchase consumes exactly one configured pack"),
+	          ConsumedTierOnePage.CardPackOffers[0].RemainingPurchases,
+	          OwnedFilterPage.CardPackOffers[0].RemainingPurchases - 1);
 	if (OwnedFilterPage.CardPackOffers[0].Choices.Num() > 1)
 	{
 		TestFalse(
 		    TEXT("A second choice from the same pack is rejected"),
 		    RunSubsystem->ClaimPaidShopCardChoice(OwnedFilterPage.CardPackOffers[0].Choices[1].ItemId).IsSuccess());
 	}
+	// Each remaining pack requires a fresh payment; only the last claim closes the tier for this encounter.
+	for (int32 Remaining = ConsumedTierOnePage.CardPackOffers[0].RemainingPurchases; Remaining > 0; --Remaining)
+	{
+		const FReEchoShopCardPackOffer NextPack = RunSubsystem->GetWeaponPartShopView().CardPackOffers[0];
+		if (!TestTrue(TEXT("A remaining tier-one pack offers choices"), !NextPack.Choices.IsEmpty()))
+		{
+			return false;
+		}
+		const FName NextChoiceId = NextPack.Choices[0].ItemId;
+		TestTrue(TEXT("Each remaining pack must be paid"), RunSubsystem->PurchaseShopCardPackDetailed(1).IsSuccess());
+		TestTrue(TEXT("Each paid remaining pack can be claimed"),
+		         RunSubsystem->ClaimPaidShopCardChoice(NextChoiceId).IsSuccess());
+		const FReEchoShopCardPackOffer AfterClaim = RunSubsystem->GetWeaponPartShopView().CardPackOffers[0];
+		TestEqual(
+		    TEXT("Each repeated purchase consumes one remaining pack"), AfterClaim.RemainingPurchases, Remaining - 1);
+		TestEqual(TEXT("Only the final purchase marks the pack purchased"),
+		          AfterClaim.Status,
+		          Remaining > 1 ? EReEchoShopCardPackStatus::Available : EReEchoShopCardPackStatus::Purchased);
+	}
+	TestFalse(TEXT("An exhausted tier cannot be paid again"),
+	          RunSubsystem->PurchaseShopCardPackDetailed(1).IsSuccess());
 
 	RunSubsystem->EncounterIndex = 4;
 	RunSubsystem->TimeShards = 1000;
@@ -647,9 +728,7 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Encounter four projects all three fixed card packs"),
 	          FirstPage.CardPackOffers.Num(),
 	          ReEchoShopOfferCountPerGroup);
-	TestEqual(TEXT("Encounter four tier one is not offered"),
-	          FirstPage.CardPackOffers[0].Status,
-	          EReEchoShopCardPackStatus::NotOffered);
+	TestTrue(TEXT("Encounter four tier one is available"), FirstPage.CardPackOffers[0].IsAvailable());
 	TestTrue(TEXT("Encounter four tier two is available"), FirstPage.CardPackOffers[1].IsAvailable());
 	TestTrue(TEXT("Encounter four tier three is available"), FirstPage.CardPackOffers[2].IsAvailable());
 	const FReEchoShopCardChoiceOffer* PurchasedCardCandidate = FirstPage.CardPackOffers[1].Choices.FindByPredicate(
@@ -1312,21 +1391,21 @@ bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
 	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_04"));
 	Run->OwnedPartIds.AddUnique(TEXT("P_CORE_PRIMORDIAL"));
-	Run->OwnedPartIds.AddUnique(TEXT("P_SCYTHE_MOVESTACK_GRIP"));
-	Run->OwnedPartIds.AddUnique(TEXT("P_LONGSWORD_HASTE_GRIP"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_SCYTHE_MOVESTACK_GRIP_I"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_LONGSWORD_HASTE_GRIP_I"));
 
 	const FReEchoWeaponPartShopView ScytheView = Run->GetWeaponPartShopView();
 	TestTrue(TEXT("The scythe backpack contains its own grip rune"),
 	         ScytheView.OwnedParts.ContainsByPredicate(
 	             [](const FReEchoShopOffer& Offer)
 	             {
-		             return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP");
+		             return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP_I");
 	             }));
 	TestFalse(TEXT("The scythe backpack excludes a longsword grip rune despite the shared slot name"),
 	          ScytheView.OwnedParts.ContainsByPredicate(
 	              [](const FReEchoShopOffer& Offer)
 	              {
-		              return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP");
+		              return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP_I");
 	              }));
 	TestTrue(TEXT("A universal core remains visible for the scythe"),
 	         ScytheView.OwnedParts.ContainsByPredicate(
@@ -1336,7 +1415,7 @@ bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
 	             }));
 	FString EquipError;
 	TestFalse(TEXT("The backend still rejects the incompatible longsword rune"),
-	          Run->TryEquipPurchasedPart(TEXT("P_LONGSWORD_HASTE_GRIP"), EquipError));
+	          Run->TryEquipPurchasedPart(TEXT("P_LONGSWORD_HASTE_GRIP_I"), EquipError));
 
 	Run->OwnedWeaponIds.Add(TEXT("W_J_01"));
 	TestTrue(TEXT("The owned longsword can be equipped"), Run->TryEquipOwnedWeapon(TEXT("W_J_01"), EquipError));
@@ -1345,13 +1424,13 @@ bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
 	         LongSwordView.OwnedParts.ContainsByPredicate(
 	             [](const FReEchoShopOffer& Offer)
 	             {
-		             return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP");
+		             return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP_I");
 	             }));
 	TestFalse(TEXT("Switching weapons hides the scythe-only grip rune"),
 	          LongSwordView.OwnedParts.ContainsByPredicate(
 	              [](const FReEchoShopOffer& Offer)
 	              {
-		              return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP");
+		              return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP_I");
 	              }));
 	return true;
 }
