@@ -93,7 +93,7 @@ def author_entry(sample):
     if not new:
         return bp
     root = add(bp, unreal.SizeBox, "EntryRootSizeBox")
-    root.set_width_override(286)
+    root.set_width_override(474)
     root.set_height_override(96)
     button = add(bp, unreal.ReEchoIndexedButton, "SelectButton", root)
     style = button.get_editor_property("widget_style")
@@ -126,6 +126,7 @@ def author_entry(sample):
     icon_slot.set_editor_property("horizontal_alignment", unreal.HorizontalAlignment.H_ALIGN_CENTER)
     icon_slot.set_editor_property("vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER)
     name = text(bp, "NameText", line, str(sample.name), 17)
+    name.set_editor_property("auto_wrap_text", False)
     name_slot = name.get_editor_property("slot")
     name_slot.set_editor_property("size", unreal.SlateChildSize(value=1, size_rule=unreal.SlateSizeRule.FILL))
     name_slot.set_editor_property("vertical_alignment", unreal.VerticalAlignment.V_ALIGN_CENTER)
@@ -142,7 +143,7 @@ def author_panel(entry_bp, samples):
     if not new:
         return
     root = add(bp, unreal.SizeBox, "BackpackRootSizeBox")
-    root.set_width_override(320)
+    root.set_width_override(520)
     root.set_height_override(390)
     surface = chrome(bp, root, "Backpack", 14)
     content = add(bp, unreal.VerticalBox, "BackpackContent", surface)

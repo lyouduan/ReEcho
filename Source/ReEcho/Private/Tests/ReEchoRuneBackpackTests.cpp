@@ -261,6 +261,11 @@ bool FReEchoRuneBackpackRenderingTest::RunTest(const FString&)
 		return false;
 	}
 	TArray<FReEchoRuneBackpackEntryView> Views;
+	// Transient stress sample: longest production name plus a three-digit stack.
+	// Do not alter the authored preview assets just to exercise this regression.
+	UReEchoRuneBackpackEntryWidget* LongNameRow = Designer->GetEntryWidgets().Last();
+	LongNameRow->DesignerPreview.Name = FText::FromString(TEXT("【握柄】镰刃命中攻速握柄III"));
+	LongNameRow->DesignerPreview.Count = 999;
 	for (UReEchoRuneBackpackEntryWidget* Row : Designer->GetEntryWidgets())
 	{
 		Views.Add(Row->DesignerPreview);
@@ -278,7 +283,7 @@ bool FReEchoRuneBackpackRenderingTest::RunTest(const FString&)
 		                                 .Padding(24.0f)
 		                                 .HAlign(HAlign_Left)
 		                                 .VAlign(VAlign_Top)[Panel->TakeWidget()];
-		const FVector2D Size(520, 620);
+		const FVector2D Size(640, 620);
 		UTextureRenderTarget2D* Target = Renderer.DrawWidget(Canvas, Size);
 		if (!TestNotNull(TEXT("Render target"), Target))
 		{
@@ -293,16 +298,20 @@ bool FReEchoRuneBackpackRenderingTest::RunTest(const FString&)
 			return false;
 		}
 		TArray64<uint8> Png;
-		FImageUtils::PNGCompressImageArray(520, 620, MakeArrayView(Pixels), Png);
+		FImageUtils::PNGCompressImageArray(640, 620, MakeArrayView(Pixels), Png);
 		const FString Filename =
 		    Panel == Designer ? TEXT("RuneBackpack-Designer.png") : TEXT("RuneBackpack-Runtime.png");
 		TestTrue(
 		    TEXT("Preview evidence saved"),
 		    FFileHelper::SaveArrayToFile(Png, *(FPaths::ProjectSavedDir() / TEXT("Automation/Plan161") / Filename)));
 		TestTrue(TEXT("Frame edge visibly brighter than inner surface"),
-		         Pixels[25 * 520 + 100].R > Pixels[32 * 520 + 100].R + 40);
+		         Pixels[25 * 640 + 100].R > Pixels[32 * 640 + 100].R + 40);
 		for (UReEchoRuneBackpackEntryWidget* Entry : Panel->GetEntryWidgets())
 		{
+			const UTextBlock* Name = CastChecked<UTextBlock>(Entry->GetWidgetFromName(TEXT("NameText")));
+			TestFalse(TEXT("Name stays on one line"), Name->GetAutoWrapText());
+			TestTrue(TEXT("Complete name fits beside icon and stack count"),
+			         Name->GetDesiredSize().X <= Name->GetCachedGeometry().GetLocalSize().X + 1.0f);
 			const UImage* Icon = CastChecked<UImage>(Entry->GetWidgetFromName(TEXT("RuneIcon")));
 			const FVector2D Geometry = Icon->GetCachedGeometry().GetLocalSize();
 			TestTrue(TEXT("Icon has visible nonzero geometry"), Geometry.X > 1 && Geometry.Y > 1);

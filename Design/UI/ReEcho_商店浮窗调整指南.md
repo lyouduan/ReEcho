@@ -73,7 +73,7 @@
 
 - `EntryRootSizeBox`：单行高度与独立预览宽度。完整背包里横向受列表可用宽度约束，改大图标或字号时请同时给足条目高度；不通过运行时缩放压扁内容。
 - `RuneIconSize`：图标显示区域宽高；`RuneIconScale` 保持 Scale To Fit。图片 Brush 的原生宽高比随真实纹理更新，所以图标显示大小应在 `RuneIconSize` 调整，不在 Brush Image Size 调整。
-- `NameText`：符文名的字体、字号、描边、颜色与换行。
+- `NameText`：符文名的字体、字号、描边、颜色与换行。当前关闭 Auto Wrap Text，面板宽度为 520、条目预览宽度为 474，以单行容纳长名称；若继续增大字号，请同时加宽面板与条目，不要只关闭换行却不给足空间。
 - `CountText`：数量文字的字体、字号、描边、颜色；超过一份时显示 `×N`，一份时隐藏。
 - `EntryFrame` / `EntrySurface`：条目独立边框和底板；同样保留正的边框留边。
 - `SelectButton`：整行点击区和按钮样式；保留类型 `ReEchoIndexedButton`，不要另接购买事件。
