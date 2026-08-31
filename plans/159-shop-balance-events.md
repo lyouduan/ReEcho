@@ -5,7 +5,7 @@
 - Planner / Executor：JosephLE910 + Codex，同一 AI 规划、实现和自审。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`（现有商店与选卡叠层交互回归）。
 - 规划基线：`ac4bbb3e`（origin/main）；实现可组合本对话上一轮的本地提交 `8b36a501`（刷新文字作者化）。该组合不随本次 Plan-only 发布进入远端。
 - 本地实现方式：独立 `ReEcho-plan159-shop-balance-events` / `fix/shop-balance-events`。
@@ -77,8 +77,23 @@
 
 ### 实现 / 证据 / 剩余风险
 
-待实施。
+- Plan-only 提交 `ac28c32d796fedfa486ff215d4403dc26a29099f` 已普通推送到 origin/main 并核验。本地合入上一轮刷新文字提交 `8b36a501` 的组合基线为 `3b589619`；本次实现尚未发布。
+- Run 已实现现金/债务快照及外层事务 RAII 通知，覆盖非战斗经济入口，嵌套命令合并通知；GM不再直接写现金字段。商店首次初始化后幂等订阅，余额文字只有 `RefreshCurrencyText` 一个写入口；删除无调用的 `SetTimeShards` API及分散写入。
+- 保留购买、换装、授卡、刷新等非余额内容投影；卡包付款后更新待选状态，覆盖零价付款没有余额事件的情况。纯余额事件不调用完整 Refresh、不重建浮窗/控件或复位卡牌页。
+- `RemoveFromParent` 在实际关闭边界立即解绑，即使 Slate 仍持有焦点引用也不再接收事件；`NativeDestruct` 幂等兜底。关闭选卡覆盖层不会解除底层商店的订阅。
+- 新增 `ReEcho.Shop.BalanceTransactions`、`ReEcho.Shop.BalanceOfferCommands`、`ReEcho.UI.Shop.BalanceSubscription`：覆盖嵌套经济授卡、无变化/拒绝、债务与同净值恢复、战斗拾取排除、真实武器/符文购买、主商店免费/付费刷新、卡组付款/付费刷新/领取、免费页刷新/正常授卡、真实 WBP 样式保持、分页/浮窗和移出页面后的解绑重绑。
+- 编译过程中修正了新测试误用 UE5.8 的 TextBlock getter 和武器槽投影类型；没有为通过测试改动产品规则。此前用户 Plan158 Editor 占用时停止构建，用户关闭并确认进程退出后才重新取得 Git-common Unreal 锁。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development` 成功，证据 `Saved/Plan159/build-final-fixed.log`；精选 Win64 Editor 包7模块全部更新，Build ID `55116800`，源码指纹 `1169a89079e6`（完整值见 manifest）；`prebuilt_editor.py check` 通过。此为本地开发构建，不冒充最终 main 发布所需 FullRebuild。
+- 最终自动化过滤器 `ReEcho.Shop+ReEcho.UI.Shop+ReEcho.Traits+ReEcho.Run.Save`：45项、36通过/9失败。三个新增余额测试全部通过；商店 UI 7/7通过；SaveSnapshot及其他四个存档迁移用例通过。日志 `Saved/Plan159/regression-final.log`，进程测试退出码 -1（shell 255），不称全套通过。
+- 对照干净 `ReEcho-shop-refresh-authored-text` 的准确 `8b36a501`，先核验其预构建包和 LFS，再用相同过滤器复测：42项、33通过/9失败；失败测试集合与本次完全一致。源码、资产和表均未在基线 worktree 改动，复测后 git status仍干净。证据 `Saved/Plan159/baseline.log`。
+- 相同的九项既有失败：`Run.SaveV22PromotionRemovalMigration`；`Shop.CardRulesAreAtomicAndPersistent`、`Shop.OwnedWeaponBackpackSwitchesAtomically`、`Shop.PageUsesFixedPartSlotsAndConfiguredCardTiers`、`Shop.RuneBackpackFiltersCurrentWeapon`、`Shop.WeaponPartPageRemainsStableAfterSequentialPurchases`、`Shop.WeaponPartsPurchaseThenSaveThreeSlotLoadout`；`Traits.CsvEffectsApply`、`Traits.ResolvedOutcomesPersistAndProject`。涉及已有断言与价格/效果、当前符文ID/报价契约不匹配；本任务不改这些配表或断言。
+- `setup_lfs.py --check` 通过（3个LFS文件已还原）；修改范围已 clang-format，`git diff --check` 通过；没有修改 WBP、Content/Data 或 XLSX。所有测试进程退出、持有的 Unreal 锁已释放。
+- `validate_project.py` 仍报 `Content/Data/card_effects.csv:78: Card.EasterShardThreshold` 未在校验白名单注册。本次只记录、不改验证器；此前 Plan-only 豁免不覆盖实现发布，也不把上述既有自动化失败视为通过。
+- 状态为本地代码评审候选，不宣称全部技术门禁或人工验收已通过。后续需用户验证商店第二页开卡组→刷新→返回、GM改余额以及重新打开；实现进入主线前还需处理或针对准确候选明确接受既有失败，重新取得 main 发布锁、合入最新基线并执行 FullRebuild。
 
 ### 架构文档审阅结果
 
-待实现后逐项记录。
+- `modules/MOD-ReEcho.md`：已更新 AREA-Run 最终余额通知、覆盖/排除边界与 AREA-UI 消费契约。
+- `modules/MOD-ReEchoUI.md`：已更新初始化/生命周期绑定、局部刷新、样式保护、GM旧路径清理与专项测试入口。
+- `ARCHITECTURE.md`：已审阅、无需修改；此次仍在 ReEcho 主模块内部由 Run 向 UI 发布只读快照，不新增 Runtime Module、反向依赖或状态所有者。
+- `README.md`：已审阅、无需修改；MOD-ReEcho、MOD-ReEchoUI、AREA-Run 和 AREA-UI 稳定标识及目录路由未变。

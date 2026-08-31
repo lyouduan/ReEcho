@@ -67,6 +67,15 @@
 - `WBP_ReEchoLoadoutSelection` 的 Button Style 持有明暗：确认 Disabled 暗，返回 Normal/Disabled 暗、Hovered/Pressed 亮；C++ 不改写 Style。原有角色页回主菜单、武器页回角色选择、防重复提交和点击选中契约不变。
 - 验证入口为 `ReEcho.UI.Shop.TooltipBlueprints`（真实背板引用、数据及样式保留）、`ReEcho.UI.LoadoutSelection.Flow` / `.Assets`（常驻显示、禁用与 Hover 灰显、WBP 明暗状态）。
 
+## 商店最终余额订阅（Plan159）
+
+- Run 仍独占现金与债务。运行时 GameMode 使用 `RefreshShopFromRun` 初始化/刷新商店商品、装备与规则投影；该入口首次绑定 `OnTimeShardBalanceChanged` 并读取余额初值，重复调用复用同一个 DelegateHandle，不重新写入现金缓存，也不重置已选择的卡牌页。
+- 余额事件按完整外层事务提交后发布的 `Cash/Debt` 更新缓存。`RefreshCurrencyText` 是余额文字唯一写入点；保持 `TimeShards - TimeShardDebt` 文案，只在内容不同时 SetText，不改 WBP 字体、颜色、对齐或几何。
+- `RefreshPurchaseAvailability` / `RefreshShopControlState` 从 Run 最新只读投影更新既有购买与刷新按钮。该局部路径不调用整页 `Refresh`、不重建控件/Tooltip、不重抽报价、不关闭武器/符文背包、不切卡牌页。现金与债务改变但净额相同仍需要同步资格。
+- 商店上方打开已付款选卡层时保留订阅，所以付款、逐槽付费刷新和还债都能立即反映到底层商店。关闭选卡层不靠补刷新余额；商店经 `RemoveFromParent` 关闭时立即解绑（即使 Slate 仍持有引用），`NativeDestruct` 再作幂等兜底，重新打开读取最新初值并只订阅一次。旧 `ShowInventory` / `ShowShop` 数值快照入口只保留独立初始化兼容，不作为 GameMode 的商店余额推送路径。
+- GM 加/设碎片改走 Run 窄命令，不再触发商店整页刷新。购买、换装、主刷新、授卡后的内容更新仍保留；卡包付款后也更新待选状态（包括零价无余额事件的情况），不能因统一余额事件而删掉非余额投影。
+- 验证：`ReEcho.Shop.BalanceTransactions`、`ReEcho.Shop.BalanceOfferCommands` 与 `ReEcho.UI.Shop.BalanceSubscription`，源码为 `Source/ReEcho/Private/Tests/ReEchoShopBalanceTests.cpp`；同时回归既有 `ReEcho.Shop` / `ReEcho.UI.Shop`、Save、Trait。人工检查已付款选卡返回、第二页和弹窗不被纯余额更新干扰。
+
 ## 依赖方向
 
 当前 UI 代码仍编译在 `ReEcho` 中，因此全局 Runtime Module 拓扑没有变化。未来若计划创建真实 `ReEchoUI` Runtime Module，必须另立 Plan，先移除 Widget 对主模块内部玩法类型和权威 Subsystem 的直接依赖，再同步 `.uproject`、Build 文件、全局架构、索引和模块验证。
