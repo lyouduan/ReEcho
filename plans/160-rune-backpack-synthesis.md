@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（已合并 main 并完成发布完整重建；商店与存档回归通过，发布暂等 XLSX/CSV 既有漂移的具名处理决定）。
+- 任务状态：`Review`（已合并 main 并完成发布完整重建；商店、UI 与存档回归通过，XLSX/CSV 既有漂移已获具名发布豁免；人工验收状态单独保留）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@ac28c32d796fedfa486ff215d4403dc26a29099f`。
 - 本地实现方式：独立 worktree `ReEcho-plan160-rune-backpack-synthesis`，分支 `plan/160-rune-backpack-synthesis`。
@@ -125,6 +125,8 @@
 - 发布集成回归：`ReEcho.Shop` **25/25 Success**，包含全部六项符文专项、余额事务和旧卡牌回归；`ReEcho.Run.SaveSnapshot` **1/1 Success**。证据分别为 `Saved/Logs/Plan160-PublishShop.log`、`Saved/Logs/Plan160-PublishSaveSnapshot.log`。新增登记校验单测 **3/3** 通过，原静态注册缺项豁免未实际使用。
 - 额外 UI 集成回归 `ReEcho.UI.Shop` **7/7 Success**：作者化布局/刷新文字、余额订阅、卡组选卡呈现、逻辑分块、符文背包过滤及 tooltip 蓝图全部通过，证据 `Saved/Logs/Plan160-PublishShopUI.log`。测试后预构建指纹、LFS hydration/fsck、`git diff --check` 再检通过；仅释放本任务取得的 Unreal 锁，main 发布锁保留。
 - 完整 `validate_project.py` 在 XLSX 导出同步处失败；单独 `sync_xlsx_to_csv.py --check` 复现相同两文件漂移。`git diff --exit-code origin/main -- Design/Data Content/Data scripts/data scripts/validate_project.py` 返回 0，证明与当前远端相同输入；后续独立 `validate_workflow()` 通过。没有临时屏蔽校验或修改数据让检查变绿。已向用户报告具体风险并询问是否另外豁免，未取得此项答复前不推 main，保留本任务发布锁。
+- 用户随后明确确认：“是。你说的这个我让别的ai修了。”此授权仅允许本次 Plan160 对 `cards.csv`、`card_effects.csv` 的既有 XLSX 导出漂移暂缓处理，保持当前数据发布；记为经人工确认豁免该失败门禁，不宣称静态检查通过。表格修复由用户安排另一 AI 处理，本任务不重导或覆盖其工作。
+- 恢复发布时 fetch 核验 `origin/main` 仍为 `2d6d6da21148dac60a5a432263f5c2d937ee119c`，没有新修复进入主线；远端锁仍准确指向本任务初始候选 `bc869908500386ac40d19e8ffa8fb37674a2696e`。最终实现/构建提交 `2b5bf28d` 与上一轮完整构建的源码、内容、配置均无变化，七模块包 `f8fad78722ec` 再检通过。完整静态重跑仍仅在上述同步步骤失败，后续 workflow 独立检查通过；本次只新增批准记录，不改变已验证行为。按普通快进更新锁、核验主线祖先关系、普通推 main 及准确 lease 释放本任务锁的流程继续发布。
 
 ### 人工验收结果/请求
 
