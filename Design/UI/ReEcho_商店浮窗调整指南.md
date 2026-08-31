@@ -1,6 +1,6 @@
-# 商店浮窗调整指南（Plan157）
+# 商店浮窗调整指南（Plan157 / Plan161）
 
-## 三个入口
+## 蓝图入口
 
 内容浏览器打开 `/Game/ReEcho/UI/`：
 
@@ -9,6 +9,8 @@
 | `WBP_ReEchoShopTooltip` | 商店角色被动、武器、配件、卡牌、卡组的名称/说明，以及已获得卡牌下方的“实际效果”附加面板 |
 | `WBP_ReEchoAttributeTooltip` | 悬停商店角色/时钟区域时显示的完整属性浮窗：总宽、边框、底色、内边距、属性行间距 |
 | `WBP_ReEchoAttributeRow` | 所有属性行共用的字体、字号、名称/数值对齐、图标尺寸与间距 |
+| `WBP_ReEchoRuneBackpack` | 点击符文槽弹出的整个符文背包：宽高、标题、背板、滚动区和条目间距 |
+| `WBP_ReEchoRuneBackpackEntry` | 符文背包中的每行：图标大小、名称/数量字体、条目高度、按钮与边框 |
 
 开场选角色/武器仍用 `WBP_ReEchoLoadoutTooltip`，和商店独立，不受以上蓝图修改影响。商店大蓝图不需要重建，也不用在事件图里设置字体。
 
@@ -53,6 +55,34 @@
 - `AttributeRowSizeBox`：单行最小期望宽度；默认 286，与属性面板扣除边框/内边距后的宽度对应。若将整个面板改得更窄，可一起调小该最小宽度。
 
 单独编辑属性行时有“生命值 20”的示例。完整属性面板中每个行实例的 `Designer Preview` 可改示例名称、数值与图标；这些字段只供 Designer 预览，游戏中按 CSV 目录顺序、实际属性和整数/百分比格式覆盖。若以后数据目录增加行，新增行仍使用同一个属性行蓝图，并沿用首行 Slot 间距。
+
+## 符文背包（Plan161）
+
+打开 `WBP_ReEchoRuneBackpack`，Designer 中默认可见完整边框和三条真实嵌套的符文示例；不需要进游戏才能看到面板。它和鼠标悬停显示的 `WBP_ReEchoShopTooltip` 是两种不同的 UI。武器背包仍沿用原实现，不受本次调整影响。
+
+| 面板节点 | 调整位置 |
+|---|---|
+| `BackpackRootSizeBox` | Width Override / Height Override：整个背包尺寸；运行时按此期望尺寸自动布局和避让，不会恢复成固定 320×390 |
+| `BackpackFrame` | 边框颜色与 Content Padding；留边不能为零，否则内层底板会盖住边框 |
+| `BackpackSurface` | 深色底板颜色、不透明度、Content Padding |
+| `TitleText` | 标题文字、字体、字号、颜色、对齐；运行时不改写标题 |
+| `EntryScroll` | 滚动条外观和列表占用区域；标题不会随列表滚动 |
+| `EntryList > RuneEntry0..2` | 真实 `WBP_ReEchoRuneBackpackEntry` 实例；Slot Padding 控制行间距，超过示例数量的新行沿用首行 Slot 样式 |
+
+统一修改每行请打开 **`WBP_ReEchoRuneBackpackEntry`**：
+
+- `EntryRootSizeBox`：单行高度与独立预览宽度。完整背包里横向受列表可用宽度约束，改大图标或字号时请同时给足条目高度；不通过运行时缩放压扁内容。
+- `RuneIconSize`：图标显示区域宽高；`RuneIconScale` 保持 Scale To Fit。图片 Brush 的原生宽高比随真实纹理更新，所以图标显示大小应在 `RuneIconSize` 调整，不在 Brush Image Size 调整。
+- `NameText`：符文名的字体、字号、描边、颜色与换行。
+- `CountText`：数量文字的字体、字号、描边、颜色；超过一份时显示 `×N`，一份时隐藏。
+- `EntryFrame` / `EntrySurface`：条目独立边框和底板；同样保留正的边框留边。
+- `SelectButton`：整行点击区和按钮样式；保留类型 `ReEchoIndexedButton`，不要另接购买事件。
+
+单个条目的 Class Defaults，以及背包里每个实例的 `Designer Preview`，可调整示例名称、数量和图标；示例只用于排版，不增加真实库存。修改全局样式后编译保存条目，再重新打开/编译背包，刷新嵌套预览。预览尺寸选择 **Desired / 所需大小**，不要用横屏 Fill Screen 预览单行。
+
+运行时复用已有行，只填真实名称、未装备份数、图标与 Tooltip，额外行使用同一条目类，剩余示例折叠并清空。过滤、合成、装备位置与保存仍由原 Run/商店逻辑负责。不要重命名 `EntryList`、`SelectButton`、`RuneIcon`、`NameText`、`CountText`，也不要在 PreConstruct/Construct 里另写样式重置。
+
+`author_plan161_rune_backpack.py` 仅创建缺失的两个新资产，不重建已存在资产或商店主蓝图；`audit_plan161_rune_backpack.py` 只读验证真实边框、图片比例和预览实例。测试时打开任意已有未装备兼容符文的槽位，确认字体/尺寸、滚动、数量、点击装备和关闭重开；空背包继续不弹出。
 
 ## 验证微调是否生效
 

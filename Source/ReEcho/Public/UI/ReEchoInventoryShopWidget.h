@@ -15,6 +15,7 @@ class UImage;
 class UReEchoIndexedButton;
 class UReEchoShopTooltipWidget;
 class UReEchoAttributeTooltipWidget;
+class UReEchoRuneBackpackWidget;
 class UReEchoButtonVisualFeedback;
 class UReEchoRunSubsystem;
 struct FReEchoTimeShardBalance;
@@ -122,6 +123,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shop|Tooltips")
 	TSubclassOf<UReEchoAttributeTooltipWidget> AttributeTooltipWidgetClass;
+
+	/** The nested Blueprint, not this shop adapter, owns rune backpack appearance. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shop|Backpack")
+	TSubclassOf<UReEchoRuneBackpackWidget> RuneBackpackWidgetClass;
 
 private:
 #if WITH_DEV_AUTOMATION_TESTS
@@ -415,7 +420,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> BackpackPopupLayer;
 	UPROPERTY(Transient)
-	TObjectPtr<UCanvasPanel> BackpackPopupPanel;
+	TObjectPtr<UReEchoRuneBackpackWidget> BackpackPopupPanel;
 	int32 ActiveBackpackSlotIndex = INDEX_NONE;
 	TArray<FName> CachedBackpackItemIds;
 	UPROPERTY(Transient)

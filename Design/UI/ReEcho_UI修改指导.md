@@ -28,6 +28,8 @@ ReEcho UI 使用 UMG 与 C++ 混合架构：
 | 抽卡页面 | `WBP_ReEchoTraitCardChoice` | `UReEchoTraitCardChoiceWidget` | `BuildChoice` | 三个卡槽、标题、确认按钮和揭示动画 |
 | 抽卡条目 | `WBP_ReEchoTraitCardEntry` | `UReEchoTraitCardEntryWidget` | 抽卡页面内部 | 单张卡的按钮、插图、标题、描述和图标 |
 | 背包/商城 | `WBP_ReEchoInventoryShopScreen` | `UReEchoInventoryShopWidget` | `Screen` | 背包与商城共用页面；报价按钮由目录动态生成 |
+| 符文背包 | `WBP_ReEchoRuneBackpack` | `UReEchoRuneBackpackWidget` | 商店内部弹层 | 整体背板、标题、滚动区和真实条目示例，尺寸以 WBP Desired Size 为准 |
+| 符文背包条目 | `WBP_ReEchoRuneBackpackEntry` | `UReEchoRuneBackpackEntryWidget` | 符文背包内部 | 名称、数量、等比图标和整行按钮；只填真实内容、不覆盖样式 |
 | 天气 | 无独立 WBP | `UReEchoWeatherWidget` | `Weather` | 明确保留的 C++ `NativePaint` 混合绘制面，负责雨和迷雾 |
 | 伤害数字 | 无独立 WBP | `AReEchoDamageNumberActor` | 世界空间 | 使用 `UTextRenderComponent` 的世界空间反馈，不是菜单 UMG |
 | 元素反应字 | `BP_ReEchoElementReactionPopup` | `AReEchoElementReactionPopupActor` | 世界空间 | 每次权威反应在主目标上方显示一次对应透明图片；参数见 [元素反应字调参指南](ReEcho_元素反应字调参指南.md) |
@@ -91,6 +93,8 @@ WBP 的原生父类通过控件名称绑定 C++。修改层级和外观时可以
 |---|---|
 | `WBP_ReEchoLoadoutEntry` | `SelectButton`, `PortraitImage`, `NameText`, `EntrySelectionArrow`, `EntryRootSizeBox`（可选尺寸宿主） |
 | `WBP_ReEchoLoadoutTooltip` | `TitleText`, `DescriptionText` |
+| `WBP_ReEchoRuneBackpack` | `EntryList`（VerticalBox）；样式入口见[商店浮窗调整指南](ReEcho_商店浮窗调整指南.md#符文背包plan161) |
+| `WBP_ReEchoRuneBackpackEntry` | `SelectButton`（ReEchoIndexedButton）, `RuneIcon`, `NameText`, `CountText` |
 | `WBP_ReEchoTraitCardEntry` | `SelectButton`, `NameText`, `DescriptionText`；可选图片绑定为 `ArtImage`, `IconImage` |
 
 `SelectButton` 必须是 `UReEchoIndexedButton`，不能替换成普通 `UButton`。它把动态数组索引送回父页面，再由 C++ 解析为稳定的 CharacterId、WeaponId 或 CardId。

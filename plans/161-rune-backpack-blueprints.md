@@ -6,7 +6,7 @@
 - Executor 负责人：JosephLE910 + Codex（合并模式）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main` / `531bd9cb08f8808f254de59dd0ff99fe36588a56`。
 - 本地实现方式：独立 worktree，`plan/161-rune-backpack-blueprints`。
@@ -43,17 +43,18 @@
 - 权威状态与依赖：不新增 Runtime Module，不改变 Run 所有权、公共玩法契约或依赖方向；新增 UI-only 的面板/条目组件。
 - 决策记录：面板包含真实条目蓝图示例，运行时复用示例并按相同类扩展，隐藏多余行；示例只作设计期展示，不进入背包。使用正式边框/深底，保留共用 `WBP_ReEchoShopTooltip`。面板尺寸由 Designer 的 SizeBox 和 Desired Size 决定，C++ 仅按实际期望尺寸进行屏幕避让，不强写宽高。条目图标采用等比容器，资源更新不覆盖作者几何。
 - 相关文档同步范围：审阅 `ARCHITECTURE.md` 的模块/状态拓扑（预计无变化）、`README.md` 索引，以及两份模块文档；调整指南登记明确的面板/条目入口与绑定节点。
-- 关闭前逐项审阅结果：待实现后填写。
+- 关闭前逐项审阅结果：见执行记录；人工验收仍待用户确认。
 
 ## 锁定验收
 
-- [ ] 两个独立 WBP 在 Designer 中有可见背板、正确比例及真实嵌套示例。
-- [ ] 面板/条目样式与尺寸不会在 Compile、Configure、重复打开、数量更新时被固定 C++ 值重置。
-- [ ] 示例与实际数据隔离；0/1/多条及重复打开正确，不残留假数据或旧 Tooltip。
-- [ ] 点击仍只装备已拥有且兼容的符文，双槽 occurrence 正确，数量/合成语义不变。
-- [ ] 主线已有商店蓝图、武器背包及其他用户微调不被覆盖。
-- [ ] 静态、编译、聚焦自动化和真实渲染证据通过；用户完成视觉与可编辑性验收。
-- [ ] 未提交预构建允许列表之外的 UE 生成产物。
+- [x] 两个独立 WBP 在 Designer 中有可见背板、正确比例及真实嵌套示例。
+- [x] 面板/条目样式与尺寸不会在 Compile、Configure、重复打开、数量更新时被固定 C++ 值重置。
+- [x] 示例与实际数据隔离；0/1/多条及重复打开正确，不残留假数据或旧 Tooltip。
+- [x] 点击仍只装备已拥有且兼容的符文，双槽 occurrence 正确，数量/合成语义不变。
+- [x] 主线已有商店蓝图、武器背包及其他用户微调不被覆盖。
+- [x] 静态、编译、聚焦自动化和真实渲染证据通过。
+- [ ] 用户完成视觉与可编辑性验收。
+- [x] 未提交预构建允许列表之外的 UE 生成产物。
 
 ## Step 0 门禁
 
@@ -87,20 +88,35 @@
 
 ### 变化
 
-- 待实现。
+- 本 Plan 已以 `e69ae0fc` 单独发布到 main；实现在本地独立分支交付，不自行发布实现或关闭人工验收。
+- 新增 `WBP_ReEchoRuneBackpack` 和 `WBP_ReEchoRuneBackpackEntry`：真实白边/深底、固定标题、滚动列表，三个独立条目示例包含原初/潮汐/森林之晶与不同数量。单条及整面板使用 Desired Size，不使用 Fill Screen 拉伸预览。
+- 商店从 `BuildBackpackPopup` 移除固定尺寸/字体/边框/条目构造，改为实例化面板并复用行。尺寸使用面板期望大小和 Canvas AutoSize；标题、根 SizeBox、图标外层 SizeBox、文本样式、边框与间距全部由 WBP 持有。
+- 条目 `DesignerPreview` 只在设计期生效，运行时填 `FReEchoRuneBackpackEntryView`，多份显示独立 `×N`；行数不足按同类追加并沿用首行列表 Slot 样式，多余行清空/禁用/折叠。原装备事件、稳定索引、双槽 occurrence、兼容过滤和数量权威不变。
+- 首次渲染发现同资源 `SetBrushFromTexture` 会跳过 ImageSize 更新，导致首个样例图标的零尺寸不被修复；已采用明确原生纹理尺寸刷新，并修正一次性作者工具的 Brush 序列化。只修正本任务新建条目的初始 Brush，未修改其他资产。图标可见面积和比例已纳入 GPU 回归。
+- 编写脚本只创建缺失资产，再次运行不改已有两份资产的哈希；审计脚本只读。已有商店、共用 Tooltip、数据源和远端新合成逻辑保持不变。
 
 ### 证据
 
-- 初始基线静态校验与 LFS 检查通过。
+- 初始基线及交付候选 `python scripts/validate_project.py` 全部通过，含 XLSX/CSV 同步；本任务没有沿用旧 Plan158 的数据豁免。
+- `Build-Editor.cmd -Configuration Development`：UHT/UBT 成功，匹配 UE5.8 BuildId 55116800 的七模块精选预构建包；新 worktree 初次编译99个动作。后续修正与最终格式化后均重新构建，无 Live Coding。记录：`Saved/plan161-handoff-build.log`。
+- `ReEcho.UI.Shop` 九项 + `ReEcho.UI.RuneBackpackRendering.DesignerParity` 一项，共10项通过。覆盖原商店布局、刷新文案、余额订阅、卡组选卡、逻辑区块、共用说明以及新背包作者值、0/1/8条、数量/零份过滤、双槽装备意图、重复打开和清空旧点击。记录：`Saved/plan161-handoff-tests-engine.log`。
+- GPU Designer / runtime 使用相同内容分别绘制，322400个像素中差异0；同时验证外框留边可见、全部图标非零面积与原生宽高比、Desired Size 一致。截图：`Saved/Automation/Plan161/RuneBackpack-Designer.png` 与 `RuneBackpack-Runtime.png`。这是自动渲染核验，不等同于用户 PIE 视觉验收。
+- `audit_plan161_rune_backpack.py` 通过；作者工具重复执行前后两份新资产 SHA256 一致。两份新 WBP 均在 Editor Compile/Save，未重建已有商店 WBP。
+- 新 C++ 文件全文件 clang-format，旧文件仅修改区块检查；原主线商店头文件/实现已有的无关格式提示未扩张修复。`git diff --check`、Python 语法检查、LFS还原检查与预构建校验通过。
 
 ### 剩余风险
 
 - Designer 与运行时不同分辨率需人工确认观感；不将自动化等同于人工作品验收。
+- 本轮为本地技术交付；正式 main 发布需要用户验收与届时最新远端审计、发布锁、最终 FullRebuild，不能复用本地开发构建冒充发布门禁。
 
 ### 人工验收结果/请求
 
-- PendingBeforeClose：完成后提供准确工程与两个 WBP 入口。
+- PendingBeforeClose：打开本 Plan 独立工程，编辑 `WBP_ReEchoRuneBackpack > BackpackRootSizeBox` 与 `WBP_ReEchoRuneBackpackEntry > NameText/CountText/RuneIconSize/EntryRootSizeBox`，编译保存后进商店验证可读性、屏幕边缘与重复开关。具体入口已登记到商店浮窗调整指南。
 
 ### 架构文档审阅结果
 
-- 待实现后逐项记录。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md` 已审阅、无需修改：仍为 ReEcho 内部 UI 组件，Run 所有权、UI Flow 屏幕生命周期与模块依赖不变。
+- `shared/CODEBASE_MAP/README.md` 已更新：登记商店浮窗调参指南，包含两个新背包 WBP 入口，不新增 Runtime Module。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md` 已更新：记录新 UI-only 视图/面板/条目以及原装备事件边界。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md` 已更新：替换符文动态构造描述，登记作者尺寸/实例复用/样例隔离/生成与回归入口；保留武器背包事实。
+- `Design/UI/ReEcho_UI修改指导.md` 与 `ReEcho_商店浮窗调整指南.md` 已更新：登记新蓝图、必需绑定节点、尺寸/字体/背板/图标调参及预览刷新步骤。

@@ -21,6 +21,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoInventoryShopWidget.h"
+#include "UI/ReEchoRuneBackpackWidget.h"
 #include "UI/ReEchoShopTooltipWidget.h"
 #include "UI/ReEchoTraitCardChoiceWidget.h"
 #include "UI/ReEchoTraitCardEntryWidget.h"
@@ -297,11 +298,26 @@ bool FReEchoRuneBackpackCompatibilityPresentationTest::RunTest(const FString&)
 		return false;
 	}
 	GripButton->OnClicked.Broadcast();
-	const UTextBlock* FirstItem = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackItemName0")));
+	UReEchoRuneBackpackWidget* Backpack =
+	    Cast<UReEchoRuneBackpackWidget>(Widget->GetWidgetFromName(TEXT("BackpackPopupPanel")));
+	if (!TestNotNull(TEXT("Authored rune backpack exists"), Backpack))
+	{
+		return false;
+	}
+	const TArray<UReEchoRuneBackpackEntryWidget*> Entries = Backpack->GetEntryWidgets();
+	if (!TestTrue(TEXT("Authored entries exist"), !Entries.IsEmpty()))
+	{
+		return false;
+	}
+	const UTextBlock* FirstItem = Cast<UTextBlock>(Entries[0]->GetWidgetFromName(TEXT("NameText")));
 	TestTrue(TEXT("The scythe grip remains visible"),
 	         FirstItem && FirstItem->GetText().EqualTo(ScytheGrip.DisplayName));
-	TestNull(TEXT("The same-named LongSword grip slot does not leak into the scythe backpack"),
-	         Widget->GetWidgetFromName(TEXT("BackpackItemName1")));
+	for (int32 Index = 1; Index < Entries.Num(); ++Index)
+	{
+		TestEqual(TEXT("Incompatible runes and excess preview rows remain hidden"),
+		          Entries[Index]->GetVisibility(),
+		          ESlateVisibility::Collapsed);
+	}
 	return true;
 }
 
@@ -887,19 +903,29 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 		         TooltipEffect && TooltipEffect->GetText().EqualTo(WeaponPart.EffectText));
 		AttachmentHoverSlot->OnClicked.Broadcast();
 	}
-	UCanvasPanel* RuneBackpack = Cast<UCanvasPanel>(Widget->GetWidgetFromName(TEXT("BackpackPopupPanel")));
-	UScrollBox* RuneBackpackScroll = Cast<UScrollBox>(Widget->GetWidgetFromName(TEXT("BackpackPopupScroll")));
-	UBorder* RuneBackpackSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackPopupSurface")));
-	UBorder* RuneBackpackFrame = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackPopupFrame")));
-	UBorder* RuneBackpackItemFrame = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackItemFrame0")));
-	UBorder* RuneBackpackItemSurface = Cast<UBorder>(Widget->GetWidgetFromName(TEXT("BackpackItemSurface0")));
-	UTextBlock* RuneBackpackTitle = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackPopupTitle")));
-	UTextBlock* RuneBackpackItemName = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("BackpackItemName0")));
+	UReEchoRuneBackpackWidget* RuneBackpack =
+	    Cast<UReEchoRuneBackpackWidget>(Widget->GetWidgetFromName(TEXT("BackpackPopupPanel")));
+	if (!TestNotNull(TEXT("Rune backpack uses its independent Blueprint"), RuneBackpack))
+	{
+		return false;
+	}
+	const TArray<UReEchoRuneBackpackEntryWidget*> RuneEntries = RuneBackpack->GetEntryWidgets();
+	if (!TestTrue(TEXT("Rune entry Blueprint instances exist"), !RuneEntries.IsEmpty()))
+	{
+		return false;
+	}
+	UScrollBox* RuneBackpackScroll = Cast<UScrollBox>(RuneBackpack->GetWidgetFromName(TEXT("EntryScroll")));
+	UBorder* RuneBackpackSurface = Cast<UBorder>(RuneBackpack->GetWidgetFromName(TEXT("BackpackSurface")));
+	UBorder* RuneBackpackFrame = Cast<UBorder>(RuneBackpack->GetWidgetFromName(TEXT("BackpackFrame")));
+	UBorder* RuneBackpackItemFrame = Cast<UBorder>(RuneEntries[0]->GetWidgetFromName(TEXT("EntryFrame")));
+	UBorder* RuneBackpackItemSurface = Cast<UBorder>(RuneEntries[0]->GetWidgetFromName(TEXT("EntrySurface")));
+	UTextBlock* RuneBackpackTitle = Cast<UTextBlock>(RuneBackpack->GetWidgetFromName(TEXT("TitleText")));
+	UTextBlock* RuneBackpackItemName = Cast<UTextBlock>(RuneEntries[0]->GetWidgetFromName(TEXT("NameText")));
 	TestTrue(TEXT("Rune backpack is parented to the same root-level popup layer"),
 	         RuneBackpack && RuneBackpack->GetParent() == BackpackPopupLayer);
 	TestTrue(TEXT("Rune backpack uses the same framed scroll layout as the weapon backpack"),
 	         RuneBackpackSurface && RuneBackpackScroll && RuneBackpackTitle && RuneBackpackItemName &&
-	             RuneBackpackTitle->GetFont().Size == 20 && RuneBackpackItemName->GetFont().Size == 17);
+	             RuneBackpackTitle->GetFont().FontObject && RuneBackpackItemName->GetFont().FontObject);
 	TestTrue(TEXT("Rune backpack and its entries match the card tooltip chrome"),
 	         RuneBackpackFrame && RuneBackpackSurface && RuneBackpackItemFrame && RuneBackpackItemSurface &&
 	             RuneBackpackFrame->GetBrushColor().Equals(FLinearColor::White) &&

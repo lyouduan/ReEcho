@@ -117,6 +117,7 @@ Boss 变身演出由 `ReEchoBossTransformation.cpp` 中的 GameMode 方法所有
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
 - 商店说明与已生效卡牌结果由 `ReEchoShopTooltipWidget` 消费原 `FReEchoShopOffer` 文本，属性列表由商店将 CSV 名称/顺序和 `FReEchoStatBlock` 格式化成 `FReEchoAttributeRowView` 交给 `ReEchoAttributeTooltipWidget` / `ReEchoAttributeRowWidget`；这三个类型的 WBP 是字体、几何及示例的唯一权威，不新增玩法状态或模块依赖。
+- 符文背包由 `UI/ReEchoRuneBackpackWidget.*` 与 `ReEchoRuneBackpackEntryWidget.*` 消费商店过滤后的只读名称/未装备份数/图标；`WBP_ReEchoRuneBackpack` 和 `WBP_ReEchoRuneBackpackEntry` 唯一拥有尺寸、边框、文字样式和真实嵌套示例。商店只计算锚点避让、填 Tooltip 并转发稳定索引与原槽 occurrence；不重建视觉树，不修改 Run 合成/装备/存档权威。回归见 `ReEchoRuneBackpackTests.cpp`，调整入口见 UI 模块文档。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 开场选择页确认与返回是常驻作者化控件；Widget 只管理可用性和独立文字的灰显，未选中时不能确认，返回的空闲/悬停 Brush 明暗由 WBP 持有，不改变两阶段选择、返回或 Run 提交权威。商店独立 Tooltip 背板必须拥有真实纹理 Brush，避免仅设置颜色的空 Image Brush。
 - 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板与指针，由下半环血条及中央百分比替换倒计时文字。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。

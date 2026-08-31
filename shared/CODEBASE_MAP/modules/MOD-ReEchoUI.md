@@ -42,7 +42,7 @@
 - 世界空间元素反应字由 `AReEchoElementReactionPopupActor` 消费既有 `FReEchoElementReactionResolvedEvent`：Burn/Vaporize/Growth/Conduct/Enhance 分别映射灼烧/蒸发/生长/导电/强化透明图，只在权威 `PrimaryTarget` 上方生成一次，不按 Growth 影响列表或 Conduct 连锁节点重复。`BP_ReEchoElementReactionPopup` 的 `Element Reaction Popup|Animation/Layout` Class Defaults 调整持续时间、世界尺寸、上浮高度、渐隐曲线和缩放；独立半透明材质动态接收 `ReactionTexture` 与 `Opacity`。纹理、材质或蓝图缺失只跳过该次表现或回退原生 Actor，不改变元素反应结算。
 - Plan110 正式商店以 `WBP_ReEchoInventoryShopScreen > DesignerShopPresentationCanvas` 和根级 `DesignerLoadoutCanvas` 为 `1920×1080` 位置权威。前者直接持有正式木框、货币/刷新、3 个配件报价、3 个卡组报价、中部纸张、装配树和保存离店美术；后者直接持有 `DesignerWeaponPanel`、`DesignerShopClock`、`DesignerWeaponInteractionButton`、3 个符文槽和 12 个卡牌槽。报价卡、文字、按钮与全部装配槽均是 Canvas 可调节点；`UReEchoInventoryShopWidget` 只按稳定名称写真实文本、价格、图标、Tooltip、显隐和启用状态，并把最多 24 张已拥有卡牌按两页切片投影到同一组 12 个作者化槽位，不覆盖位置/尺寸。配件/符文说明的命中面是整个 `DesignerPartOfferCard*`，卡组说明的命中面是整个 `DesignerPackOfferCard*` / `DesignerPackOfferBase*` 范围；购买按钮仍只负责点击命令，不得缩小说明的悬浮命中区。旧 `Overlay_0` / `Overlay_1` 只保留必要逻辑契约，其旧底板、标题、店员、时钟和槽位素材已从 WBP 层级删除。
 - 进入商店时，`ReEchoGameMode` 将 `CurrentBuild.CharacterId` 显式传给 `UReEchoInventoryShopWidget`；Widget 在本地展示副本中静默合成 `CHARACTER_CARD_<CharacterId>`，使用角色 CSV 的正式名称、被动描述和角色 Icon，仅投影到右侧第一个已拥有卡槽，不写入 Run 背包、不触发购买或领取事务。
-- 武器/符文贴图 Brush 使用源纹理尺寸；商品图标、已装备武器和槽内内容均放在居中的 `ScaleBox(ScaleToFit)` 中，外层 Button/Canvas 只持有作者化槽框几何，禁止用 Fill 把非同宽高比纹理压扁或拉长，也禁止退回默认 32px 中央小图。点击后用独立浮层列出 Run 投影的全部已拥有武器，当前项禁用，其他项只广播装备请求。武器与符文背包统一挂在响应式设计面的根级 `BackpackPopupLayer`，其 ZOrder 高于商店和回响弹层；两种背包的总面板及每个武器/符文条目都复用卡牌悬浮说明的白边、近黑底视觉，符文背包继续复用武器背包的滚动区、等比图标尺寸和文字行对齐。符文槽继续填充纹理、置灰状态与 Tooltip；普通容量使用三个作者化槽，Run 投影任一非核心槽容量扩为 2 时切换到 `DesignerDualAttachmentLayout`，按 `(SlotTypeId, OccurrenceIndex)` 映射为一个核心长槽和四个独立方槽，完整呈现 `1+2+2` 而不复制卡牌状态或改写容量。构筑卡购买成功后把真实卡牌图标立即填入卡牌槽，但不重摇当前商店卡组候选。
+- 武器/符文贴图 Brush 使用源纹理尺寸；商品图标、已装备武器和槽内内容均放在居中的 `ScaleBox(ScaleToFit)` 中，外层 Button/Canvas 只持有作者化槽框几何，禁止用 Fill 把非同宽高比纹理压扁或拉长，也禁止退回默认 32px 中央小图。点击后用独立浮层列出 Run 投影的全部已拥有武器，当前项禁用，其他项只广播装备请求。武器与符文背包统一挂在响应式设计面的根级 `BackpackPopupLayer`，其 ZOrder 高于商店和回响弹层；武器背包保持原动态构造；符文背包使用 Plan161 的独立面板/条目 WBP，同样保留白边、近黑底、滚动区和等比图标，具体排版由 Designer 持有。符文槽继续填充纹理、置灰状态与 Tooltip；普通容量使用三个作者化槽，Run 投影任一非核心槽容量扩为 2 时切换到 `DesignerDualAttachmentLayout`，按 `(SlotTypeId, OccurrenceIndex)` 映射为一个核心长槽和四个独立方槽，完整呈现 `1+2+2` 而不复制卡牌状态或改写容量。构筑卡购买成功后把真实卡牌图标立即填入卡牌槽，但不重摇当前商店卡组候选。
 - 商店角色被动、武器、配件、卡牌和卡组的原生 Tooltip 统一实例化 `WBP_ReEchoShopTooltip`；名称与正文分别绑定 `TitleText` / `DescriptionText`，Run 投影的 `OutcomeText` 原样填入同名文字控件，非空显示整个作者化 `OutcomePanel`，空/纯空白折叠且不留间距。主框和独立描边的“实际效果”框在同一 Designer 默认可见并有示例；C++ 不改写字体、宽度、边框、Padding 或对齐，也不按 ID/描述反推玩法结果。
 - 商店角色/时钟属性 Tooltip 由 `WBP_ReEchoAttributeTooltip > AttributeRows` 及实际嵌套的 `WBP_ReEchoAttributeRow` 实例作者化；完整预览提供当前八项属性，每行 `DesignerPreview` 只供设计期使用。商店适配层保持 CSV 顺序和整数/百分比格式，投影 `FReEchoAttributeRowView` 名称/值/图标；运行时复用现有行、折叠并清空剩余行，目录扩展时才按同一行类追加，沿用首行 Slot 样式。图标只替换 Brush Resource，不重设几何。新类仍在 ReEcho 模块中；入口与说明见 `Design/UI/ReEcho_商店浮窗调整指南.md`。
 - 商店/背包页以 `1920×1080` 为作者设计面：`BackgroundImage` 保持直接铺满实际视口，其余根控件及运行时商店/回响弹层由 `ResponsiveContentScale > ResponsiveContentSize > ResponsiveContentCanvas` 统一 `ScaleToFit`。低分辨率按比例缩小完整页面，超宽屏只延展背景；运行时迁移必须保留原 Canvas Slot 的锚点、偏移、自动尺寸和 ZOrder。
@@ -75,6 +75,14 @@ Plan158 Boss 表面补充：弧形颜色/透明度以 WBP 中用户当前微调�
 - `ReEchoLoadoutSelectionWidget::RefreshActionButtons` 统一运行时与 Designer 的按钮状态：确认和返回以及独立标签始终可见，确认仅在当前阶段有选择且尚未提交时启用；返回在未最终提交前保持启用。确认标签跟随确认禁用，返回标签仅在 Hover 时启用其正常亮态、离开灰显；这不修改字体、颜色、几何或游戏候选。
 - `WBP_ReEchoLoadoutSelection` 的 Button Style 持有明暗：确认 Disabled 暗，返回 Normal/Disabled 暗、Hovered/Pressed 亮；C++ 不改写 Style。原有角色页回主菜单、武器页回角色选择、防重复提交和点击选中契约不变。
 - 验证入口为 `ReEcho.UI.Shop.TooltipBlueprints`（真实背板引用、数据及样式保留）、`ReEcho.UI.LoadoutSelection.Flow` / `.Assets`（常驻显示、禁用与 Hover 灰显、WBP 明暗状态）。
+
+## 符文背包作者化（Plan161）
+
+- `WBP_ReEchoRuneBackpack` 由 `ReEchoRuneBackpackWidget.*` 驱动，`BackpackRootSizeBox` 持有期望宽高；商店根级 `BackpackPopupLayer` 只挂载同一实例、自动尺寸并按期望大小避让屏幕边缘，不再向符文弹层写固定尺寸。武器背包保持原实现。
+- 背板、固定标题和滚动列表都来自 WBP。`EntryList` 内置三个真实的 `WBP_ReEchoRuneBackpackEntry`，其 `ReEchoRuneBackpackEntryWidget.*` 只填写 `NameText`、`CountText`、`RuneIcon` 和 `SelectButton` 索引；图片使用作者化 ScaleToFit，原生纹理宽高比随资源变化，显示区域由 `RuneIconSize` 拥有。
+- `DesignerPreview` 仅供设计期，独立条目/整个面板均使用 Desired Size。运行时复用已有条目，按同一 Entry 类追加、复制首行列表 Slot 的 Padding/Alignment/Size；多余条目清空、禁用并折叠，防止样例或旧 Tooltip 泄露。Configure/PreConstruct 不改字体、边框、Padding、行高或面板尺寸。
+- 商店适配仍按当前武器、槽型、`BackpackCount` 过滤，用共用 `WBP_ReEchoShopTooltip` 填入真实说明；点击继续发出 `OnOwnedPartEquipRequested(ItemId, OccurrenceIndex)`，不购买、不消耗材料、不计算合成。关闭和切换槽位清空旧索引，重复打开复用实例且只绑定一次。
+- 作者工具：`scripts/ue/author_plan161_rune_backpack.py` 仅创建缺失资产，绝不覆盖已保存微调；只读审计为 `audit_plan161_rune_backpack.py`。调参入口登记于 [商店浮窗调整指南](../../../Design/UI/ReEcho_商店浮窗调整指南.md)。回归 `ReEcho.UI.Shop.RuneBackpackAuthored` / `.RuneBackpackRouting` / `.RuneBackpackFiltersWeaponType`，真实 GPU 对比 `ReEcho.UI.RuneBackpackRendering.DesignerParity`。
 
 ## 商店最终余额订阅（Plan159）
 

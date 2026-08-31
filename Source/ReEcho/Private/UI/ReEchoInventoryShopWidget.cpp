@@ -27,6 +27,7 @@
 #include "UI/ReEchoIndexedButton.h"
 #include "UI/ReEchoShopTooltipWidget.h"
 #include "UI/ReEchoAttributeTooltipWidget.h"
+#include "UI/ReEchoRuneBackpackWidget.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "Data/ReEchoCsvDataRegistry.h"
@@ -38,7 +39,6 @@ constexpr float ShopDesignHeight = 1080.0f;
 constexpr int32 BackpackPopupLayerZOrder = 100;
 constexpr int32 OwnedCardPageCount = 2;
 const FVector2D WeaponBackpackPopupSize(340.0f, 430.0f);
-const FVector2D RuneBackpackPopupSize(320.0f, 390.0f);
 const FLinearColor TooltipFrameColor = FLinearColor::White;
 const FLinearColor TooltipSurfaceColor(0.02f, 0.02f, 0.02f, 0.97f);
 
@@ -313,6 +313,9 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	static ConstructorHelpers::FClassFinder<UReEchoAttributeTooltipWidget> AttributeTooltipFinder(
 	    TEXT("/Game/ReEcho/UI/WBP_ReEchoAttributeTooltip"));
 	AttributeTooltipWidgetClass = AttributeTooltipFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoRuneBackpackWidget> RuneBackpackFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoRuneBackpack"));
+	RuneBackpackWidgetClass = RuneBackpackFinder.Class;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ItemCardFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/T_UI_Shop110_OfferCard.T_UI_Shop110_OfferCard"));
 	ShopItemCardTexture = ItemCardFinder.Object;
@@ -2864,6 +2867,7 @@ void UReEchoInventoryShopWidget::HideBackpackPopup()
 	if (BackpackPopupPanel)
 	{
 		BackpackPopupPanel->SetVisibility(ESlateVisibility::Collapsed);
+		BackpackPopupPanel->ConfigureEntries({});
 	}
 	ActiveBackpackSlotIndex = INDEX_NONE;
 	CachedBackpackItemIds.Reset();
@@ -3003,56 +3007,16 @@ void UReEchoInventoryShopWidget::HandleBackpackItemClicked(const int32 ItemIndex
 void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 {
 	UCanvasPanel* PopupLayer = EnsureBackpackPopupLayer();
-	if (!PopupLayer)
-	{
-		return;
-	}
 	const FName SlotTypeId = GetSlotTypeIdForIndex(SlotIndex);
-	if (SlotTypeId.IsNone())
+	if (!PopupLayer || SlotTypeId.IsNone() ||
+	    !ensureMsgf(RuneBackpackWidgetClass, TEXT("Rune backpack Blueprint is missing")))
 	{
 		return;
 	}
 
-	if (!BackpackPopupPanel)
-	{
-		BackpackPopupPanel =
-		    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("BackpackPopupPanel"));
-		PopupLayer->AddChildToCanvas(BackpackPopupPanel);
-	}
-	if (UCanvasPanelSlot* PopupSlot = Cast<UCanvasPanelSlot>(BackpackPopupPanel->Slot))
-	{
-		const UWidget* AnchorWidget = DesignerAttachmentSlotButtons.IsValidIndex(SlotIndex)
-		                                  ? DesignerAttachmentSlotButtons[SlotIndex].Get()
-		                                  : nullptr;
-		PopupSlot->SetPosition(
-		    ResolveBackpackPopupPosition(AnchorWidget, RuneBackpackPopupSize, FVector2D(1120.0f, 360.0f)));
-		PopupSlot->SetSize(RuneBackpackPopupSize);
-		PopupSlot->SetZOrder(1);
-	}
-	BackpackPopupPanel->ClearChildren();
-
-	const FDarkFramedPanel PopupChrome =
-	    CreateDarkFramedPanel(WidgetTree, TEXT("BackpackPopupFrame"), TEXT("BackpackPopupSurface"), FMargin(14.0f));
-	UCanvasPanelSlot* FrameSlot = BackpackPopupPanel->AddChildToCanvas(PopupChrome.Frame);
-	FrameSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-	FrameSlot->SetOffsets(FMargin(0.0f));
-
-	UScrollBox* Scroll =
-	    WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BackpackPopupScroll"));
-	Scroll->SetScrollBarVisibility(ESlateVisibility::Visible);
-	UVerticalBox* PopupList =
-	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("BackpackPopupList"));
-	Scroll->AddChild(PopupList);
-	PopupChrome.Surface->SetContent(Scroll);
-
-	UTextBlock* Title = CreateText(WidgetTree, TEXT("BackpackPopupTitle"), 20, FLinearColor::White);
-	Title->SetText(NSLOCTEXT("ReEcho", "RuneBackpackTitle", "符文背包"));
-	Title->SetAutoWrapText(false);
-	UVerticalBoxSlot* TitleSlot = PopupList->AddChildToVerticalBox(Title);
-	TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
-
-	TArray<FName> BackpackItemIds;
-	int32 EntryCount = 0;
+	TArray<FReEchoRuneBackpackEntryView> Views;
+	TArray<const FReEchoShopOffer*> Offers;
+	CachedBackpackItemIds.Reset();
 	for (const FReEchoShopOffer& Candidate : CurrentPartShopView.OwnedParts)
 	{
 		if (Candidate.SlotTypeId != SlotTypeId || !IsPartCompatibleWithCurrentWeapon(Candidate) ||
@@ -3060,56 +3024,48 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 		{
 			continue;
 		}
-		BackpackItemIds.Add(Candidate.ItemId);
-		const int32 ThisIndex = EntryCount++;
-		UReEchoIndexedButton* ItemButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
-		    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("BackpackItem%d"), ThisIndex));
-		ItemButton->SetEntryIndex(ThisIndex);
-		ItemButton->SetToolTip(BuildSlotTooltip(Candidate));
-		ConfigureTransparentButton(ItemButton);
-		UHorizontalBox* ItemRow = WidgetTree->ConstructWidget<UHorizontalBox>(
-		    UHorizontalBox::StaticClass(), *FString::Printf(TEXT("BackpackItemRow%d"), ThisIndex));
-		UScaleBox* Icon = CreateAspectFitIcon(WidgetTree,
-		                                      *FString::Printf(TEXT("BackpackItemIconScale%d"), ThisIndex),
-		                                      *FString::Printf(TEXT("BackpackItemIcon%d"), ThisIndex),
-		                                      ResolveWeaponPartIcon(Candidate.ContentId),
-		                                      FVector2D(72.0f, 72.0f));
-		UHorizontalBoxSlot* IconSlot = ItemRow->AddChildToHorizontalBox(Icon);
-		IconSlot->SetPadding(FMargin(0.0f, 0.0f, 10.0f, 0.0f));
-		IconSlot->SetVerticalAlignment(VAlign_Center);
-		UTextBlock* NameText =
-		    CreateText(WidgetTree, *FString::Printf(TEXT("BackpackItemName%d"), ThisIndex), 17, FLinearColor::White);
-		NameText->SetText(Candidate.BackpackCount > 1
-		                      ? FText::Format(NSLOCTEXT("ReEcho", "RuneBackpackCopies", "{0} ×{1}"),
-		                                      Candidate.DisplayName,
-		                                      FText::AsNumber(Candidate.BackpackCount))
-		                      : Candidate.DisplayName);
-		NameText->SetAutoWrapText(false);
-		UHorizontalBoxSlot* NameSlot = ItemRow->AddChildToHorizontalBox(NameText);
-		NameSlot->SetVerticalAlignment(VAlign_Center);
-		const FDarkFramedPanel EntryChrome =
-		    CreateDarkFramedPanel(WidgetTree,
-		                          *FString::Printf(TEXT("BackpackItemFrame%d"), ThisIndex),
-		                          *FString::Printf(TEXT("BackpackItemSurface%d"), ThisIndex),
-		                          FMargin(8.0f),
-		                          2.0f);
-		EntryChrome.Surface->SetContent(ItemRow);
-		ItemButton->SetContent(EntryChrome.Frame);
-		UVerticalBoxSlot* ButtonSlot = PopupList->AddChildToVerticalBox(ItemButton);
-		ButtonSlot->SetPadding(FMargin(0.0f, 3.0f));
-		ItemButton->OnIndexedClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
-		ItemButton->OnIndexedClicked.AddDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
+		FReEchoRuneBackpackEntryView& View = Views.AddDefaulted_GetRef();
+		View.Name = Candidate.DisplayName;
+		View.Count = Candidate.BackpackCount >= 0 ? Candidate.BackpackCount : 1;
+		View.Icon = ResolveWeaponPartIcon(Candidate.ContentId);
+		CachedBackpackItemIds.Add(Candidate.ItemId);
+		Offers.Add(&Candidate);
 	}
-	CachedBackpackItemIds = MoveTemp(BackpackItemIds);
-
-	if (EntryCount == 0)
+	if (Views.IsEmpty())
 	{
 		HideBackpackPopup();
 		return;
 	}
-
-	BackpackPopupPanel->SetVisibility(ESlateVisibility::Visible);
+	if (!BackpackPopupPanel)
+	{
+		BackpackPopupPanel =
+		    WidgetTree->ConstructWidget<UReEchoRuneBackpackWidget>(RuneBackpackWidgetClass, TEXT("BackpackPopupPanel"));
+		PopupLayer->AddChildToCanvas(BackpackPopupPanel);
+	}
+	BackpackPopupPanel->ConfigureEntries(Views);
+	const TArray<UReEchoRuneBackpackEntryWidget*> Entries = BackpackPopupPanel->GetEntryWidgets();
+	for (int32 Index = 0; Index < Offers.Num() && Index < Entries.Num(); ++Index)
+	{
+		if (UReEchoIndexedButton* Button = Entries[Index]->GetSelectButton())
+		{
+			Button->SetToolTip(BuildSlotTooltip(*Offers[Index]));
+			Button->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleBackpackItemClicked);
+		}
+	}
 	ActiveBackpackSlotIndex = SlotIndex;
+	BackpackPopupPanel->SetVisibility(ESlateVisibility::Visible);
+	// Size comes from the authored root. Only placement/edge avoidance belongs to the host.
+	BackpackPopupPanel->ForceLayoutPrepass();
+	if (UCanvasPanelSlot* PopupSlot = Cast<UCanvasPanelSlot>(BackpackPopupPanel->Slot))
+	{
+		const UWidget* AnchorWidget = DesignerAttachmentSlotButtons.IsValidIndex(SlotIndex)
+		                                  ? DesignerAttachmentSlotButtons[SlotIndex].Get()
+		                                  : nullptr;
+		PopupSlot->SetAutoSize(true);
+		PopupSlot->SetPosition(ResolveBackpackPopupPosition(
+		    AnchorWidget, BackpackPopupPanel->GetDesiredSize(), FVector2D(1120.0f, 360.0f)));
+		PopupSlot->SetZOrder(1);
+	}
 }
 
 UTexture2D* UReEchoInventoryShopWidget::ResolveWeaponPartIcon(const FName PartId) const
