@@ -52,3 +52,12 @@
 - `test_validate_card_registrations.py`：4/4 通过；`test_sync_xlsx_to_csv.py`：18/18 通过；`validate_project.py`、`sync_xlsx_to_csv.py --check`、`git diff --check` 通过，`Content/Data` 相对已验证移速候选没有字节变化。
 - 回写文件重新导入并完成关键区域视觉/公式错误扫描；其他表及保护/样式保留，原有窄列/固定行高布局未全表重排。移速 C++、运行时 CSV 与此前专项回归的候选一致，已有 Editor 编译和移速专项结果仍有效；尚未执行最终合并候选的 FullRebuild。
 - 用户最新要求：“你稍后发布，因为你改了表”。已暂停所有远端发布操作，仅保存本地候选；未获取 main 发布锁、未合并 `origin/main`、未推送。等用户确认恢复后，再 fetch 审计最新表格与外部变化、按锁流程 merge、FullRebuild 并重跑适用验证。
+
+## 恢复发布与最终集成（2026-08-31）
+
+- 用户随后要求“可以直接推送远端合并主分支了”。原定 23:15 的一次性自动化已设为 `PAUSED`，避免重复执行。
+- Fetch 得到 `a73e5d5a514d6dc2bc99e93487eccf78e7deb552`：新增已发布 Plan158 的 Boss/选卡 UI、Plan160 的符文背包合成及保存份数、相关测试/文档/构建包。源于 `JosephLE910 + Codex`；与本任务 CSV/XLSX 相对原主线没有变化，表格无物理或逻辑冲突，无 Plan 编号冲突。
+- 物理审计与实际 merge 一致：仅 7 个 DLL 和 manifest 冲突，其他代码自动合并。逻辑审计：本地只改变 OnKill 临时移速窗口；主线合成事务/存档仍由 Run 拥有，不改该窗口。保留全部远端 UI 资产、Run 合成/存档行为，重跑移速、Shop、Shop UI、SaveSnapshot 覆盖组合耦合。
+- 以干净正式候选 `74874c0986c6f66116f7c2e3a6ffa99576afb96b` 使用空 expected lease 原子取得 `main-publish-lock`，核验后重新 fetch 确认 main 未前进，再执行 merge；未 rebase 或重写候选历史。预构建冲突暂取准确远端包作为占位，最终 FullRebuild 必须重新生成，旧包不作为验证证据。
+- 相同卡牌登记合并为远端已存在的一份；本地4项回归并入 `test_validate_card_registration.py`，删除本任务重复文件 `test_validate_card_registrations.py`（内容在本地提交 `74874c09` 可恢复）。远端已正式登记 UI 文档标识，因此保留其索引/文档契约，撤销本地临时链接写法，不改校验器规则。
+- 相关文档重新审阅：主模块文档保留双方行为说明；README、UI 文档和 ARCHITECTURE 沿主线已有结构，无新增模块或依赖。最终验证/发布结果在后续记录补齐，不套用 Plan158/160 的配表豁免。

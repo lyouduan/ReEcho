@@ -543,6 +543,12 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 		         RefreshText && RefreshText->GetParent() == RefreshButton && !RefreshText->GetText().IsEmpty());
 		AuthoredRefreshButtons.Add(RefreshButton);
 	}
+	const UTextBlock* AuthoredConfirmLabel = Cast<UTextBlock>(Choice->GetWidgetFromName(TEXT("ConfirmButtonLabel")));
+	const UPanelWidget* AuthoredConfirmParent = AuthoredConfirmLabel ? AuthoredConfirmLabel->GetParent() : nullptr;
+	const UPanelSlot* AuthoredConfirmSlot = AuthoredConfirmLabel ? AuthoredConfirmLabel->Slot.Get() : nullptr;
+	AddInfo(FString::Printf(TEXT("Authored confirm label: parent=%s slot=%s"),
+	                        *GetNameSafe(AuthoredConfirmParent),
+	                        *GetNameSafe(AuthoredConfirmSlot)));
 	Choice->TakeWidget();
 	for (int32 SlotIndex = 0; SlotIndex < AuthoredRefreshButtons.Num(); ++SlotIndex)
 	{
@@ -571,9 +577,9 @@ bool FReEchoTraitCardAuthoredPresentationTest::RunTest(const FString& Parameters
 	         ConfirmLabel && ConfirmLabel->GetText().ToString() == TEXT("确定"));
 	TestTrue(TEXT("Choice title is freely draggable on the root canvas"),
 	         ChoiceTitle && Cast<UCanvasPanelSlot>(ChoiceTitle->Slot));
-	TestTrue(TEXT("Confirm label is independent from the button and freely draggable"),
-	         ConfirmLabel && ConfirmLabel->GetParent() && ConfirmLabel->GetParent()->GetName() == TEXT("RootPanel") &&
-	             Cast<UCanvasPanelSlot>(ConfirmLabel->Slot));
+	TestTrue(TEXT("Confirm label preserves the authored parent and slot instead of forcing a legacy root"),
+	         ConfirmLabel && ConfirmLabel == AuthoredConfirmLabel && AuthoredConfirmParent && AuthoredConfirmSlot &&
+	             ConfirmLabel->GetParent() == AuthoredConfirmParent && ConfirmLabel->Slot == AuthoredConfirmSlot);
 	TestFalse(TEXT("Completed transition does not leave a retained media image in the card UI"),
 	          Choice->GetWidgetFromName(TEXT("EncounterTransitionBackgroundImage")) != nullptr);
 	return true;

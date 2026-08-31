@@ -309,6 +309,7 @@ void UReEchoTraitCardChoiceWidget::BuildWidgetTree()
 
 	UCanvasPanel* RootCanvas =
 	    WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("TraitDrawRoot"));
+	bNativeFallbackLayout = true;
 	WidgetTree->RootWidget = RootCanvas;
 
 	UBorder* Vignette = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("TraitDrawVignette"));
@@ -416,11 +417,10 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	const bool bUseDesignerCardSlots = TraitCardSlot0 && TraitCardSlot1 && TraitCardSlot2;
 	const TArray<UReEchoIndexedButton*> DesignerRefreshButtons = {
 	    ShopCardRefreshButton0, ShopCardRefreshButton1, ShopCardRefreshButton2};
-	const TArray<UTextBlock*> DesignerRefreshTexts = {
-	    ShopCardRefreshText0, ShopCardRefreshText1, ShopCardRefreshText2};
+	const TArray<UTextBlock*> DesignerRefreshTexts = {ShopCardRefreshText0, ShopCardRefreshText1, ShopCardRefreshText2};
 	const bool bUseDesignerRefreshButtons = ShopCardRefreshButton0 && ShopCardRefreshButton1 &&
-	                                        ShopCardRefreshButton2 && ShopCardRefreshText0 &&
-	                                        ShopCardRefreshText1 && ShopCardRefreshText2;
+	                                        ShopCardRefreshButton2 && ShopCardRefreshText0 && ShopCardRefreshText1 &&
+	                                        ShopCardRefreshText2;
 	for (USizeBox* CardPanel : CardPanels)
 	{
 		if (!bUseDesignerCardSlots && CardPanel && CardPanel->GetParent() == TraitCardContainer)
@@ -520,22 +520,23 @@ void UReEchoTraitCardChoiceWidget::BuildCardEntries()
 	}
 	for (int32 CardIndex = 0; CardIndex < 3; ++CardIndex)
 	{
-		UReEchoIndexedButton* RefreshButton =
-		    bUseDesignerRefreshButtons ? DesignerRefreshButtons[CardIndex] : nullptr;
+		UReEchoIndexedButton* RefreshButton = bUseDesignerRefreshButtons ? DesignerRefreshButtons[CardIndex] : nullptr;
 		if (!RefreshButton)
 		{
 			RefreshButton = WidgetTree->ConstructWidget<UReEchoIndexedButton>(
 			    UReEchoIndexedButton::StaticClass(), *FString::Printf(TEXT("ShopCardRefreshButton%d"), CardIndex));
+			ApplyRefreshButtonArt(RefreshButton, RefreshButtonTexture);
 		}
 		RefreshButton->SetEntryIndex(CardIndex);
-		ApplyRefreshButtonArt(RefreshButton, RefreshButtonTexture);
 		UTextBlock* RefreshText = bUseDesignerRefreshButtons ? DesignerRefreshTexts[CardIndex] : nullptr;
 		if (!RefreshText)
 		{
 			RefreshText = CreateCenteredText(WidgetTree,
-			                                  *FString::Printf(TEXT("ShopCardRefreshText%d"), CardIndex),
-			                                  17,
-			                                  FLinearColor(0.96f, 0.90f, 0.70f));
+			                                 *FString::Printf(TEXT("ShopCardRefreshText%d"), CardIndex),
+			                                 17,
+			                                 FLinearColor(0.96f, 0.90f, 0.70f));
+			RefreshText->SetText(
+			    NSLOCTEXT("ReEcho", "ShopCardSlotRefreshAuthored", "刷新（剩余 {Remaining}） · {Cost}"));
 			RefreshButton->SetContent(RefreshText);
 		}
 		RefreshButton->SetVisibility(ESlateVisibility::Collapsed);
@@ -570,23 +571,81 @@ FString UReEchoTraitCardChoiceWidget::ResolveCardIconTexturePath(const FName Car
 	                       *CardId.ToString());
 }
 
+FText UReEchoTraitCardChoiceWidget::GetAuthoredTextTemplate(UTextBlock* Text, const TArray<FString>& NumberArguments)
+{
+	if (!Text)
+	{
+		return FText::GetEmpty();
+	}
+	const TWeakObjectPtr<UTextBlock> Key(Text);
+	if (const FText* Cached = AuthoredTextTemplates.Find(Key))
+	{
+		return *Cached;
+	}
+	const FString Source = Text->GetText().ToString();
+	FString Pattern;
+	// Explicit FText arguments take precedence; numeric literals can then be intentional copy.
+	if (Source.Contains(TEXT("{")))
+	{
+		Pattern = Source;
+	}
+	else
+	{
+		int32 ArgumentIndex = 0;
+		for (int32 Index = 0; Index < Source.Len();)
+		{
+			if (ArgumentIndex < NumberArguments.Num() && Source[Index] >= TEXT('0') && Source[Index] <= TEXT('9'))
+			{
+				Pattern += TEXT("{") + NumberArguments[ArgumentIndex++] + TEXT("}");
+				do
+				{
+					++Index;
+				} while (Index < Source.Len() && Source[Index] >= TEXT('0') && Source[Index] <= TEXT('9'));
+			}
+			else
+			{
+				Pattern.AppendChar(Source[Index++]);
+			}
+		}
+	}
+	const FText Template = FText::FromString(Pattern);
+	AuthoredTextTemplates.Add(Key, Template);
+	return Template;
+}
+
 void UReEchoTraitCardChoiceWidget::RefreshOffers()
 {
 	if (TitleText)
 	{
 		const FText PickCount = FText::AsNumber(SelectableCount);
-		TitleText->SetText(
-		    SelectableCount > 1
-		        ? FText::Format(NSLOCTEXT("ReEcho",
-		                                  "CardChoiceCadenceTitle",
-		                                  "从破碎的刻度中，你读出了更多的可能...本次可以选择{0}张！"),
-		                        PickCount)
-		        : (bShopMode ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择{0}张{1}构筑卡牌"),
-		                                     PickCount,
-		                                     FText::FromString(ShopTier == 1   ? TEXT("一级")
-		                                                       : ShopTier == 2 ? TEXT("二级")
-		                                                                       : TEXT("三级")))
-		                     : FText::Format(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择{0}张构筑卡牌"), PickCount)));
+		const FText AuthoredTitle =
+		    bNativeFallbackLayout ? FText::GetEmpty() : GetAuthoredTextTemplate(TitleText, {TEXT("Count")});
+		if (!bNativeFallbackLayout)
+		{
+			FFormatNamedArguments Arguments;
+			Arguments.Add(TEXT("Count"), PickCount);
+			Arguments.Add(TEXT("Tier"),
+			              FText::FromString(ShopTier == 1   ? TEXT("一级")
+			                                : ShopTier == 2 ? TEXT("二级")
+			                                                : TEXT("三级")));
+			TitleText->SetText(FText::Format(AuthoredTitle, Arguments));
+		}
+		else
+		{
+			TitleText->SetText(
+			    SelectableCount > 1
+			        ? FText::Format(NSLOCTEXT("ReEcho",
+			                                  "CardChoiceCadenceTitle",
+			                                  "从破碎的刻度中，你读出了更多的可能...本次可以选择{0}张！"),
+			                        PickCount)
+			        : (bShopMode
+			               ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardChoiceTitle", "选择{0}张{1}构筑卡牌"),
+			                               PickCount,
+			                               FText::FromString(ShopTier == 1   ? TEXT("一级")
+			                                                 : ShopTier == 2 ? TEXT("二级")
+			                                                                 : TEXT("三级")))
+			               : FText::Format(NSLOCTEXT("ReEcho", "TraitChoiceTitle", "选择{0}张构筑卡牌"), PickCount)));
+		}
 	}
 	if (SubtitleText)
 	{
@@ -596,9 +655,10 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 		    SelectableCount > 1
 		        ? FText::Format(NSLOCTEXT("ReEcho", "CardChoiceCadenceHint", "请选满 {0} 张后点击确认"),
 		                        FText::AsNumber(SelectableCount))
-		        : (bShopMode
-		               ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "卡牌组已付款；选择1张卡牌完成领取")
-		               : NSLOCTEXT("ReEcho", "TraitChoiceSubtitle", "完成本次构筑选择后，将进入时光商城使用碎片购买道具")));
+		        : (bShopMode ? NSLOCTEXT("ReEcho", "ShopCardChoiceSubtitle", "卡牌组已付款；选择1张卡牌完成领取")
+		                     : NSLOCTEXT("ReEcho",
+		                                 "TraitChoiceSubtitle",
+		                                 "完成本次构筑选择后，将进入时光商城使用碎片购买道具")));
 	}
 	if (CurrencyText)
 	{
@@ -653,21 +713,25 @@ void UReEchoTraitCardChoiceWidget::RefreshOffers()
 			continue;
 		}
 		const FReEchoTraitCardOffer& Offer = Offers[CardIndex];
-		CardRefreshTexts[CardIndex]->SetText(
-		    FText::Format(NSLOCTEXT("ReEcho", "ShopCardSlotRefresh", "刷新（剩余 {0}） · {1}"),
-		                  FText::AsNumber(Offer.RemainingRefreshes),
-		                  FText::AsNumber(Offer.RefreshCost)));
+		FText Template = GetAuthoredTextTemplate(CardRefreshTexts[CardIndex], {TEXT("Remaining"), TEXT("Cost")});
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("Remaining"), FText::AsNumber(Offer.RemainingRefreshes));
+		Arguments.Add(TEXT("Cost"), FText::AsNumber(Offer.RefreshCost));
+		CardRefreshTexts[CardIndex]->SetText(FText::Format(Template, Arguments));
 		CardRefreshButtons[CardIndex]->SetIsEnabled(bRevealComplete && Offer.bCanRefresh &&
 		                                            Offer.RefreshCost <= CurrentTimeShards);
 	}
 	RefreshSelectionVisuals();
-	ApplyTitleLayout();
+	if (bNativeFallbackLayout)
+	{
+		ApplyFallbackTitleLayout();
+	}
 }
 
 /** Vertical breathing room between the pick hint and the top of the tallest card frame. */
 static constexpr float TraitChoiceTitleCardGap = 26.0f;
 
-void UReEchoTraitCardChoiceWidget::ApplyTitleLayout()
+void UReEchoTraitCardChoiceWidget::ApplyFallbackTitleLayout()
 {
 	if (!TitleText)
 	{
@@ -683,8 +747,7 @@ void UReEchoTraitCardChoiceWidget::ApplyTitleLayout()
 		{
 			continue;
 		}
-		CardTopY =
-		    FMath::Min(CardTopY, CardSlot->GetPosition().Y - CardSlot->GetSize().Y * CardSlot->GetAlignment().Y);
+		CardTopY = FMath::Min(CardTopY, CardSlot->GetPosition().Y - CardSlot->GetSize().Y * CardSlot->GetAlignment().Y);
 	}
 	if (!FMath::IsFinite(CardTopY))
 	{
@@ -722,8 +785,8 @@ void UReEchoTraitCardChoiceWidget::RefreshSelectionVisuals()
 	}
 	for (int32 CardIndex = 0; CardIndex < CardButtons.Num(); ++CardIndex)
 	{
-		CardButtons[CardIndex]->SetRenderOpacity(
-		    !bHasSelection || SelectedOfferIndices.Contains(CardIndex) ? 1.0f : 0.38f);
+		CardButtons[CardIndex]->SetRenderOpacity(!bHasSelection || SelectedOfferIndices.Contains(CardIndex) ? 1.0f
+		                                                                                                    : 0.38f);
 	}
 	if (ConfirmButton)
 	{

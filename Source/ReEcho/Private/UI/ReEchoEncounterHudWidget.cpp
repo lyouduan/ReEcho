@@ -2,6 +2,7 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "ReEcho.h"
+#include "UI/ReEchoBossHealthArcWidget.h"
 #include "UI/ReEchoMinimapCanvasWidget.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
@@ -20,6 +21,15 @@ TSharedRef<SWidget> UReEchoEncounterHudWidget::RebuildWidget()
 		BuildWidgetTree();
 	}
 	return Super::RebuildWidget();
+}
+
+void UReEchoEncounterHudWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+	if (IsDesignTime())
+	{
+		RefreshText();
+	}
 }
 
 void UReEchoEncounterHudWidget::NativeConstruct()
@@ -100,6 +110,16 @@ float UReEchoEncounterHudWidget::CalculateCountdownNeedleAngle(const float Remai
 	return FMath::Lerp(LeftAngle, RightAngle, ElapsedRatio);
 }
 
+FText UReEchoEncounterHudWidget::FormatBossHealthPercent(const float HealthRatio)
+{
+	const float SafeRatio = FMath::IsFinite(HealthRatio) ? FMath::Clamp(HealthRatio, 0.0f, 1.0f) : 0.0f;
+	// Reserve 0% and 100% for genuinely empty/full health; rounding must not imply death or full recovery.
+	const int32 Percent = SafeRatio <= 0.0f   ? 0
+	                      : SafeRatio >= 1.0f ? 100
+	                                          : FMath::Clamp(FMath::RoundToInt(SafeRatio * 100.0f), 1, 99);
+	return FText::FromString(FString::Printf(TEXT("%d%%"), Percent));
+}
+
 float UReEchoEncounterHudWidget::CalculateBossHealthRatio(const float CurrentHealth, const float MaximumHealth)
 {
 	if (!FMath::IsFinite(CurrentHealth) || !FMath::IsFinite(MaximumHealth) || MaximumHealth <= UE_SMALL_NUMBER)
@@ -109,9 +129,15 @@ float UReEchoEncounterHudWidget::CalculateBossHealthRatio(const float CurrentHea
 	return FMath::Clamp(CurrentHealth / MaximumHealth, 0.0f, 1.0f);
 }
 
+float UReEchoEncounterHudWidget::CalculateBossHealthNeedleAngle(const float HealthRatio)
+{
+	const float SafeRatio = FMath::IsFinite(HealthRatio) ? FMath::Clamp(HealthRatio, 0.0f, 1.0f) : 0.0f;
+	return FMath::Lerp(-90.0f, 90.0f, SafeRatio);
+}
+
 void UReEchoEncounterHudWidget::BuildWidgetTree()
 {
-	if (EncounterText || !WidgetTree)
+	if (!WidgetTree || WidgetTree->RootWidget)
 	{
 		return;
 	}
@@ -154,6 +180,12 @@ void UReEchoEncounterHudWidget::BuildWidgetTree()
 	CountdownSlot->SetHorizontalAlignment(HAlign_Right);
 	CountdownSlot->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 0.0f));
 
+	BossHealthPercentText =
+	    WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("BossHealthPercentText"));
+	BossHealthPercentText->SetFont(CountdownFont);
+	BossHealthPercentText->SetJustification(ETextJustify::Right);
+	Content->AddChildToVerticalBox(BossHealthPercentText)->SetHorizontalAlignment(HAlign_Right);
+
 	UOverlay* NativeBossHealthPanel =
 	    WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("BossHealthPanel"));
 	NativeBossHealthPanel->SetVisibility(ESlateVisibility::Collapsed);
@@ -176,36 +208,59 @@ void UReEchoEncounterHudWidget::BuildWidgetTree()
 
 void UReEchoEncounterHudWidget::RefreshText()
 {
+	const bool bShowBoss = IsDesignTime() ? bPreviewBossEncounter : bBossEncounter;
+	const float HealthRatio = IsDesignTime() ? CalculateBossHealthRatio(PreviewBossHealthRatio, 1.0f)
+	                                         : CalculateBossHealthRatio(CurrentBossHealth, MaximumBossHealth);
 	const ESlateVisibility TimeVisibility =
-	    bBossEncounter ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible;
+	    bShowBoss ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible;
 	if (ArtClockFrame)
 	{
 		ArtClockFrame->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
-	if (EncounterText)
+	if (EncounterText && !IsDesignTime())
 	{
 		EncounterText->SetText(FormatEncounterLabel(CurrentEncounterIndex));
 	}
 	if (CountdownText)
 	{
 		CountdownText->SetVisibility(TimeVisibility);
-		const int32 DisplaySeconds = FMath::CeilToInt(RemainingTime);
-		CountdownText->SetText(FormatCountdown(RemainingTime));
-		CountdownText->SetColorAndOpacity(
-		    FSlateColor(DisplaySeconds <= 5 ? FLinearColor(1.0f, 0.2f, 0.12f, 1.0f) : FLinearColor::White));
+		if (!IsDesignTime())
+		{
+			const int32 DisplaySeconds = FMath::CeilToInt(RemainingTime);
+			CountdownText->SetText(FormatCountdown(RemainingTime));
+			CountdownText->SetColorAndOpacity(
+			    FSlateColor(DisplaySeconds <= 5 ? FLinearColor(1.0f, 0.2f, 0.12f, 1.0f) : FLinearColor::White));
+		}
 	}
 	if (ArtClockNeedle)
 	{
-		ArtClockNeedle->SetVisibility(TimeVisibility);
-		ArtClockNeedle->SetRenderTransformAngle(CalculateCountdownNeedleAngle(RemainingTime, EncounterDuration));
+		ArtClockNeedle->SetVisibility(ESlateVisibility::HitTestInvisible);
+		if (bShowBoss || !IsDesignTime())
+		{
+			ArtClockNeedle->SetRenderTransformAngle(
+			    bShowBoss ? CalculateBossHealthNeedleAngle(HealthRatio)
+			              : CalculateCountdownNeedleAngle(RemainingTime, EncounterDuration));
+		}
+	}
+	if (BossHealthPercentText)
+	{
+		BossHealthPercentText->SetVisibility(bShowBoss ? ESlateVisibility::HitTestInvisible
+		                                               : ESlateVisibility::Collapsed);
+		BossHealthPercentText->SetText(FormatBossHealthPercent(HealthRatio));
+	}
+	if (BossHealthArc)
+	{
+		BossHealthArc->SetVisibility(bShowBoss ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		BossHealthArc->SetHealthRatio(HealthRatio);
 	}
 	if (BossHealthPanel)
 	{
-		BossHealthPanel->SetVisibility(bBossEncounter ? ESlateVisibility::HitTestInvisible
-		                                              : ESlateVisibility::Collapsed);
+		// Retain the native fallback, never show its horizontal bar beside an authored arc.
+		BossHealthPanel->SetVisibility(bShowBoss && !BossHealthArc ? ESlateVisibility::HitTestInvisible
+		                                                           : ESlateVisibility::Collapsed);
 	}
 	if (BossHealthFill)
 	{
-		BossHealthFill->SetRenderScale(FVector2D(CalculateBossHealthRatio(CurrentBossHealth, MaximumBossHealth), 1.0f));
+		BossHealthFill->SetRenderScale(FVector2D(HealthRatio, 1.0f));
 	}
 }

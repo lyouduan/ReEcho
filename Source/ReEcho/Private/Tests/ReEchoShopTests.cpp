@@ -314,18 +314,18 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Purchased rune enters part ownership"), RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
 	          RunSubsystem->InventoryItems.Contains(TEXT("P_CORE_FLAME")));
-	TestTrue(TEXT("Purchased runes are equipped immediately"),
-	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	             [](const FReEchoEquippedPartSnapshot& Part)
-	             {
-		             return Part.PartId == TEXT("P_CORE_FLAME");
-	             }));
-	TestTrue(TEXT("Purchased weapon-specific rune is equipped immediately"),
-	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	             [](const FReEchoEquippedPartSnapshot& Part)
-	             {
-		             return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
-	             }));
+	TestFalse(TEXT("Purchased core stays in backpack until explicitly equipped"),
+	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	              [](const FReEchoEquippedPartSnapshot& Part)
+	              {
+		              return Part.PartId == TEXT("P_CORE_FLAME");
+	              }));
+	TestFalse(TEXT("Purchased weapon-specific rune stays in backpack until explicitly equipped"),
+	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	              [](const FReEchoEquippedPartSnapshot& Part)
+	              {
+		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
+	              }));
 	const int32 ShardsAfterDuplicate = RunSubsystem->TimeShards;
 	TestFalse(TEXT("Duplicate rune purchase is rejected"), RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
@@ -438,8 +438,13 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 		}
 		for (int32 SlotIndex = 0; SlotIndex < InitialPage.SlotOffers.Num(); ++SlotIndex)
 		{
+			TestEqual(TEXT("Purchase never rerolls cached content IDs"),
+			          RunSubsystem->CreateSaveSnapshot()->WeaponPartShopOfferIds[SlotIndex],
+			          InitialPage.SlotOffers[SlotIndex].ItemId);
 			if (PurchasedRuneIds.Contains(InitialPage.SlotOffers[SlotIndex].ItemId))
 			{
+				TestTrue(TEXT("Consumed rune is recorded on the authoritative page"),
+				         RunSubsystem->PurchasedWeaponPartOfferIds.Contains(InitialPage.SlotOffers[SlotIndex].ItemId));
 				TestTrue(TEXT("A rune bought on this page leaves an empty slot until refresh"),
 				         PageAfterPurchase.SlotOffers[SlotIndex].ItemId.IsNone());
 				TestEqual(TEXT("A consumed rune slot has no price"), PageAfterPurchase.SlotOffers[SlotIndex].Price, 0);

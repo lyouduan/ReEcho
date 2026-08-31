@@ -4467,37 +4467,7 @@ void AReEchoGameMode::HandleShopPurchaseRequested(const FName ItemId)
 		return;
 	}
 
-	// 背包重装：点击“拥有但未装备”的配件 → 直接重新装备，不扣钱、不走购买防重复。
-	// 例外：I 级武器符文可以重复购买来合成更高级，必须走真正的购买事务（扣碎片、累计份数、触发合成），
-	// 不能被这里的免费重装分支吞掉。
-	if (!RunSubsystem->IsShopOfferRepeatPurchasable(ItemId) && RunSubsystem->OwnedPartIds.Contains(ItemId))
-	{
-		const bool bWasEquipped = RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-		    [ItemId](const FReEchoEquippedPartSnapshot& Part)
-		    {
-			    return Part.PartId == ItemId;
-		    });
-		FString EquipError;
-		if (!RunSubsystem->TryEquipPurchasedPart(ItemId, EquipError))
-		{
-			UE_LOG(LogTemp,
-			       Warning,
-			       TEXT("[ReEchoShop] Owned part '%s' could not be re-equipped: %s"),
-			       *ItemId.ToString(),
-			       *EquipError);
-			PostUiEvent(FReEchoAudioEvents::UiError);
-			return;
-		}
-		if (!bWasEquipped)
-		{
-			PostUiEvent(FReEchoAudioEvents::UiEquip);
-		}
-		RunSubsystem->SaveRun();
-		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
-		return;
-	}
-
-	// 新购统一走结构化事务；成功、拒绝、购买前后状态都由同一接口审计。
+	// 购买按钮只进入购买事务；背包装备使用独立的 HandleShopOwnedPartEquipRequested。
 	TSet<FName> EquippedPartsBeforePurchase;
 	for (const FReEchoEquippedPartSnapshot& Part : RunSubsystem->CurrentBuild.EquippedParts)
 	{

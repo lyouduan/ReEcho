@@ -113,7 +113,9 @@ Plan110 的正常表现路径位于 `WBP_ReEchoInventoryShopScreen` 的两个根
 
 ### 5.1 玩家 HUD、遭遇 HUD、敌人血条
 
-Plan93/102 战斗 HUD 以 1920×1080 为作者设计面。`WBP_ReEchoPlayerHud` 保留旧头像/ProgressBar 绑定作为兼容入口，但正式构图折叠头像和旧 ProgressBar，由 `PlayerHealthFill` 接收真实生命比例、`TimeShardText` 显示 `UReEchoRunSubsystem::TimeShards` 的只读投影。免费选卡页在暂停世界时刷新成功，GameMode 必须将扣费后余额立即重投影到 `TimeShardText`，不得等待普通 Tick。`WBP_ReEchoEncounterHud` 不保留倒计时文字后的 `ArtTimeReadout` 黑色半透明底块；普通关的 `ArtClockNeedle` Render Pivot 固定在源图顶部轴心，C++ 按权威剩余/总时长从左经下半圆逆时针连续转到右（满/半/零时为 `90/0/-90` 度）。Boss 关保留 `ArtClockFrame` 钟背板，只隐藏 `CountdownText` 与 `ArtClockNeedle`，同一顶部中心位置显示 `BossHealthPanel`：`BossHealthFrame` 复用玩家 `ArtHealthFrame` 的血条底板纹理并使用紫色 Tint，`BossHealthFill` 使用暗紫色并按 EnemyRoster 中存活 Boss Combatant 的当前/最大生命从左向右缩放；Fill 必须绘制在底板纹理的不透明黑色内部之上，缩短后由黑色内部显示空血区域。`第 N 关` 与小地图保持显示。Encounter HUD 继续复用唯一的 `UReEchoMinimapCanvasWidget`，只用交付回响框包裹它；Minimap Canvas 自身保持透明，不绘制内层竞技场边框，保留 Echo 轨迹，并用当前 Player/Echo Presentation Profile 的对应头像替代实时方点。参考图底部技能栏已被产品明确废弃，WBP 与运行时纹理均不保留；不得据此伪造按钮、冷却或输入。
+Plan158 表面修订：当前配色/透明度以 WBP 中用户微调值为准，不重设初版紫红默认值。选 `BossHealthArc → Boss Health Arc → Surface` 调整 `Relief Strength`（**整条血条**的圆润截面、高光和边缘暗部）、`Vein Strength`（平面花纹深浅）、`Vein Width`（粗细）、`Vein Spacing`（越大越疏）。血管不参与凸起，关闭血管仍保留整条血条立体感；两项 Strength 归零才还原平面。只影响剩余段 RGB，不改变 Alpha，不随扣血滑动。Designer 和运行时共用此材质。
+
+Plan93/102/158 战斗 HUD 以 1920×1080 为作者设计面。`WBP_ReEchoPlayerHud` 保留旧头像/ProgressBar 绑定作为兼容入口，但正式构图折叠头像和旧 ProgressBar，由 `PlayerHealthFill` 接收真实生命比例、`TimeShardText` 显示 Run 只读余额；暂停选卡时扣费成功也由 GameMode 立即刷新。`WBP_ReEchoEncounterHud` 不保留倒计时文字黑底块；普通关的指针沿用顶部轴心 Pivot，按剩余/总时长从左经下半圆逆时针转到右（`90/0/-90` 度）。Boss 关保留钟背板与指针，只隐藏倒计时文字；`BossHealthArc` 将下半刻度环投影为紫红色剩余血量与近黑灰空槽，`Tick Contrast` 默认弱化刻度；独立 `BossHealthPercentText` 在中央显示整数血量百分比，可单独调字体/几何。百分比、指针与填充边界共用当前阶段的当前/最大生命比例。旧横向 Boss 三节点已删除；蓝图 `Boss Health Preview` 提供预览血量，`BossHealthArc` Details 可调颜色、半径与 Canvas 几何，见 [Boss 弧形血条调整指南](ReEcho_Boss弧形血条调整指南.md)。关卡文字与真实小地图保持显示；小地图画布透明、无内层边框，以 Player/Echo Presentation Profile 头像代替色点。废弃底部技能栏不回归，不据参考图伪造输入或冷却。
 
 Plan118 的 Echo 轨迹使用 `Content/SourceArt/UI/CombatHud/MinimapInkBrush/` 归档的经典墨水笔交付，运行时只消费 512px 透明笔尖、900px Grain 和 `/Game/ReEcho/Materials/UI/M_UI_MinimapInkTrail`；`.abr`、256px 备选笔尖及 Photoshop 参数文件仅供追溯。选择 `WBP_ReEchoEncounterHud` 内的 `ReEchoMinimapCanvasWidget` 实例后，在 Details 的 `Minimap | Ink Trail` 分类调节：`Ink Trail Stamp Size Px` 控制线宽，`Ink Trail Stamp Spacing Px` 控制连续度与绘制数量，`Ink Trail Angle Jitter Degrees` 控制边缘方向变化，`Ink Trail Opacity Jitter` 控制盖印深浅变化，`Ink Trail Grain Strength` 控制纸张颗粒缺口；`Ink Trail Colors` 的 Element 0–5 按 Echo 顺序控制六条轨迹颜色，修改后由控件同步到各自动态材质的 `TrailColor` 参数，缺少对应项时回退运行时调色板，头像始终保持原图颜色。建议先调 Size/Spacing，再微调 Colors/Jitter/Grain；Spacing 越小盖印越密、成本越高。`Max Ink Trail Stamps Per Echo` 是高级安全上限，除非明确验证长轨迹成本，不应随意放大。所有参数仅影响小地图表现；不要通过修改材质 Vertex Color、Recording 采样率来调整笔触颜色或形态。
 
@@ -185,6 +187,10 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 - 当前交付构图顺序为勇者、智者、诗人、猎手，以及镰刀、枪、剑、弓。该顺序只属于本页面的表现映射；未知未来选项追加到已有项后，不修改全局 CSV 排序。
 
 ### 5.4 Trait 抽卡
+
+`WBP_ReEchoTraitCardChoice` 的 `TitleText` 与 `ShopCardRefreshText0/1/2` 直接编辑文字、字体、对齐和换行即可。标题用“选择1张卡牌”这样的数字样例：第一个数字运行时替换为真实选择数量；刷新标签用“刷新(剩余2次)”换行“5 时间碎片”，前两个数字依次替换为剩余次数和费用，其他内容原样保留。也可显式写 `{Count}` / `{Tier}` 或 `{Remaining}` / `{Cost}`，此时其他数字不再自动替换；无数字/占位符的文字（包括留空）保持静态。不要混用普通数字样例和显式占位符。
+
+标题 Canvas 位置不再被 C++ 移到卡牌上方；刷新按钮的 Normal/Hovered/Pressed/Disabled Brush、颜色和 Padding 由蓝图决定，不被运行时默认素材覆盖。次数/费用、显隐、启用状态和单槽揭示仍来自真实数据。卡面正文由 `WBP_ReEchoTraitCardEntry` 编辑，Choice 内的样例实例仍只是预览。
 
 - 卡片尺寸由 `WBP_ReEchoTraitCardChoice` 中的 `TraitCardSlot0..2` 决定，不由 C++ 正常路径设置。
 - 三个 `TraitCardSlot` 内的 `DesignerTraitCardSample0..2` 仅用于 Designer 所见即所得预览；进局后 C++ 会以真实条目替换，不参与玩法数据。

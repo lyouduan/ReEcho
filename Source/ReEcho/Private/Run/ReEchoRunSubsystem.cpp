@@ -8,6 +8,7 @@
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoPlayerProgressSaveGame.h"
 #include "Run/ReEchoShopCatalog.h"
+#include "Run/ReEchoRuneInventory.h"
 #include "Cards/ReEchoCardRuntime.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatTarget.h"
@@ -504,6 +505,61 @@ bool TryNormalizeOwnedParts(const FReEchoCsvDataSnapshot& Snapshot,
 			return false;
 		}
 	}
+	return true;
+}
+
+TMap<FName, int32> NormalizeRuneCounts(const TArray<FName>& OwnedIds,
+                                       const TArray<FReEchoEquippedPartSnapshot>& Equipped,
+                                       const TMap<FName, int32>& SavedCounts)
+{
+	TMap<FName, int32> Counts;
+	for (const FName Id : OwnedIds)
+	{
+		Counts.Add(Id, FMath::Max(1, SavedCounts.FindRef(Id)));
+	}
+	TMap<FName, int32> EquippedCounts;
+	for (const FReEchoEquippedPartSnapshot& Part : Equipped)
+	{
+		const int32 Minimum = ++EquippedCounts.FindOrAdd(Part.PartId);
+		const int32 Held = FMath::Max(Counts.FindRef(Part.PartId), SavedCounts.FindRef(Part.PartId));
+		Counts.Add(Part.PartId, FMath::Max(Minimum, Held));
+	}
+	return Counts;
+}
+
+bool TryResolveRuneInventory(const FReEchoCsvDataSnapshot& Snapshot,
+                             const FReEchoBuildSnapshot& Build,
+                             const TArray<FName>& OwnedIds,
+                             const TMap<FName, int32>& Counts,
+                             const FName AcquiredId,
+                             FReEchoBuildSnapshot& OutBuild,
+                             TArray<FName>& OutOwnedIds,
+                             TMap<FName, int32>& OutCounts,
+                             FString& OutError)
+{
+	ReEchoRuneInventory::FState Input;
+	Input.Counts = NormalizeRuneCounts(OwnedIds, Build.EquippedParts, Counts);
+	for (const FReEchoEquippedPartSnapshot& Part : Build.EquippedParts)
+	{
+		Input.EquippedIds.Add(Part.PartId);
+	}
+	ReEchoRuneInventory::FState Resolved;
+	FReEchoBuildSnapshot ResolvedBuild;
+	if (!ReEchoRuneInventory::TrySettle(Snapshot, Input, AcquiredId, Resolved, OutError) ||
+	    !ReEchoWeaponRuntime::TryEquipParts(Snapshot, Build, Resolved.EquippedIds, ResolvedBuild, OutError))
+	{
+		return false;
+	}
+	TArray<FName> ResolvedOwnedIds;
+	Resolved.Counts.GetKeys(ResolvedOwnedIds);
+	ResolvedOwnedIds.Sort(
+	    [](const FName A, const FName B)
+	    {
+		    return A.LexicalLess(B);
+	    });
+	OutBuild = MoveTemp(ResolvedBuild);
+	OutOwnedIds = MoveTemp(ResolvedOwnedIds);
+	OutCounts = MoveTemp(Resolved.Counts);
 	return true;
 }
 
@@ -1312,10 +1368,8 @@ FReEchoShopPurchaseAuditState CaptureShopPurchaseAuditState(const UReEchoRunSubs
 	State.EquippedWeapon =
 	    DescribeAuditEntry(EquippedWeaponId, EquippedWeapon ? EquippedWeapon->DisplayName : FString());
 
-	TSet<FName> EquippedPartIds;
 	for (const FReEchoEquippedPartSnapshot& EquippedPart : RunSubsystem.CurrentBuild.EquippedParts)
 	{
-		EquippedPartIds.Add(EquippedPart.PartId);
 		const FReEchoCsvPartRow* Part = Snapshot.IsValid() ? Snapshot->Parts.Find(EquippedPart.PartId) : nullptr;
 		const FReEchoCsvSlotTypeRow* Slot =
 		    Snapshot.IsValid() ? Snapshot->SlotTypes.Find(EquippedPart.SlotTypeId) : nullptr;
@@ -1356,14 +1410,22 @@ FReEchoShopPurchaseAuditState CaptureShopPurchaseAuditState(const UReEchoRunSubs
 	}
 	State.WeaponBackpack.Sort();
 
-	for (const FName PartId : RunSubsystem.OwnedPartIds)
+	TMap<FName, int32> BackpackCounts = NormalizeRuneCounts(
+	    RunSubsystem.OwnedPartIds, RunSubsystem.CurrentBuild.EquippedParts, RunSubsystem.RuneAcquisitionCounts);
+	for (const FReEchoEquippedPartSnapshot& Equipped : RunSubsystem.CurrentBuild.EquippedParts)
 	{
-		if (EquippedPartIds.Contains(PartId))
+		--BackpackCounts.FindChecked(Equipped.PartId);
+	}
+	for (const TPair<FName, int32>& Count : BackpackCounts)
+	{
+		if (Count.Value <= 0)
 		{
 			continue;
 		}
+		const FName PartId = Count.Key;
 		const FReEchoCsvPartRow* Part = Snapshot.IsValid() ? Snapshot->Parts.Find(PartId) : nullptr;
-		State.RuneBackpack.Add(DescribeAuditEntry(PartId, Part ? Part->DisplayName : FString()));
+		State.RuneBackpack.Add(FString::Printf(
+		    TEXT("%sx%d"), *DescribeAuditEntry(PartId, Part ? Part->DisplayName : FString()), Count.Value));
 	}
 	State.RuneBackpack.Sort();
 
@@ -1595,6 +1657,8 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	InventoryItems.Reset();
 	OwnedPartIds.Reset();
 	OwnedWeaponIds.Reset();
+	RuneAcquisitionCounts.Reset();
+	PurchasedWeaponPartOfferIds.Reset();
 	WeaponPartShopOfferEncounterIndex = INDEX_NONE;
 	WeaponPartShopOfferRefreshSequence = INDEX_NONE;
 	WeaponPartShopOfferIds.Reset();
@@ -1621,6 +1685,11 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	RequireConfiguredBuild(ResolveResult.Build, TEXT("Cannot start run"));
 	RunDataSnapshot = Snapshot;
 	CurrentBuild = ResolveResult.Build;
+	for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
+	{
+		OwnedPartIds.AddUnique(Part.PartId);
+		++RuneAcquisitionCounts.FindOrAdd(Part.PartId);
+	}
 	OwnedWeaponIds.Add(CurrentBuild.WeaponId);
 	SetPhase(EReEchoRunPhase::Planning);
 	ReEchoBuildTrace::LogSnapshot(TEXT("RunStarted"), EncounterIndex, Phase, CurrentBuild);
@@ -1640,7 +1709,34 @@ bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& O
 	{
 		return false;
 	}
-	CurrentBuild = Candidate;
+	TArray<FName> PendingOwned = OwnedPartIds;
+	// This low-level API also supports initial/programmatic equipment grants; backpack commands
+	// validate ownership before calling it. Preserve removed copies when equipment returns to the bag.
+	for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
+	{
+		PendingOwned.AddUnique(Part.PartId);
+	}
+	for (const FName Id : PartIds)
+	{
+		PendingOwned.AddUnique(Id);
+	}
+	TMap<FName, int32> PendingCounts =
+	    NormalizeRuneCounts(PendingOwned, CurrentBuild.EquippedParts, RuneAcquisitionCounts);
+	if (!TryResolveRuneInventory(*Snapshot,
+	                             Candidate,
+	                             PendingOwned,
+	                             PendingCounts,
+	                             NAME_None,
+	                             Candidate,
+	                             PendingOwned,
+	                             PendingCounts,
+	                             OutError))
+	{
+		return false;
+	}
+	CurrentBuild = MoveTemp(Candidate);
+	OwnedPartIds = MoveTemp(PendingOwned);
+	RuneAcquisitionCounts = MoveTemp(PendingCounts);
 	ReEchoBuildTrace::LogSnapshot(TEXT("RunesEquipped"), EncounterIndex, Phase, CurrentBuild);
 	return true;
 }
@@ -1793,7 +1889,28 @@ bool UReEchoRunSubsystem::TryEquipOwnedWeapon(const FName WeaponId, FString& Out
 	{
 		return false;
 	}
+	TArray<FName> PendingOwned = OwnedPartIds;
+	TMap<FName, int32> PendingCounts =
+	    NormalizeRuneCounts(OwnedPartIds, CurrentBuild.EquippedParts, RuneAcquisitionCounts);
+	for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
+	{
+		PendingOwned.AddUnique(Part.PartId);
+	}
+	if (!TryResolveRuneInventory(*Snapshot,
+	                             Candidate,
+	                             PendingOwned,
+	                             PendingCounts,
+	                             NAME_None,
+	                             Candidate,
+	                             PendingOwned,
+	                             PendingCounts,
+	                             OutError))
+	{
+		return false;
+	}
 	CurrentBuild = MoveTemp(Candidate);
+	OwnedPartIds = MoveTemp(PendingOwned);
+	RuneAcquisitionCounts = MoveTemp(PendingCounts);
 	OutError.Reset();
 	ReEchoBuildTrace::LogSnapshot(TEXT("WeaponEquipped"),
 	                              EncounterIndex,
@@ -1931,12 +2048,22 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 	    });
 
 	// Owned parts (backpack panel).
+	const TMap<FName, int32> HeldCounts =
+	    NormalizeRuneCounts(OwnedPartIds, CurrentBuild.EquippedParts, RuneAcquisitionCounts);
 	for (const auto& Pair : Snapshot->Parts)
 	{
 		const FReEchoCsvPartRow& Part = Pair.Value;
 		if (OwnedPartIds.Contains(Part.PartId) && IsPartCompatibleWithWeapon(*Snapshot, Part, *Weapon))
 		{
-			View.OwnedParts.Add(MakeWeaponPartOffer(Part));
+			FReEchoShopOffer Offer = MakeWeaponPartOffer(Part);
+			Offer.BackpackCount = HeldCounts.FindRef(Part.Id) - CurrentBuild.EquippedParts
+			                                                        .FilterByPredicate(
+			                                                            [&](const FReEchoEquippedPartSnapshot& Equipped)
+			                                                            {
+				                                                            return Equipped.PartId == Part.Id;
+			                                                            })
+			                                                        .Num();
+			View.OwnedParts.Add(MoveTemp(Offer));
 		}
 	}
 
@@ -2241,6 +2368,12 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		}
 		if (const FReEchoCsvPartRow* Part = Snapshot->Parts.Find(OfferId))
 		{
+			// Ownership changes never reroll a cached page. Suppress only the now-ineligible slot.
+			if (IsPartExcluded(OfferId) || OwnsFamilyMaxTier(OfferId) ||
+			    (UpgradeFamilies.Contains(GetRuneFamilyFromPartId(OfferId)) && !IsRuneTierIPart(OfferId)))
+			{
+				continue;
+			}
 			View.SlotOffers[SlotIndex] = MakePartSlotOffer(*Part);
 		}
 		else if (const FReEchoCsvWeaponRow* CachedWeapon = Snapshot->FindEnabledWeapon(OfferId))
@@ -3083,6 +3216,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	if (bPendingClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
+		RuneAcquisitionCounts.Reset();
 	}
 	ReevaluateCoreCollectionCard();
 	// NOTE: the pack is closed unconditionally for now. Keeping it open for a second pick requires the
@@ -3185,6 +3319,7 @@ bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 	if (bPendingClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
+		RuneAcquisitionCounts.Reset();
 	}
 	ReevaluateCoreCollectionCard();
 	PendingTraitCardPicksRemaining = 1;
@@ -3296,6 +3431,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	if (bPendingClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
+		RuneAcquisitionCounts.Reset();
 	}
 	ReevaluateCoreCollectionCard();
 	UE_LOG(LogReEcho,
@@ -3643,6 +3779,7 @@ void UReEchoRunSubsystem::NotifyCardPlayerDamageReceived(const float AppliedDama
 	if (bClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
+		RuneAcquisitionCounts.Reset();
 	}
 	if (HealthAdjustment != EReEchoHealthAdjustment::None)
 	{
@@ -4188,6 +4325,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 	if (bPendingClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
+		RuneAcquisitionCounts.Reset();
 	}
 	ReevaluateCoreCollectionCard();
 	for (const FName& ItemId : ItemIds)
@@ -4360,6 +4498,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	if (bPendingClearWeaponRunes)
 	{
 		OwnedPartIds.Reset();
+		RuneAcquisitionCounts.Reset();
 	}
 	ReevaluateCoreCollectionCard();
 	InventoryItems.AddUnique(ItemId);
@@ -4406,6 +4545,20 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
 
 	// Card packs use their dedicated payment and claim commands; this lookup is weapon/rune and legacy only.
+	if (Snapshot && Snapshot->Parts.Contains(ItemId))
+	{
+		TArray<FName> AllOwned = OwnedPartIds;
+		for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
+		{
+			AllOwned.AddUnique(Part.PartId);
+		}
+		if (PurchasedWeaponPartOfferIds.Contains(ItemId) ||
+		    ReEchoRuneInventory::OwnsTerminalTier(*Snapshot, ItemId, AllOwned))
+		{
+			return FinishPurchase(EReEchoShopPurchaseResult::AlreadyOwned,
+			                      TEXT("Offer already consumed on this page or terminal rune tier already owned"));
+		}
+	}
 	FReEchoWeaponSlotOffer SlotOffer;
 	bool bFoundSlot = false;
 	for (const FReEchoWeaponSlotOffer& Candidate : ShopView.SlotOffers)
@@ -4485,11 +4638,6 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		                      TEXT("The runtime CSV snapshot is unavailable"),
 		                      EffectivePrice);
 	}
-	const FReEchoBuildSnapshot OriginalBuild = CurrentBuild;
-	const int32 OriginalTimeShards = TimeShards;
-	const TArray<FName> OriginalInventoryItems = InventoryItems;
-	const TArray<FName> OriginalOwnedPartIds = OwnedPartIds;
-	const TSet<FName> OriginalOwnedWeaponIds = OwnedWeaponIds;
 	FReEchoBuildSnapshot PendingBuild;
 	FString MutationFailureDetail = TEXT("The authoritative build rejected the purchase mutation");
 	if (!TryMutateAuthoritativeBuild(
@@ -4545,9 +4693,46 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		PendingBuild = MoveTemp(SelectedWeaponBuild);
 	}
 
-	CurrentBuild = PendingBuild;
-	CommitShopCost(EffectivePrice);
 	FString CompletionDetail = TEXT("Purchase committed");
+	TArray<FName> PendingOwned = OwnedPartIds;
+	TMap<FName, int32> PendingCounts =
+	    NormalizeRuneCounts(OwnedPartIds, CurrentBuild.EquippedParts, RuneAcquisitionCounts);
+	for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
+	{
+		PendingOwned.AddUnique(Part.PartId);
+	}
+	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part)
+	{
+		const int32 Held = PendingCounts.FindRef(SlotOffer.PartId);
+		if (Held == MAX_int32)
+		{
+			return FinishPurchase(
+			    EReEchoShopPurchaseResult::MutationRejected, TEXT("Rune copy count overflow"), EffectivePrice);
+		}
+		PendingOwned.AddUnique(SlotOffer.PartId);
+		PendingCounts.Add(SlotOffer.PartId, Held + 1);
+	}
+	if (bFoundSlot)
+	{
+		FString SynthesisError;
+		const FName AcquiredId = SlotOffer.Kind == EReEchoShopOfferKind::Part ? SlotOffer.PartId : NAME_None;
+		if (!TryResolveRuneInventory(*Snapshot,
+		                             PendingBuild,
+		                             PendingOwned,
+		                             PendingCounts,
+		                             AcquiredId,
+		                             PendingBuild,
+		                             PendingOwned,
+		                             PendingCounts,
+		                             SynthesisError))
+		{
+			return FinishPurchase(EReEchoShopPurchaseResult::MutationRejected, SynthesisError, EffectivePrice);
+		}
+	}
+	// No currency, ownership or equipment changes escape until the complete candidate has validated.
+	CurrentBuild = MoveTemp(PendingBuild);
+	OwnedPartIds = MoveTemp(PendingOwned);
+	RuneAcquisitionCounts = MoveTemp(PendingCounts);
 
 	if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Weapon)
 	{
@@ -4557,29 +4742,16 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	}
 	else if (bFoundSlot && SlotOffer.Kind == EReEchoShopOfferKind::Part)
 	{
-		// Equip rune (购买即装): mark owned then equip into current weapon.
-		if (!OwnedPartIds.Contains(SlotOffer.PartId))
-		{
-			OwnedPartIds.Add(SlotOffer.PartId);
-		}
-		// OwnedPartIds is a de-duplicated ownership set, so a second purchase of the same rune adds no entry.
-		// Track copies separately to drive tier synthesis.
-		RuneAcquisitionCounts.Add(SlotOffer.PartId, RuneAcquisitionCounts.FindRef(SlotOffer.PartId) + 1);
 		// Consume this slot for the current page; the rune can be offered again once the page regenerates.
 		PurchasedWeaponPartOfferIds.Add(SlotOffer.PartId);
-		FString EquipError;
-		if (!TryEquipPurchasedPart(SlotOffer.PartId, EquipError))
-		{
-			CompletionDetail =
-			    FString::Printf(TEXT("Purchase committed; automatic rune equip was rejected: %s"), *EquipError);
-		}
-		// Synthesis: buying runes may complete a tier-upgrade recipe (e.g. 2x I -> 1x II).
-		ProcessRuneSynthesis(*Snapshot);
+		CompletionDetail = TEXT("Purchase committed; backpack/equipped synthesis settled");
 	}
 	else if (bIsLegacy)
 	{
 		InventoryItems.Add(ItemId);
 	}
+	// Subscribers to the balance event must see the final inventory AND consumed-page record.
+	CommitShopCost(EffectivePrice);
 
 	ReevaluateCoreCollectionCard();
 	ReEchoBuildTrace::LogSnapshot(TEXT("ShopPurchaseCommitted"),
@@ -4668,70 +4840,6 @@ void UReEchoRunSubsystem::ReRollShopCardPackCandidates(const FReEchoCsvDataSnaps
 		Pack.CandidateCardIds.Add(SelectedCardId);
 		Pack.OfferHistoryCardIds.Add(SelectedCardId);
 		Pack.SlotRefreshUses.Add(0);
-	}
-}
-
-void UReEchoRunSubsystem::ProcessRuneSynthesis(const FReEchoCsvDataSnapshot& Snapshot)
-{
-	// Iteratively apply tier-upgrade recipes until no recipe can fire (supports I->II->III cascades).
-	if (Snapshot.RuneUpgrades.Num() == 0)
-	{
-		return;
-	}
-	bool bChanged = true;
-	int32 Guard = 0;
-	while (bChanged && Guard++ < 32)
-	{
-		bChanged = false;
-		for (const TPair<FName, FReEchoCsvRuneUpgradeRow>& Pair : Snapshot.RuneUpgrades)
-		{
-			const FName FromPart = Pair.Key;
-			const int32 NeedCount = Pair.Value.NeedCount;
-			const FName ToPart = Pair.Value.ToPartId;
-			if (NeedCount <= 0 || ToPart.IsNone())
-			{
-				continue;
-			}
-			// Copy count lives in RuneAcquisitionCounts: OwnedPartIds is a de-duplicated ownership set that
-			// still lists equipped runes, so counting it together with EquippedParts double-counts them.
-			const int32 Held = RuneAcquisitionCounts.FindRef(FromPart);
-			if (Held < NeedCount)
-			{
-				continue;
-			}
-			const int32 Remaining = Held - NeedCount;
-			bool bShouldEquipUpgrade = false;
-			if (Remaining > 0)
-			{
-				RuneAcquisitionCounts.Add(FromPart, Remaining);
-			}
-			else
-			{
-				// Every copy was consumed: the rune leaves the backpack and any slot it occupied.
-				RuneAcquisitionCounts.Remove(FromPart);
-				OwnedPartIds.Remove(FromPart);
-				bShouldEquipUpgrade = CurrentBuild.EquippedParts.ContainsByPredicate(
-				    [&](const FReEchoEquippedPartSnapshot& Eq) { return Eq.PartId == FromPart; });
-				if (bShouldEquipUpgrade)
-				{
-					CurrentBuild.EquippedParts.RemoveAll(
-					    [&](const FReEchoEquippedPartSnapshot& Eq) { return Eq.PartId == FromPart; });
-				}
-			}
-			// Grant the synthesized higher-tier rune.
-			if (!OwnedPartIds.Contains(ToPart))
-			{
-				OwnedPartIds.Add(ToPart);
-			}
-			RuneAcquisitionCounts.Add(ToPart, RuneAcquisitionCounts.FindRef(ToPart) + 1);
-			if (bShouldEquipUpgrade)
-			{
-				// The consumed rune held a slot; auto-equip the upgrade into the freed slot.
-				FString EquipErr;
-				TryEquipPurchasedPart(ToPart, EquipErr);
-			}
-			bChanged = true;
-		}
 	}
 }
 
@@ -5300,7 +5408,10 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->CurrentBuild.Cards.Reset();
 	SaveGame->InventoryItems = InventoryItems;
 	SaveGame->OwnedPartIds = OwnedPartIds;
-	SaveGame->RuneAcquisitionCounts = RuneAcquisitionCounts;
+	SaveGame->RuneAcquisitionCounts =
+	    NormalizeRuneCounts(OwnedPartIds, CurrentBuild.EquippedParts, RuneAcquisitionCounts);
+	SaveGame->PurchasedWeaponPartOfferIds = PurchasedWeaponPartOfferIds.Array();
+	SaveGame->PurchasedWeaponPartOfferIds.Sort(FNameLexicalLess());
 	for (const FName WeaponId : OwnedWeaponIds)
 	{
 		SaveGame->OwnedWeaponIds.Add(WeaponId);
@@ -5479,13 +5590,45 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	RunDataSnapshot = Snapshot;
 	InventoryItems = SaveGame.InventoryItems;
 	OwnedPartIds = MoveTemp(NormalizedOwnedParts);
-	RuneAcquisitionCounts = SaveGame.RuneAcquisitionCounts;
+	RuneAcquisitionCounts =
+	    NormalizeRuneCounts(OwnedPartIds, CurrentBuild.EquippedParts, SaveGame.RuneAcquisitionCounts);
+	PurchasedWeaponPartOfferIds.Reset();
 	OwnedWeaponIds = MoveTemp(NormalizedOwnedWeapons);
 	if (SaveGame.SaveVersion >= 14)
 	{
 		WeaponPartShopOfferEncounterIndex = SaveGame.WeaponPartShopOfferEncounterIndex;
 		WeaponPartShopOfferRefreshSequence = SaveGame.WeaponPartShopOfferRefreshSequence;
 		WeaponPartShopOfferIds = SaveGame.WeaponPartShopOfferIds;
+		for (const FName OfferId : WeaponPartShopOfferIds)
+		{
+			if (OfferId.IsNone())
+			{
+				continue;
+			}
+			if (SaveGame.SaveVersion >= 26)
+			{
+				if (SaveGame.PurchasedWeaponPartOfferIds.Contains(OfferId))
+				{
+					PurchasedWeaponPartOfferIds.Add(OfferId);
+				}
+				continue;
+			}
+			// Legacy saves did not record purchases. Conservatively consume cached offers from a held
+			// rune family, without inventing copies or rerolling unrelated offers/budgets.
+			FName TierId = OfferId;
+			TSet<FName> Visited;
+			while (!TierId.IsNone() && !Visited.Contains(TierId))
+			{
+				Visited.Add(TierId);
+				if (OwnedPartIds.Contains(TierId))
+				{
+					PurchasedWeaponPartOfferIds.Add(OfferId);
+					break;
+				}
+				const FReEchoCsvRuneUpgradeRow* Recipe = Snapshot->RuneUpgrades.Find(TierId);
+				TierId = Recipe ? Recipe->ToPartId : NAME_None;
+			}
+		}
 	}
 	else
 	{

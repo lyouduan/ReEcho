@@ -72,6 +72,8 @@ struct REECHO_API FReEchoShopOffer
 	 * I->II->III synthesis, so owning one must neither gate the purchase nor hide its price.
 	 */
 	bool bRepeatPurchasable = false;
+	/** Copies not currently equipped. INDEX_NONE supports legacy/manual view fixtures. */
+	int32 BackpackCount = INDEX_NONE;
 };
 
 // One fixed weapon/part shop slot offer (left = universal rune, mid/right = weighted current-weapon rune / other weapon
