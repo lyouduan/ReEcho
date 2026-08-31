@@ -6,7 +6,7 @@
 - Executor 负责人：JosephLE910 + Codex（合并模式）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`。
 - 人工验收：`Passed`（用户微调后要求推送并合入主分支）。
 - 本地规划 / 实现基线：`origin/main` / `531bd9cb08f8808f254de59dd0ff99fe36588a56`。
 - 本地实现方式：独立 worktree，`plan/161-rune-backpack-blueprints`。
@@ -89,7 +89,7 @@
 
 ### 变化
 
-- 本 Plan 已以 `e69ae0fc` 单独发布到 main；实现在本地独立分支交付，不自行发布实现或关闭人工验收。
+- 本 Plan 已以 `e69ae0fc` 单独发布到 main；最初实现以本地独立分支交付，用户微调验收后明确要求发布，最终集成见下方记录。
 - 新增 `WBP_ReEchoRuneBackpack` 和 `WBP_ReEchoRuneBackpackEntry`：真实白边/深底、固定标题、滚动列表，三个独立条目示例包含原初/潮汐/森林之晶与不同数量。单条及整面板使用 Desired Size，不使用 Fill Screen 拉伸预览。
 - 商店从 `BuildBackpackPopup` 移除固定尺寸/字体/边框/条目构造，改为实例化面板并复用行。尺寸使用面板期望大小和 Canvas AutoSize；标题、根 SizeBox、图标外层 SizeBox、文本样式、边框与间距全部由 WBP 持有。
 - 条目 `DesignerPreview` 只在设计期生效，运行时填 `FReEchoRuneBackpackEntryView`，多份显示独立 `×N`；行数不足按同类追加并沿用首行列表 Slot 样式，多余行清空/禁用/折叠。原装备事件、稳定索引、双槽 occurrence、兼容过滤和数量权威不变。
@@ -115,18 +115,22 @@
 ### 剩余风险
 
 - Designer 与运行时不同分辨率需人工确认观感；不将自动化等同于人工作品验收。
-- 本轮为本地技术交付；正式 main 发布需要用户验收与届时最新远端审计、发布锁、最终 FullRebuild，不能复用本地开发构建冒充发布门禁。
+- 本次验证针对准确 UE5.8 Win64 Editor 候选，不等同于生成或验收新的打包版本。
 
 ### 用户微调与发布审计
 
 - 用户明确要求纳入微调并合入 main。磁盘仅有商店主蓝图修改，已确认 Editor 关闭；`WBP_ReEchoInventoryShopScreen.uasset` SHA256 为 `CF9DDB70FE02F17F68641B67AC88B649129FA4A2AA500FDA6A60C38C1EC70143`，原样纳入，不重建该资产。
 - 最新远端 `428b83fd` 相对本任务发布基线新增 `e895eb9b` 的符文购买空槽自动装备、对应回归和模块文档，以及发布合并/构建记录。无 Plan 编号变化；代码与 UI 资产无物理冲突，只有精选预构建 DLL/manifest 双方更新冲突，获锁合并后由最终 FullRebuild 重新生成。
 - 语义与耦合审计：保留远端 Run 的购买填空槽/原槽合成/满槽保留背包行为；Plan161 只消费更新后的 `BackpackCount` 并发送手动装备请求，两者契约兼容。远端源码和回归逐字保留，文档同时保留远端玩法描述与本任务 Designer 入口。最终重跑商店 UI、符文库存与购买相关测试。
-- 架构关闭复核：`ARCHITECTURE.md` 已审阅无需修改（无新模块/拓扑/所有权变化）；`README.md` 已有调参索引；`MOD-ReEcho.md`、`MOD-ReEchoUI.md` 保留本任务组件条目并合入远端自动装备描述；两份 UI 指南保留调整入口与新宽度。最终发布证据待完成后登记。
+- 架构关闭复核：`ARCHITECTURE.md` 已审阅无需修改（无新模块/拓扑/所有权变化）；`README.md` 已有调参索引；`MOD-ReEcho.md`、`MOD-ReEchoUI.md` 保留本任务组件条目并合入远端自动装备描述；两份 UI 指南保留调整入口与新宽度。
+- 候选链：`04773184` 首次实现 → `b73f82bd` 单行加宽 → `5f33162c` 纳入用户商店微调及授权 → `dbd57b11` 合入远端 `428b83fd`。发布锁以 `5f33162c` 准确取得，只有预构建产物需要重新生成，无源码/内容冲突处理。
+- 最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功（96个动作，43.66秒），精选7模块预构建 BuildId `55116800`，源码指纹前缀 `6e9f4067ee89`；不复用合并前构建。`ReEcho.Shop`、`ReEcho.UI.Shop`、GPU DesignerParity 共36项全部通过，覆盖远端 EmptySlotAutoEquip、份数/合成/读档/购买与当前用户商店蓝图；Designer/runtime 差异 0 / 396800 像素。
+- 最终资产审计、构建后 `validate_project.py`（含 XLSX/CSV）、预构建一致性、LFS还原/fsck及 diff 检查通过；远端 Run/库存和购买测试文件与 `origin/main` 零差异，用户商店蓝图哈希仍为上述值。日志：`Saved/plan161-publish-fullrebuild.log`、`plan161-publish-audit-engine.log`、`plan161-publish-tests-engine.log`、`plan161-publish-static.log`。
+- 此记录与最终精选预构建同一发布提交进入 main，使用普通快进推送；实际远端提交号与锁释放结果在发布回复中核验。
 
 ### 人工验收结果/请求
 
-- PendingBeforeClose：打开本 Plan 独立工程，编辑 `WBP_ReEchoRuneBackpack > BackpackRootSizeBox` 与 `WBP_ReEchoRuneBackpackEntry > NameText/CountText/RuneIconSize/EntryRootSizeBox`，编译保存后进商店验证可读性、屏幕边缘与重复开关。具体入口已登记到商店浮窗调整指南。
+- Passed：用户在加宽候选上完成微调并要求发布；已纳入其商店主蓝图磁盘状态。调参入口继续为 `WBP_ReEchoRuneBackpack > BackpackRootSizeBox` 与 `WBP_ReEchoRuneBackpackEntry > NameText/CountText/RuneIconSize/EntryRootSizeBox`，详情及文档索引已同步。
 
 ### 架构文档审阅结果
 
