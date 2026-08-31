@@ -263,7 +263,12 @@ void UReEchoRestartWidget::RefreshRunStatsValues()
 
 namespace
 {
-	/** 缩短三列间距，并把每个标签/数值留在各自作者化小框内。 */
+	/** 统计文案行高。 */
+	constexpr float SettlementStatRowHeight = 46.0f;
+	/** 抬高统计文案层级，避免被结算底图/装饰图压住。 */
+	constexpr int32 SettlementStatZOrder = 10;
+
+	/** 统一结算统计文案的排版：不裁剪、不换行，保证每行文案完整可见且不乱行。 */
 	void ConstrainSettlementStats(UWidgetTree* WidgetTree, const TCHAR* Prefix)
 	{
 		if (!WidgetTree)
@@ -299,12 +304,13 @@ namespace
 				if (UCanvasPanelSlot* LabelSlot = Cast<UCanvasPanelSlot>(Label->Slot))
 				{
 					LabelSlot->SetPosition(FVector2D(StatColumn.X, StatColumn.Y));
+					LabelSlot->SetZOrder(SettlementStatZOrder);
 				}
 				FSlateFontInfo LabelFont = Label->GetFont();
 				LabelFont.Size = 18;
 				Label->SetFont(LabelFont);
 				Label->SetAutoWrapText(false);
-				Label->SetClipping(EWidgetClipping::ClipToBounds);
+				Label->SetClipping(EWidgetClipping::Inherit);
 				Label->SetJustification(ETextJustify::Left);
 				Label->SetColorAndOpacity(FSlateColor(FLinearColor(0.86f, 0.83f, 0.76f, 1.0f)));
 			}
@@ -314,12 +320,13 @@ namespace
 				if (UCanvasPanelSlot* ValueSlot = Cast<UCanvasPanelSlot>(Value->Slot))
 				{
 					ValueSlot->SetPosition(FVector2D(StatColumn.X + 138.0f, StatColumn.Y));
+					ValueSlot->SetZOrder(SettlementStatZOrder);
 				}
 				FSlateFontInfo ValueFont = Value->GetFont();
 				ValueFont.Size = 20;
 				Value->SetFont(ValueFont);
 				Value->SetAutoWrapText(false);
-				Value->SetClipping(EWidgetClipping::ClipToBounds);
+				Value->SetClipping(EWidgetClipping::Inherit);
 				Value->SetJustification(ETextJustify::Center);
 				Value->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.95f, 0.80f, 1.0f)));
 			}

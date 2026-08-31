@@ -899,25 +899,42 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 
 	const bool bWasCritical = Result.bCritical;
 	const float CriticalEffect = FMath::Max(0.0f, Input.CriticalEffect);
+	// Weapon logic already settled one crit layer for physical hits, so unwind it here and re-apply the
+	// final stack count below instead of compounding on top of an already multiplied damage value.
 	const float PreCriticalDamage =
 	    bWasCritical ? Result.RawDamage / FMath::Max(1.0f, 1.0f + CriticalEffect) : Result.RawDamage;
-	if (!Result.bCritical)
+
+	// Allowed crit rolls. Element damage never crits until G_3_10 (元素会心) lifts that restriction, and
+	// the physical first roll already happened in the weapon layer, so only the remainder is rolled here.
+	const int32 RuntimeRollCount = Result.Element != EReEchoElement::None
+	                                   ? (Rules.bElementDamageCanCrit ? Rules.CriticalRollCount : 0)
+	                                   : FMath::Max(0, Rules.CriticalRollCount - 1);
+
+	// Crits chain: G_3_12 (突破天际) lets a critical hit crit again, so every successful roll adds another
+	// layer instead of stopping at the first success.
+	int32 CriticalStacks = bWasCritical ? 1 : 0;
+	for (int32 RollIndex = 0; RollIndex < RuntimeRollCount; ++RollIndex)
 	{
-		const int32 RuntimeRollCount = Result.Element != EReEchoElement::None
-		                                   ? (Rules.bElementDamageCanCrit ? Rules.CriticalRollCount : 0)
-		                                   : FMath::Max(0, Rules.CriticalRollCount - 1);
-		for (int32 RollIndex = 0; RollIndex < RuntimeRollCount && !Result.bCritical; ++RollIndex)
+		FRandomStream Random(
+		    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+		if (Random.FRand() < FMath::Clamp(Input.CriticalRate, 0.0f, 1.0f))
 		{
-			FRandomStream Random(
-			    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
-			Result.bCritical |= Random.FRand() < FMath::Clamp(Input.CriticalRate, 0.0f, 1.0f);
+			++CriticalStacks;
 		}
 	}
-	Result.RawDamage =
-	    Result.bCritical
-	        ? PreCriticalDamage *
-	              (1.0f + CriticalEffect + (Input.bTargetHasElement ? Rules.ElementAttachedCriticalEffectBonus : 0.0f))
-	        : PreCriticalDamage;
+
+	Result.bCritical = CriticalStacks > 0;
+	float CriticalMultiplier = 1.0f;
+	for (int32 StackIndex = 0; StackIndex < CriticalStacks; ++StackIndex)
+	{
+		CriticalMultiplier *= 1.0f + CriticalEffect;
+	}
+	// The attached-element crit bonus stays a single additive term, matching its pre-chain behaviour.
+	if (Result.bCritical && Input.bTargetHasElement)
+	{
+		CriticalMultiplier += Rules.ElementAttachedCriticalEffectBonus;
+	}
+	Result.RawDamage = PreCriticalDamage * CriticalMultiplier;
 	const float DistanceDamageSteps =
 	    FMath::FloorToFloat(FMath::Max(0.0f, Input.DistanceCm) / FMath::Max(1.0f, Rules.DistanceDamageStepCm));
 	Result.RawDamage *= 1.0f + Rules.DistanceDamageBonusPerStep * DistanceDamageSteps;

@@ -102,7 +102,7 @@ protected:
 
 private:
 	void BuildWidgetTree();
-	/** 约束结算页统计文案的字号与裁切，保留 WBP 作者化的 3/3/2 坐标。 */
+	/** 统一结算页统计文案的字号与排版；保留 WBP 作者化的 3/3/2 坐标，且不做裁剪以保证文案完整可见。 */
 	void ApplySettlementStatLayout();
 	void RefreshMenuMode();
 	void RefreshSettlementCharacterImages();

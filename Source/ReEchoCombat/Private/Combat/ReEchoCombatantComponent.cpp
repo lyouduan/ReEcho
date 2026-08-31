@@ -71,9 +71,18 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	bDeathBroadcast = false;
 	bHasLastPlayerEchoDamageSource = false;
 	LastPlayerEchoDamageSource = EReEchoDamageSource::Player;
-	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+	// Only a full initialization drops transient stacks. bFillHealth=false is the in-encounter refresh run
+	// after card reactions and kills; clearing stacks there wiped the player's stacked attack-speed runes on
+	// every single kill, while Echoes - which never refresh this way - kept theirs and attacked far faster.
+	// Only a full initialization drops transient stacks. bFillHealth=false is the in-encounter refresh run
+	// after card reactions and kills; clearing stacks there wiped the player's stacked attack-speed runes on
+	// every single kill, while Echoes - which never refresh this way - kept theirs and attacked far faster.
+	if (bFillHealth)
 	{
-		RemoveTransientStatStack(Index);
+		for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+		{
+			RemoveTransientStatStack(Index);
+		}
 	}
 	AdditiveAttackModifiers.Reset();
 	BleedingStacks.Reset();
@@ -108,6 +117,15 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 		return;
 	}
 	Stats = InStats;
+	// Fold retained stacks back in: the block was just rebuilt from authored values, so any stacks that
+	// survived an in-encounter refresh must be re-applied. Ability-system owners instead re-derive these
+	// from the still-live Gameplay Effects during SyncFromAbilitySystem above.
+	for (const FTransientStatStack& Stack : TransientStatStacks)
+	{
+		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
+		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	}
 	CurrentHealth = bFillHealth ? Stats.HpMax : FMath::Min(CurrentHealth, Stats.HpMax);
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(PreviousHealth);
@@ -417,12 +435,18 @@ void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
 		Stack.GameplayEffectHandle = ReEchoGameplayEffects::ApplyTransientStatMultiplier(
 		    *BoundAbilitySystem, Stack.AttackSpeedMultiplier, Stack.MovementSpeedMultiplier);
 	}
-	// Keep the raw stat block in sync for BOTH backends. Echoes (no ability system) and the player
-	// (ability-system bound) must both see transient attack/move speed in weapon cadence and movement.
-	// Previously only the no-ability-system fallback mutated Stats, so player attack-speed runes had no effect.
-	Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
-	                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
-	Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	// Only one backend may own Stats.AttackSpeed. When a Gameplay Effect took the stack, the attribute
+	// change callbacks (HandleAttackSpeedChanged / HandleMovementSpeedChanged) already keep Stats
+	// authoritative, so the fallback delta must not be added here as well: doing so double counted on
+	// grant, and on expiry RemoveActiveGameplayEffect restored Stats from the attribute first and then
+	// subtracted the same delta again. Every expired stack therefore drained attack speed from
+	// ability-system owners (the player), while Echoes - which have no ability system - stacked correctly.
+	if (!Stack.GameplayEffectHandle.IsValid())
+	{
+		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
+		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	}
 	RefreshTickState();
 }
 
@@ -506,12 +530,17 @@ void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)
 		return;
 	}
 	const FTransientStatStack Stack = TransientStatStacks[Index];
-	if (BoundAbilitySystem && Stack.GameplayEffectHandle.IsValid())
+	if (Stack.GameplayEffectHandle.IsValid() && BoundAbilitySystem)
 	{
+		// Dropping the effect restores Stats through the attribute change callback. This stack never
+		// wrote its fallback delta into Stats, so subtracting it here too would drain attack speed.
 		BoundAbilitySystem->RemoveActiveGameplayEffect(Stack.GameplayEffectHandle);
 	}
-	Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
-	Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
+	else
+	{
+		Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
+		Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
+	}
 	TransientStatStacks.RemoveAt(Index);
 }
 
