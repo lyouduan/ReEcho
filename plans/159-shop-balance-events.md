@@ -103,6 +103,13 @@
 - `git diff --check`、LFS还原、`git lfs fsck`、`prebuilt_editor.py check` 通过。`validate_project.py` 仍被独立的 `Card.EasterShardThreshold` 登记缺项阻止；等待具名补登记授权。
 - 尚未获取 main 发布锁、未合入传入 Plan160、未推送、未删除工作分支；不占锁等待人工答复。最终发布仍须独占锁后 merge 最新主线、FullRebuild，并重跑准确候选的验证。
 
+### 本次实现发布的具名静态例外（2026-08-31）
+
+- 用户已知 `Card.EasterShardThreshold` 已在 C++ 注册、静态校验清单漏项，并在风险提示后确认：“这个是什么？先合并，再解决。”
+- 此确认针对本地实现/测试候选 `641694f67bab4f239274091ac8b5b5cf77303f0a` 及当前远端 `a7eb82a55d0bce7fd87db03f2568f1c4779912e6`（仅传入 Plan160 文档）。本次只对 `validate_project.py` 的该具名登记缺项记录“经人工确认暂缓处理；校验未通过”，不把失败伪报为通过。
+- 其他门禁全部保留：准确租约 main 发布锁、获锁后 merge 最新 main、Development FullRebuild、匹配精选二进制、45项专项测试、diff/LFS检查和发布后的远端提交核验。若出现其他错误或实质性远端变动，重新审计，不扩大此例外。
+- 合入远端后再处理登记清单；本次先发候选不夹带校验器修补，顺序遵从用户要求。
+
 ### 架构文档审阅结果（延续）
 
 - `modules/MOD-ReEcho.md`：已更新 AREA-Run 最终余额通知、覆盖/排除边界与 AREA-UI 消费契约。
