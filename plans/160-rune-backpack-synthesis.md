@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（实现及最终构建/专项回归已完成，待人工验收；基线静态检查及卡牌旧断言失败单独保留）。
+- 任务状态：`Review`（已合并 main 并完成发布完整重建；商店与存档回归通过，发布暂等 XLSX/CSV 既有漂移的具名处理决定）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@ac28c32d796fedfa486ff215d4403dc26a29099f`。
 - 本地实现方式：独立 worktree `ReEcho-plan160-rune-backpack-synthesis`，分支 `plan/160-rune-backpack-synthesis`。
@@ -59,7 +59,7 @@
 - [x] 新局份数清零；同一实例/跨实例存读档恢复已购页，不能重买已购报价或 III 对应 I；旧档兼容迁移覆盖（自动化）。
 - [x] 原子失败测试证明坏配方/无效候选不扣钱、不消耗材料；重复重取投影不改变玩法或报价（自动化）。
 - [ ] 聚焦自动化、构建、静态检查通过；人工验证背包更新和原槽升级。
-- [x] 本地改动仅包含计划源文件/文档及允许的七模块精选包；未修改生产表或主目录已有 WBP 未提交内容，尚未提交实现。
+- [x] 本任务改动仅包含计划源文件/文档及允许的七模块精选包；未修改生产表或主目录已有 WBP 未提交内容，实现与最新 main 集成已提交本地。
 
 ## Step 0 门禁
 
@@ -112,7 +112,7 @@
 ### 剩余风险
 
 - 旧档没有保存的历史购买事实不能完整重建，采用最小可靠拥有集合与当前页过滤，不伪造额外副本。
-- 全项目静态校验仍因基线 `Card.EasterShardThreshold` 注册扫描失败而未通过；无关卡牌旧断言仍需独立同步，未豁免为通过。
+- 发布集成后，原 `Card.EasterShardThreshold` 注册缺项和两项旧商店断言已由传入 main 修复；当前完整静态校验在后续 XLSX/CSV 同步检查失败：`card_effects.csv`、`cards.csv`。本任务的表格、CSV、导出/校验工具与 `origin/main@2d6d6da2` 完全相同，未自行重导数据或扩大原豁免范围。以后重新导表可能改变现有卡牌配置，需程序/策划核对或本次准确授权暂缓。
 
 ### 本次发布审计
 
@@ -120,6 +120,11 @@
 - 2026-08-31 发布前 fetch：`origin/main@2d6d6da2`。相对实现基线，传入 Plan159 完整余额事件/Designer-owned 刷新文字、用户商店/HUD 资产布局，以及 Plan158 Boss 血环与选卡 UI。它们不改符文等级、份数或合成规则；本地不覆盖主目录未提交内容，不回退传入资产。Plan160 编号已单独发布，无编号冲突。
 - 重叠：Run/ShopWidget/GameMode 的余额通知与整页投影、旧 ShopTests 夹具修正、两份模块文档及精选二进制。保留远端事件生命周期与作者布局，组合本地购买入包/合成候选；相同已购页测试合并保留报价缓存稳定与消费后不可购买两种断言。生成包不作二进制内容拼接，最终 FullRebuild 统一刷新。
 - 最新 Plan158 已补齐该行为 ID 与 `CritNegateAmplification` 校验注册。获锁合并后重跑完整校验；如果已通过则本次不实际使用上述豁免。其他新失败不会套用该授权。
+- 发布锁已按空 expected lease 原子取得，初始候选 `bc869908500386ac40d19e8ffa8fb37674a2696e`；获锁后 fetch 并 merge `origin/main@2d6d6da2`，集成提交 `9bbb45bb`，未 rebase 或改写锁历史。源码冲突仅 ShopTests 的新购买入包语义与页稳定断言，按已批准契约组合；远端所有资产保持原样。
+- 2026-08-31 22:29：同克隆无 Editor 进程后持有 Unreal 锁执行 `Build-Editor.ps1 -Configuration Development -FullRebuild`，96 actions 完成，结果 `Succeeded`。最终七模块预构建包 `source=f8fad78722ec`，BuildId `55116800`，指纹/文件哈希验证通过；只出现既有 `CompressImageArray` 弃用警告。
+- 发布集成回归：`ReEcho.Shop` **25/25 Success**，包含全部六项符文专项、余额事务和旧卡牌回归；`ReEcho.Run.SaveSnapshot` **1/1 Success**。证据分别为 `Saved/Logs/Plan160-PublishShop.log`、`Saved/Logs/Plan160-PublishSaveSnapshot.log`。新增登记校验单测 **3/3** 通过，原静态注册缺项豁免未实际使用。
+- 额外 UI 集成回归 `ReEcho.UI.Shop` **7/7 Success**：作者化布局/刷新文字、余额订阅、卡组选卡呈现、逻辑分块、符文背包过滤及 tooltip 蓝图全部通过，证据 `Saved/Logs/Plan160-PublishShopUI.log`。测试后预构建指纹、LFS hydration/fsck、`git diff --check` 再检通过；仅释放本任务取得的 Unreal 锁，main 发布锁保留。
+- 完整 `validate_project.py` 在 XLSX 导出同步处失败；单独 `sync_xlsx_to_csv.py --check` 复现相同两文件漂移。`git diff --exit-code origin/main -- Design/Data Content/Data scripts/data scripts/validate_project.py` 返回 0，证明与当前远端相同输入；后续独立 `validate_workflow()` 通过。没有临时屏蔽校验或修改数据让检查变绿。已向用户报告具体风险并询问是否另外豁免，未取得此项答复前不推 main，保留本任务发布锁。
 
 ### 人工验收结果/请求
 
