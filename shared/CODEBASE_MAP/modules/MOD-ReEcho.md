@@ -119,7 +119,7 @@ Boss 变身演出由 `ReEchoBossTransformation.cpp` 中的 GameMode 方法所有
 - 商店说明与已生效卡牌结果由 `ReEchoShopTooltipWidget` 消费原 `FReEchoShopOffer` 文本，属性列表由商店将 CSV 名称/顺序和 `FReEchoStatBlock` 格式化成 `FReEchoAttributeRowView` 交给 `ReEchoAttributeTooltipWidget` / `ReEchoAttributeRowWidget`；这三个类型的 WBP 是字体、几何及示例的唯一权威，不新增玩法状态或模块依赖。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 开场选择页确认与返回是常驻作者化控件；Widget 只管理可用性和独立文字的灰显，未选中时不能确认，返回的空闲/悬停 Brush 明暗由 WBP 持有，不改变两阶段选择、返回或 Run 提交权威。商店独立 Tooltip 背板必须拥有真实纹理 Brush，避免仅设置颜色的空 Image Brush。
-- 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板，由血条替换倒计时文字和指针。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。
+- 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板与指针，由下半环血条及中央百分比替换倒计时文字。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 - Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
 - 构筑路径诊断由主模块 `Diagnostics/ReEchoBuildTrace.*` 集中拥有。`UReEchoRunSubsystem` 只在开局、读档、遭遇开始以及卡牌、武器、符文或商店事务已经权威提交后输出 `[BuildSnapshotTrace]`，内容含角色、武器、符文槽、卡牌叠层、有效属性、关键卡牌运行态、规则、数据 revision 和确定性指纹；失败事务不输出提交后快照。`AReEchoWeaponActor` 在成功 Confirm 的统一提交出口输出轻量 `[BuildCommitTrace]`，以 `source + weapon + sequence` 关联 Resolver 日志并携带同一构筑指纹，不在 Projectile/Resolver 各层重复完整构筑。该诊断只读、不消耗随机数、不写 SaveGame，Shipping 不输出；指纹不得用作玩法判断、存档身份或去重键。
@@ -391,6 +391,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ### `AREA-UI`：`UI`屏幕与交互
 
+- 三选一 `ReEchoTraitCardChoiceWidget` 的标题/刷新文案模板、位置与按钮样式由 WBP 拥有；每个文字实例首次更新前缓存模板，普通样例数字或显式命名占位符只接收实时数量/费用，保留换行与静态文案。标题定位和刷新按钮素材注入只适用于原生 fallback，不能覆盖正式作者控件。`ReEchoTraitChoiceAuthoringTests.cpp` 覆盖构造前数据注入、字体/位置/四状态 Brush、重复重建、双选和真实启用状态；不改变 Run 交易/随机数/揭示契约。
+
 **设计意图：** 通过稳定屏幕 ID、中央 Widget 注册、统一焦点/输入/暂停策略管理开始、装载、HUD、特质、商店、Echo 管理和暂停等界面。局内不再注册或保留独立的 Tab 属性屏幕。
 
 - 代码：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`。
@@ -404,6 +406,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。武器背包和符文背包共用该设计面的根级高层浮层，不能继续嵌在装配室局部 Canvas 下被兄弟表现层遮挡。右侧卡牌装配树固定为两页、每页 12 张：翻页只切换 Run 已拥有卡牌只读投影的数组窗口，并复用同一组 WBP 槽位几何，不能复制卡牌状态或创建第二套槽位布局。
 - 商店/背包页按 `P` 时由更高 Pause 层覆盖，商店保持打开；恢复后重新聚焦商店并保持暂停，不得复用商店关闭路径或触发战后推进。
 - 战斗世界空间元素反应字由主模块 Enemy Presentation 订阅 Combat 的权威反应完成事件后生成；五类透明图及渐隐材质属于 UI 表现资产，`BP_ReEchoElementReactionPopup` 是尺寸、上浮、渐隐与缩放的调参入口，缺失时不得阻断玩法。
+- Plan158 顶部 Boss 血量使用 `ReEchoEncounterHudWidget` + `ReEchoBossHealthArcWidget` 的下半钟面弧形投影；GameMode 的首个存活 Boss 当前/最大生命契约不变，指针、弧形与独立作者化 `BossHealthPercentText` 共用比例。剩余段/空槽配色以当前 WBP 为准，可调弱刻度强调血量长度；百分比运行时只更新内容/显隐。WBP 保存字体、形状/颜色、刻度强度与设计预览参数。`Surface` 将平面血管纹理（强度/粗细/间距）与整条血条的圆润截面光照（`Relief Strength`）解耦：血管不改变法线，关闭血管仍有整体高光/背光立体感。原 UI 材质程序化绘制，不引入贴图或几何；只影响剩余段 RGB、保留 Alpha，静态参考坐标不会随扣血滑动，双强度归零可还原平面。临时材质只负责显示，不新增战斗状态或模块依赖。
 - 人工验收：布局、可读性、焦点、点击区域和视觉效果由用户验收，Executor 不做高 token 视觉遍历。
 
 ### `AREA-Tests`：`Tests`验证边界
