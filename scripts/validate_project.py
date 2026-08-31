@@ -55,6 +55,7 @@ REGISTERED_BEHAVIOR_IDS = {
     "Card.OverhealCapacity",
     "Card.AlternatingSources",
     "Card.EasterShardSwing",
+    "Card.EasterShardThreshold",
     "Card.EasterIndependentGrant",
     "Card.EasterEchoContact",
     "Card.EasterShardSacrifice",
