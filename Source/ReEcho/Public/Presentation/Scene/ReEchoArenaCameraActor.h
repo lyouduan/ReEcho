@@ -25,11 +25,18 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(AReEchoPlayerPawn* InFollowTarget, AReEchoArenaSceneActor* InArenaSource);
+	/** Adds a short presentation-only camera-local shake without disturbing the authoritative follow focus. */
+	void PlayImpactShake(float AmplitudeCm = 8.0f, float DurationSeconds = 0.18f);
+	static FVector ResolveImpactShakeOffset(float ElapsedSeconds, float DurationSeconds, float AmplitudeCm);
 	static float CalculateEncounterCountdownPostProcessIntensity(float RemainingTime);
 	void SetEncounterCountdownPostProcessIntensity(float Intensity);
 	void ResetEncounterCountdownPostProcess();
 	static float CalculateStage01To02CameraEaseAlpha(float LinearAlpha);
-	void BeginStage01To02CameraSequence();
+	static FVector2D CalculateStage01To02GroundFocus(const FVector& VisualCenterWorld,
+	                                                 float GameplayPlaneWorldZ,
+	                                                 const FVector& CameraForward);
+	static bool TryResolveStage01To02VisualCenter(AActor* Target, FVector& OutVisualCenterWorld);
+	void BeginStage01To02CameraSequence(bool bAdvanceWhenPaused = true);
 	bool FocusStage01To02Target(AActor* Target, float OrthoWidthRatio, float DurationSeconds);
 	bool FocusStage01To02TargetAtStandardWidth(AActor* Target, float DurationSeconds);
 	bool IsStage01To02CameraMoveComplete() const;
@@ -64,6 +71,11 @@ public:
 	float GetStage01To02MoveToPlayerDuration() const
 	{
 		return Stage01To02MoveToPlayerDuration;
+	}
+
+	bool ShouldStage01To02AllowExactCenter() const
+	{
+		return bStage01To02AllowExactCenter;
 	}
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arena Camera")
@@ -148,11 +160,14 @@ public:
 	float Stage01To02MoveToPlayerDuration = 1.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Encounter Transition|Stage01To02")
 	TObjectPtr<UCurveFloat> Stage01To02CameraEaseCurve;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arena Camera|Encounter Transition|Stage01To02")
+	bool bStage01To02AllowExactCenter = true;
 
 private:
 	void EnsureEncounterCountdownPostProcess();
 	void UpdateEncounterCountdownPostProcessParameters();
 	void UpdateFollow(float DeltaSeconds);
+	void UpdateImpactShake(float DeltaSeconds);
 	void UpdateStage01To02CameraMove(float DeltaSeconds);
 	FVector2D ResolveTransitionTargetFocus() const;
 	FVector GetGroundFocus() const;
@@ -179,5 +194,10 @@ private:
 	float Stage01To02MoveElapsedSeconds = 0.0f;
 	float Stage01To02MoveDurationSeconds = 0.0f;
 	bool bStage01To02CameraSequenceActive = false;
+	bool bSequenceAdvancesWhenPaused = true;
 	bool bStage01To02CameraMoveActive = false;
+	float ImpactShakeElapsedSeconds = 0.0f;
+	float ImpactShakeDurationSeconds = 0.0f;
+	float ImpactShakeAmplitudeCm = 0.0f;
+	FVector ImpactShakeBaseCameraLocation = FVector::ZeroVector;
 };

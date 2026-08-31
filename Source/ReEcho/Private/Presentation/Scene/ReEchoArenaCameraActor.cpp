@@ -6,7 +6,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "PaperFlipbook.h"
 #include "Player/ReEchoPlayerPawn.h"
+#include "Presentation/Animation2D/ReEcho2DAnimationComponent.h"
 #include "Presentation/Scene/ReEchoArenaSceneActor.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -35,6 +37,7 @@ AReEchoArenaCameraActor::AReEchoArenaCameraActor()
 	ArenaCamera->SetOrthoWidth(2560.0f);
 	ArenaCamera->SetAspectRatio(1376.0f / 768.0f);
 	ArenaCamera->SetConstraintAspectRatio(true);
+	ImpactShakeBaseCameraLocation = ArenaCamera->GetRelativeLocation();
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CountdownPostProcessFinder(
 	    TEXT("/Game/ReEcho/Materials/PostProcess/EncounterTransition/M_PP_EncounterCountdownGhost_V4."
 	         "M_PP_EncounterCountdownGhost_V4"));
@@ -65,6 +68,10 @@ void AReEchoArenaCameraActor::Configure(AReEchoPlayerPawn* InFollowTarget, AReEc
 void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bStage01To02CameraSequenceActive && !bSequenceAdvancesWhenPaused && UGameplayStatics::IsGamePaused(this))
+	{
+		return;
+	}
 	if (!IsValid(FollowTarget))
 	{
 		Configure(Cast<AReEchoPlayerPawn>(UGameplayStatics::GetPlayerPawn(this, 0)), ArenaSource);
@@ -77,6 +84,7 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 	{
 		UpdateFollow(DeltaSeconds);
 	}
+	UpdateImpactShake(DeltaSeconds);
 	if (EncounterCountdownPostProcessIntensity > 0.0f && EncounterCountdownPostProcessMID)
 	{
 		EncounterCountdownPostProcessPhase +=
@@ -86,7 +94,44 @@ void AReEchoArenaCameraActor::Tick(const float DeltaSeconds)
 	}
 }
 
-void AReEchoArenaCameraActor::BeginStage01To02CameraSequence()
+void AReEchoArenaCameraActor::PlayImpactShake(const float AmplitudeCm, const float DurationSeconds)
+{
+	ImpactShakeAmplitudeCm = FMath::Max(0.0f, AmplitudeCm);
+	ImpactShakeDurationSeconds = FMath::Max(0.0f, DurationSeconds);
+	ImpactShakeElapsedSeconds = 0.0f;
+	UpdateImpactShake(0.0f);
+}
+
+FVector AReEchoArenaCameraActor::ResolveImpactShakeOffset(const float ElapsedSeconds,
+                                                          const float DurationSeconds,
+                                                          const float AmplitudeCm)
+{
+	if (DurationSeconds <= KINDA_SMALL_NUMBER || AmplitudeCm <= 0.0f || ElapsedSeconds < 0.0f ||
+	    ElapsedSeconds >= DurationSeconds)
+	{
+		return FVector::ZeroVector;
+	}
+	const float Alpha = FMath::Clamp(ElapsedSeconds / DurationSeconds, 0.0f, 1.0f);
+	const float Envelope = 1.0f - Alpha;
+	const float Phase = Alpha * 6.0f * UE_PI;
+	return FVector(0.0f,
+	               FMath::Sin(Phase) * AmplitudeCm * Envelope,
+	               FMath::Sin(Phase * 1.35f + UE_PI * 0.5f) * AmplitudeCm * 0.55f * Envelope);
+}
+
+void AReEchoArenaCameraActor::UpdateImpactShake(const float DeltaSeconds)
+{
+	if (!ArenaCamera)
+	{
+		return;
+	}
+	ImpactShakeElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
+	ArenaCamera->SetRelativeLocation(
+	    ImpactShakeBaseCameraLocation +
+	    ResolveImpactShakeOffset(ImpactShakeElapsedSeconds, ImpactShakeDurationSeconds, ImpactShakeAmplitudeCm));
+}
+
+void AReEchoArenaCameraActor::BeginStage01To02CameraSequence(const bool bAdvanceWhenPaused)
 {
 	if (!ArenaCamera)
 	{
@@ -95,6 +140,7 @@ void AReEchoArenaCameraActor::BeginStage01To02CameraSequence()
 	SetActorTickEnabled(true);
 	SetTickableWhenPaused(true);
 	bStage01To02CameraSequenceActive = true;
+	bSequenceAdvancesWhenPaused = bAdvanceWhenPaused;
 	bStage01To02CameraMoveActive = false;
 	Stage01To02CameraTarget = nullptr;
 	Stage01To02SequenceStandardOrthoWidth = ArenaCamera->OrthoWidth;
@@ -113,6 +159,32 @@ float AReEchoArenaCameraActor::CalculateStage01To02CameraEaseAlpha(const float L
 	return FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LinearAlpha, 0.0f, 1.0f));
 }
 
+FVector2D AReEchoArenaCameraActor::CalculateStage01To02GroundFocus(const FVector& VisualCenterWorld,
+                                                                   const float GameplayPlaneWorldZ,
+                                                                   const FVector& CameraForward)
+{
+	if (FMath::Abs(CameraForward.Z) <= KINDA_SMALL_NUMBER)
+	{
+		return FVector2D(VisualCenterWorld.X, VisualCenterWorld.Y);
+	}
+	const FVector GroundIntersection =
+	    VisualCenterWorld + CameraForward * ((GameplayPlaneWorldZ - VisualCenterWorld.Z) / CameraForward.Z);
+	return FVector2D(GroundIntersection.X, GroundIntersection.Y);
+}
+
+bool AReEchoArenaCameraActor::TryResolveStage01To02VisualCenter(AActor* Target, FVector& OutVisualCenterWorld)
+{
+	UReEcho2DAnimationComponent* Animation =
+	    Target ? Target->FindComponentByClass<UReEcho2DAnimationComponent>() : nullptr;
+	const UPaperFlipbook* Flipbook = Animation ? Animation->GetFlipbook() : nullptr;
+	if (!Animation || !Flipbook || !Animation->IsVisible())
+	{
+		return false;
+	}
+	OutVisualCenterWorld = Animation->GetComponentTransform().TransformPosition(Flipbook->GetRenderBounds().Origin);
+	return true;
+}
+
 bool AReEchoArenaCameraActor::FocusStage01To02Target(AActor* Target,
                                                      const float OrthoWidthRatio,
                                                      const float DurationSeconds)
@@ -124,20 +196,33 @@ bool AReEchoArenaCameraActor::FocusStage01To02Target(AActor* Target,
 	const FVector CurrentFocus = GetGroundFocus();
 	Stage01To02MoveStartFocus = FVector2D(CurrentFocus.X, CurrentFocus.Y);
 	Stage01To02CameraTarget = Target;
-	Stage01To02MoveFallbackTargetFocus = FVector2D(Target->GetActorLocation().X, Target->GetActorLocation().Y);
+	FVector VisualCenterWorld = Target->GetActorLocation();
+	const bool bResolvedVisualCenter = TryResolveStage01To02VisualCenter(Target, VisualCenterWorld);
+	const float GameplayPlaneWorldZ = ArenaSource ? ArenaSource->GetGameplayPlaneWorldZ() : 0.0f;
+	Stage01To02MoveFallbackTargetFocus =
+	    CalculateStage01To02GroundFocus(VisualCenterWorld, GameplayPlaneWorldZ, ArenaCamera->GetForwardVector());
 	Stage01To02MoveStartOrthoWidth = ArenaCamera->OrthoWidth;
 	Stage01To02MoveTargetOrthoWidth = Stage01To02SequenceStandardOrthoWidth * FMath::Clamp(OrthoWidthRatio, 0.1f, 1.0f);
 	Stage01To02MoveElapsedSeconds = 0.0f;
 	Stage01To02MoveDurationSeconds = FMath::Max(0.0f, DurationSeconds);
 	bStage01To02CameraMoveActive = true;
 	UpdateStage01To02CameraMove(0.0f);
+	const bool bUsesExactCenter =
+	    bStage01To02AllowExactCenter &&
+	    Stage01To02MoveTargetOrthoWidth < Stage01To02SequenceStandardOrthoWidth - KINDA_SMALL_NUMBER;
 	UE_LOG(LogTemp,
 	       Display,
-	       TEXT("[Stage01To02Camera] move target=%s duration=%.3f ortho=%.1f->%.1f"),
+	       TEXT("[Stage01To02Camera] move target=%s visualCenter=%s source=%s lockedFocus=(%.1f,%.1f) "
+	            "duration=%.3f ortho=%.1f->%.1f exactCenter=%s"),
 	       *GetNameSafe(Target),
+	       *VisualCenterWorld.ToCompactString(),
+	       bResolvedVisualCenter ? TEXT("FlipbookBounds") : TEXT("ActorFallback"),
+	       Stage01To02MoveFallbackTargetFocus.X,
+	       Stage01To02MoveFallbackTargetFocus.Y,
 	       Stage01To02MoveDurationSeconds,
 	       Stage01To02MoveStartOrthoWidth,
-	       Stage01To02MoveTargetOrthoWidth);
+	       Stage01To02MoveTargetOrthoWidth,
+	       bUsesExactCenter ? TEXT("true") : TEXT("false"));
 	return true;
 }
 
@@ -216,13 +301,11 @@ void AReEchoArenaCameraActor::UpdateStage01To02CameraMove(const float DeltaSecon
 
 FVector2D AReEchoArenaCameraActor::ResolveTransitionTargetFocus() const
 {
-	FVector2D Desired = Stage01To02MoveFallbackTargetFocus;
-	if (IsValid(Stage01To02CameraTarget))
-	{
-		Desired =
-		    FVector2D(Stage01To02CameraTarget->GetActorLocation().X, Stage01To02CameraTarget->GetActorLocation().Y);
-	}
-	if (!bClampToArenaBounds || !ArenaSource || !ArenaCamera)
+	const FVector2D Desired = Stage01To02MoveFallbackTargetFocus;
+	const bool bUsesExactCenter =
+	    bStage01To02AllowExactCenter &&
+	    Stage01To02MoveTargetOrthoWidth < Stage01To02SequenceStandardOrthoWidth - KINDA_SMALL_NUMBER;
+	if (bUsesExactCenter || !bClampToArenaBounds || !ArenaSource || !ArenaCamera)
 	{
 		return Desired;
 	}

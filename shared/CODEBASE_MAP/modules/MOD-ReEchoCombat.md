@@ -60,6 +60,8 @@ UI 和属性面板只订阅最终通知或读取快照，不得在回调中反�
 
 ## 输入、输出与公共契约
 
+- `SetPresentationSuspended` 是 GameMode 临时演出门控，默认关闭、不存档。物理、元素入口在来源规则或元素状态修改前拒绝目标命中，最终伤害和灼烧入口同样守门；与保留伤害显示但不扣血的 GMGod 不同，不产生正常受击反馈。恢复时顺延 Combat 所有的有效状态、免疫、临时属性到期时间及 DOT 下次结算时间，避免恢复时补算演出期间伤害。调用者负责恢复原门控与暂停相关 Tick，不由 Combat 读取相机或 Niagara。聚焦测试：`ReEcho.Combat.PresentationSuspension`。
+
 ### 命令与输入
 
 - Pawn/流程通过 `UReEchoAttackControllerComponent` 发送自动/手动模式、Begin/End manual、运行门控和统一 Release 请求；不直接写 GAS spec 的 `InputPressed`。手动与自动来源互斥持有同一个 GAS 普攻输入：切换模式先释放旧来源，非当前模式入口被拒绝，迟到的旧来源 Release 不得释放新来源。

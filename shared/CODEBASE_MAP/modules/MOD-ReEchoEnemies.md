@@ -2,6 +2,14 @@
 
 ## 模块状态
 
+Phase3 GroundTriple：不可变能力bGroundedSlam区分原地三连与BlinkSlam，bPhaseOpening只代表一次开场。原地变体不要求传送落点，锁SelfLocation，固定3连，后续参与能力循环；Intent携带bGroundedSlam供宿主和表现消费。普通Skill03仍锁目标、随机1～3连。玩家被动位移由ReEcho宿主所有。
+
+开场三连现为原地攻击：bBossOpeningActive时目标圆心和逻辑Origin取SelfLocation，不需要可用闪现落点，bRequestTeleport始终false；每击更新朝向但不移动Boss。三次前摇/攻击窗口仍复用Skill03节奏，后续非开场技能正常锁定玩家并下砸。Host负责开场当帧ImpactResolved，逻辑层不等待粒子或动画完成。
+
+`QueueBossPhaseOpening`为生产阶段开场命令，读取Host注入的阶段OpeningAbilityId/OpeningStrikeCount，不依赖GM。只允许存活Boss第三阶段一次排队；可用目标/落点出现后优先启动，无需等待原技能冷却，开场固定三连，之后恢复原随机连击。消费、排队和执行状态进入LogicSnapshot，BossIntent标识bPhaseOpening供Host在实际落地处理周围怪物震退；模块本身不扫描世界、不移动Actor、不结算额外伤害。取消变身不调用开场入口。
+
+献祭落地通过CompleteCinematicPhase2提交非Boss的权威阶段2，消费自动变身触发并清零过渡计时，发布完成意图而不重播开始动画；幂等，拒绝死亡/Boss/未配置二阶段的对象。状态使用既有snapshot保存恢复，未添加存档字段。CinematicPhase2Persistence覆盖提交、重复调用、保存恢复和死亡拒绝。
+
 - Runtime Module：`ReEchoEnemies`。
 - 代码根：`Source/ReEchoEnemies/`。
 - 架构标识：`MOD-ReEchoEnemies`；功能检索标识：`AREA-Enemies`。
@@ -50,6 +58,8 @@
 
 ## 输入、输出与公共契约
 
+- `ResolveFatalBossTransitionPhase` 只读返回致命命中可进入的阶段，供 Host 请求变身演出；不发布事件、不改变阶段或累计秒数。正式 GameMode 演出在爆发时调用 Host `CommitCinematicBossPhase`，一次性提交阶段；无正式 GameMode 的逻辑/Host 测试保留原转换入口。爆发提交 Phase2 时必须同时标记 `bPhase2Triggered`，避免恢复 Tick 后再次触发。GM 与致命命中在正式游戏中复用同一演出入口。
+
 - Enemy Host 的 `ConfigureFromDefinition` 是出生 Commit 的原子激活边界：成功返回时 Combatant 必须存活，Actor 与根玩法碰撞必须启用且可受击。出生预警期间不创建 Host；表现资源加载或 Blueprint 默认值不得延长不可受击阶段。
 
 ### 输入
@@ -69,7 +79,7 @@
 - `UReEchoEnemyEventsComponent`：除提交/Fuse 外，发布 `FReEchoEnemySpecialActionEvent`（WindupStarted、ActionCommitted、RecoveryStarted、ActionEnded、ActionCancelled）与 `FReEchoEnemyProjectileEvent`（Spawned、Moved、Ended）。事件只描述已经发生的行为状态和空间上下文，不携带表现资源。
 - `UReEchoEnemyRosterComponent`：保存 Host/Logic 弱引用，以 SpawnIndex 稳定排序；存活状态即时读取 LogicSnapshot，不复制第二份 alive 标志。
 
-普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销；同一普通怪的多个启用特殊能力按 `SequenceOrder + AbilityId` 稳定排序并确定性循环，前摇、提交、恢复和快照恢复全程按 `SpecialAbilityId` 绑定同一能力。兔子因此依次执行移动散射与站定连发；兔子锁点后按半径判断。狐狸在 Windup 结束时提交一次身份，随后在 `ActiveSeconds` 内沿锁向分步积分 `LengthCm`；每步最多消费剩余距离，完成或 Host 回报世界阻挡后进入只含 `RecoverySeconds` 的 Recovery。首次路径接触门在无敌零伤害时也消费，保证同次冲撞不重试；正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
+普通接触攻击在进入范围且 cooldown ready 时提交；目标无敌仍消费 cooldown。普通敌人的 `HitReaction` 优先于兔子/狐狸特殊逻辑：受击立即取消未结束的特殊动作，在表驱动 Hit 周期内禁止追击、重新前摇、狐狸冲撞残留以及任何 Actor 位移，始终输出零 `MovementDelta`；进入和恢复该状态时也清理旧快照可能携带的 `KnockbackVelocity`，周期结束后才允许普通移动。Boss 继续在权威 Hurt 入口免疫该状态。兔子/狐狸只有获得 Encounter 的全局许可才可开始前摇，已开始的动作不被撤销（受击/眩晕等高优先级中断除外）；同一普通怪的多个启用特殊能力按 `SequenceOrder + AbilityId` 稳定排序并确定性循环，前摇、提交、恢复和快照恢复全程按 `SpecialAbilityId` 绑定同一能力。兔子因此依次执行移动散射与站定连发；兔子锁点后按半径判断。狐狸在 Windup 结束时提交一次身份，随后在 `ActiveSeconds` 内沿锁向分步积分 `LengthCm`；每步最多消费剩余距离，完成或 Host 回报世界阻挡后进入只含 `RecoverySeconds` 的 Recovery。首次路径接触门在无敌零伤害时也消费，保证同次冲撞不重试；正面防御沿用 Definition 的明确能力标志。全局窗口与并发令牌不保存在单个 EnemyLogic。Bomber 引信不可取消且只提交一次。
 
 远程敌人提交不再直接按锁点范围结算，而是由 EnemyHost 用 `FReEchoEnemyProjectileLogic` 按能力表的 `ProjectileCount` 与 `SpreadAngleDegrees` 展开确定性直线投射物；单发沿锁定方向，有散射角的多发以中心方向对称齐射。`ProjectileCount>1`、零散射角且 `ActiveSeconds>0` 的直线多发在该 Active 窗口内等间隔进入世界：第一发随提交生成，其余已提交球保存剩余延迟并依次发布 Spawned，避免同帧同位置重叠。Host 使用每条已生成球的移动线段与“按单球半径扩张后的目标碰撞盒”做连续扫掠，每球向 Combat 提交至多一次命中；兔子球命中玩家后立即发布 `Ended` 并从逻辑数组移除，视觉代理随事件结束。长剑还可用其提交时的 180°近战扇区结束弧内兔子球；EnemyHost 仍是移除权威，Niagara 不参与斩弹裁决。兔子能力的单球半径固定为 `RadiusCm / 3`（沿用原移动三球散射的作者基准），不因站定四连发的 `ProjectileCount` 改变；羊 Boss 等通用齐射仍把 `RadiusCm` 作为整组碰撞预算并按实际发数平分。单球半径不得从敌人本体碰撞尺寸推导，也不得让 Niagara 粒子参与裁决。各逻辑轨迹分别发布 Spawned/Moved/Ended，事件携带共享 AttackIdentity、稳定 `VolleyBallIndex`、逻辑位置/方向和只读碰撞半径；Presentation 必须以 `(AttackIdentity, VolleyBallIndex)` 一一投影。当前保存数组沿用兼容字段名 `BossProjectiles`，但承载已生成和已提交待生成的通用敌方逻辑投射物；旧存档默认把已有条目视为已生成，重命名需要独立存档迁移。显式正数表内投射物速度优先，兼容数据才按 `MaxRangeCm / CooldownSeconds` 推导。
 
@@ -77,7 +87,7 @@ Plan68 的生产阵容由独立怪物工作簿驱动：普通怪为 `M_SLIME`、
 
 Plan96 补齐羊 Boss 阶段战斗倍率的消费边界：一阶段仍直接使用 `EnemyAbilities.Damage/CooldownSeconds`；进入 `CurrentPhaseIndex=2` 后，EnemyLogic 在提交 Intent 时把物理伤害乘当前 `BossPhases.PhysicalAttackMultiplier`，并用 `CooldownSeconds / AttackSpeedMultiplier` 设置技能冷却。Host 仍只把解析后的 `RawDamage` 交给投射物或矩形/圆形/光束空间判定，最终扣血只进入 `FReEchoHitIntent -> ReEchoHitResolver`；Niagara 不参与范围或伤害裁决。
 
-羊 Boss 的所有蓄力 Niagara 均挂接 `BossWeaponTipRoot`；该节点在 `BossWeaponFacingRoot` 局部 +Z 方向偏移 MoonStaff 最终世界长度的一半，落在中心 Pivot 法杖贴图的顶部，并继承 `BossWeaponRoot` 的基础挂点/挥舞旋转和 MoonStaff DA 最终左右偏移；该顶部挂点缺失时才回退通用 `AttackVfxRoot`。站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；AttackWindow 先把 gameplay Host 闪现到锁定落点，Presentation 根节点再从上方向落点缓入 0.5 秒，完成后才结算伤害并生成地裂，地裂保留锁定落点 XY、只对齐蓄力开始时目标 `GroundRoot` 的世界 Z，不生成移动拖尾。MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 保留技能 `LockedTargetLocation` 的 XY，只快照目标阴影使用的 `GroundRoot` 世界 Z 作为高度（缺失时依次回退 `FootRoot`、Arena `GameplayPlaneWorldZ` 和原锁定 Z），后续预警与光束复用该不可变组合位置，光束沿世界 +X 向上延伸，不在蓄力结束回读角色实时位置；其 `ActiveSeconds` 同时定义光束、落点预警和伤害检测窗口（当前为 3 秒），窗口内持续检测进入光束的目标，但每次释放最多结算一次伤害。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
+羊 Boss 的所有蓄力 Niagara 均挂接 `BossWeaponTipRoot`；该节点在 `BossWeaponFacingRoot` 局部 +Z 方向偏移 MoonStaff 最终世界长度的一半，落在中心 Pivot 法杖贴图的顶部，并继承 `BossWeaponRoot` 的基础挂点/挥舞旋转和 MoonStaff DA 最终左右偏移；该顶部挂点缺失时才回退通用 `AttackVfxRoot`。站定四连弹与移动三向散射复用通用敌方逻辑投射物链：前者在 Recovery 窗口内依次进入世界，后者同帧按三向扇形进入世界；每颗独立连续扫掠并提交单弹伤害，Skill02 的 Ability `RadiusCm` 不触发一次性 AOE。BlinkSlam 的落点、预警和圆形伤害判定统一以 Intent 锁定中心为权威，圆半径直接使用 Ability `RadiusCm`，不再回读闪现后的 Actor 位置；AttackWindow 先把 gameplay Host 闪现到锁定落点，Presentation 根节点再从上方向落点缓入 0.5 秒，完成后才结算伤害。Phase1/2 在落地结算时生成地裂；Phase3 在每次 1～3 连击的下降开始时提前生成地裂，落地只结算伤害且不重复播放。地裂保留锁定落点 XY、只对齐蓄力开始时目标 `GroundRoot` 的世界 Z，不生成移动拖尾。MeleeSweep 以羊的 `BossWeaponRoot` 世界位置为圆心、锁定朝向为中轴、Ability `LengthCm` 为半径覆盖前方 180° 半圆，伤害与挥杖特效共享挂点；PrayerBeam 在 WindupStart 保留技能 `LockedTargetLocation` 的 XY，只快照目标阴影使用的 `GroundRoot` 世界 Z 作为高度（缺失时依次回退 `FootRoot`、Arena `GameplayPlaneWorldZ` 和原锁定 Z），后续预警与光束复用该不可变组合位置，光束沿世界 +X 向上延伸，不在蓄力结束回读角色实时位置；其 `ActiveSeconds` 同时定义光束、落点预警和伤害检测窗口（当前为 3 秒），窗口内持续检测进入光束的目标，但每次释放最多结算一次伤害。Development 的 `GMBossDamageRange` 只读绘制这些同源几何，不参与命中裁决。
 
 血条耗尽转换由 Combat 致命伤拦截启动；同一命中随后发布的 Hurt 不得把 `Transforming` 覆盖为 `HitReaction`。转换期间 Host 的入伤修正统一返回零，避免临时保活的 1 HP 被多段攻击击杀；完成事件再应用 Phase2 最大生命与回满策略，之后第二次致命伤恢复正常死亡。
 
@@ -163,7 +173,8 @@ Plan79 在主模块 Host 世界移动层增加纯值 Crowd Steering：只修正 
 - 新感知条件：在 `FReEchoEnemySenseSnapshot` 增加稳定值字段，由 Host 采样；不要让 Logic 查询 GameMode、PlayerController 或世界 Actor。
 - 新攻击类型：EnemyLogic 只产生动作身份和候选参数，Host 转为 `FReEchoHitIntent`，最终裁决仍只进 Combat Resolver。
 - 新表现反馈：订阅 EnemyEvents/CombatEvents 或读取聚合 PresentationSnapshot；详细 Niagara 接法见 [`MOD-ReEchoVFX.md`](MOD-ReEchoVFX.md)，不向 Logic 添加动画完成回调。
-- Boss GM 调试：`DebugQueueBossAbility` 只保存一个不可持久化的待触发 AbilityId；下一个合法固定步仍通过正式 Telegraph、锁点、提交、恢复和结束链执行，不直接生成伤害或表现。
+- Boss GM 调试：`DebugQueueBossAbility` 只保存一个不可持久化的待触发 AbilityId；下一个合法固定步仍通过正式 Telegraph、锁点、提交、恢复和结束链执行，不直接生成伤害或表现。`GMBossPhase 2` 复用正式的 Phase2 计时转换，转换动画完成前 Phase1 仍是玩法权威；没有转换片段的 Phase3 在同一帧发布开始与完成事件，使表现控制器明确切到 `Phase3` 动画集的 Move 循环。
+- 羊 Boss Phase3 只复用既有 `M_SHEEP_BlinkSlam`（GM 名 `Skill03`），不创建 `Skill03Moving` 身份；该技能在 Phase1/2 保持单次，在 Phase3 按确定性随机结果连续下砸 1～3 次并逐次重新锁点。生产羊的 `PresentationId=Enemy.TimeGuard`，因此 Phase3 AnimationSet 必须位于目录实际解析的 `DA_Enemy_TimeGuard`，不能误接到未被羊运行时使用的 `DA_Enemy_GoatPriest`；其 Move 固定解析 `Phase3/Walk/Walk`，该技能的 Attack.Basic 固定解析 `Phase3/GroundSlam/GroundSlam`。进入 Phase3 后表现层隐藏 MoonStaff，Phase3 Skill03 蓄力挂到角色 `AttackVfxRoot`；Phase1/2 及其他技能仍沿用法杖顶部挂点。
 - 新保存字段：仅保存权威状态，并提供版本化迁移；不要把派生 UI/表现状态或 Combat 生命复制进 LogicSnapshot。
 
 ## 验证与测试

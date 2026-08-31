@@ -4,6 +4,7 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/AudioComponent.h"
+#include "Engine/GameInstance.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
@@ -14,6 +15,8 @@
 #include "MediaPlayer.h"
 #include "MediaSource.h"
 #include "MediaTexture.h"
+#include "ReEchoAudioService.h"
+#include "ReEchoAudioTypes.h"
 #include "Sound/SoundBase.h"
 
 namespace
@@ -582,7 +585,14 @@ void UReEchoEncounterTransitionWidget::StartStageCgAudio()
 	{
 		return;
 	}
-	Stage01To02AudioComponent = UGameplayStatics::CreateSound2D(this, Stage01To02Sound);
+	UReEchoAudioService* AudioService =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoAudioService>() : nullptr;
+	const float EffectiveMusicVolume =
+	    AudioService ? CalculateStageCgMusicVolume(AudioService->GetMasterVolume(),
+	                                               AudioService->GetBusVolume(EReEchoAudioBus::Music))
+	                 : CalculateStageCgMusicVolume(1.0f, 1.0f);
+	Stage01To02AudioComponent = UGameplayStatics::CreateSound2D(
+	    this, Stage01To02Sound, EffectiveMusicVolume, 1.0f, 0.0f, nullptr, false, false);
 	if (Stage01To02AudioComponent)
 	{
 		Stage01To02AudioComponent->SetUISound(true);
@@ -590,8 +600,17 @@ void UReEchoEncounterTransitionWidget::StartStageCgAudio()
 	}
 	UE_LOG(LogTemp,
 	       Display,
-	       TEXT("Encounter transition independent audio started: result=%s."),
-	       Stage01To02AudioComponent ? TEXT("success") : TEXT("failed"));
+	       TEXT("Encounter transition independent audio started: result=%s effectiveMusicVolume=%.3f service=%s."),
+	       Stage01To02AudioComponent ? TEXT("success") : TEXT("failed"),
+	       EffectiveMusicVolume,
+	       AudioService ? TEXT("true") : TEXT("false"));
+}
+
+float UReEchoEncounterTransitionWidget::CalculateStageCgMusicVolume(const float MasterVolume,
+                                                                    const float MusicBusVolume)
+{
+	constexpr float StageCgVolumeMultiplier = 1.5f;
+	return FMath::Clamp(MasterVolume, 0.0f, 1.0f) * FMath::Clamp(MusicBusVolume, 0.0f, 1.0f) * StageCgVolumeMultiplier;
 }
 
 void UReEchoEncounterTransitionWidget::FailSequence(const TCHAR* Reason)

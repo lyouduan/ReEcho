@@ -71,9 +71,18 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	bDeathBroadcast = false;
 	bHasLastPlayerEchoDamageSource = false;
 	LastPlayerEchoDamageSource = EReEchoDamageSource::Player;
-	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+	// Only a full initialization drops transient stacks. bFillHealth=false is the in-encounter refresh run
+	// after card reactions and kills; clearing stacks there wiped the player's stacked attack-speed runes on
+	// every single kill, while Echoes - which never refresh this way - kept theirs and attacked far faster.
+	// Only a full initialization drops transient stacks. bFillHealth=false is the in-encounter refresh run
+	// after card reactions and kills; clearing stacks there wiped the player's stacked attack-speed runes on
+	// every single kill, while Echoes - which never refresh this way - kept theirs and attacked far faster.
+	if (bFillHealth)
 	{
-		RemoveTransientStatStack(Index);
+		for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+		{
+			RemoveTransientStatStack(Index);
+		}
 	}
 	AdditiveAttackModifiers.Reset();
 	BleedingStacks.Reset();
@@ -108,6 +117,15 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 		return;
 	}
 	Stats = InStats;
+	// Fold retained stacks back in: the block was just rebuilt from authored values, so any stacks that
+	// survived an in-encounter refresh must be re-applied. Ability-system owners instead re-derive these
+	// from the still-live Gameplay Effects during SyncFromAbilitySystem above.
+	for (const FTransientStatStack& Stack : TransientStatStacks)
+	{
+		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
+		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	}
 	CurrentHealth = bFillHealth ? Stats.HpMax : FMath::Min(CurrentHealth, Stats.HpMax);
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(PreviousHealth);
@@ -119,7 +137,7 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
                                                   const EReEchoDamageSource DamageSource)
 {
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (!IsAlive() || Damage <= 0.f)
+	if (bPresentationSuspended || !IsAlive() || Damage <= 0.f)
 	{
 		return 0.f;
 	}
@@ -217,6 +235,51 @@ float UReEchoCombatantComponent::ApplyFinalDamage(const float Damage,
 	HealthChangeReason = NAME_None;
 	HealthChangeAttack = {};
 	return OverhealthDamage + Applied;
+}
+
+void UReEchoCombatantComponent::SetPresentationSuspended(const bool bSuspended)
+{
+	if (bPresentationSuspended == bSuspended)
+	{
+		return;
+	}
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (bSuspended)
+	{
+		PresentationSuspendedAt = Now;
+	}
+	else
+	{
+		const float Delay = FMath::Max(0.0f, Now - PresentationSuspendedAt);
+		auto ShiftActiveDeadline = [this, Delay](float& Deadline)
+		{
+			if (Deadline > PresentationSuspendedAt)
+			{
+				Deadline += Delay;
+			}
+		};
+		ShiftActiveDeadline(StunnedUntilWorldTime);
+		ShiftActiveDeadline(InvulnerableUntilWorldTime);
+		ShiftActiveDeadline(ElementState.ImmunityUntil);
+		for (auto& Status : ElementState.ActiveStatusUntilSeconds)
+		{
+			ShiftActiveDeadline(Status.Value);
+		}
+		if (ElementState.bBurnActive)
+		{
+			ElementState.BurnNextTickTimeSeconds += Delay;
+		}
+		for (FBleedingStack& Stack : BleedingStacks)
+		{
+			ShiftActiveDeadline(Stack.ExpiresAt);
+			Stack.NextTickAt += Delay;
+		}
+		for (FTransientStatStack& Stack : TransientStatStacks)
+		{
+			ShiftActiveDeadline(Stack.ExpiresAt);
+		}
+	}
+	bPresentationSuspended = bSuspended;
 }
 
 void UReEchoCombatantComponent::SetDebugInvulnerable(const bool bEnabled)
@@ -372,11 +435,18 @@ void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
 		Stack.GameplayEffectHandle = ReEchoGameplayEffects::ApplyTransientStatMultiplier(
 		    *BoundAbilitySystem, Stack.AttackSpeedMultiplier, Stack.MovementSpeedMultiplier);
 	}
-	// Keep the raw stat block in sync for BOTH backends. Echoes (no ability system) and the player
-	// (ability-system bound) must both see transient attack/move speed in weapon cadence and movement.
-	// Previously only the no-ability-system fallback mutated Stats, so player attack-speed runes had no effect.
-	Stats.AttackSpeed += Stack.FallbackAttackSpeedDelta;
-	Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	// Only one backend may own Stats.AttackSpeed. When a Gameplay Effect took the stack, the attribute
+	// change callbacks (HandleAttackSpeedChanged / HandleMovementSpeedChanged) already keep Stats
+	// authoritative, so the fallback delta must not be added here as well: doing so double counted on
+	// grant, and on expiry RemoveActiveGameplayEffect restored Stats from the attribute first and then
+	// subtracted the same delta again. Every expired stack therefore drained attack speed from
+	// ability-system owners (the player), while Echoes - which have no ability system - stacked correctly.
+	if (!Stack.GameplayEffectHandle.IsValid())
+	{
+		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
+		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	}
 	RefreshTickState();
 }
 
@@ -460,12 +530,17 @@ void UReEchoCombatantComponent::RemoveTransientStatStack(const int32 Index)
 		return;
 	}
 	const FTransientStatStack Stack = TransientStatStacks[Index];
-	if (BoundAbilitySystem && Stack.GameplayEffectHandle.IsValid())
+	if (Stack.GameplayEffectHandle.IsValid() && BoundAbilitySystem)
 	{
+		// Dropping the effect restores Stats through the attribute change callback. This stack never
+		// wrote its fallback delta into Stats, so subtracting it here too would drain attack speed.
 		BoundAbilitySystem->RemoveActiveGameplayEffect(Stack.GameplayEffectHandle);
 	}
-	Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
-	Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
+	else
+	{
+		Stats.AttackSpeed -= Stack.FallbackAttackSpeedDelta;
+		Stats.MovementSpeed -= Stack.FallbackMovementSpeedDelta;
+	}
 	TransientStatStacks.RemoveAt(Index);
 }
 
@@ -782,6 +857,10 @@ void UReEchoCombatantComponent::TickComponent(const float DeltaTime,
 
 void UReEchoCombatantComponent::AdvanceTimedRuntimeState(const float CurrentTimeSeconds)
 {
+	if (bPresentationSuspended)
+	{
+		return;
+	}
 	if (const float* CursedUntil = ElementState.ActiveStatusUntilSeconds.Find(TEXT("Z_Cursed"));
 	    CursedUntil && CurrentTimeSeconds >= *CursedUntil)
 	{
@@ -869,7 +948,7 @@ void UReEchoCombatantComponent::SyncFromAbilitySystem()
 	Stats.Block = FMath::RoundToInt(Attributes->GetBlock());
 	Stats.PhysicalAttack = Attributes->GetPhysicalAttack();
 	Stats.ElementalAttack = Attributes->GetElementalAttack();
-	Stats.AttackSpeed = Attributes->GetAttackSpeed();
+	Stats.AttackSpeed = FMath::Min(Attributes->GetAttackSpeed(), FReEchoStatBlock::MaxAttackSpeedMultiplier);
 	Stats.MovementSpeed = Attributes->GetMovementSpeed();
 	Stats.EchoEfficiency = Attributes->GetEchoEfficiency();
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
@@ -927,7 +1006,7 @@ void UReEchoCombatantComponent::HandleElementalAttackChanged(const FOnAttributeC
 
 void UReEchoCombatantComponent::HandleAttackSpeedChanged(const FOnAttributeChangeData& Data)
 {
-	Stats.AttackSpeed = Data.NewValue;
+	Stats.AttackSpeed = FMath::Min(Data.NewValue, FReEchoStatBlock::MaxAttackSpeedMultiplier);
 }
 
 void UReEchoCombatantComponent::HandleMovementSpeedChanged(const FOnAttributeChangeData& Data)

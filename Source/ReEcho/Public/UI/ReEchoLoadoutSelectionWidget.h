@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FReEchoLoadoutBackRequested);
 
 /** Blocking first-encounter selection for a data-backed character and initial weapon. */
 UCLASS()
+
 class REECHO_API UReEchoLoadoutSelectionWidget : public UUserWidget
 {
 	GENERATED_BODY()
@@ -48,6 +49,7 @@ private:
 	void BuildOptionEntries();
 	void LoadOptions();
 	void RefreshSelection();
+	void RefreshActionButtons(bool bCanConfirm);
 	void RefreshSelectionArrow();
 	void SetSelectionStage(ESelectionStage NewStage);
 	void SelectCharacter(FName CharacterId);
@@ -76,6 +78,12 @@ private:
 
 	UFUNCTION()
 	void HandleBackClicked();
+
+	UFUNCTION()
+	void HandleBackHovered();
+
+	UFUNCTION()
+	void HandleBackUnhovered();
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;

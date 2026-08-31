@@ -197,6 +197,7 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 
 ### 5.5 Inventory/Shop
 
+- 商店悬停说明及已获得卡牌的“实际效果”附加框统一由 `WBP_ReEchoShopTooltip` 作者化；角色属性浮窗使用 `WBP_ReEchoAttributeTooltip`，每行样式由 `WBP_ReEchoAttributeRow` 持有。三个独立 Designer 均提供示例，运行时只填数据和控制显隐，不覆盖字体、边框和尺寸。具体控件与预览步骤见 [商店浮窗调整指南](ReEcho_商店浮窗调整指南.md)。
 - `InventoryPanel` 与 `ShopPanel` 是同一屏幕的两种展示模式。
 - 商店逻辑固定拆为普通商品、规则/刷新、武器配件购买、装备槽位草稿、回响管理五块；不要再把不同类型的报价合并到同一索引数组。
 - `OfferContainer` 承载 `RunItemOfferPanel`；普通商品按钮由 `ReEchoShopCatalog` 生成。`WeaponPartOfferPanel` 单独承载 `parts.csv` 中兼容当前武器且允许出售的配件。

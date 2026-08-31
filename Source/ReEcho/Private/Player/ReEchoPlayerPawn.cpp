@@ -1,5 +1,7 @@
 #include "Player/ReEchoPlayerPawn.h"
 
+#include "TimerManager.h"
+
 #include "ReEcho.h"
 #include "AbilitySystem/ReEchoPlayerAbilities.h"
 #include "AbilitySystem/ReEchoCombatAttributeSet.h"
@@ -44,6 +46,58 @@
 #include "ReEchoGameMode.h"
 #include "Weapons/ReEchoWeaponActor.h"
 #include "UObject/ConstructorHelpers.h"
+
+bool AReEchoPlayerPawn::BeginBossRepulse(const FVector& Center, const float DistanceCm, const float DurationSeconds)
+{
+	if (!GetWorld() || !IsCombatTargetAlive() || Center.ContainsNaN() || !FMath::IsFinite(DistanceCm) ||
+	    !FMath::IsFinite(DurationSeconds) || DistanceCm <= 0.0f || DurationSeconds <= 0.0f)
+	{
+		return false;
+	}
+	FVector Direction = (GetActorLocation() - Center).GetSafeNormal2D();
+	if (Direction.IsNearlyZero())
+	{
+		Direction = FVector::ForwardVector;
+	}
+	BossRepulseDisplacement = Direction * DistanceCm;
+	BossRepulseDuration = DurationSeconds;
+	BossRepulseElapsed = 0.0f;
+	GetWorldTimerManager().ClearTimer(BossRepulseTimer);
+	BossRepulseTimer = GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoPlayerPawn::TickBossRepulse);
+	return true;
+}
+
+void AReEchoPlayerPawn::TickBossRepulse()
+{
+	AdvanceBossRepulse(GetWorld()->GetDeltaSeconds());
+	if (BossRepulseElapsed < BossRepulseDuration)
+	{
+		BossRepulseTimer = GetWorldTimerManager().SetTimerForNextTick(this, &AReEchoPlayerPawn::TickBossRepulse);
+	}
+}
+
+void AReEchoPlayerPawn::AdvanceBossRepulse(const float DeltaSeconds)
+{
+	if (!IsCombatTargetAlive())
+	{
+		BossRepulseDuration = 0.0f;
+		return;
+	}
+	if (DeltaSeconds <= 0.0f || BossRepulseDuration <= 0.0f || BossRepulseElapsed >= BossRepulseDuration)
+	{
+		return;
+	}
+	const float Before = BossRepulseElapsed / BossRepulseDuration;
+	BossRepulseElapsed = FMath::Min(BossRepulseDuration, BossRepulseElapsed + DeltaSeconds);
+	const float After = BossRepulseElapsed / BossRepulseDuration;
+	FHitResult Hit;
+	AddActorWorldOffset(
+	    BossRepulseDisplacement * (FMath::Square(1.0f - Before) - FMath::Square(1.0f - After)), true, &Hit);
+	if (Hit.bBlockingHit)
+	{
+		BossRepulseElapsed = BossRepulseDuration;
+	}
+}
 
 AReEchoPlayerPawn::AReEchoPlayerPawn()
 {
@@ -933,7 +987,7 @@ bool AReEchoPlayerPawn::ExecuteBasicAttackAbility()
 	const bool bAttacked = Weapon && Weapon->TryBasicAttack(Combatant);
 	if (bAttacked)
 	{
-		StartAttackVisual(0.18f, 16.0f);
+		StartAttackVisual(0.18f, 16.0f, Weapon->GetAttackCooldownRemaining());
 	}
 	return bAttacked;
 }
@@ -1045,7 +1099,7 @@ bool AReEchoPlayerPawn::ExecuteActiveAttackAbility()
 		return false;
 	}
 
-	StartAttackVisual(0.28f, 24.0f);
+	StartAttackVisual(0.28f, 24.0f, 0.0f);
 	OnActiveSkill.Broadcast(GetActorLocation(), Weapon->GetEquippedWeaponId());
 	return true;
 }
@@ -1060,15 +1114,32 @@ bool AReEchoPlayerPawn::IsWeaponInvulnerable() const
 	return Weapon && Weapon->IsInvulnerableWindowActive();
 }
 
-void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Strength)
+float AReEchoPlayerPawn::ResolveAttackAnimationPlayRate(const float ClipSeconds,
+                                                        const float AuthoredPlayRate,
+                                                        const float AttackWindowSeconds)
+{
+	const float SafeAuthoredRate = FMath::Max(0.01f, AuthoredPlayRate);
+	if (ClipSeconds <= KINDA_SMALL_NUMBER || AttackWindowSeconds <= KINDA_SMALL_NUMBER)
+	{
+		return SafeAuthoredRate;
+	}
+	return FMath::Max(SafeAuthoredRate, ClipSeconds / AttackWindowSeconds);
+}
+
+void AReEchoPlayerPawn::StartAttackVisual(const float Duration, const float Strength, const float PlaybackWindowSeconds)
 {
 	AttackVisualDuration = Duration;
 	AttackVisualRemaining = Duration;
 	AttackVisualStrength = Strength;
 	if (PresentationController)
 	{
-		PresentationController->PlayAction(
-		    ReEcho2DAnimationTags::Attack_Basic, true, NextPresentationAttackInstanceId++);
+		if (PresentationController->PlayAction(
+		        ReEcho2DAnimationTags::Attack_Basic, true, NextPresentationAttackInstanceId++) &&
+		    SequenceAnimation)
+		{
+			SequenceAnimation->SetPlayRate(ResolveAttackAnimationPlayRate(
+			    SequenceAnimation->GetFlipbookLength(), SequenceAnimation->GetPlayRate(), PlaybackWindowSeconds));
+		}
 	}
 }
 
@@ -1214,6 +1285,8 @@ void AReEchoPlayerPawn::RefreshGroundShadowFromFlipbook()
 
 void AReEchoPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	GetWorldTimerManager().ClearTimer(BossRepulseTimer);
+	BossRepulseDuration = 0.0f;
 	RestorePawnCollisionAfterHurt();
 	if (CombatEvents)
 	{

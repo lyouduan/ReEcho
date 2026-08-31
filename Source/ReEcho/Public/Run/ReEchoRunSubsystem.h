@@ -146,6 +146,8 @@ public:
 	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
 	/** Read-only owned-card presentation shared by the shop and terminal result screens. */
 	TArray<FReEchoShopOffer> GetOwnedBuildCardView() const;
+	/** True when the current build owns any card authored in the EasterEgg offer group. */
+	bool HasOwnedEasterEggCard() const;
 	FReEchoWeaponPartShopView GetWeaponPartShopView();
 	/** Cash minus Curse Bank debt; presentation-only and never used for purchase authority. */
 	int32 GetDisplayedTimeShardBalance() const;
@@ -207,6 +209,9 @@ public:
 	bool DebugGrantCard(FName CardId);
 
 	FReEchoCardRuleSnapshot GetCardRules() const;
+	/** Enables the hidden Phase3 final-stat multiplier once without changing canonical equipment-base stats. */
+	bool ActivateBossPhase3FinalStatMultiplier();
+	static void ApplyBossPhase3FinalStatMultiplier(FReEchoStatBlock& Stats);
 	FReEchoCardEncounterTickResult AdvanceCardEncounter(float EncounterTimeSeconds);
 	void ModifyCardOutgoingHit(FReEchoHitIntent& Intent,
 	                           const FReEchoStatBlock& SourceStats,

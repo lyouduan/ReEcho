@@ -72,6 +72,44 @@ FReEchoEnemyDefinition MakeBossTestDefinition()
 	return Definition;
 }
 
+FReEchoEnemyDefinition MakePhase3BossTestDefinition()
+{
+	FReEchoEnemyDefinition Definition = MakeBossTestDefinition();
+	for (FReEchoEnemyAbilityDefinition& Ability : Definition.Abilities)
+	{
+		Ability.MaxPhaseIndex = 2;
+	}
+	FReEchoEnemyAbilityDefinition* Skill03 = Definition.Abilities.FindByPredicate(
+	    [](const FReEchoEnemyAbilityDefinition& Ability)
+	    {
+		    return Ability.Id == TEXT("A_Blink");
+	    });
+	if (Skill03)
+	{
+		Skill03->MaxPhaseIndex = 3;
+		Skill03->ComboMin = 1;
+		Skill03->ComboMax = 3;
+	}
+	Definition.Phase2.Id = TEXT("M_SHEEP_PHASE2_TRANSITION");
+	Definition.Phase2.TriggerMode = EReEchoEnemyPhase2TriggerMode::HealthThreshold;
+	Definition.Phase2.HealthThresholdRatio = 0.0f;
+	Definition.Phase2.bEnabled = true;
+	FReEchoBossPhaseDefinition Phase2;
+	Phase2.Id = TEXT("M_SHEEP_Phase2");
+	Phase2.PhaseIndex = 2;
+	Phase2.bEnabled = true;
+	Definition.BossPhases.Add(Phase2);
+	FReEchoBossPhaseDefinition Phase3;
+	Phase3.Id = TEXT("M_SHEEP_Phase3");
+	Phase3.PhaseIndex = 3;
+	Phase3.TriggerSeconds = 15.0f;
+	Phase3.RefillHealthPolicy = EReEchoBossRefillHealthPolicy::RefillToMaximum;
+	Phase3.PhaseMaxHealth = 500.0f;
+	Phase3.bEnabled = true;
+	Definition.BossPhases.Add(Phase3);
+	return Definition;
+}
+
 const FReEchoBossIntent* FindBossIntent(const FReEchoEnemyActionIntent& Intent,
                                         const EReEchoBossIntentType Type,
                                         const FName AbilityId = NAME_None)
@@ -286,14 +324,12 @@ bool FReEchoEnemyHurtAndSnapshotTest::RunTest(const FString& Parameters)
 
 	const FReEchoEnemyLogicSnapshot Hurt = Logic->GetSnapshot();
 	TestEqual(TEXT("Hurt starts gameplay reaction"), Hurt.Phase, EReEchoEnemyBehaviorPhase::HitReaction);
-	TestEqual(TEXT("Knockback points away from source"), Hurt.KnockbackVelocity, FVector(360.0f, 0.0f, 0.0f));
+	TestTrue(TEXT("Hurt stores no gameplay knockback velocity"), Hurt.KnockbackVelocity.IsNearlyZero());
 
 	FReEchoEnemySenseSnapshot NoTarget;
 	const FReEchoEnemyActionIntent Reaction = Logic->Advance(NoTarget, 0.1f);
-	TestTrue(TEXT("Reaction produces world movement intent"), Reaction.bHasMovement);
-	TestEqual(TEXT("First reaction movement uses authoritative velocity"),
-	          Reaction.MovementDelta,
-	          FVector(36.0f, 0.0f, 0.0f));
+	TestFalse(TEXT("Reaction blocks all Actor movement intent"), Reaction.bHasMovement);
+	TestTrue(TEXT("Reaction movement delta remains zero"), Reaction.MovementDelta.IsNearlyZero());
 
 	FReEchoEnemyLogicSnapshot Saved = Logic->GetSnapshot();
 	Saved.AttackCooldownRemainingSeconds = 0.75f;
@@ -746,6 +782,42 @@ bool FReEchoEnemySpecialBehaviorsTest::RunTest(const FString& Parameters)
 	         LegacyRestore->GetSnapshot().bSpecialDamageConsumed);
 	TestFalse(TEXT("Missing new Active fields emit no dash movement"),
 	          LegacyRestore->Advance(Sense, 0.01f).bHasMovement);
+
+	UReEchoEnemyLogicComponent* HurtEliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Hit reaction Elite target initializes"), HurtEliteLogic->Initialize(Elite, 3));
+	HurtEliteLogic->Advance(Sense, 0.01f);
+	HurtEliteLogic->Advance(Sense, Dash.WindupSeconds + 0.01f);
+	TestEqual(TEXT("Hit reaction setup reaches Fox dash Active"),
+	          HurtEliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::Active);
+	HurtEliteLogic->NotifyHurt(5.0f, FVector(-100.0f, 0.0f, 0.0f), FVector::ZeroVector);
+	TestEqual(TEXT("Hurt cancels the active Fox dash immediately"),
+	          HurtEliteLogic->GetSnapshot().SpecialActionPhase,
+	          EReEchoEnemySpecialActionPhase::None);
+	const FReEchoEnemyActionIntent HurtStep = HurtEliteLogic->Advance(Sense, 1.0f);
+	TestEqual(TEXT("Fox hurt owns behavior priority for its complete reaction"),
+	          HurtEliteLogic->GetSnapshot().Phase,
+	          EReEchoEnemyBehaviorPhase::HitReaction);
+	TestFalse(TEXT("Fox hurt movement is never tagged as residual dash movement"), HurtStep.bSpecialDashMovement);
+	TestFalse(TEXT("Fox hurt blocks all Actor movement during the Hit cycle"), HurtStep.bHasMovement);
+	TestTrue(TEXT("Fox hurt emits no passive knockback delta"), HurtStep.MovementDelta.IsNearlyZero());
+	TestEqual(TEXT("Oversized hurt step consumes only the authored Hit duration"),
+	          HurtEliteLogic->GetSnapshot().HitReactionRemainingSeconds,
+	          0.0f);
+	TestTrue(TEXT("Completed Fox hurt clears residual knockback velocity"),
+	         HurtEliteLogic->GetSnapshot().KnockbackVelocity.IsNearlyZero());
+
+	FReEchoEnemyLogicSnapshot LegacyHurt = HurtEliteLogic->GetSnapshot();
+	LegacyHurt.Phase = EReEchoEnemyBehaviorPhase::HitReaction;
+	LegacyHurt.HitReactionRemainingSeconds = Elite.HitReactionDurationSeconds;
+	LegacyHurt.KnockbackVelocity = FVector(360.0f, 0.0f, 0.0f);
+	UReEchoEnemyLogicComponent* RestoredHurtEliteLogic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Legacy hurt restore target initializes"), RestoredHurtEliteLogic->Initialize(Elite, 4));
+	RestoredHurtEliteLogic->RestoreSnapshot(LegacyHurt);
+	TestTrue(TEXT("Legacy hurt snapshot cannot restore movement velocity"),
+	         RestoredHurtEliteLogic->GetSnapshot().KnockbackVelocity.IsNearlyZero());
+	TestFalse(TEXT("Restored legacy hurt remains movement locked"),
+	          RestoredHurtEliteLogic->Advance(Sense, 0.01f).bHasMovement);
 	return true;
 }
 
@@ -918,11 +990,17 @@ bool FReEchoEnemyBornMovementPermitTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Born gate prevents Boss ability windup"),
 	          BossLogic->GetSnapshot().BossActionPhase,
 	          EReEchoBossActionPhase::None);
-	TestTrue(TEXT("Boss encounter timer continues during Born"),
-	         BossLogic->GetSnapshot().BossEncounterElapsedSeconds > 0.0f);
+	TestEqual(TEXT("Born presentation does not consume the Boss fast-kill window"),
+	          BossLogic->GetSnapshot().BossEncounterElapsedSeconds,
+	          0.0f);
 	AttackSense.bAttackPermitted = true;
 	BossLogic->Advance(AttackSense, 0.02f);
 	const FReEchoEnemyActionIntent ReleasedBoss = BossLogic->Advance(AttackSense, 0.06f);
+	TestTrue(TEXT("Boss encounter timer counts only the eligible post-Born steps"),
+	         FMath::IsNearlyEqual(BossLogic->GetSnapshot().BossEncounterElapsedSeconds, 4.0f / 60.0f));
+	TestTrue(TEXT("Post-Born substep remainder stays in the fixed-step accumulator"),
+	         FMath::IsNearlyEqual(
+	             BossLogic->GetSnapshot().BossSimulationAccumulatorSeconds, 0.08f - 4.0f / 60.0f, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Boss attack commits after the first eligible post-Born windup"), ReleasedBoss.bAttackCommitted);
 	TestNotNull(TEXT("Post-Born Boss attack exposes its attack window"),
 	            FindBossIntent(ReleasedBoss, EReEchoBossIntentType::AttackWindowStarted));
@@ -1101,6 +1179,167 @@ bool FReEchoEnemyRangedAbilityRotationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Third action wraps back to moving spread"),
 	          RestoredLogic->GetSnapshot().SpecialAbilityId,
 	          MovingSpread.Id);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossPhase3FatalWindowTest,
+                                 "ReEcho.Enemies.Boss.Phase3.FatalWindow",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossPhase3FatalWindowTest::RunTest(const FString& Parameters)
+{
+	const FReEchoEnemyDefinition Definition = MakePhase3BossTestDefinition();
+	{
+		UReEchoEnemyLogicComponent* Cumulative = NewObject<UReEchoEnemyLogicComponent>();
+		TestTrue(TEXT("Cumulative Phase3 timer boss initializes"), Cumulative->Initialize(Definition, 19));
+		FReEchoEnemySenseSnapshot Sense;
+		Sense.bAttackPermitted = false;
+		Cumulative->Advance(Sense, 2.0f);
+		TestEqual(TEXT("Born presentation does not consume the Phase3 fast-kill window"),
+		          Cumulative->GetSnapshot().BossEncounterElapsedSeconds,
+		          0.0f);
+		Sense.bAttackPermitted = true;
+		Cumulative->Advance(Sense, 7.0f);
+		FReEchoEnemyActionIntent Phase2Intent;
+		TestTrue(TEXT("First fatal wound enters Phase2 without resetting cumulative time"),
+		         Cumulative->DebugForceBossPhase(2, Phase2Intent));
+		Cumulative->Advance(Sense, 7.9f);
+		TestTrue(TEXT("Killing Phase1 and Phase2 within 15 cumulative seconds enters Phase3"),
+		         Cumulative->TryTriggerPhase3OnFatalWound(Phase2Intent));
+	}
+	for (const float Seconds : {14.9f, 15.0f})
+	{
+		UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+		TestTrue(TEXT("Phase3 boss initializes"), Logic->Initialize(Definition, 20));
+		FReEchoEnemyActionIntent Phase2Intent;
+		TestTrue(TEXT("Debug enters Phase2"), Logic->DebugForceBossPhase(2, Phase2Intent));
+		TestTrue(TEXT("Debug timer accepts boundary sample"), Logic->DebugSetBossEncounterElapsedSeconds(Seconds));
+		FReEchoEnemyActionIntent Phase3Intent;
+		TestTrue(TEXT("Fatal wound inside the deadline enters Phase3"),
+		         Logic->TryTriggerPhase3OnFatalWound(Phase3Intent));
+		TestEqual(TEXT("Phase3 transition exposes its target phase"), Phase3Intent.PhaseDefinition.PhaseIndex, 3);
+		TestEqual(TEXT("Phase3 transition exposes refill health"), Phase3Intent.PhaseDefinition.PhaseMaxHealth, 500.0f);
+		TestEqual(TEXT("Phase3 is immediately authoritative"), Logic->GetSnapshot().CurrentPhaseIndex, 3);
+		TestFalse(TEXT("A Phase3 fatal wound is never intercepted again"),
+		          Logic->TryTriggerPhase3OnFatalWound(Phase3Intent));
+	}
+
+	UReEchoEnemyLogicComponent* Late = NewObject<UReEchoEnemyLogicComponent>();
+	Late->Initialize(Definition, 21);
+	FReEchoEnemyActionIntent Intent;
+	Late->DebugForceBossPhase(2, Intent);
+	Late->DebugSetBossEncounterElapsedSeconds(15.1f);
+	TestFalse(TEXT("Fatal wound after the deadline remains a real death"), Late->TryTriggerPhase3OnFatalWound(Intent));
+	TestEqual(TEXT("Late failure leaves Phase2 unchanged"), Late->GetSnapshot().CurrentPhaseIndex, 2);
+
+	UReEchoEnemyLogicComponent* EasterCard = NewObject<UReEchoEnemyLogicComponent>();
+	EasterCard->Initialize(Definition, 23);
+	EasterCard->DebugForceBossPhase(2, Intent);
+	EasterCard->DebugSetBossEncounterElapsedSeconds(60.0f);
+	TestTrue(TEXT("Owning an Easter card enters Phase3 after the fast-kill deadline"),
+	         EasterCard->TryTriggerPhase3OnFatalWound(Intent, true));
+	TestEqual(TEXT("Easter-card trigger makes Phase3 authoritative"), EasterCard->GetSnapshot().CurrentPhaseIndex, 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossPhase3Skill03SnapshotTest,
+                                 "ReEcho.Enemies.Boss.Phase3.Skill03Snapshot",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossPhase3Skill03SnapshotTest::RunTest(const FString& Parameters)
+{
+	const FReEchoEnemyDefinition Definition = MakePhase3BossTestDefinition();
+	UReEchoEnemyLogicComponent* PhaseOne = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Phase1 comparison initializes"), PhaseOne->Initialize(Definition, 22));
+	TestTrue(TEXT("Phase1 can queue the existing Skill03"), PhaseOne->DebugQueueBossAbility(TEXT("A_Blink"), 3));
+	FReEchoEnemySenseSnapshot PhaseOneSense;
+	PhaseOneSense.bTargetExists = true;
+	PhaseOneSense.bTargetAlive = true;
+	PhaseOneSense.bHasTeleportDestination = true;
+	PhaseOneSense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	PhaseOneSense.TeleportDestination = PhaseOneSense.TargetLocation;
+	PhaseOne->Advance(PhaseOneSense, 1.0f / 60.0f);
+	TestEqual(TEXT("Phase1 Skill03 remains a single strike"), PhaseOne->GetSnapshot().BossComboStrikeCount, 0);
+
+	UReEchoEnemyLogicComponent* Original = NewObject<UReEchoEnemyLogicComponent>();
+	UReEchoEnemyLogicComponent* Restored = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Original initializes"), Original->Initialize(Definition, 22));
+	TestTrue(TEXT("Restore target initializes"), Restored->Initialize(Definition, 22));
+	FReEchoEnemyActionIntent PhaseIntent;
+	Original->DebugForceBossPhase(3, PhaseIntent);
+	TestFalse(TEXT("Phase3 rejects every other Phase1/2 ability"), Original->DebugQueueBossAbility(TEXT("A_Melee")));
+	TestTrue(TEXT("Phase3 reuses Skill03 with a forced test count"),
+	         Original->DebugQueueBossAbility(TEXT("A_Blink"), 3));
+
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.bHasTeleportDestination = true;
+	Sense.TargetLocation = FVector(100.0f, 0.0f, 0.0f);
+	Sense.TeleportDestination = FVector(100.0f, 0.0f, 0.0f);
+	const FReEchoEnemyActionIntent Telegraph = Original->Advance(Sense, 1.0f / 60.0f);
+	const FReEchoBossIntent* FirstTelegraph =
+	    FindBossIntent(Telegraph, EReEchoBossIntentType::TelegraphStarted, TEXT("A_Blink"));
+	TestNotNull(TEXT("Skill03 begins with its normal telegraph"), FirstTelegraph);
+	TestEqual(TEXT("Phase3 Skill03 exposes the forced combo count"), Original->GetSnapshot().BossComboStrikeCount, 3);
+	Original->Advance(Sense, 0.05f);
+	const FReEchoEnemyLogicSnapshot Saved = Original->GetSnapshot();
+	Restored->RestoreSnapshot(Saved);
+
+	Sense.TargetLocation = FVector(250.0f, 50.0f, 0.0f);
+	Sense.TeleportDestination = Sense.TargetLocation;
+	const FReEchoEnemyActionIntent OriginalSecondTelegraph = Original->Advance(Sense, 0.05f);
+	const FReEchoEnemyActionIntent RestoredSecondTelegraph = Restored->Advance(Sense, 0.05f);
+	const FReEchoBossIntent* OriginalSecond =
+	    FindBossIntent(OriginalSecondTelegraph, EReEchoBossIntentType::TelegraphStarted, TEXT("A_Blink"));
+	const FReEchoBossIntent* RestoredSecond =
+	    FindBossIntent(RestoredSecondTelegraph, EReEchoBossIntentType::TelegraphStarted, TEXT("A_Blink"));
+	TestNotNull(TEXT("Second Skill03 strike gets a new telegraph"), OriginalSecond);
+	TestNotNull(TEXT("Restored Skill03 combo gets the same second telegraph"), RestoredSecond);
+	if (OriginalSecond && RestoredSecond)
+	{
+		TestEqual(TEXT("Each Skill03 strike re-locks the current target"),
+		          OriginalSecond->LockedTargetLocation,
+		          Sense.TargetLocation);
+		TestEqual(TEXT("Restore preserves the strike identity"),
+		          RestoredSecond->Attack.Sequence,
+		          OriginalSecond->Attack.Sequence);
+		TestEqual(TEXT("Restore preserves Skill03 combo index"), RestoredSecond->ComboStrikeIndex, 2);
+		TestEqual(TEXT("Restore preserves Skill03 combo count"), RestoredSecond->ComboStrikeCount, 3);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCinematicPhase2PersistenceTest,
+                                 "ReEcho.Enemies.Logic.CinematicPhase2Persistence",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCinematicPhase2PersistenceTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyDefinition Definition = MakeBossTestDefinition();
+	Definition.Archetype = EReEchoEnemyArchetype::Grunt;
+	Definition.Phase2.bEnabled = true;
+	Definition.Phase2.Id = TEXT("Phase2");
+	Definition.Phase2.TriggerRangeCm = 100.0f;
+	Definition.Phase2.TransformSeconds = 1.0f;
+	UReEchoEnemyLogicComponent* Logic = NewObject<UReEchoEnemyLogicComponent>();
+	TestTrue(TEXT("Initialize ordinary enemy"), Logic->Initialize(Definition, 7));
+	FReEchoEnemyActionIntent Intent;
+	TestTrue(TEXT("Landing commits phase2"), Logic->CompleteCinematicPhase2(Intent));
+	TestTrue(TEXT("Only completion is published, no repeated transform"),
+	         Intent.bPhaseTransitionCompleted && !Intent.bPhaseTransitionStarted);
+	TestEqual(TEXT("Persistent phase is two"), Logic->GetSnapshot().CurrentPhaseIndex, 2);
+	TestTrue(TEXT("Automatic trigger consumed"), Logic->GetSnapshot().bPhase2Triggered);
+	TestTrue(TEXT("Repeated commit is harmless"), Logic->CompleteCinematicPhase2(Intent));
+	TestFalse(TEXT("Repeated landing does not re-publish completion"), Intent.bPhaseTransitionCompleted);
+	UReEchoEnemyLogicComponent* Restored = NewObject<UReEchoEnemyLogicComponent>();
+	Restored->Initialize(Definition, 7);
+	Restored->RestoreSnapshot(Logic->GetSnapshot());
+	FReEchoEnemySenseSnapshot Sense;
+	Restored->Advance(Sense, 0.1f);
+	TestEqual(TEXT("Save restore and resumed logic retain phase2"), Restored->GetSnapshot().CurrentPhaseIndex, 2);
+	Logic->NotifyDeath();
+	TestFalse(TEXT("Dead enemies cannot be transformed or revived"), Logic->CompleteCinematicPhase2(Intent));
 	return true;
 }
 

@@ -97,6 +97,14 @@ public:
 	void SetDebugInvulnerable(bool bEnabled);
 	bool IsDebugInvulnerable() const;
 
+	/** Transient encounter presentation gate; unlike GMGod, suppresses hit feedback and damage. */
+	void SetPresentationSuspended(bool bSuspended);
+
+	bool IsPresentationSuspended() const
+	{
+		return bPresentationSuspended;
+	}
+
 	void BindToAbilitySystem(UAbilitySystemComponent* InAbilitySystem);
 	UAbilitySystemComponent* GetBoundAbilitySystem() const;
 	UFUNCTION(BlueprintPure)
@@ -172,6 +180,8 @@ private:
 
 	bool bDeathBroadcast = false;
 	bool bDebugInvulnerable = false;
+	bool bPresentationSuspended = false;
+	float PresentationSuspendedAt = 0.0f;
 	bool bCursedImmune = false;
 	bool bStunImmune = false;
 	bool bHasLastPlayerEchoDamageSource = false;

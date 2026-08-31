@@ -37,6 +37,17 @@ public:
 FReEchoHitResolved ReEchoHitResolver::ResolvePhysicalHit(const FReEchoHitIntent& Intent)
 {
 	FReEchoHitIntent Candidate = Intent;
+	const IReEchoCombatTarget* PresentationTarget = Cast<IReEchoCombatTarget>(Candidate.Target);
+	const UReEchoCombatantComponent* PresentationCombatant =
+	    PresentationTarget ? PresentationTarget->GetCombatTargetCombatant() : nullptr;
+	if (PresentationCombatant && PresentationCombatant->IsPresentationSuspended())
+	{
+		FReEchoHitResolved Blocked;
+		Blocked.Attack = Candidate.Attack;
+		Blocked.Target = Candidate.Target;
+		Blocked.bBlocked = true;
+		return Blocked;
+	}
 #if !UE_BUILD_SHIPPING
 	const bool bTraceRangedWeapon = IsRangedWeaponTrace(Candidate.Attack);
 	const bool bTraceEnemyDamage = IsEnemyDamageTrace(Candidate.Target);

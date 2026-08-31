@@ -9,6 +9,7 @@
 #include "Components/Image.h"
 #include "Components/ScaleBoxSlot.h"
 #include "Components/SizeBox.h"
+#include "Components/TextBlock.h"
 #include "Components/WidgetSwitcher.h"
 #include "Engine/Texture2D.h"
 #include "UI/ReEchoLoadoutEntryWidget.h"
@@ -28,12 +29,38 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 	}
 
 	Widget->CharacterOptionIds = {FName(TEXT("J_HEART")), FName(TEXT("J_SPADE"))};
+	Widget->ConfirmButton = NewObject<UButton>(Widget);
+	Widget->BackButton = NewObject<UButton>(Widget);
+	Widget->ConfirmButtonLabel = NewObject<UTextBlock>(Widget);
+	Widget->BackButtonLabel = NewObject<UTextBlock>(Widget);
+	Widget->RefreshSelection();
+	TestEqual(TEXT("Confirm remains visible without a character"),
+	          Widget->ConfirmButton->GetVisibility(),
+	          ESlateVisibility::Visible);
+	TestEqual(TEXT("Confirm label remains visible without a character"),
+	          Widget->ConfirmButtonLabel->GetVisibility(),
+	          ESlateVisibility::HitTestInvisible);
+	TestFalse(TEXT("Confirm is disabled without a character"), Widget->ConfirmButton->GetIsEnabled());
+	TestFalse(TEXT("Confirm's sibling label also uses disabled appearance"),
+	          Widget->ConfirmButtonLabel->GetIsEnabled());
+	TestTrue(TEXT("Back remains usable before selecting anything"), Widget->BackButton->GetIsEnabled());
+	TestFalse(TEXT("Idle Back label uses gray appearance"), Widget->BackButtonLabel->GetIsEnabled());
+	Widget->HandleBackHovered();
+	TestTrue(TEXT("Hovered Back label lights up"), Widget->BackButtonLabel->GetIsEnabled());
+	Widget->HandleBackUnhovered();
+	TestFalse(TEXT("Back label dims on mouse leave"), Widget->BackButtonLabel->GetIsEnabled());
+	Widget->HandleConfirmClicked();
+	TestTrue(TEXT("An empty confirmation cannot advance the stage"),
+	         Widget->SelectionStage == UReEchoLoadoutSelectionWidget::ESelectionStage::Character);
 	Widget->HandleCharacterHovered(0);
 	TestTrue(TEXT("Mouse hover does not select a character before a click"), Widget->SelectedCharacterId.IsNone());
+	TestFalse(TEXT("Hover alone cannot enable Confirm"), Widget->ConfirmButton->GetIsEnabled());
 	TestFalse(TEXT("Mouse hover delegates description placement to the native tooltip"),
 	          Widget->bShowAnchoredDescription);
 	Widget->HandleCharacterClicked(0);
 	TestEqual(TEXT("Mouse click selects the matching character"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
+	TestTrue(TEXT("A clicked character enables Confirm"), Widget->ConfirmButton->GetIsEnabled());
+	TestTrue(TEXT("A clicked character lights Confirm label"), Widget->ConfirmButtonLabel->GetIsEnabled());
 	Widget->HandleCharacterHovered(1);
 	TestEqual(TEXT("Hovering another character preserves the clicked character"),
 	          Widget->SelectedCharacterId,
@@ -56,6 +83,11 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 	TestEqual(
 	    TEXT("Character selection survives the stage change"), Widget->SelectedCharacterId, FName(TEXT("J_HEART")));
 	TestTrue(TEXT("Weapon preview is reset when weapon selection begins"), Widget->SelectedWeaponId.IsNone());
+	TestEqual(TEXT("Confirm remains visible without a weapon"),
+	          Widget->ConfirmButton->GetVisibility(),
+	          ESlateVisibility::Visible);
+	TestFalse(TEXT("Confirm is disabled until a weapon is clicked"), Widget->ConfirmButton->GetIsEnabled());
+	TestTrue(TEXT("Back stays usable without a weapon"), Widget->BackButton->GetIsEnabled());
 	TestFalse(TEXT("First confirmation does not submit a final loadout"), Widget->bFinalConfirmationBroadcast);
 
 	Widget->WeaponOptionIds = {FName(TEXT("W_J_04")), FName(TEXT("W_J_09"))};
@@ -89,6 +121,11 @@ bool FReEchoLoadoutSelectionFlowTest::RunTest(const FString& Parameters)
 
 	Widget->HandleConfirmClicked();
 	TestTrue(TEXT("Repeated confirmation remains guarded after submission"), Widget->bFinalConfirmationBroadcast);
+	Widget->RefreshSelection();
+	TestFalse(TEXT("Refresh cannot re-enable confirmation after submission"), Widget->ConfirmButton->GetIsEnabled());
+	TestFalse(TEXT("Back is guarded once the final loadout was submitted"), Widget->BackButton->GetIsEnabled());
+	Widget->HandleBackHovered();
+	TestFalse(TEXT("A disabled Back cannot light up on hover"), Widget->BackButtonLabel->GetIsEnabled());
 	return true;
 }
 
@@ -132,8 +169,7 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		TestTrue(TEXT("Standalone Entry initializes its Designer tree"), StandaloneEntry->Initialize());
 		TestTrue(TEXT("Standalone Entry uses a content-sized Designer preview"),
 		         StandaloneEntry->HasDesiredDesignerPreview());
-		UImage* StandaloneArrow =
-		    Cast<UImage>(StandaloneEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")));
+		UImage* StandaloneArrow = Cast<UImage>(StandaloneEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")));
 		TestNotNull(TEXT("Standalone Entry exposes the selection arrow in Designer"), StandaloneArrow);
 		if (StandaloneArrow)
 		{
@@ -169,6 +205,12 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			         IsFormalButtonBrush(BackStyle.Pressed));
 			TestTrue(TEXT("Confirm normal Brush remains in the formal button family"),
 			         IsFormalButtonBrush(ConfirmStyle.Normal));
+			TestTrue(TEXT("Back art is dim idle and bright hovered"),
+			         BackStyle.Normal.TintColor.GetSpecifiedColor().R <
+			             BackStyle.Hovered.TintColor.GetSpecifiedColor().R);
+			TestTrue(TEXT("Confirm has dim disabled artwork"),
+			         ConfirmStyle.Disabled.TintColor.GetSpecifiedColor().R <
+			             ConfirmStyle.Normal.TintColor.GetSpecifiedColor().R);
 			TestEqual(TEXT("Back remains visible before a candidate is selected"),
 			          AuthoredWidget->BackButton->GetVisibility(),
 			          ESlateVisibility::Visible);
@@ -184,8 +226,8 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 				const FVector2D ConfirmSize = ConfirmSlot->GetSize();
 				TestTrue(TEXT("Back keeps a positive authored size"), BackSize.X > 0.0f && BackSize.Y > 0.0f);
 				TestTrue(TEXT("Back stays inside the 1920x1080 authored surface"),
-				         BackPosition.X >= 0.0f && BackPosition.Y >= 0.0f &&
-				             BackPosition.X + BackSize.X <= 1920.0f && BackPosition.Y + BackSize.Y <= 1080.0f);
+				         BackPosition.X >= 0.0f && BackPosition.Y >= 0.0f && BackPosition.X + BackSize.X <= 1920.0f &&
+				             BackPosition.Y + BackSize.Y <= 1080.0f);
 				const bool bButtonsOverlap = BackPosition.X < ConfirmPosition.X + ConfirmSize.X &&
 				                             BackPosition.X + BackSize.X > ConfirmPosition.X &&
 				                             BackPosition.Y < ConfirmPosition.Y + ConfirmSize.Y &&
@@ -196,9 +238,8 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 		TestNotNull(TEXT("Designer tree owns the stage switcher"), AuthoredWidget->StageSwitcher.Get());
 		if (AuthoredWidget->StageSwitcher)
 		{
-			TestEqual(TEXT("Stage switcher owns both authored pages"),
-			          AuthoredWidget->StageSwitcher->GetNumWidgets(),
-			          2);
+			TestEqual(
+			    TEXT("Stage switcher owns both authored pages"), AuthoredWidget->StageSwitcher->GetNumWidgets(), 2);
 			TestTrue(TEXT("Character page remains the first Designer page"),
 			         AuthoredWidget->StageSwitcher->GetWidgetAtIndex(0) == AuthoredWidget->CharacterStagePanel);
 			TestTrue(TEXT("Weapon page remains the second Designer page"),
@@ -215,17 +256,14 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			TestEqual(TEXT("Designer tree owns four weapon entries"), AuthoredWidget->WeaponRow->GetChildrenCount(), 4);
 			UWidget* FirstAuthoredCharacter = AuthoredWidget->CharacterRow->GetChildAt(0);
 			UWidget* FirstAuthoredWeapon = AuthoredWidget->WeaponRow->GetChildAt(0);
-			UReEchoLoadoutEntryWidget* FirstCharacterEntry =
-			    Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredCharacter);
+			UReEchoLoadoutEntryWidget* FirstCharacterEntry = Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredCharacter);
 			UReEchoLoadoutEntryWidget* FirstWeaponEntry = Cast<UReEchoLoadoutEntryWidget>(FirstAuthoredWeapon);
-			USizeBox* CharacterRootSize = FirstCharacterEntry
-			                                  ? Cast<USizeBox>(FirstCharacterEntry->GetWidgetFromName(
-			                                        TEXT("EntryRootSizeBox")))
-			                                  : nullptr;
-			USizeBox* CharacterPortraitSize = FirstCharacterEntry
-			                                      ? Cast<USizeBox>(FirstCharacterEntry->GetWidgetFromName(
-			                                            TEXT("PortraitSize")))
-			                                      : nullptr;
+			USizeBox* CharacterRootSize =
+			    FirstCharacterEntry ? Cast<USizeBox>(FirstCharacterEntry->GetWidgetFromName(TEXT("EntryRootSizeBox")))
+			                        : nullptr;
+			USizeBox* CharacterPortraitSize =
+			    FirstCharacterEntry ? Cast<USizeBox>(FirstCharacterEntry->GetWidgetFromName(TEXT("PortraitSize")))
+			                        : nullptr;
 			const float AuthoredRootHeight = CharacterRootSize ? CharacterRootSize->GetHeightOverride() : 0.0f;
 			const float AuthoredPortraitHeight =
 			    CharacterPortraitSize ? CharacterPortraitSize->GetHeightOverride() : 0.0f;
@@ -249,9 +287,9 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 				          CharacterPortraitSize->GetHeightOverride(),
 				          AuthoredPortraitHeight);
 			}
-			UImage* CharacterArrow = FirstCharacterEntry
-			                             ? Cast<UImage>(FirstCharacterEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")))
-			                             : nullptr;
+			UImage* CharacterArrow =
+			    FirstCharacterEntry ? Cast<UImage>(FirstCharacterEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")))
+			                        : nullptr;
 			UImage* WeaponArrow = FirstWeaponEntry
 			                          ? Cast<UImage>(FirstWeaponEntry->GetWidgetFromName(TEXT("EntrySelectionArrow")))
 			                          : nullptr;
@@ -274,11 +312,10 @@ bool FReEchoLoadoutSelectionAssetContractTest::RunTest(const FString& Parameters
 			}
 			if (AuthoredWidget->WeaponEntries.IsValidIndex(1))
 			{
-				UImage* GunPortrait = Cast<UImage>(
-				    AuthoredWidget->WeaponEntries[1]->GetWidgetFromName(TEXT("PortraitImage")));
+				UImage* GunPortrait =
+				    Cast<UImage>(AuthoredWidget->WeaponEntries[1]->GetWidgetFromName(TEXT("PortraitImage")));
 				TestNotNull(TEXT("Gun Entry exposes its portrait image"), GunPortrait);
-				UScaleBoxSlot* GunPortraitSlot =
-				    GunPortrait ? Cast<UScaleBoxSlot>(GunPortrait->Slot) : nullptr;
+				UScaleBoxSlot* GunPortraitSlot = GunPortrait ? Cast<UScaleBoxSlot>(GunPortrait->Slot) : nullptr;
 				TestNotNull(TEXT("Gun portrait remains a ScaleBox child"), GunPortraitSlot);
 				if (GunPortraitSlot)
 				{

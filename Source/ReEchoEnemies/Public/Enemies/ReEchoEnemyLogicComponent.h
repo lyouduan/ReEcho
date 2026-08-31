@@ -26,9 +26,15 @@ public:
 	/** Counts one actual health-reduction event for the optional phase trigger, then applies hurt reaction. */
 	void NotifyReceivedAttack(const FReEchoDamageEvent& Event);
 	void NotifyDeath();
+	/** Commit a non-Boss phase after its externally orchestrated transformation has finished. */
+	bool CompleteCinematicPhase2(FReEchoEnemyActionIntent& OutIntent);
 	// WS4 (Plan 68): attempts to convert a just-lethal hit into a blood-depleted second-phase transition. Returns
 	// true when the owner is a HealthThreshold boss that has not yet transformed (the caller defers real death).
 	bool TryTriggerPhase2OnFatalWound(FReEchoEnemyActionIntent& OutIntent);
+	/** Converts a Phase2 fatal wound into Phase3 when inside the fast-kill window or an Easter card is owned. */
+	bool TryTriggerPhase3OnFatalWound(FReEchoEnemyActionIntent& OutIntent, bool bHasEasterEggCard = false);
+	/** Read-only qualification for a Host-owned transformation presentation. */
+	int32 ResolveFatalBossTransitionPhase(bool bHasEasterEggCard) const;
 	/** Cancels the current target-locked attack when stun begins, preserving cooldowns, fuse and hit reaction. */
 	void CancelActiveActionsForStun();
 	/** Ends attack, hit-reaction and fuse phases without resetting identity, health or persistent cooldowns. */
@@ -40,7 +46,12 @@ public:
 	FReEchoEnemyLogicSnapshot GetSnapshot() const;
 	const FReEchoEnemyDefinition& GetDefinition() const;
 	/** Development command: queues one configured Boss ability for the next normal ability start. */
-	bool DebugQueueBossAbility(FName AbilityId);
+	bool DebugQueueBossAbility(FName AbilityId, int32 ForcedComboCount = 0);
+	/** Production one-shot command, issued only after a phase-three cinematic completes. */
+	bool QueueBossPhaseOpening();
+	/** Development command: immediately switches to one configured encounter phase. */
+	bool DebugForceBossPhase(int32 PhaseIndex, FReEchoEnemyActionIntent& OutIntent);
+	bool DebugSetBossEncounterElapsedSeconds(float Seconds);
 
 	bool IsInitialized() const
 	{
@@ -73,7 +84,9 @@ private:
 	void AdvanceBossFixedStep(const FReEchoEnemySenseSnapshot& Sense,
 	                          float FixedDeltaSeconds,
 	                          FReEchoEnemyActionIntent& InOutIntent);
-	void AdvanceBossAmbientTimers(float FixedDeltaSeconds, FReEchoEnemyActionIntent& InOutIntent);
+	void AdvanceBossAmbientTimers(const FReEchoEnemySenseSnapshot& Sense,
+	                              float FixedDeltaSeconds,
+	                              FReEchoEnemyActionIntent& InOutIntent);
 	void AdvanceBossAbility(const FReEchoEnemySenseSnapshot& Sense,
 	                        float FixedDeltaSeconds,
 	                        FReEchoEnemyActionIntent& InOutIntent);
@@ -83,7 +96,11 @@ private:
 	void CommitBossAbility(const FReEchoEnemySenseSnapshot& Sense,
 	                       const FReEchoEnemyAbilityDefinition& Ability,
 	                       FReEchoEnemyActionIntent& InOutIntent);
+	void BeginNextBossComboStrike(const FReEchoEnemySenseSnapshot& Sense,
+	                              const FReEchoEnemyAbilityDefinition& Ability,
+	                              FReEchoEnemyActionIntent& InOutIntent);
 	void EndBossAbility(const FReEchoEnemyAbilityDefinition& Ability, FReEchoEnemyActionIntent& InOutIntent);
+	bool IsBossComboAbility(const FReEchoEnemyAbilityDefinition& Ability) const;
 	void AppendBossIntent(FReEchoBossIntent&& BossIntent, FReEchoEnemyActionIntent& InOutIntent);
 	int32 SelectBossAbility(const FReEchoEnemySenseSnapshot& Sense);
 	int32 FindBossAbilityIndex(FName AbilityId) const;
@@ -121,5 +138,6 @@ private:
 	TArray<int32> BossPhaseIndices;
 	int32 BossCleanseAbilityIndex = INDEX_NONE;
 	FName DebugQueuedBossAbilityId = NAME_None;
+	int32 DebugForcedComboCount = 0;
 	bool bInitialized = false;
 };

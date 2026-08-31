@@ -8,6 +8,58 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoOwnedEasterCardQueryTest,
+                                 "ReEcho.Traits.OwnedEasterCardQuery",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoOwnedEasterCardQueryTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	TestFalse(TEXT("A fresh build has no Easter card"), Run->HasOwnedEasterEggCard());
+	TestTrue(TEXT("The production Easter card can be granted"), Run->DebugGrantCard(TEXT("G_4_1")));
+	TestTrue(TEXT("An owned Easter card is detected by offer group"), Run->HasOwnedEasterEggCard());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossPhase3FinalStatMultiplierTest,
+	                             "ReEcho.Traits.BossPhase3FinalStatMultiplierPersists",
+	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossPhase3FinalStatMultiplierTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
+	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
+	const FReEchoStatBlock CanonicalStats = Run->CurrentBuild.Stats;
+	const FReEchoStatBlock CanonicalEquipmentBase = Run->CurrentBuild.EquipmentBaseStats;
+
+	TestTrue(TEXT("Phase3 final-stat multiplier activates once"), Run->ActivateBossPhase3FinalStatMultiplier());
+	TestFalse(TEXT("Phase3 final-stat multiplier cannot stack repeatedly"), Run->ActivateBossPhase3FinalStatMultiplier());
+	TestEqual(TEXT("Phase3 doubles the effective physical attack"),
+	          Run->CurrentBuild.Stats.PhysicalAttack,
+	          CanonicalStats.PhysicalAttack * 2.0f);
+	TestEqual(TEXT("Phase3 leaves canonical equipment-base attack unchanged"),
+	          Run->CurrentBuild.EquipmentBaseStats.PhysicalAttack,
+	          CanonicalEquipmentBase.PhysicalAttack);
+
+	Run->NotifyCardDamageResolved(10.0f, 10.0f, false);
+	TestEqual(TEXT("Damage-triggered card rebuild preserves the Phase3 multiplier"),
+	          Run->CurrentBuild.Stats.PhysicalAttack,
+	          CanonicalStats.PhysicalAttack * 2.0f);
+	Run->NotifyCardKill(false, TEXT("M_TEST"));
+	TestEqual(TEXT("Kill-triggered card rebuild preserves the Phase3 multiplier"),
+	          Run->CurrentBuild.Stats.PhysicalAttack,
+	          CanonicalStats.PhysicalAttack * 2.0f);
+	Run->NotifyCardReaction(TEXT("REACTION_TEST"), true);
+	TestEqual(TEXT("Reaction-triggered card rebuild preserves the Phase3 multiplier"),
+	          Run->CurrentBuild.Stats.ElementalAttack,
+	          CanonicalStats.ElementalAttack * 2.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTraitOffersAreDeterministicTest,
                                  "ReEcho.Traits.OffersAreDeterministicAndDiverse",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

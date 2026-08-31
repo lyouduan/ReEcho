@@ -39,7 +39,9 @@
 
 - 稳定 `FName PresentationId`。
 - Move、Born、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death 等类型化表现命令。除 Move 基础循环外均为可选能力；Profile 缺少语义时表现层保持当前有效画面并返回未播放，不借用其他语义。Born 是锁至完成、仅 Death 可抢占的非循环瞬时表现，完成后回到 Move；Death 仍为最高优先级终结独占。动画集转换缺少 `Transform.Phase2` 时，Controller 保留旧形态直到玩法完成事件，再原子切换目标动画集的基础循环，不能提前显示目标形态或把表现失败反馈成玩法失败。
-- 朝向和武器视觉集合 ID。
+- 朝向、武器视觉集合 ID，以及由 Host 在形态初始化边界设置的持久显示倍率和可选原始高度参考；倍率默认
+  1、参考高度默认跟随当前 Flipbook。一个形态需要跨 Clip 保持相同像素到世界比例时，以基础 Clip 的原始高度作为
+  共享参考，后续 Clip 切换与朝向重算必须持续消费同一配置，不能由 Host 每帧补偿组件 Scale。
 
 ### 输出
 
@@ -85,6 +87,7 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 - Profile/FSM：美术可配置语义动画集合和转换策略。
 - Controller：执行表现状态切换，持有显式动作占用；循环 Charge 只能由提交、结束或取消事件收束，不回写玩法。Enemy Host 会先按只读眩晕事实冻结 AnimationComponent，再取消玩法动作；暂停期间收到的结束或取消事件立即清理其他表现轨，但动画状态切换延迟到解除眩晕的同一帧，保证当前帧不跳回 Move、一次性动作不被误判完成且旧攻击不会在醒来后续播。死亡仍解除暂停并独占播放。Host 判定死亡后可调用 `BeginTerminalDeath` 独占播放一次非循环 Death；进入后拒绝 Move、Attack、Hit、Transform 与动画集切换，完成回调只通知 Host 销毁表现宿主，不返回 Move，也不裁决玩法死亡。死亡会清理瞬时 VFX，但保留独立 GroundShadow；死亡阶段以当前 Sprite 帧的底边中心持续锁定同一 Profile 脚点，并据此更新阴影中心和宽度，而不是使用整个 Flipbook 的合并边界，使画面在固定世界位置向下塌落且直到销毁前保持地面接触感。
 - 主模块 Coordinator：不属于本 Runtime Module；把同一玩法动作阶段同时交给 Animation 与 VFX 轨，避免两个消费者建立彼此漂移的本地时钟。
+- Enemy Host 在 `FootRoot` 下提供 `TerminalDeathMotionRoot`，其子级同时包含普通主体运动根与 `GroundRoot`。终结死亡击退只移动该共同根，使主体和阴影继承完全相同的表现位移；Hit/Attack 抖动和缩放仍只写主体运动根。逐帧脚点刷新始终在 `GroundRoot` 的直接父空间求局部坐标，因此不会把共同死亡偏移重复叠加，authored death pivot 仍只恢复阴影的作者局部位置。
 - AnimationComponent：PaperFlipbook 渲染、比例、朝向和回退；Enemy Presentation 只读暴露 Born 是否仍活跃，Born 以 priority 90 锁定至自然完成，Attack/Hit/Transform 均不得抢占，只有 terminal Death（priority 100）可抢占。Born 期间以当前 Sprite Bounds 逐帧计算脚底和 GroundShadow；Host 把这一只读状态转换为伤害、移动、攻击与 Phase2 门禁，Presentation 不直接裁决玩法。死亡 Sprite 可用自定义 Pivot 提供逐帧主体脚点，Profile 以会进入 Cook 的 `bUseAuthoredDeathPivot` 显式声明该策略，主模块敌人表现据此固定 GroundShadow，并按 `DeathGroundSink` 让主体继续向下贴入阴影；未配置时继续使用当前帧 Bounds 底边中心。Death authored pivot 仍是专用路径。运行时不得读取 PaperSprite 的 `PivotMode` 或 `CustomPivotPoint`，因为二者属于编辑器专用数据。
 - FrameCollisionDriver：生成 Query/Debug 快照。
 
@@ -99,6 +102,8 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 
 ## 扩展方式
 
+TimeGuard 的 Phase2 动画集必须完整绑定黑羊 Move、Attack.Charge、Attack.Basic、Hit、Transform.Phase2、Death；蓄力复用 BadGoat Attack，受击/变身复用 BadGoat Walk。不得让缺失映射借用默认白羊动画。`scripts/ue/fix_timeguard_phase2_animation.py` 提供具名 DA 的审计/修复入口，AssetProfiles 自动化检查六种状态均为 BadGoat。
+
 新增 Player/Echo 外观时在 `DataAsset/Character/Profiles` 创建并分别注册到对应域 Catalog，同时设置与该域外观一致的 `MinimapIcon`；敌人 Profile 仍位于 `DataAsset/Enemy/Profiles`。共享 FSM 位于 `DataAsset/Common/Animation2D`。新增语义状态时扩展 GameplayTag、FSM 和 Profile Clip。当前生产敌人的 Death 映射保持角色族一致：Grunt/Shield/Bomber/Slime 共用 Slime Death，Rabbit/Fox 使用各自 Death，GoatPriest/TimeGuard 共用 Goat Death；均为非循环、可重启动作。敌人 Gameplay Blueprint 映射只在 `DataAsset/Enemy/Catalogs` 的 Registry 中扩展。
 
 ## 验证与测试
@@ -110,6 +115,7 @@ Plan116 的元素反应字仍属于 `ReEcho` 主模块 Enemy Presentation/UI 适
 - 运行时逐帧角色纹理的透明/低 Alpha 边缘 RGB 必须由相邻有效轮廓色扩边，不能残留白底或清成黑底；源图保持 RGBA 与 Alpha，Texture 使用 `NoMipmaps + Clamp + Bilinear`、支持 Alpha 的运行时压缩和 2D/UI LOD 组。UE 5.8 当前使用 BC7；不得退回 DXT5、`TEXTUREGROUP_World`、默认 mip 或 `TC_EditorIcon`。狐狸 Born/Walk 由 `fix_fox_2d_texture_alpha.py` 确定性维护，并由 `audit_fox_2d_textures.py` 读回 Texture/Sprite/Flipbook/Profile 契约。
 - Catalog 不得引用主模块 Actor 或 Gameplay Blueprint Class。
 - Animation/Profile 不得决定命中、伤害、移动或死亡。
+- 终结死亡表现位移不得移动 Enemy Actor，也不得只移动主体根；必须保持 `TerminalDeathMotionRoot` 下主体与 `GroundRoot` 的共同继承关系，避免改变死亡战斗坐标、掉落位置或让阴影脱离。
 - 武器挂点只使用 Profile 的稳定参考高度；不得随 Move/Attack 的单帧 Bounds 重算。
 - Player/Echo 的武器释放类特效使用 WeaponActor 持有的 `WeaponAttackVfxRoot`；该根节点是当前武器视觉组件的子节点，必须继承最终手持偏移、尺寸、朝向镜像和动作 Transform。角色通用 `AttackVfxRoot` 只作为缺少有效武器根时的安全回退，Boss 继续使用独立 `BossWeaponVfxRoot`。
 - 长剑/镰刀 `AttackCommitted` 刀光可通过 Weapon Profile 的轴遮罩把事件中已锁定的范围倍率叠加到作者 Scale；无符文倍率为 1，延迟镰刀捕获提交值。只缩放生成的 Niagara Component，不缩放武器根或重新计算符文。

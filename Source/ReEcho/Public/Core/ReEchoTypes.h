@@ -5,6 +5,7 @@
 #include "Cards/ReEchoCardTypes.h"
 #include "Enemies/ReEchoEnemyProjectileLogic.h"
 #include "Enemies/ReEchoEnemyTypes.h"
+#include "Encounter/ReEchoScheduledSpawnEvent.h"
 #include "ReEchoTypes.generated.h"
 
 class AActor;
@@ -279,6 +280,21 @@ struct REECHO_API FReEchoEnemyRuntimeState
 
 	UPROPERTY()
 	TArray<FReEchoEnemyProjectileRuntimeState> BossProjectiles;
+
+	UPROPERTY()
+	float SavedMaxHealth = 0.0f;
+	UPROPERTY()
+	FVector OpeningRepulseDisplacement = FVector::ZeroVector;
+	UPROPERTY()
+	float OpeningRepulseDuration = 0.0f;
+	UPROPERTY()
+	float OpeningRepulseElapsed = 0.0f;
+	UPROPERTY()
+	bool bPendingSlam = false;
+	UPROPERTY()
+	float PendingSlamSeconds = 0.0f;
+	UPROPERTY()
+	FReEchoBossIntent PendingSlamIntent;
 };
 
 /** A warned spawn batch whose exact locations are reserved before its commit time. */
@@ -350,6 +366,18 @@ struct REECHO_API FReEchoEncounterRuntimeState
 	/** Boss room 30-second transition already removed echoes and applied the one-shot player boost. */
 	UPROPERTY()
 	bool bBossPostEchoPhaseTriggered = false;
+
+	/** Hidden Boss Phase3 already doubled player stats and future non-Boss wave capacity. */
+	UPROPERTY()
+	bool bBossPhase3EscalationTriggered = false;
+
+	/** Exact configured plan, not recomputed from a later DA revision during continue. */
+	UPROPERTY()
+	bool bHasPhase3SpawnPlan = false;
+	UPROPERTY()
+	TArray<FReEchoScheduledSpawnEvent> Phase3SpawnEvents;
+	UPROPERTY()
+	TArray<FReEchoScheduledSpawnEvent> DeferredPhase3Spawns;
 
 	UPROPERTY()
 	TArray<FReEchoEnemyRuntimeState> Enemies;

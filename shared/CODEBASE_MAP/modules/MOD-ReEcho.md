@@ -1,6 +1,48 @@
 # `MOD-ReEcho`：`ReEcho`
 
+Boss 变身收尾震动：正常完成演出时，清理变身 VFX 并触发一次 0.25 秒强震；一→二恢复镜头跟随，二→三首次开场三连则保留聚焦 Boss 的镜头序列。GameMode 独立持有开场镜头，依据 EnemyLogic 的 queued/active 状态跨三击保持，不用预估时长，不继续冻结战斗；实际三连结束后用 CameraMoveSeconds（默认0.8秒）平滑拉回玩家，再释放序列。死亡、取消、切关和 EndPlay 清理镜头所有权，世界暂停不推进。无开场队列时沿用正常结束。取消/切关不触发强震。DA 的 `ShakeAmplitudeCm` 默认一→二阶段16 cm、二→三阶段28 cm；不改变 Skill03/Skill04 震动。
+
 ## 模块状态
+
+GroundTriple独立技能：程序DA派生M_SHEEP_GroundTriple（仅Phase3，固定三拍，保留伤害/时序），参与循环；开场队列改用它。bGroundedSlam描述原地动画/圆心/即时地裂和震退，bPhaseOpening描述一次开场；开场Host跳过伤害，普通战斗正常结算。玩家在圈内通过PlayerPawn.BeginBossRepulse进行200cm/0.3s XY扫掠位移，世界下一帧Timer独立于冻结的玩家Tick，随世界暂停、死亡停止、遇墙停，本身不结算伤害；短时位移为瞬态不存档，EndPlay清理。普通技能不锁镜头、不补怪。GMBossSkill GroundTriple（别名Skill05）测试独立技能。
+
+三阶段开场控制门禁：镜头锁定和返回期间保留玩家Actor及非表现组件的原始暂停捕获值、State_Menu输入限制和Combatant表现受伤保护，恢复其余战斗实体以推进三连和击退；EndBossOpeningCamera统一释放玩家捕获状态，取消/死亡/切关同样清理。每次开场拍地的震动改由ImpactResolved触发14cm/0.25秒，攻击序号去重；其他技能震动事件不变。生命周期与开场测试覆盖玩家保护/冻结及三次真实相机偏移。
+
+三阶段放大后的取景：在CommitCinematicBossPhase同步应用Phase3 Walk缩放和接地后，重新调用现有相机聚焦入口，从放大Flipbook的世界包围中心计算投影焦点；用CameraMoveSeconds（0.8秒）平滑修正变身前旧焦点。只重采样一次，不随三连Attack包围盒变化追踪，镜头宽度不变。无需硬编码世界Z偏移，也不改变一→二/回响相机。
+
+三阶段参演怪散布：PrepareBossSacrifice只对三阶段新召唤使用Boss世界XY为圆心的8扇区分层随机采样，20只分为各方向2～3个名额，距离保持DA半径的30%～100%。按扇区轮流尝试，成功生成才消耗名额；不使用推进前玩家相机可见性裁剪，避免单侧偏置。场地/墙体/角色间距检查及640次上限保留，受阻扇区可以少生，不把全部怪物挤到畅通一侧。一→二采样不变。Phase3OpeningCrowdDistribution验证名额、角度和半径，实际场地分布仍需PIE。
+
+开场三连最新行为覆盖此前“落地三连”描述：二→三阶段镜头推进时，复用安全召唤逻辑额外生成程序DA配置的史莱姆/兔子/狐狸（默认20），等待完整Born接地，禁止该批参与升空献祭。变身结束后Boss在原地连续播放三次Phase3 Attack；无升空/隐藏/闪现/下降，锁定Boss而非玩家位置，在攻击窗口当帧同步地裂、伤害和震退，不再等待0.5秒下落。震退半径取DA的SacrificeRadiusCm与技能半径的较大值（默认800cm），只扩大非伤害的怪物位移筛选，不扩大玩家伤害圈。后续随机Skill03保留原行为。召唤有边界/间距/碰撞/有限尝试检查，空间不足允许少生，不能卡死演出。
+
+三阶段开场扩展：`UReEchoBossPhase3Config` 提供前两阶段生命总和倍率（5）、原始普通波次计划重复次数（5）、开场三连及震退距离/时长（200cm/0.3s）。Host 注入不可变阶段定义；生命以原始一阶段最大值和配置二阶段最大值计算，不乘当前血量。变身正常完成才调用生产开场命令；每次实际落地以锁定圆心/半径筛选存活普通怪，XY扫掠减速位移，遇墙停、无伤害。玩家/Echo/Boss及未完成Born者排除。读档保存生命上限、开场消费/排队、未完成落地与震退进度。
+
+GameMode进入三阶段时用`ConfigureRepeatedOrdinaryPlan`替换后续波次：原始普通波次重复五轮，单批不再翻倍，不额外生成Boss；保留当前活怪、原波次节奏和原三阶段同屏容量（基础上限x2）。保存完整计划及游标；满场/无位置的未生成名额每0.5秒重试，死亡后的历史位置不再占据预约空间。最终Boss死亡清除待生成计划。玩家最终倍率仍x2。新增测试为`ReEcho.Encounter.Phase3RepeatedPlan`、`ReEcho.Enemies.Host.Phase3OpeningCombo/Phase3OpeningRepulse`及SaveGame序列化覆盖；实际震退手感仍需PIE验收。
+
+镜头推进延长0.5秒：CameraPushSeconds默认1.3，CameraMoveSeconds保留0.8用于返回。推近后事件整体顺延0.5：怪物升空/变身1.3秒、怪物蓄力1.5秒、羊爆发4.0秒、基准结束5.2秒；二→三基础爆发1.8/结束2.9。Born/变身完成门禁仍可进一步延后。
+
+三阶段羊死亡：EnemyPresentation.BeginTerminalDeath在进入终结动画前明确选用Phase2动画集并清除Phase3专用缩放/高度参考，复用BadGoat Death而非缺失Phase3 Death回退白羊。只改终结表现，逻辑阶段与死亡结算不变；BossPhase3GMAnimation测试覆盖资源路径、单次播放及缩放重置。
+
+落地持久二阶段：怪物落地首次恢复演出偏移后，EnemyActor.CommitSacrificePhase2提交EnemyLogic阶段2并发布现有完成通知，再刷新新形态地面对齐。不重播变身动画、不改羊；后续行为和存档沿用阶段2。覆盖此前“仅表现不改变阶段”的约定。
+
+落地门禁：怪物Transform动画强制单次播放，查询renderer实际结束（暂停不算结束），到预计下落时刻仍未结束则延长悬停和后续镜头返回，蓄力保持；羊的爆发时点不变。缺失/未成功播放的动画不无限等待，异常播放停滞等待10秒取消演出恢复。怪物蓄力独立1.0秒启动，变身动画仍随0.8秒升空启动。
+
+蓄力时点独立调整：怪物升空/自身变身动画仍在0.8秒开始，怪物GoatSkill03Charging延迟至演出时钟1.0秒一次性启动，落地3.9秒停止；出生等待仍暂停演出时钟，后续顺延。羊及其他分段不变。
+
+出生接地门禁：冻结Host Tick时每帧通过EnemyPresentation.PrepareSacrificeGroundPose轮询Born自然完成并刷新脚底/阴影对齐。只有全部参与者Born结束才启动蓄力升空；0.8秒到位仍未完成则镜头停留等待，不消费后续演出时间。异常等待3秒取消演出并恢复状态，不截断Born或强制升空。BeginSacrificeVisual自身也拒绝Born期间捕获基准，避免保存出生早期埋地偏移。
+
+最新同步：召唤时只对新怪当前Born按完整片长/0.5秒设置播放速率，自然结束进入待机；不再在0.8秒截断Born。镜头到位0.8秒同时启动GoatSkill03Charging、升空和怪物Transform_Phase2，无单独标记等待；2.0秒到顶，3.5秒悬停结束，3.9秒落地，4.7秒返回镜头结束。羊仍按悬停结束的原逻辑提交阶段。旧时序段落由本条覆盖。
+
+最新澄清：空中挣扎时播放的是参与怪物自身的 `Animation.Transform.Phase2`，仅表现，不强制升级其玩法阶段/属性；每只一次，控制器保持暂停，直到演出结束恢复。羊不提前变身，仍在悬停结束/下落开始（4.0秒）执行既有阶段提交及VFX流程。覆盖下段“2.8秒羊变身”误解。
+
+最新演出：0～0.8秒聚焦时调用PrepareBossSacrifice一次，同时固定生成20只（DA SacrificeSummonTypes循环，默认史莱姆7/兔子7/狐狸6，不再按缺额计算）；已有附近最多8只也可参与。专属召唤不受普通波次容量裁减，生成后仍注册Roster并计入后续普通波次容量，随机安全采样最多640次，空间不足少生并记录实际数。不删除现有怪物。0.8～1.3标记蓄力、1.3～2.5升至自身高度1.8倍、2.5～4.0悬停；2.8秒开始挣扎时提交阶段并触发羊变身动画/VFX，4.0～4.4跌落，5.2完成拉回。出生表现与聚焦并行，聚焦结束截断异常长Born。怪物复用GoatSkill03Charging随视觉中心移动、按体型缩放、落地停止。本段覆盖下文旧补齐与旧时序。远端f11ca422删除出生debug球的独立改动已审阅、暂未合并。
+
+悬停时长后续调整为1.0秒：2.0～3.0秒悬停抖动、3.0～3.3秒跌落、3.3～4.1秒镜头拉回；升空时长和二→三阶段不变。覆盖下文旧0.5秒悬停时间。
+
+最新献祭表现覆盖下述旧“淡出/复生”描述：全程可见；1.2～2.0秒升空，2.0～2.5秒固定高度悬停（先20%时间静止，再做带淡入/收束的水平抖动），2.5～2.8秒加速跌落至原始表现位置，之后拉回镜头。`SacrificeHiddenSeconds` / `SacrificeReappearSeconds` 保留序列化字段兼容旧DA，但编辑器显示为 Hover/Fall；抖动幅度由 `SacrificeHoverShakeCm` 控制，默认6cm。只偏移表现节点，阴影、碰撞和游戏位置留在地面；取消恢复原始变换。落地重播一次受击VFX。自动化覆盖悬停高度、水平抖动、连续跌落、落点恢复及全程可见。
+
+献祭补怪：一→二阶段优先选择现有怪物，缺额通过 `BossReinforcement` 当前运行配置及 `SpawnConfiguredEnemy` 正式入口补足至DA上限（最多8只）。新怪计入Roster，立即冻结，演出结束/取消后留场正常参战、正常奖励；演出本身仍不结算死亡。保留关卡容量及待生成批次预留，最多64次环形位置尝试，检查场地边界、镜头、玩家/回响/敌人间距和Pawn阻挡；配置缺失/空间不足不阻塞变身。因此“不触碰Roster/死亡奖励”仅指已有怪物的视觉演出，不包括新增真实怪物的注册。空场缺失运行上下文的回退有自动化覆盖，正式补怪数量/位置需PIE验收。
+
+一→二阶段默认启用表现性献祭，由 `ReEchoBossSacrifice.cpp` 组合：0.8秒聚焦后启动Boss变身VFX及普通怪受击VFX，1.2～2.0秒升空淡出，2.0秒提交黑羊，2.5～2.8秒原位显现，2.8～3.6秒拉回。时间/人数/半径由程序DA `UReEchoBossPhase3Config` 管理；启用时用这些分段重建一→二阶段总时长及爆发时刻，覆盖基础Phase2Presentation的时长。只选择正交相机视野内、Boss半径800cm内最多8只可见普通怪（距离与SpawnIndex排序），排除Boss/Elite；无候选也正常换形。EnemyPresentation只移动PresentationMotionRoot并调Sprite Alpha、阴影可见性，结束/取消恢复捕获值；不触碰Actor位置、生命、Roster或死亡奖励。不影响二→三阶段。`BossTransformationLifecycle` 覆盖选中真实动画对象、淡出、生命/位置不变、取消恢复及三阶段排除；实际视觉待PIE。
 
 - 当前状态：当前 `main` 的 Runtime Module，也是项目的 UE 玩法装配根。
 - 描述符：`ReEcho.uproject`。
@@ -10,6 +52,8 @@
 - 启动地图：`/Game/Level00`，默认 GameMode 为 `AReEchoGameMode`。
 
 ## 存在原因
+
+Boss 变身演出由 `ReEchoBossTransformation.cpp` 中的 GameMode 方法所有：一到二阶段默认 2.0 秒（1.15 秒爆发），二到三阶段默认 2.4 秒（1.3 秒爆发），参数来自程序 DA `UReEchoBossPhase3Config`。推近、拉回各使用 `CameraMoveSeconds`（默认0.8秒），运行时保证推近先于爆发完成、结束时间为拉回留足窗口；震动与压暗渐变时长不随镜头移动时长改变。致命命中先由 EnemyLogic 只读确认资格，再进入演出；GM 复用入口。控制台暂停期间只接受排队请求，恢复后重新校验并启动，不静默退回旧变身；取消、切关及 EndPlay 同时清除排队请求。暂停 Director、战斗 Actor 与非表现组件 Tick，捕获/恢复原值并补偿 EnemyActor 的卡牌眩晕期限；Niagara、2D 表现和镜头继续更新，但世界暂停时 Boss 演出与镜头一起停止，旧回响镜头仍可在暂停中播放。爆发时一次性提交阶段及血量，结束后显示三阶段文字并恢复战斗。演出不推进 Boss 战斗累计秒数。HitResolver/Combatant 的暂态门控阻断迟到回调，不复用 GMGod。生命周期测试为 `ReEcho.Enemies.Host.BossTransformationLifecycle`，含暂停排队、镜头宽度和取消回归；画面仍需 PIE 验收。
 
 `ReEcho` 把 UE 世界生命周期、主流程、玩法领域、数据适配、Actor 装配、UI 和表现连接成可运行游戏。当前很多领域仍处于同一个编译模块，但通过 `AREA-*` 维持职责边界，以便功能稳定后按真实依赖进一步拆分，而不是仅按目录形式拆模块。
 
@@ -72,7 +116,9 @@
 - 世界 Actor、确定性遭遇推进、战斗请求与结果。
 - 本局只读摘要、保存文件、录制与 Echo Playback。
 - UI 屏幕命令、只读展示数据和表现事件。
+- 商店说明与已生效卡牌结果由 `ReEchoShopTooltipWidget` 消费原 `FReEchoShopOffer` 文本，属性列表由商店将 CSV 名称/顺序和 `FReEchoStatBlock` 格式化成 `FReEchoAttributeRowView` 交给 `ReEchoAttributeTooltipWidget` / `ReEchoAttributeRowWidget`；这三个类型的 WBP 是字体、几何及示例的唯一权威，不新增玩法状态或模块依赖。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
+- 开场选择页确认与返回是常驻作者化控件；Widget 只管理可用性和独立文字的灰显，未选中时不能确认，返回的空闲/悬停 Brush 明暗由 WBP 持有，不改变两阶段选择、返回或 Run 提交权威。商店独立 Tooltip 背板必须拥有真实纹理 Brush，避免仅设置颜色的空 Image Brush。
 - 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板，由血条替换倒计时文字和指针。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 - Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
@@ -143,6 +189,8 @@ Esc 进入暂停层；保存退出必须先成功捕获遭遇时钟、玩家、�
 Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提供，完整列表见 `docs/GM_COMMANDS.md`。`UReEchoConsole` 只在控制台可见期间暂停游戏，并且仅恢复由自己触发的暂停；各 GM 命令不单独改变暂停状态。`GMWeapon <WeaponId>` 允许测试任意已启用生产武器：有活动 Run 时通过 WeaponRuntime 生成候选构筑、只保留兼容插件，实时初始化成功后才提交 `CurrentBuild`，失败恢复原构筑；该入口不修改商店武器所有权。`GMGotoEncounter <1-based index>` 仅在存活玩家的活动 Encounter 中生效，清理当前敌人和回响后把 Run 索引设为目标前一关并复用正式 `BeginNextEncounter`，因此目标关的场景、刷怪、计时、录制和音乐都从标准入口启动且不经过结算 UI。`GMSpawnFox <count> [distance]` 只用于快速表现验收：数量钳制为 `1..16`、距离钳制为 `150..1000 cm`，沿朝 Arena 中心的确定性弧线分散；越界弧线点被拒绝并由墙体派生安全区内的确定性网格补足，非法安全区整体失败关闭。它与正式波次消费同一世界 Bounds，逐只复用生产 `M_FOX` Definition、EnemyHost、Roster 并具名报告成功/失败数，不建立第二套测试怪物。无参数仍生成 1 只、单个大于数量上限的参数按旧距离语法兼容。
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
+
+`ReEcho.GAS.DebugInvulnerability` 验证 GMGod 保留反馈用的结算伤害（包括致命伤害），同时维持 GAS 生命与格挡；关闭后恢复正常格挡消耗和扣血，不将 GMGod 与完全屏蔽伤害反馈的演出保护混同。
 
 `GMElement <None|Flame|Lightning|Grass|Water>` 在 Player 的最终出手修正末端持续覆盖每次攻击的元素，直至再次指定；`None` 关闭覆盖并恢复武器权威元素。`GMReaction` 是纯表现验收入口：它在最近存活敌人的受击表现根直接播放指定反应 Niagara，不写入元素附着、伤害、状态或正式反应事件；正式战斗反应仍只由 Combat 权威链路触发。
 
@@ -245,6 +293,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 **设计意图：** 提供可暂停、确定性的 60 Hz 固定步遭遇时钟、表驱动波次门、单一出生解析和纯值 Stage 过渡决策，让 Recording/Echo/敌人生成共享同一时间语义，同时不让 GameMode 保存刷怪平衡常量。Stage 是连续战场，Encounter 只界定时钟、波次、录制和 Echo；结束一场不等于重建同 Stage 的 Actor。
 
+- 出生 `Warning` 只预留容量、锁定最终位置并记录日志，不绘制球形网格或调试线框；此约束在 Editor、Development 与 Shipping 共用路径生效，不依赖构建开关。`Commit` 时序与 Host 提交后的可选 Born 动画保持不变。`ReEcho.GameMode.SpawnWarningNoDebugGeometry` 检查 Editor/Game World 下普通怪与 Boss 的预备事件不向调试批次添加几何。
+
 - 代码：`Source/ReEcho/Public/Encounter/`、`Source/ReEcho/Private/Encounter/`。
 - 首读：`ReEchoEncounterDirector.*`、`ReEchoEncounterRuntime.*`、`ReEchoEncounterCsvReader.*`。
 - 权威：Director 独占本场运行时间；WaveScheduler 独占已触发事件游标；SpawnResolver 只消费 GameMode 传入的墙体派生世界 `FBox2D` 并做纯确定性计算；越界候选不 Clamp，最终 fallback 也必须同时满足 Bounds、玩家/Echo 距离和既有出生间距，否则失败关闭；`ReEchoStageTransition::Resolve` 只消费当前/下一 Encounter 与 Stage 行，统一输出同 Stage、Roster 保留和玩家位置保留策略；GameMode 的 Encounter coordinator 独占远程窗口/精英并发令牌。
@@ -254,6 +304,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 出生参数：SpawnResolver/Host 保留准确 `EncounterIndex`，使同一 EnemyId 在编译 Definition 时选择 `enemy_combat_stats` 的对应场次覆盖；不得把波次序号或数组下标误作 EncounterIndex。
 - 连续性：同 Stage 保留存活 Enemy Host 的对象身份、EnemyId、SpawnIndex、Transform、生命和持久逻辑状态，并保留玩家位置；局间显式冻结 Host、取消旧攻击阶段和逻辑投射物，不消耗玩法冷却。跨 Stage 清理旧 Roster，并用 Arena Scene 的中心与玩法平面解析入口。玩家生命/属性在下一 Encounter 初始化时的既有语义不由此契约改变。
 - 结算表现：每个普通限时 Encounter 在 Director 剩余时间进入 3 秒阈值后，GameMode 只把权威时间投影为规范化强度；`AReEchoArenaCameraActor` 用 Post Process Material 对场景颜色执行非对称多点采样，使 03→01 的空间重影/模糊平滑增强、01→00 保持峰值，UMG HUD 不参与后处理。第一关是窄例外：结算后直接清除该关 CardChoice，使用局间门停止玩家、Echo、敌人模拟和关卡推进；停止当前Music State后进入全局暂停，玩家与怪物停止，相机用1秒锁定玩家并推进至标准正交宽度的 `0.325`，再保持玩家近景0.5秒。随后解除全局暂停，通过 WmfMedia/HAP 播放无音轨 `Stage01To02.mov`，首个有效视频帧出现后独立播放对应 SoundWave，保证媒体时钟不被冻结。CG完整结束后 GameMode 在全屏媒体仍覆盖视口时静默准备 Encounter 2 的场景、玩家和 Echo，并先按同一 `0.325` 比例把后台相机瞬时定位到 Echo，再进入全局暂停并关闭媒体层；玩家、怪物与Echo均停止，且不启动录制、Director、敌人模拟、输入或关卡音乐。相机先用1秒保持焦点锁定Echo并把正交宽度拉回标准值，再用独立1秒保持标准宽度并把焦点平移到玩家，完成后解除暂停并正式激活 Encounter 2。GameMode显式使用 `AReEchoPlayerController`；GameMode与ArenaCamera在每次序列开始时运行时强制启用暂停Tick，不依赖关卡Actor已序列化的旧默认值；统一暂停边界还临时启用 PlayerController 的完整暂停Tick，使 PlayerCameraManager 持续刷新实际视口，解除暂停或重置时恢复原配置。相机或目标缺失、媒体打开/首帧/时钟停滞失败时按阶段 fail-open，不得卡死。第二关及以后在权威倒计时到 0 后清零相机效果、冻结局间状态并从第 0 帧播放 40 FPS Hap Alpha MOV，媒体完成后才进入 Run 指定的 TraitChoice 或 Shop。Boss、死亡和非计时结束保持原流程。`GMTransition4` 通过 Director 权威时钟从剩余 4 秒开始提供完整预览。
+- Stage01To02 镜头不使用 Actor 根节点充当构图中心。玩家与 Echo 在每段镜头开始时锁存当前可见 Flipbook `RenderBounds.Origin` 的完整世界变换，再沿倾斜相机视线投影到 Gameplay Plane；`0.325` 近景默认绕过 Arena Clamp，使视觉中心严格落在视口中心，拉回标准视角时平滑重新进入边界 Clamp，普通战斗跟随仍保持脚点与边界 Clamp 契约。
 - Stage01To02 已观看资格是独立账号进度，不属于任一 Run 槽。只有媒体自然完整结束且 `ReEchoPlayerProgress` 保存成功才授予；播放失败或中途退出不授予。后续播放时 GameMode 允许右上角跳过，主动跳过立即停止视频和 CG 音乐，并继续使用同一个回响近景、回到主角、解除暂停的 CG 后流程。
 - 测试：`Source/ReEcho/Private/Tests/ReEchoStageTransitionTests.cpp` 的 `ReEcho.StageTransition.*` 覆盖生产矩阵、非法边界与原 Host 局间连续性。
 - 禁止：持有构筑、货币、存档或 Widget 状态。

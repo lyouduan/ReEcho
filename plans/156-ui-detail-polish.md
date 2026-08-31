@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`（结算统计文字所见即所得及胜利到失败的一次性同步已完成，待人工验收）。
+- 任务状态：`Closed`（结算统计所见即所得、两页同步与最终人工微调完成；按用户确认集成最新主线并通过发布验证）。
 - 人工验收：`Passed`（用户再次微调保存后要求发布，并确认结算 UI 冲突以本次蓝图为准）。
 - 本地规划 / 实现基线：`origin/main@11dc24d2d3e36a3bcec5898bb40dd05385046156`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `C:\Users\gavynqiu\Documents\miniGame\ReEcho-plan156-ui-detail-polish`，分支 `plan/156-ui-detail-polish`。
@@ -57,12 +57,12 @@
 
 - [x] 胜利/失败各八组统计的全部 32 个标签/数值控件在首次构造、页面切换和再次构造后，布局和样式与构造前 Designer 值一致；同时验证人为微调后的非默认参数不被覆盖。
 - [x] 原数值投影函数与事件端点未改；聚焦测试验证基础数值更新及结算页表现，新增测试验证标签文案不被重写。五项战斗统计继续使用原 `RefreshRunStatsValues`，未改变采集或格式化逻辑。
-- [ ] 用户指定的每个 UI 细节在对应 Blueprint Designer 和 PIE/局内均达到目标截图或明确描述，并逐项记录证据。
-- [ ] 需要人工微调的目标控件可在 Blueprint 中直接选中并调整约定的几何/字体/样式；运行时不再意外覆盖这些参数。
-- [ ] 目标页面原有点击、Hover/Pressed 反馈、焦点、导航、Tooltip、数据加载和业务逻辑没有回归。
-- [ ] 目标 Blueprint Compile/Save、适用资产审计、项目静态校验与对应构建门禁通过。
-- [ ] 用户完成人工视觉与可用性验收。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 用户指定的每个 UI 细节在对应 Blueprint Designer 和 PIE/局内均达到目标截图或明确描述，并逐项记录证据。
+- [x] 需要人工微调的目标控件可在 Blueprint 中直接选中并调整约定的几何/字体/样式；运行时不再意外覆盖这些参数。
+- [x] 目标页面原有点击、Hover/Pressed 反馈、焦点、导航、Tooltip、数据加载和业务逻辑没有回归（业务路径未改，结算表现聚焦测试通过，用户微调后批准发布）。
+- [x] 目标 Blueprint Compile/Save、适用资产审计、项目静态校验与对应构建门禁通过。
+- [x] 用户完成人工视觉与可用性验收。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -107,6 +107,11 @@
 
 ### 证据
 
+- 最终发布集成：等待原发布者将锁候选纳入 `14f95a64` 并正常解锁后，以本地正式提交 `de650dab` 原子取得 `main-publish-lock`，核验锁准确指向本提交，再 fetch 并 merge `origin/main@14f95a64`。传入后续卡牌测试/文档没有新增结算冲突；按用户确认选择本地 WBP 与 Restart 无运行时排版的实现，其他 main 内容和共享文档组合保留。相对 main 的最终差异仅本 Plan 的代码/测试/蓝图/同步工具/指导文档及完整重建的预构建包。
+- 最终组合候选 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功（134 actions，47.42 秒）；生成包校验通过，7 个模块，Engine Build ID `55116800`，source fingerprint `d6ad607a0053`。未选择任一侧旧 DLL/manifest作为发布结果。仍只有既有 `CompressImageArray` 弃用警告。
+- 最终组合候选 `ReEcho.UI.RestartWidget`：2/2 Success，日志 `Saved/Logs/ReEcho-session-20260831-090254-pid49932.log`；真实已保存 WBP 加载并验证全部32个统计文本的保存参数/任意编辑参数在构造、页面切换、重构造后保留，统计数字仍更新。已知启动期 `Condition failed` 和缺图回退测试的 Warning 仍单独存在，不视为全启动无警告。
+- 最终 `validate_project.py`、`git diff --cached --check`、`setup_lfs.py --check`、LFS fsck 与 prebuilt check 通过。对新增测试区域执行仓库 `.clang-format` 格式化，未产生字节差异；格式器 dry-run 仍提示该区域的 CRLF 空行替换及旧区域格式，不为处理旧样式重写无关代码。构建后源码未改变。
+- 用户最终蓝图 blob 在合并和测试后仍为 `25db061d72d6aba390d9131b05d08d348e6b9491`，没有重跑一次性同步或远端字体 authoring 脚本。最终 UI 人工认可来自用户微调后明确发布指令及冲突取舍确认，不声称 AI 完成主观 PIE 验收。
 - 规划基线：`origin/main@11dc24d2d3e36a3bcec5898bb40dd05385046156`。
 - 编号审计：远端 `origin/main` 最大已发布编号为 `155`，Plan156 无占用。
 - 实现基线仍为本工作区 `d26833af`；只读 fetch 观察到远端 `d62a088a`（10 个后续提交），涉及回响/敌人表现、CG 和对应文档，不修改本项 Restart 源码或 WBP；本轮未合入远端或更新 main。最终发布时需重新审计共享模块文档并重建组合候选。
@@ -121,11 +126,11 @@
 
 ### 剩余风险
 
-- 失败页统计已按授权同步到胜利页保存的样式；两页之后仍独立编辑，不会自动互相跟随。最终视觉与实际数据长度适配仍需人工 PIE 验收，不能再以 C++ 固定坐标掩盖。
+- 两页之后仍独立编辑，不会自动互相跟随；新增更长统计文案仍需在 Designer 检查排版，不能再以 C++ 固定坐标掩盖。远端历史字体 authoring 脚本保留供历史维护，但本次未运行，不代表当前 UI 权威。
 
 ### 人工验收结果/请求
 
-- 请用户在 Plan156 的 `WBP_ReEchoRestart > VictoryCanvas / DefeatCanvas` 微调任一统计标签/数值的位置、字号和颜色，Compile/Save 后打开对应结算页，确认与 Designer 一致；数值样例应被实际统计替换，标签与样式保持蓝图值。
+- 用户实际微调并保存 `WBP_ReEchoRestart` 后明确要求发布，随后确认同一蓝图冲突按本次 Designer 版本处理；人工验收记为 Passed。当前蓝图已原样纳入候选。
 
 ### 架构文档审阅结果
 

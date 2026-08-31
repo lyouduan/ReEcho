@@ -25,6 +25,8 @@
 #include "Components/VerticalBoxSlot.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UI/ReEchoIndexedButton.h"
+#include "UI/ReEchoShopTooltipWidget.h"
+#include "UI/ReEchoAttributeTooltipWidget.h"
 #include "UI/Framework/ReEchoUIInteractionAudit.h"
 #include "UI/Framework/ReEchoButtonVisualFeedback.h"
 #include "Data/ReEchoCsvDataRegistry.h"
@@ -260,51 +262,57 @@ UScaleBox* CreateAspectFitIcon(
 
 namespace
 {
-	/**
-	 * Strips the rune tier suffix (_I / _II / _III) from a PartId so a tiered rune can reuse the
-	 * icon asset authored for its family. No new art assets are introduced for tiers II and III.
-	 */
-	FName StripRuneTierSuffix(const FName PartId)
+/**
+ * Strips the rune tier suffix (_I / _II / _III) from a PartId so a tiered rune can reuse the
+ * icon asset authored for its family. No new art assets are introduced for tiers II and III.
+ */
+FName StripRuneTierSuffix(const FName PartId)
+{
+	const FString S = PartId.ToString();
+	if (S.EndsWith(TEXT("_III")))
 	{
-		const FString S = PartId.ToString();
-		if (S.EndsWith(TEXT("_III")))
-		{
-			return FName(*S.LeftChop(4));
-		}
-		if (S.EndsWith(TEXT("_II")))
-		{
-			return FName(*S.LeftChop(3));
-		}
-		if (S.EndsWith(TEXT("_I")))
-		{
-			return FName(*S.LeftChop(2));
-		}
-		return PartId;
+		return FName(*S.LeftChop(4));
 	}
+	if (S.EndsWith(TEXT("_II")))
+	{
+		return FName(*S.LeftChop(3));
+	}
+	if (S.EndsWith(TEXT("_I")))
+	{
+		return FName(*S.LeftChop(2));
+	}
+	return PartId;
+}
 
-	/** Roman numeral shown in the icon corner for a tiered rune; empty for runes without a tier. */
-	FText GetRuneTierBadgeText(const FName PartId)
+/** Roman numeral shown in the icon corner for a tiered rune; empty for runes without a tier. */
+FText GetRuneTierBadgeText(const FName PartId)
+{
+	const FString S = PartId.ToString();
+	if (S.EndsWith(TEXT("_III")))
 	{
-		const FString S = PartId.ToString();
-		if (S.EndsWith(TEXT("_III")))
-		{
-			return FText::FromString(TEXT("III"));
-		}
-		if (S.EndsWith(TEXT("_II")))
-		{
-			return FText::FromString(TEXT("II"));
-		}
-		if (S.EndsWith(TEXT("_I")))
-		{
-			return FText::FromString(TEXT("I"));
-		}
-		return FText::GetEmpty();
+		return FText::FromString(TEXT("III"));
 	}
+	if (S.EndsWith(TEXT("_II")))
+	{
+		return FText::FromString(TEXT("II"));
+	}
+	if (S.EndsWith(TEXT("_I")))
+	{
+		return FText::FromString(TEXT("I"));
+	}
+	return FText::GetEmpty();
+}
 }
 
 UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
+	static ConstructorHelpers::FClassFinder<UReEchoShopTooltipWidget> TooltipFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoShopTooltip"));
+	ShopTooltipWidgetClass = TooltipFinder.Class;
+	static ConstructorHelpers::FClassFinder<UReEchoAttributeTooltipWidget> AttributeTooltipFinder(
+	    TEXT("/Game/ReEcho/UI/WBP_ReEchoAttributeTooltip"));
+	AttributeTooltipWidgetClass = AttributeTooltipFinder.Class;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ItemCardFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/T_UI_Shop110_OfferCard.T_UI_Shop110_OfferCard"));
 	ShopItemCardTexture = ItemCardFinder.Object;
@@ -1230,7 +1238,8 @@ void UReEchoInventoryShopWidget::BuildTargetShopPresentation()
 		ShopRefreshButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopRefreshButton"));
 	}
 	ShopRefreshButton->SetBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
-	UOverlay* RefreshOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("TargetRefreshOverlay"));
+	UOverlay* RefreshOverlay =
+	    WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("TargetRefreshOverlay"));
 	UImage* RefreshArt = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("TargetRefreshArt"));
 	RefreshArt->SetBrushFromTexture(ShopRefreshTexture, true);
 	RefreshArt->SetVisibility(ESlateVisibility::HitTestInvisible);
@@ -1293,7 +1302,8 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 		RefreshArt->SetBrushFromTexture(ShopRefreshTexture.Get(), true);
 		RefreshArt->SetColorAndOpacity(FLinearColor::White);
 		RefreshArt->SetVisibility(ESlateVisibility::HitTestInvisible);
-		UOverlay* RefreshOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("DesignerRefreshOverlay"));
+		UOverlay* RefreshOverlay =
+		    WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("DesignerRefreshOverlay"));
 		UOverlaySlot* RefreshArtSlot = RefreshOverlay->AddChildToOverlay(RefreshArt);
 		RefreshArtSlot->SetHorizontalAlignment(HAlign_Fill);
 		RefreshArtSlot->SetVerticalAlignment(VAlign_Fill);
@@ -1758,12 +1768,13 @@ void UReEchoInventoryShopWidget::AddTargetOfferCard(UHorizontalBox* Row,
 		                                 18,
 		                                 FLinearColor(0.03f, 0.03f, 0.03f));
 		BuyText->SetText(bEmptyBuildCardSlot ? Offer.DisplayName
-		                 : bOwnedWeapon      ? FText::FromString(TEXT("已获得"))
-		                                     : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
-		                                                       : (bOwnedPartBlocking ? (IsPartEquipped(Offer.ContentId)
-		                                                                                    ? FText::FromString(TEXT("已装备"))
-		                                                                                    : FText::FromString(TEXT("已获得")))
-		                                                                                : FText::FromString(TEXT("已获得")))));
+		                 : bOwnedWeapon
+		                     ? FText::FromString(TEXT("已获得"))
+		                     : (bPurchasedSlot ? FText::FromString(TEXT("已购"))
+		                                       : (bOwnedPartBlocking ? (IsPartEquipped(Offer.ContentId)
+		                                                                    ? FText::FromString(TEXT("已装备"))
+		                                                                    : FText::FromString(TEXT("已获得")))
+		                                                             : FText::FromString(TEXT("已获得")))));
 		BuyText->SetJustification(ETextJustify::Center);
 		UOverlaySlot* TextSlot = ButtonOverlay->AddChildToOverlay(BuyText);
 		TextSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -1948,31 +1959,32 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 					OfferIcon = WeaponIcon;
 				}
 			}
-		DesignerPartOfferIcons[Index]->SetBrushFromTexture(OfferIcon, true);
-		DesignerPartOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
-	}
-	if (DesignerPartOfferTierBadges.IsValidIndex(Index))
-	{
-		// Re-resolve if the badge was never created or was dropped by a widget rebuild.
-		UTextBlock* Badge = DesignerPartOfferTierBadges[Index];
-		if (!Badge)
-		{
-			Badge = EnsureRuneTierBadge(DesignerPartOfferCards.IsValidIndex(Index) ? DesignerPartOfferCards[Index] : nullptr,
-			                            DesignerPartOfferIcons.IsValidIndex(Index) ? DesignerPartOfferIcons[Index] : nullptr,
-			                            Index);
-			DesignerPartOfferTierBadges[Index] = Badge;
+			DesignerPartOfferIcons[Index]->SetBrushFromTexture(OfferIcon, true);
+			DesignerPartOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 		}
-		if (Badge)
+		if (DesignerPartOfferTierBadges.IsValidIndex(Index))
 		{
-			// Tiered runes share one icon asset; the roman numeral in the corner tells the tiers apart.
-			const FText TierText = Offer.Type == EReEchoShopOfferType::WeaponPart
-			                           ? GetRuneTierBadgeText(Offer.ContentId)
-			                           : FText::GetEmpty();
-			Badge->SetText(TierText);
-			Badge->SetVisibility(TierText.IsEmpty() ? ESlateVisibility::Collapsed
-			                                        : ESlateVisibility::HitTestInvisible);
+			// Re-resolve if the badge was never created or was dropped by a widget rebuild.
+			UTextBlock* Badge = DesignerPartOfferTierBadges[Index];
+			if (!Badge)
+			{
+				Badge = EnsureRuneTierBadge(
+				    DesignerPartOfferCards.IsValidIndex(Index) ? DesignerPartOfferCards[Index] : nullptr,
+				    DesignerPartOfferIcons.IsValidIndex(Index) ? DesignerPartOfferIcons[Index] : nullptr,
+				    Index);
+				DesignerPartOfferTierBadges[Index] = Badge;
+			}
+			if (Badge)
+			{
+				// Tiered runes share one icon asset; the roman numeral in the corner tells the tiers apart.
+				const FText TierText = Offer.Type == EReEchoShopOfferType::WeaponPart
+				                           ? GetRuneTierBadgeText(Offer.ContentId)
+				                           : FText::GetEmpty();
+				Badge->SetText(TierText);
+				Badge->SetVisibility(TierText.IsEmpty() ? ESlateVisibility::Collapsed
+				                                        : ESlateVisibility::HitTestInvisible);
+			}
 		}
-	}
 		if (DesignerPartOfferDescriptions.IsValidIndex(Index) && DesignerPartOfferDescriptions[Index])
 		{
 			// The offer card only carries the rune name; the full effect remains in its tooltip.
@@ -1988,10 +2000,10 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		            bCanBuy,
 		            // Showing the "已获得/已装备" override hides the price art, so keep it empty for runes
 		            // that can still be bought again to upgrade.
-		            bRepeatableRune ? FText::GetEmpty()
-		                           : (bOwned ? (bEquipped ? FText::FromString(TEXT("已装备"))
-		                                                  : FText::FromString(TEXT("已获得")))
-		                                     : FText::GetEmpty()));
+		            bRepeatableRune
+		                ? FText::GetEmpty()
+		                : (bOwned ? (bEquipped ? FText::FromString(TEXT("已装备")) : FText::FromString(TEXT("已获得")))
+		                          : FText::GetEmpty()));
 	}
 
 	for (int32 Index = 0; Index < DesignerPackOfferCards.Num(); ++Index)
@@ -2032,18 +2044,18 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 			DesignerPackOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 			DesignerPackOfferIcons[Index]->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
-	if (DesignerPackOfferDescriptions.IsValidIndex(Index) && DesignerPackOfferDescriptions[Index])
-	{
-		// A tier configured with several packs shows how many are still buyable, e.g. "一级卡组（剩余：2）".
-		const FText PackTitle =
-		    FText::Format(NSLOCTEXT("ReEcho", "AuthoredPackTierOnly", "{0}卡组"), Pack.DisplayName);
-		DesignerPackOfferDescriptions[Index]->SetText(
-		    Pack.TotalPurchases > 1
-		        ? FText::Format(NSLOCTEXT("ReEcho", "AuthoredPackTierWithRemaining", "{0}（剩余：{1}）"),
-		                        PackTitle,
-		                        FText::AsNumber(Pack.RemainingPurchases))
-		        : PackTitle);
-	}
+		if (DesignerPackOfferDescriptions.IsValidIndex(Index) && DesignerPackOfferDescriptions[Index])
+		{
+			// A tier configured with several packs shows how many are still buyable, e.g. "一级卡组（剩余：2）".
+			const FText PackTitle =
+			    FText::Format(NSLOCTEXT("ReEcho", "AuthoredPackTierOnly", "{0}卡组"), Pack.DisplayName);
+			DesignerPackOfferDescriptions[Index]->SetText(
+			    Pack.TotalPurchases > 1
+			        ? FText::Format(NSLOCTEXT("ReEcho", "AuthoredPackTierWithRemaining", "{0}（剩余：{1}）"),
+			                        PackTitle,
+			                        FText::AsNumber(Pack.RemainingPurchases))
+			        : PackTitle);
+		}
 		if (DesignerPackOfferCosts.IsValidIndex(Index) && DesignerPackOfferCosts[Index])
 		{
 			DesignerPackOfferCosts[Index]->SetText(FText::AsNumber(EffectivePrice));
@@ -2123,13 +2135,16 @@ void UReEchoInventoryShopWidget::InjectCharacterPassiveCardIntoOwnedView()
 	if (CharacterId.IsNone())
 	{
 		UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
-		const UReEchoRunSubsystem* RunSubsystem = GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+		const UReEchoRunSubsystem* RunSubsystem =
+		    GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 		if (RunSubsystem)
 		{
 			CharacterId = RunSubsystem->CurrentBuild.CharacterId;
 		}
 	}
-	UE_LOG(LogReEcho, Log, TEXT("[ReEchoCharCard] CharacterId=%s (explicit=%s)"),
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[ReEchoCharCard] CharacterId=%s (explicit=%s)"),
 	       *CharacterId.ToString(),
 	       CurrentShopCharacterId.IsNone() ? TEXT("no") : TEXT("yes"));
 	if (CharacterId.IsNone())
@@ -2152,33 +2167,43 @@ void UReEchoInventoryShopWidget::InjectCharacterPassiveCardIntoOwnedView()
 	const FName CardContentId(*FString::Printf(TEXT("CHARACTER_CARD_%s"), *Character->Id.ToString()));
 	// Self-healing across rebuilds: skip if already present in this view copy.
 	if (CurrentPartShopView.OwnedCards.ContainsByPredicate(
-		    [&](const FReEchoShopOffer& Card) { return Card.ContentId == CardContentId; }))
+	        [&](const FReEchoShopOffer& Card)
+	        {
+		        return Card.ContentId == CardContentId;
+	        }))
 	{
 		UE_LOG(LogReEcho, Log, TEXT("[ReEchoCharCard] Already present, skip dup: %s"), *CardContentId.ToString());
 		return;
 	}
 	const FString IconPath = FString::Printf(
-		TEXT("/Game/ReEcho/Textures/UI/IconCatalog/Characters/T_UI_CharacterIcon_%s.T_UI_CharacterIcon_%s"),
-		*Character->Id.ToString(),
-		*Character->Id.ToString());
+	    TEXT("/Game/ReEcho/Textures/UI/IconCatalog/Characters/T_UI_CharacterIcon_%s.T_UI_CharacterIcon_%s"),
+	    *Character->Id.ToString(),
+	    *Character->Id.ToString());
 	FReEchoShopOffer CharacterCard;
 	CharacterCard.ItemId = CardContentId;
 	CharacterCard.ContentId = CardContentId;
 	CharacterCard.DisplayName = FText::FromString(Character->DisplayName);
-	CharacterCard.EffectText = FText::FromString(TEXT("【能力】") + ExtractCharacterAbilityText(Character->Description));
+	CharacterCard.EffectText =
+	    FText::FromString(TEXT("【能力】") + ExtractCharacterAbilityText(Character->Description));
 	CharacterCard.IconTexturePath = IconPath;
 	CharacterCard.Type = EReEchoShopOfferType::BuildCard;
 	// Pin to the front so it is the first visible card in the right-side panel.
 	CurrentPartShopView.OwnedCards.Insert(CharacterCard, 0);
-	UE_LOG(LogReEcho, Log, TEXT("[ReEchoCharCard] INJECTED '%s' icon='%s' -> OwnedCards now %d"),
-	       *Character->DisplayName, *IconPath, CurrentPartShopView.OwnedCards.Num());
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[ReEchoCharCard] INJECTED '%s' icon='%s' -> OwnedCards now %d"),
+	       *Character->DisplayName,
+	       *IconPath,
+	       CurrentPartShopView.OwnedCards.Num());
 }
 
 void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 {
 	if (DesignerCardSlotButtons.IsEmpty() || DesignerCardSlotArts.IsEmpty())
 	{
-		UE_LOG(LogReEcho, Warning, TEXT("[ReEchoCharCard] RebuildOwnedCardSlots SKIP: slot buttons empty (bound=%d)"),
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("[ReEchoCharCard] RebuildOwnedCardSlots SKIP: slot buttons empty (bound=%d)"),
 		       DesignerCardSlotButtons.Num());
 		return;
 	}
@@ -2208,7 +2233,9 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		DisplayedOwnedCards.Add(Card);
 		DisplayedOwnedCardCounts.Add(1);
 	}
-	UE_LOG(LogReEcho, Log, TEXT("[ReEchoCharCard] Rebuild: OwnedCards=%d DisplayedOwnedCards=%d first='%s'"),
+	UE_LOG(LogReEcho,
+	       Log,
+	       TEXT("[ReEchoCharCard] Rebuild: OwnedCards=%d DisplayedOwnedCards=%d first='%s'"),
 	       CurrentPartShopView.OwnedCards.Num(),
 	       DisplayedOwnedCards.Num(),
 	       DisplayedOwnedCards.Num() ? *DisplayedOwnedCards[0].ContentId.ToString() : TEXT("none"));
@@ -2223,16 +2250,16 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		                       return Card.ContentId == StorageCard->ContentId;
 	                       }))
 	{
-	if (DisplayedOwnedCards.IsEmpty())
-	{
-		DisplayedOwnedCards.Add(*StorageCard);
-		DisplayedOwnedCardCounts.Add(1);
-	}
-	else
-	{
-		DisplayedOwnedCards.Last() = *StorageCard;
-		DisplayedOwnedCardCounts.Last() = 1;
-	}
+		if (DisplayedOwnedCards.IsEmpty())
+		{
+			DisplayedOwnedCards.Add(*StorageCard);
+			DisplayedOwnedCardCounts.Add(1);
+		}
+		else
+		{
+			DisplayedOwnedCards.Last() = *StorageCard;
+			DisplayedOwnedCardCounts.Last() = 1;
+		}
 	}
 	const int32 PageStartIndex = ActiveOwnedCardPage * SlotCount;
 	const int32 VisibleCount = FMath::Clamp(DisplayedOwnedCards.Num() - PageStartIndex, 0, SlotCount);
@@ -2260,31 +2287,30 @@ void UReEchoInventoryShopWidget::RebuildOwnedCardSlots()
 		SlotImage->SetBrushFromTexture(CardTexture, false);
 		SlotImage->SetColorAndOpacity(FLinearColor::White);
 		SlotImage->SetVisibility(Index < VisibleCount ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
-	if (Index < VisibleCount)
-	{
-		const bool bStorageCard = DisplayedOwnedCards[CardIndex].ContentId == FName(ReEchoTimeAnchor::CardId);
-		CardSlotButton->SetToolTip(BuildSlotTooltip(DisplayedOwnedCards[CardIndex]));
-		if (bStorageCard)
+		if (Index < VisibleCount)
 		{
-			CardSlotButton->OnClicked.AddUniqueDynamic(
-			    this, &UReEchoInventoryShopWidget::HandleEchoStorageCardSlotClicked);
+			const bool bStorageCard = DisplayedOwnedCards[CardIndex].ContentId == FName(ReEchoTimeAnchor::CardId);
+			CardSlotButton->SetToolTip(BuildSlotTooltip(DisplayedOwnedCards[CardIndex]));
+			if (bStorageCard)
+			{
+				CardSlotButton->OnClicked.AddUniqueDynamic(
+				    this, &UReEchoInventoryShopWidget::HandleEchoStorageCardSlotClicked);
+			}
+			const int32 OwnedCount =
+			    DisplayedOwnedCardCounts.IsValidIndex(CardIndex) ? DisplayedOwnedCardCounts[CardIndex] : 1;
+			if (UTextBlock* CountBadge = EnsureOwnedCardCountBadge(CardSlotButton, Index))
+			{
+				CountBadge->SetText(OwnedCount > 1 ? FText::Format(NSLOCTEXT("ReEcho", "OwnedCardStackCount", "×{0}"),
+				                                                   FText::AsNumber(OwnedCount))
+				                                   : FText::GetEmpty());
+				CountBadge->SetVisibility(OwnedCount > 1 ? ESlateVisibility::HitTestInvisible
+				                                         : ESlateVisibility::Collapsed);
+			}
 		}
-		const int32 OwnedCount = DisplayedOwnedCardCounts.IsValidIndex(CardIndex)
-		                             ? DisplayedOwnedCardCounts[CardIndex]
-		                             : 1;
-		if (UTextBlock* CountBadge = EnsureOwnedCardCountBadge(CardSlotButton, Index))
+		else if (UTextBlock* CountBadge = EnsureOwnedCardCountBadge(CardSlotButton, Index))
 		{
-			CountBadge->SetText(OwnedCount > 1 ? FText::Format(NSLOCTEXT("ReEcho", "OwnedCardStackCount", "×{0}"),
-			                                                  FText::AsNumber(OwnedCount))
-			                                   : FText::GetEmpty());
-			CountBadge->SetVisibility(OwnedCount > 1 ? ESlateVisibility::HitTestInvisible
-			                                         : ESlateVisibility::Collapsed);
+			CountBadge->SetVisibility(ESlateVisibility::Collapsed);
 		}
-	}
-	else if (UTextBlock* CountBadge = EnsureOwnedCardCountBadge(CardSlotButton, Index))
-	{
-		CountBadge->SetVisibility(ESlateVisibility::Collapsed);
-	}
 	}
 	UpdateOwnedCardPaginationControls();
 }
@@ -3106,46 +3132,13 @@ UTextBlock* UReEchoInventoryShopWidget::EnsureRuneTierBadge(UCanvasPanel* Card, 
 
 UWidget* UReEchoInventoryShopWidget::BuildSlotTooltip(const FReEchoShopOffer& Offer)
 {
-	UVerticalBox* TooltipStack = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
-	auto AddTooltipPanel = [&](const FText& Title, const FText& Body, const bool bOutcome)
+	if (!ensureMsgf(ShopTooltipWidgetClass, TEXT("Shop tooltip Blueprint is missing")))
 	{
-		USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
-		TooltipSize->SetWidthOverride(280.0f);
-		UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-		TooltipFrame->SetBrushColor(bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f, 1.0f) : TooltipFrameColor);
-		TooltipFrame->SetPadding(FMargin(3.0f));
-		UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-		TooltipSurface->SetBrushColor(TooltipSurfaceColor);
-		TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
-		UVerticalBox* TooltipContent =
-		    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
-		UTextBlock* TooltipTitle = CreateText(WidgetTree,
-		                                      NAME_None,
-		                                      bOutcome ? 17 : 19,
-		                                      bOutcome ? FLinearColor(0.96f, 0.80f, 0.34f) : FLinearColor::White);
-		TooltipTitle->SetText(Title);
-		TooltipTitle->SetJustification(ETextJustify::Center);
-		TooltipTitle->SetAutoWrapText(false);
-		UVerticalBoxSlot* TitleSlot = TooltipContent->AddChildToVerticalBox(TooltipTitle);
-		TitleSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
-		UTextBlock* TooltipEffect = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
-		TooltipEffect->SetText(Body);
-		TooltipEffect->SetJustification(ETextJustify::Center);
-		TooltipEffect->SetAutoWrapText(true);
-		TooltipContent->AddChildToVerticalBox(TooltipEffect);
-		TooltipSurface->SetContent(TooltipContent);
-		TooltipFrame->SetContent(TooltipSurface);
-		TooltipSize->SetContent(TooltipFrame);
-		UVerticalBoxSlot* PanelSlot = TooltipStack->AddChildToVerticalBox(TooltipSize);
-		PanelSlot->SetPadding(bOutcome ? FMargin(0.0f, 3.0f, 0.0f, 0.0f) : FMargin(0.0f));
-	};
-
-	AddTooltipPanel(Offer.DisplayName, Offer.EffectText, false);
-	if (!Offer.OutcomeText.IsEmpty())
-	{
-		AddTooltipPanel(NSLOCTEXT("ReEcho", "ResolvedCardOutcomeTitle", "实际效果"), Offer.OutcomeText, true);
+		return nullptr;
 	}
-	return TooltipStack;
+	UReEchoShopTooltipWidget* Tooltip = WidgetTree->ConstructWidget<UReEchoShopTooltipWidget>(ShopTooltipWidgetClass);
+	Tooltip->Configure(Offer.DisplayName, Offer.EffectText, Offer.OutcomeText);
+	return Tooltip;
 }
 
 UWidget* UReEchoInventoryShopWidget::BuildCardPackTooltip(const FReEchoShopCardPackOffer& Pack)
@@ -3198,24 +3191,16 @@ void UReEchoInventoryShopWidget::SetPlayerStats(const FReEchoStatBlock& Stats)
 
 UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock& Stats) const
 {
+	if (!ensureMsgf(AttributeTooltipWidgetClass, TEXT("Attribute tooltip Blueprint is missing")))
+	{
+		return nullptr;
+	}
+	UReEchoAttributeTooltipWidget* Tooltip =
+	    WidgetTree->ConstructWidget<UReEchoAttributeTooltipWidget>(AttributeTooltipWidgetClass);
+	TArray<FReEchoAttributeRowView> Rows;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	UE_LOG(LogReEcho,
-	       Log,
-	       TEXT("[AttrPanel] BuildAttributePanel Snapshot=%s"),
-	       Snapshot.IsValid() ? TEXT("valid") : TEXT("NULL"));
-	USizeBox* TooltipSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), NAME_None);
-	TooltipSize->SetWidthOverride(320.0f);
-	UBorder* TooltipFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-	TooltipFrame->SetBrushColor(FLinearColor::White);
-	TooltipFrame->SetPadding(FMargin(3.0f));
-	UBorder* TooltipSurface = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), NAME_None);
-	TooltipSurface->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.97f));
-	TooltipSurface->SetPadding(FMargin(14.0f, 11.0f));
-	UVerticalBox* TooltipContent = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), NAME_None);
-
 	if (Snapshot)
 	{
-		UE_LOG(LogReEcho, Log, TEXT("[AttrPanel] AttributeOrder count=%d"), Snapshot->GetAttributeOrder().Num());
 		for (const FName& AttrId : Snapshot->GetAttributeOrder())
 		{
 			const FReEchoCsvAttributeRow* Attr = Snapshot->FindAttribute(AttrId);
@@ -3227,30 +3212,16 @@ UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock&
 			const FString ValueText = Attr->ValueKind == FName(TEXT("Percent"))
 			                              ? FString::FromInt(FMath::RoundToInt(Raw * 100.0f)) + TEXT("%")
 			                              : FString::FromInt(FMath::RoundToInt(Raw));
-			UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), NAME_None);
-			UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), NAME_None);
 			const FString IconPath =
 			    FString::Printf(TEXT("/Game/ReEcho/Textures/UI/Attributes/%s.%s"), *Attr->IconName, *Attr->IconName);
-			if (UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *IconPath))
-			{
-				Icon->SetBrushFromTexture(Tex);
-			}
-			Icon->SetDesiredSizeOverride(FVector2D(28.0f, 28.0f));
-			UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(Icon);
-			IconSlot->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
-			IconSlot->SetVerticalAlignment(VAlign_Center);
-			UTextBlock* Name = CreateText(WidgetTree, NAME_None, 16, FLinearColor::White);
-			Name->SetText(FText::FromString(FString::Printf(TEXT("%s：%s"), *Attr->DisplayName, *ValueText)));
-			Name->SetJustification(ETextJustify::Left);
-			UHorizontalBoxSlot* NameSlot = Row->AddChildToHorizontalBox(Name);
-			NameSlot->SetVerticalAlignment(VAlign_Center);
-			TooltipContent->AddChildToVerticalBox(Row);
+			FReEchoAttributeRowView& Row = Rows.AddDefaulted_GetRef();
+			Row.Name = FText::FromString(Attr->DisplayName);
+			Row.Value = FText::FromString(ValueText);
+			Row.Icon = LoadObject<UTexture2D>(nullptr, *IconPath);
 		}
 	}
-	TooltipSurface->SetContent(TooltipContent);
-	TooltipFrame->SetContent(TooltipSurface);
-	TooltipSize->SetContent(TooltipFrame);
-	return TooltipSize;
+	Tooltip->ConfigureRows(Rows);
+	return Tooltip;
 }
 
 void UReEchoInventoryShopWidget::Refresh()
@@ -3355,15 +3326,13 @@ void UReEchoInventoryShopWidget::Refresh()
 		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
 		const FText RefreshLabel =
 		    CurrentFreeShopRefreshes > 0
-		        ? FText::Format(
-		              NSLOCTEXT("ReEcho", "ShopRefreshButtonWithFree", "刷新|{0}次免费|{1}次·{2}碎片"),
-		              FText::AsNumber(CurrentFreeShopRefreshes),
-		              PaidRemaining,
-		              FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
-		        : FText::Format(
-		              NSLOCTEXT("ReEcho", "ShopRefreshButtonCounted", "刷新|{0}次·{1}碎片"),
-		              PaidRemaining,
-		              FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost));
+		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonWithFree", "刷新|{0}次免费|{1}次·{2}碎片"),
+		                        FText::AsNumber(CurrentFreeShopRefreshes),
+		                        PaidRemaining,
+		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
+		        : FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonCounted", "刷新|{0}次·{1}碎片"),
+		                        PaidRemaining,
+		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost));
 		if (ShopRefreshText)
 		{
 			ShopRefreshText->SetText(RefreshLabel);
@@ -3417,16 +3386,14 @@ void UReEchoInventoryShopWidget::Refresh()
 			WeaponPartOfferButtons[Index]->SetIsEnabled((!bOwned || bRepeatableRune) && PartOffer.bCanPurchase);
 			WeaponPartOfferButtons[Index]->SetBackgroundColor(bEquipped ? FLinearColor(0.2f, 0.55f, 0.25f, 0.95f)
 			                                                            : FLinearColor(0.15f, 0.11f, 0.07f, 0.88f));
-			WeaponPartOfferTexts[Index]->SetText(
-			    FText::Format(NSLOCTEXT("ReEcho", "WeaponPartOfferFormat", "{0} · {1}{2}"),
-			                  PartOffer.DisplayName,
-			                  FText::FromName(PartOffer.SlotTypeId),
-			                  !bRepeatableRune && bEquipped
-			                      ? NSLOCTEXT("ReEcho", "WeaponPartEquipped", "（已装备）")
-			                      : !bRepeatableRune && bOwned
-			                            ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已获得）")
-			                            : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
-			                                            FText::AsNumber(PartOffer.EffectivePrice))));
+			WeaponPartOfferTexts[Index]->SetText(FText::Format(
+			    NSLOCTEXT("ReEcho", "WeaponPartOfferFormat", "{0} · {1}{2}"),
+			    PartOffer.DisplayName,
+			    FText::FromName(PartOffer.SlotTypeId),
+			    !bRepeatableRune && bEquipped ? NSLOCTEXT("ReEcho", "WeaponPartEquipped", "（已装备）")
+			    : !bRepeatableRune && bOwned  ? NSLOCTEXT("ReEcho", "WeaponPartOwned", "（已获得）")
+			                                  : FText::Format(NSLOCTEXT("ReEcho", "WeaponPartPrice", "（{0} 碎片）"),
+                                                             FText::AsNumber(PartOffer.EffectivePrice))));
 		}
 	}
 	if (ShopPresentationLayer)

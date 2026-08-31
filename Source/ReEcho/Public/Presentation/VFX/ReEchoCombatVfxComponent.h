@@ -53,6 +53,12 @@ class REECHO_API UReEchoCombatVfxComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+	void BeginBossTransformationEffects(float Scale);
+	void BurstBossTransformationEffects(float Scale);
+	void EndBossTransformationEffects();
+	void BeginSacrificeEffect(const FVector& WorldLocation);
+	void UpdateSacrificeEffect(const FVector& WorldLocation);
+	void EndSacrificeEffect();
 	UReEchoCombatVfxComponent();
 	/** Pure layer policy shared by runtime and automation. */
 	static int32 ResolveCombatEffectSortPriority(int32 OwnerSortPriority);
@@ -107,9 +113,20 @@ public:
 	    const FVector& Origin, const FVector& LockedDirection, float LengthCm, FVector& OutStart, FVector& OutEnd);
 	/** Projects the locked warning center onto the Arena gameplay plane without changing its authoritative XY. */
 	static FVector ResolveBossBeamGroundOrigin(const FVector& LockedWarningCenter, float GameplayPlaneWorldZ);
+	/** Keeps a world-space effect's authored lowest layer on the locked ground plane while preserving its center XY. */
+	static FVector ResolveGroundAlignedEffectOrigin(const FVector& GroundCenter,
+	                                                const FBox& AuthoredBounds,
+	                                                const FVector& WorldScale);
 	/** Converts desired semantic scale into an attached relative scale without inheriting owner size twice. */
 	static FVector
 	ResolveAttachedScale(const FVector& DesiredScale, const FVector& AttachmentWorldScale, bool bPreserveWorldSize);
+	/** Phase3 sheds the staff, so its Skill03 charge follows the body attack root instead of the weapon tip. */
+	static USceneComponent* ResolveBossChargingAttachmentRoot(bool bSkill03,
+	                                                          int32 BossPhaseIndex,
+	                                                          USceneComponent* AttackRoot,
+	                                                          USceneComponent* WeaponRoot);
+	/** Returns the world-space top center of the active Phase3 character animation for body charging placement. */
+	static FVector ResolveBossPhase3ChargingTopWorldLocation(const FBoxSphereBounds& AnimationWorldBounds);
 	static FVector ResolveAttackRangeScale(const FVector& AuthoredScale,
 	                                       const FVector& ScaleMask,
 	                                       float RangeMultiplier,
@@ -140,8 +157,19 @@ public:
 	{
 		return ChargingEffect;
 	}
+
+	UNiagaraComponent* GetBossChargingEffectForTests() const
+	{
+		return BossChargingEffect;
+	}
+
+	int32 GetCurrentBossPhaseIndexForTests() const
+	{
+		return CurrentBossPhaseIndex;
+	}
 #endif
 	/** Host-owned, Blueprint-editable scene anchors for outgoing and incoming combat effects. */
+	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
 	void ConfigureAttachmentRoots(USceneComponent* InAttackVfxRoot,
 	                              USceneComponent* InHurtVfxRoot,
 	                              USceneComponent* InBossWeaponVfxRoot = nullptr);
@@ -149,13 +177,10 @@ public:
 	void ConfigureWeaponAttackVfxRoot(USceneComponent* InWeaponAttackVfxRoot);
 	void ConfigureEchoAuraRoot(USceneComponent* InEchoAuraVfxRoot);
 	void PlayEchoCardAuraPulse(bool bPlayWater, bool bPlayGrass);
-	/** Plays one independent world-space Echo birth circle at an already resolved actor-centered ground position. */
-	bool PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation, float DesiredWorldDiameterCm) const;
+	/** Plays one independent world-space Echo birth circle at the resolved ground-shadow center. */
+	bool PlayEchoBornAtWorldLocation(const FVector& GroundWorldLocation) const;
 	/** True while the most recently spawned Echo birth system is still simulating. */
 	bool IsEchoBornEffectActive() const;
-	static FVector ResolveEchoBornWorldScale(float DesiredWorldDiameterCm,
-	                                         const FBox& AuthoredSystemBounds,
-	                                         const FVector& FallbackScale);
 	/** Keeps one card-owned visual link from this owner to every requested living Echo. */
 	void SyncEchoConnectionLinks(bool bEnabled, const TArray<AActor*>& EchoActors);
 	void ClearEchoConnectionLinks();
@@ -224,6 +249,26 @@ public:
 	{
 		return EchoConnectionEffects.Num();
 	}
+
+	UNiagaraComponent* GetLastBossSkill03ImpactEffectForTests() const
+	{
+		return LastBossSkill03ImpactEffect.Get();
+	}
+
+	UNiagaraComponent* GetBossTelegraphEffectForTests() const
+	{
+		return BossTelegraphEffect;
+	}
+
+	int32 GetBossSkill03ImpactIntentCountForTests() const
+	{
+		return BossSkill03ImpactIntentCountForTests;
+	}
+
+	int32 GetBossSkill03ImpactSpawnCountForTests() const
+	{
+		return BossSkill03ImpactSpawnCountForTests;
+	}
 #endif
 
 protected:
@@ -233,7 +278,6 @@ protected:
 	TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
-	void BindEventSources(UReEchoCombatEventsComponent* InCombatEvents, UReEchoEnemyEventsComponent* InEnemyEvents);
 	UNiagaraSystem* ResolveSystem(uint8 SemanticValue) const;
 	UTexture2D* ResolveRabbitProjectileTexture() const;
 	UMaterialInterface* ResolveRabbitProjectileMaterial() const;
@@ -293,6 +337,8 @@ private:
 	void HandleProjectile(const FReEchoEnemyProjectileEvent& Event);
 	UFUNCTION()
 	void HandleBossIntent(const FReEchoBossIntent& Intent);
+	void SpawnBossSkill03Impact(const FReEchoBossIntent& Intent);
+	static FString MakeBossSkill03ImpactKey(const FReEchoBossIntent& Intent);
 
 	UPROPERTY()
 	TObjectPtr<UReEchoCombatEventsComponent> CombatEvents;
@@ -332,9 +378,19 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> BossActiveEffect;
 	float BossActiveEffectRemainingSeconds = 0.0f;
+	int32 CurrentBossPhaseIndex = 1;
 
 	TMap<int64, FName> BossAbilityByAttackSequence;
 	TMap<int64, FVector> BossGroundLocationByAttackSequence;
+	TSet<FString> EarlyBossSkill03ImpactKeys;
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BossTransformationCharge;
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BossTransformationGround;
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> BossTransformationBurst;
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> SacrificeEffect;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> AttackVfxRoot;
@@ -353,6 +409,11 @@ private:
 
 	mutable TSet<uint8> MissingSystemWarnings;
 	mutable TWeakObjectPtr<UNiagaraComponent> EchoBornEffect;
+	TWeakObjectPtr<UNiagaraComponent> LastBossSkill03ImpactEffect;
+#if WITH_DEV_AUTOMATION_TESTS
+	int32 BossSkill03ImpactIntentCountForTests = 0;
+	int32 BossSkill03ImpactSpawnCountForTests = 0;
+#endif
 	mutable TSet<FString> MissingElementSystemWarnings;
 	mutable bool bMissingRabbitProjectileTextureWarned = false;
 	mutable bool bMissingRabbitProjectileMaterialWarned = false;

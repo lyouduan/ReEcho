@@ -93,14 +93,23 @@ bool FReEchoGrantAllTierOneCardsTest::RunTest(const FString&)
 {
 	const FReEchoCardDefinition TierOneOwned =
 	    MakeCard(TEXT("TIER_ONE_OWNED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
-	const FReEchoCardDefinition TierOneMissing =
-	    MakeCard(TEXT("TIER_ONE_MISSING"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	const FReEchoCardDefinition TierOneMissing = MakeCard(
+	    TEXT("TIER_ONE_MISSING"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
 	FReEchoCardDefinition TierOneDisabled =
 	    MakeCard(TEXT("TIER_ONE_DISABLED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("HpMax"), 1.0f);
 	TierOneDisabled.bEnabled = false;
+	TierOneDisabled.bOfferable = false;
 	const FReEchoCardDefinition GrantAll =
 	    MakeCard(TEXT("GRANT_ALL_TIER_ONE"), 3, TEXT("Card.GrantAllTier1"), TEXT("OnGrant"), TEXT("Tier"), 1.0f);
-	const FReEchoCardCatalog Catalog = BuildCatalog({TierOneOwned, TierOneMissing, TierOneDisabled, GrantAll});
+	FReEchoCardCatalog Catalog;
+	FString CatalogError;
+	if (!TestTrue(TEXT("Grant-all fixture satisfies the catalog contract"),
+	              Catalog.Initialize(
+	                  {TierOneOwned, TierOneMissing, TierOneDisabled, GrantAll}, TEXT("cards-test-v1"), CatalogError)))
+	{
+		AddError(CatalogError);
+		return false;
+	}
 
 	FReEchoCardGrantInput Input;
 	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
@@ -672,9 +681,82 @@ bool FReEchoCardPersistenceAndRollCountTest::RunTest(const FString&)
 	PhysicalHit.CriticalRate = 0.0f;
 	const FReEchoCardOutgoingHitResult PhysicalResult =
 	    ReEchoCardRuntime::ModifyOutgoingHit(Catalog, CritState, PhysicalHit);
-	TestEqual(TEXT("Physical damage consumes one extra roll after the caller's first failed roll"),
+	TestEqual(TEXT("Physical damage consumes one extra roll on top of the weapon layer roll"),
 	          PhysicalResult.CardState.Runtime.RandomSequence,
 	          1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoChainedCriticalTest,
+                                 "ReEcho.Cards.Crit.ChainedCriticalStacks",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoChainedCriticalTest::RunTest(const FString&)
+{
+	TArray<FReEchoCardDefinition> Cards;
+	Cards.Add(MakeCard(
+	    TEXT("G_3_10"), 3, TEXT("Card.ElementCanCrit"), TEXT("BeforeOutgoingHit"), TEXT("ElementCanCrit"), 1.0f));
+	Cards.Add(MakeCard(
+	    TEXT("G_3_12"), 3, TEXT("Card.DoubleCritRoll"), TEXT("BeforeOutgoingHit"), TEXT("CriticalRollCount"), 2.0f));
+	const FReEchoCardCatalog Catalog = BuildCatalog(Cards);
+
+	const float RawDamage = 10.0f;
+	const float CriticalEffect = 0.5f;
+	const float SingleCritDamage = RawDamage * (1.0f + CriticalEffect);
+	const float DoubleCritDamage = SingleCritDamage * (1.0f + CriticalEffect);
+
+	auto ResolveHit = [&](const TArray<FName>& OwnedCardIds,
+	                      const EReEchoElement Element,
+	                      const bool bAlreadyCritical) -> FReEchoCardOutgoingHitResult
+	{
+		FReEchoCardBuildState State;
+		State.DomainRevision = Catalog.GetDomainRevision();
+		State.OwnedCardIds = OwnedCardIds;
+		FReEchoCardOutgoingHitInput Hit;
+		Hit.RawDamage = bAlreadyCritical ? SingleCritDamage : RawDamage;
+		Hit.CriticalRate = 1.0f;
+		Hit.CriticalEffect = CriticalEffect;
+		Hit.bCritical = bAlreadyCritical;
+		Hit.Element = Element;
+		return ReEchoCardRuntime::ModifyOutgoingHit(Catalog, State, Hit);
+	};
+
+	const FReEchoCardOutgoingHitResult ElementLocked =
+	    ResolveHit({FName(TEXT("G_3_12"))}, EReEchoElement::Flame, false);
+	TestFalse(TEXT("Element damage cannot crit until the element-crit card lifts the restriction"),
+	          ElementLocked.bCritical);
+	TestEqual(TEXT("Locked element damage keeps its raw value"), ElementLocked.RawDamage, RawDamage, 0.001f);
+
+	const FReEchoCardOutgoingHitResult ElementUnlocked =
+	    ResolveHit({FName(TEXT("G_3_10"))}, EReEchoElement::Flame, false);
+	TestTrue(TEXT("The element-crit card lets element damage crit"), ElementUnlocked.bCritical);
+	TestEqual(TEXT("Unlocked element damage takes exactly one crit layer"),
+	          ElementUnlocked.RawDamage,
+	          SingleCritDamage,
+	          0.001f);
+
+	const FReEchoCardOutgoingHitResult ElementChained =
+	    ResolveHit({FName(TEXT("G_3_10")), FName(TEXT("G_3_12"))}, EReEchoElement::Flame, false);
+	TestTrue(TEXT("Element damage crits twice with both cards"), ElementChained.bCritical);
+	TestEqual(TEXT("Element damage applies two crit layers"), ElementChained.RawDamage, DoubleCritDamage, 0.001f);
+
+	const FReEchoCardOutgoingHitResult PhysicalSingle =
+	    ResolveHit({FName(TEXT("G_3_12"))}, EReEchoElement::None, false);
+	TestEqual(TEXT("A non-crit physical hit gains one layer"), PhysicalSingle.RawDamage, SingleCritDamage, 0.001f);
+
+	const FReEchoCardOutgoingHitResult PhysicalChained =
+	    ResolveHit({FName(TEXT("G_3_12"))}, EReEchoElement::None, true);
+	TestTrue(TEXT("A critical physical hit stays critical"), PhysicalChained.bCritical);
+	TestEqual(TEXT("A critical physical hit crits again when the card is owned"),
+	          PhysicalChained.RawDamage,
+	          DoubleCritDamage,
+	          0.001f);
+
+	const FReEchoCardOutgoingHitResult PhysicalBaseline = ResolveHit({}, EReEchoElement::None, true);
+	TestEqual(TEXT("Without the card a weapon crit stays a single layer"),
+	          PhysicalBaseline.RawDamage,
+	          SingleCritDamage,
+	          0.001f);
 	return true;
 }
 

@@ -1,4 +1,5 @@
 #include "Graybox/ReEchoEnemyActor.h"
+#include "ReEchoGameMode.h"
 
 #include "AbilitySystem/ReEchoCombatAttributeSet.h"
 #include "AbilitySystemComponent.h"
@@ -103,14 +104,16 @@ AReEchoEnemyActor::AReEchoEnemyActor()
 	FootRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FootRoot"));
 	FootRoot->SetupAttachment(PresentationRoot);
 	FootRoot->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
+	TerminalDeathMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("TerminalDeathMotionRoot"));
+	TerminalDeathMotionRoot->SetupAttachment(FootRoot);
 	PresentationMotionRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PresentationMotionRoot"));
-	PresentationMotionRoot->SetupAttachment(FootRoot);
+	PresentationMotionRoot->SetupAttachment(TerminalDeathMotionRoot);
 	FlipbookRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlipbookRoot"));
 	FlipbookRoot->SetupAttachment(PresentationMotionRoot);
 	FlipbookRoot->SetRelativeRotation(
 	    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(FRotator(-45.0f, 0.0f, 0.0f)));
 	GroundRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GroundRoot"));
-	GroundRoot->SetupAttachment(FootRoot);
+	GroundRoot->SetupAttachment(TerminalDeathMotionRoot);
 	EffectsRoot = CreateDefaultSubobject<USceneComponent>(TEXT("EffectsRoot"));
 	EffectsRoot->SetupAttachment(PresentationMotionRoot);
 	AttackVfxRoot = CreateDefaultSubobject<USceneComponent>(TEXT("AttackVfxRoot"));
@@ -208,9 +211,10 @@ void AReEchoEnemyActor::RefreshPresentationHierarchy()
 
 	AttachIfNeeded(PresentationRoot, RootComponent);
 	AttachIfNeeded(FootRoot, PresentationRoot);
-	AttachIfNeeded(PresentationMotionRoot, FootRoot);
+	AttachIfNeeded(TerminalDeathMotionRoot, FootRoot);
+	AttachIfNeeded(PresentationMotionRoot, TerminalDeathMotionRoot);
 	AttachIfNeeded(FlipbookRoot, PresentationMotionRoot);
-	AttachIfNeeded(GroundRoot, FootRoot);
+	AttachIfNeeded(GroundRoot, TerminalDeathMotionRoot);
 	AttachIfNeeded(EffectsRoot, PresentationMotionRoot);
 	AttachIfNeeded(AttackVfxRoot, EffectsRoot);
 	AttachIfNeeded(HurtVfxRoot, EffectsRoot);
@@ -259,6 +263,7 @@ void AReEchoEnemyActor::BindComposedComponents()
 {
 	EnemyLogic->BindEventSources(EnemyEvents, CombatEvents);
 	EnemyPresentation->BindEventSources(this, EnemyEvents, CombatEvents);
+	CombatVfx->BindEventSources(CombatEvents, EnemyEvents);
 	CombatEvents->OnDeath.RemoveAll(this);
 	CombatEvents->OnDeath.AddDynamic(this, &AReEchoEnemyActor::HandleCombatDeath);
 }
@@ -312,6 +317,7 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 	FReEchoStatBlock Stats;
 	Stats.HpMax = Definition.MaxHealth;
 	Combatant->InitializeFromStats(Stats, true);
+	BossPhase1MaxHealth = Definition.Archetype == EReEchoEnemyArchetype::Boss ? Definition.MaxHealth : 0.0f;
 	// ConfigureFromDefinition is the Encounter Commit boundary for a newly spawned Host. Blueprint defaults or a
 	// previous preview state must not leave a visible enemy untargetable after its warning has ended.
 	SetCanBeDamaged(true);
@@ -383,29 +389,12 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 		           bEncounterSimulationSuspended ? 1 : 0,
 		           UGameplayStatics::IsGamePaused(this) ? 1 : 0,
 		           IsActorTickEnabled() ? 1 : 0);
-		    if (!EnemyLogic || !EnemyLogic->GetDefinition().Phase2.bEnabled)
+		    if (!EnemyLogic)
 		    {
-			    UE_LOG(LogReEcho,
-			           Warning,
-			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=Phase2Disabled"),
-			           *GetNameSafe(this));
 			    return false;
 		    }
-		    if (EnemyLogic->GetDefinition().Phase2.TriggerMode != EReEchoEnemyPhase2TriggerMode::HealthThreshold)
+		    if (!Snapshot.bAlive)
 		    {
-			    UE_LOG(LogReEcho,
-			           Warning,
-			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=TriggerMode"),
-			           *GetNameSafe(this));
-			    return false;
-		    }
-		    // Arm only while still in phase one and alive; once transformed, normal death rules apply.
-		    if (Snapshot.bPhase2Triggered || Snapshot.CurrentPhaseIndex >= 2 || !Snapshot.bAlive)
-		    {
-			    UE_LOG(LogReEcho,
-			           Warning,
-			           TEXT("[SheepPhase2Trace][FatalIntercept] enemy=%s decision=Reject reason=NotPhaseOne"),
-			           *GetNameSafe(this));
 			    return false;
 		    }
 		    // A lethal wound must remain lethal while Born owns presentation. This prevents Transform from starting
@@ -419,7 +408,24 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 			    return false;
 		    }
 		    FReEchoEnemyActionIntent PhaseIntent;
-		    if (!EnemyLogic->TryTriggerPhase2OnFatalWound(PhaseIntent))
+		    const UReEchoRunSubsystem* Run =
+		        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+		    const bool bHasEasterEggCard = Run && Run->HasOwnedEasterEggCard();
+		    const int32 CinematicPhase = EnemyLogic->ResolveFatalBossTransitionPhase(bHasEasterEggCard);
+		    if (CinematicPhase > 0)
+		    {
+			    AReEchoGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+			    if (GameMode && GameMode->BeginBossTransformation(this, CinematicPhase))
+			    {
+				    return true;
+			    }
+		    }
+		    const bool bTriggered = Snapshot.CurrentPhaseIndex == 1
+		                                ? EnemyLogic->TryTriggerPhase2OnFatalWound(PhaseIntent)
+		                            : Snapshot.CurrentPhaseIndex == 2
+		                                ? EnemyLogic->TryTriggerPhase3OnFatalWound(PhaseIntent, bHasEasterEggCard)
+		                                : false;
+		    if (!bTriggered)
 		    {
 			    UE_LOG(LogReEcho,
 			           Warning,
@@ -447,6 +453,94 @@ bool AReEchoEnemyActor::ConfigureFromDefinition(const FReEchoEnemyDefinition& De
 FName AReEchoEnemyActor::GetPresentationId() const
 {
 	return EnemyLogic ? EnemyLogic->GetDefinition().PresentationId : NAME_None;
+}
+
+bool AReEchoEnemyActor::DebugForceBossPhaseForGM(const int32 PhaseIndex)
+{
+	if (!EnemyLogic)
+	{
+		return false;
+	}
+	FReEchoEnemyActionIntent Intent;
+	const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic->GetSnapshot();
+	if (PhaseIndex == 2 && Snapshot.CurrentPhaseIndex != 1)
+	{
+		return false;
+	}
+	if (PhaseIndex == 2 || PhaseIndex == 3)
+	{
+		AReEchoGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AReEchoGameMode>() : nullptr;
+		if (GameMode)
+		{
+			// Accepted includes a request queued until the console releases its pause.
+			// A rejected cinematic request must not silently force the legacy transition.
+			return GameMode->BeginBossTransformation(this, PhaseIndex);
+		}
+	}
+	const bool bApplied = PhaseIndex == 2 ? EnemyLogic->TryTriggerPhase2OnFatalWound(Intent)
+	                                      : EnemyLogic->DebugForceBossPhase(PhaseIndex, Intent);
+	if (!bApplied)
+	{
+		return false;
+	}
+	HandlePhaseTransitionIntent(Intent);
+	return true;
+}
+
+bool AReEchoEnemyActor::DebugSetBossEncounterElapsedSecondsForGM(const float Seconds)
+{
+	return EnemyLogic && EnemyLogic->DebugSetBossEncounterElapsedSeconds(Seconds);
+}
+
+void AReEchoEnemyActor::CompensateBossTransformationPause(const float SuspendedAtWorldTime)
+{
+	if (GetWorld() && CardStunnedUntilWorldTime > SuspendedAtWorldTime)
+	{
+		CardStunnedUntilWorldTime += FMath::Max(0.0f, GetWorld()->GetTimeSeconds() - SuspendedAtWorldTime);
+	}
+}
+
+void AReEchoEnemyActor::PrepareBossTransformation()
+{
+	if (EnemyLogic)
+	{
+		// Reuse the action-cancellation command only; this does not apply a stun or clear elemental state.
+		EnemyLogic->CancelActiveActionsForStun();
+	}
+	bBossBlinkSlamPending = false;
+	PendingBossBlinkSlamRemainingSeconds = 0.0f;
+	bBossPrayerBeamPending = false;
+	PendingBossPrayerBeamRemainingSeconds = 0.0f;
+	for (const FReEchoEnemyProjectileRuntimeState& Projectile : BossProjectiles)
+	{
+		if (Projectile.bSpawnEventPublished)
+		{
+			PublishProjectileEvent(EReEchoEnemyProjectileEventType::Ended, Projectile);
+		}
+	}
+	BossProjectiles.Reset();
+}
+
+bool AReEchoEnemyActor::CommitSacrificePhase2()
+{
+	FReEchoEnemyActionIntent Intent;
+	if (!EnemyLogic || !EnemyLogic->CompleteCinematicPhase2(Intent))
+	{
+		return false;
+	}
+	HandlePhaseTransitionIntent(Intent);
+	return true;
+}
+
+bool AReEchoEnemyActor::CommitCinematicBossPhase(const int32 PhaseIndex)
+{
+	FReEchoEnemyActionIntent Intent;
+	if (!EnemyLogic || !EnemyLogic->DebugForceBossPhase(PhaseIndex, Intent))
+	{
+		return false;
+	}
+	HandlePhaseTransitionIntent(Intent);
+	return true;
 }
 
 void AReEchoEnemyActor::SetEnemyRoster(UReEchoEnemyRosterComponent* InRoster)
@@ -518,6 +612,15 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.AttackSequence = LogicSnapshot.AttackSequence;
 	Result.bSelfDestructCommitted = LogicSnapshot.bSelfDestructCommitted;
 	Result.BossProjectiles = BossProjectiles;
+	Result.SavedMaxHealth = Combatant ? Combatant->Stats.HpMax : 0.0f;
+	Result.OpeningRepulseDisplacement = OpeningRepulseDisplacement;
+	Result.OpeningRepulseDuration = OpeningRepulseDuration;
+	Result.OpeningRepulseElapsed = OpeningRepulseElapsed;
+	Result.bPendingSlam = bBossBlinkSlamPending;
+	Result.PendingSlamSeconds = PendingBossBlinkSlamRemainingSeconds;
+	Result.PendingSlamIntent = PendingBossBlinkSlamIntent;
+	Result.PendingSlamIntent.Target.Reset();
+	Result.PendingSlamIntent.Attack.Source.Reset();
 	return Result;
 }
 
@@ -538,7 +641,22 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	EndBornGameplayGate();
 	SetActorLocation(SavedState.Transform.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorScale3D(SavedState.Transform.GetScale3D());
+	if (FMath::IsFinite(SavedState.SavedMaxHealth) && SavedState.SavedMaxHealth > 0.0f)
+	{
+		FReEchoStatBlock RestoredStats = Combatant->Stats;
+		RestoredStats.HpMax = SavedState.SavedMaxHealth;
+		Combatant->InitializeFromStats(RestoredStats, false);
+	}
 	Combatant->RestoreCurrentHealth(SavedState.CurrentHealth);
+	OpeningRepulseDisplacement = SavedState.OpeningRepulseDisplacement;
+	OpeningRepulseDisplacement.Z = 0.0f;
+	OpeningRepulseDuration = FMath::Max(0.0f, SavedState.OpeningRepulseDuration);
+	OpeningRepulseElapsed = FMath::Clamp(SavedState.OpeningRepulseElapsed, 0.0f, OpeningRepulseDuration);
+	bBossBlinkSlamPending = SavedState.bPendingSlam && Combatant->IsAlive();
+	PendingBossBlinkSlamRemainingSeconds = FMath::Max(0.0f, SavedState.PendingSlamSeconds);
+	PendingBossBlinkSlamIntent = SavedState.PendingSlamIntent;
+	PendingBossBlinkSlamIntent.Attack.Source = this;
+	PendingBossBlinkSlamIntent.Target = UGameplayStatics::GetPlayerPawn(this, 0);
 	SetCanBeDamaged(Combatant->IsAlive());
 
 	FReEchoElementState RestoredElementState = SavedState.ElementState;
@@ -1042,11 +1160,16 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 
 	FReEchoEnemyActionIntent Intent;
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const bool bRepulsed = IsAlive() && OpeningRepulseElapsed < OpeningRepulseDuration;
+	if (bRepulsed)
+	{
+		AdvanceBossOpeningRepulse(DeltaSeconds);
+	}
 	const bool bStunned =
 	    IsAlive() && (WorldTime < CardStunnedUntilWorldTime || (Combatant && Combatant->IsActionDisabled(WorldTime)));
 	EnemyPresentation->SetStunPaused(bStunned);
 	UpdateStunState(bStunned);
-	if (IsAlive() && !bStunned)
+	if (IsAlive() && !bStunned && !bRepulsed)
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
@@ -1656,7 +1779,9 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 	{
 		return;
 	}
-	if (Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam"))
+	if (Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam") || Intent.AbilityId == TEXT("M_SHEEP_BlinkSlamMoving") ||
+	    Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
+	    Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlamMoving)
 	{
 		AActor* Target = Intent.Target.Get();
 		const IReEchoCombatTarget* CombatTarget = Target ? Cast<IReEchoCombatTarget>(Target) : nullptr;
@@ -1664,14 +1789,20 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 		{
 			return;
 		}
-		if (Intent.bRequestTeleport && !Intent.TeleportDestination.IsNearlyZero())
+		const bool bGrounded = Intent.bPhaseOpening || Intent.bGroundedSlam;
+		if (!bGrounded && Intent.bRequestTeleport && !Intent.TeleportDestination.IsNearlyZero())
 		{
 			SetActorLocation(Intent.TeleportDestination, false, nullptr, ETeleportType::TeleportPhysics);
 		}
 		PendingBossBlinkSlamIntent = Intent;
 		PendingBossBlinkSlamIntent.bRequestTeleport = false;
-		PendingBossBlinkSlamRemainingSeconds = 0.5f;
+		PendingBossBlinkSlamRemainingSeconds = bGrounded ? 0.0f : 0.5f;
 		bBossBlinkSlamPending = true;
+		if (bGrounded)
+		{
+			// Stationary opening has no descent: impact, VFX and crowd repulse share this attack beat.
+			AdvancePendingBossBlinkSlam(0.0f);
+		}
 		return;
 	}
 	if (Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam"))
@@ -1700,13 +1831,100 @@ void AReEchoEnemyActor::AdvancePendingBossBlinkSlam(const float DeltaSeconds)
 		return;
 	}
 	bBossBlinkSlamPending = false;
+	if (!IsAlive())
+	{
+		return;
+	}
+	if ((PendingBossBlinkSlamIntent.bPhaseOpening || PendingBossBlinkSlamIntent.bGroundedSlam) && EnemyLogic)
+	{
+		const FReEchoBossPhaseDefinition* Phase = EnemyLogic->GetDefinition().BossPhases.FindByPredicate(
+		    [](const FReEchoBossPhaseDefinition& Value)
+		    {
+			    return Value.bEnabled && Value.PhaseIndex == 3;
+		    });
+		if (Phase)
+		{
+			const FVector Center = PendingBossBlinkSlamIntent.LockedTargetLocation;
+			if (AReEchoPlayerPawn* TargetPlayer = Cast<AReEchoPlayerPawn>(PendingBossBlinkSlamIntent.Target.Get()))
+			{
+				if (FVector::DistSquared2D(TargetPlayer->GetActorLocation(), Center) <=
+				    FMath::Square(Phase->OpeningRepulseRadiusCm))
+				{
+					TargetPlayer->BeginBossRepulse(
+					    Center, Phase->OpeningRepulseDistanceCm, Phase->OpeningRepulseSeconds);
+				}
+			}
+			const TArray<FReEchoEnemyRosterEntrySnapshot> Entries =
+			    EnemyRoster ? EnemyRoster->GetEntries() : TArray<FReEchoEnemyRosterEntrySnapshot>();
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : Entries)
+			{
+				AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+				if (Enemy && Enemy != this &&
+				    FVector::DistSquared2D(Enemy->GetActorLocation(), Center) <=
+				        FMath::Square(Phase->OpeningRepulseRadiusCm))
+				{
+					Enemy->BeginBossOpeningRepulse(
+					    Center, Phase->OpeningRepulseDistanceCm, Phase->OpeningRepulseSeconds);
+				}
+			}
+		}
+	}
 	if (EnemyEvents)
 	{
 		FReEchoBossIntent ImpactIntent = PendingBossBlinkSlamIntent;
 		ImpactIntent.Type = EReEchoBossIntentType::ImpactResolved;
 		EnemyEvents->PublishBossIntent(ImpactIntent);
 	}
-	ApplyBossAttackWindow(PendingBossBlinkSlamIntent);
+	if (!PendingBossBlinkSlamIntent.bPhaseOpening)
+	{
+		ApplyBossAttackWindow(PendingBossBlinkSlamIntent);
+	}
+}
+
+bool AReEchoEnemyActor::QueueBossPhaseOpening()
+{
+	return IsAlive() && EnemyLogic && EnemyLogic->QueueBossPhaseOpening();
+}
+
+bool AReEchoEnemyActor::BeginBossOpeningRepulse(const FVector& Center,
+                                                const float DistanceCm,
+                                                const float DurationSeconds)
+{
+	if (!IsAlive() || !EnemyLogic || GetKind() == EReEchoEnemyKind::Boss || bBornGameplayGateActive ||
+	    bEncounterSimulationSuspended || !FMath::IsFinite(DistanceCm) || !FMath::IsFinite(DurationSeconds) ||
+	    DistanceCm <= 0.0f || DurationSeconds <= 0.0f || Center.ContainsNaN())
+	{
+		return false;
+	}
+	FVector Direction = (GetActorLocation() - Center).GetSafeNormal2D();
+	if (Direction.IsNearlyZero())
+	{
+		Direction =
+		    FVector::ForwardVector.RotateAngleAxis(static_cast<float>(GetSpawnIndex() % 360), FVector::UpVector);
+	}
+	OpeningRepulseDisplacement = Direction * DistanceCm;
+	OpeningRepulseDuration = DurationSeconds;
+	OpeningRepulseElapsed = 0.0f;
+	EnemyLogic->CancelActiveActionsForStun();
+	return true;
+}
+
+void AReEchoEnemyActor::AdvanceBossOpeningRepulse(const float DeltaSeconds)
+{
+	if (!IsAlive() || bEncounterSimulationSuspended || OpeningRepulseDuration <= 0.0f || DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+	const float Before = FMath::Clamp(OpeningRepulseElapsed / OpeningRepulseDuration, 0.0f, 1.0f);
+	OpeningRepulseElapsed = FMath::Min(OpeningRepulseDuration, OpeningRepulseElapsed + DeltaSeconds);
+	const float After = OpeningRepulseElapsed / OpeningRepulseDuration;
+	const float Step = FMath::Square(1.0f - Before) - FMath::Square(1.0f - After);
+	FHitResult Hit;
+	AddActorWorldOffset(OpeningRepulseDisplacement * Step, true, &Hit);
+	if (Hit.bBlockingHit)
+	{
+		OpeningRepulseElapsed = OpeningRepulseDuration;
+	}
 }
 
 void AReEchoEnemyActor::AdvancePendingBossPrayerBeam(const float DeltaSeconds)
@@ -2083,12 +2301,14 @@ void AReEchoEnemyActor::HandlePhaseTransitionIntent(const FReEchoEnemyActionInte
 	}
 
 	FReEchoEnemyPhaseTransitionEvent PhaseEvent;
-	PhaseEvent.PhaseId = EnemyLogic->GetDefinition().Phase2.Id;
-	PhaseEvent.AnimationSetId = EnemyLogic->GetDefinition().Phase2.AnimationSetId;
-	PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
-	PhaseEvent.DurationSeconds = EnemyLogic->GetDefinition().Phase2.TransformSeconds;
-	PhaseEvent.bStarted = Intent.bPhaseTransitionStarted;
 	const FReEchoEnemyLogicSnapshot Snapshot = EnemyLogic->GetSnapshot();
+	const int32 TargetPhaseIndex = Intent.PhaseDefinition.PhaseIndex > 0 ? Intent.PhaseDefinition.PhaseIndex
+	                                                                     : FMath::Max(2, Snapshot.CurrentPhaseIndex);
+	PhaseEvent.PhaseId =
+	    !Intent.PhaseDefinition.Id.IsNone() ? Intent.PhaseDefinition.Id : EnemyLogic->GetDefinition().Phase2.Id;
+	PhaseEvent.AnimationSetId = FName(*FString::Printf(TEXT("Phase%d"), TargetPhaseIndex));
+	PhaseEvent.TriggerReason = Intent.PhaseTriggerReason;
+	PhaseEvent.DurationSeconds = TargetPhaseIndex == 2 ? EnemyLogic->GetDefinition().Phase2.TransformSeconds : 0.0f;
 	UE_LOG(LogReEcho,
 	       Warning,
 	       TEXT("[SheepPhase2Trace][TransitionEvent] enemy=%s started=%d completed=%d reason=%d phase=%d "
@@ -2102,17 +2322,26 @@ void AReEchoEnemyActor::HandlePhaseTransitionIntent(const FReEchoEnemyActionInte
 	       Snapshot.PhaseTransitionRemainingSeconds,
 	       Combatant ? Combatant->CurrentHealth : -1.0f,
 	       Combatant ? Combatant->Stats.HpMax : -1.0f);
-	EnemyEvents->PublishPhaseTransition(PhaseEvent);
+	if (Intent.bPhaseTransitionStarted)
+	{
+		PhaseEvent.bStarted = true;
+		EnemyEvents->PublishPhaseTransition(PhaseEvent);
+	}
+	if (Intent.bPhaseTransitionCompleted)
+	{
+		PhaseEvent.bStarted = false;
+		EnemyEvents->PublishPhaseTransition(PhaseEvent);
+	}
 
 	if (Intent.bPhaseTransitionCompleted &&
 	    Intent.PhaseTriggerReason == EReEchoEnemyPhaseTriggerReason::HealthDepleted &&
 	    EnemyLogic->GetDefinition().Archetype == EReEchoEnemyArchetype::Boss)
 	{
-		ApplyBloodDepletedPhase2MaxHealth();
+		ApplyBloodDepletedBossPhaseHealth(Intent.PhaseDefinition);
 	}
 }
 
-void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()
+void AReEchoEnemyActor::ApplyBloodDepletedBossPhaseHealth(const FReEchoBossPhaseDefinition& RequestedPhase)
 {
 	if (!Combatant || !EnemyLogic || EnemyLogic->GetDefinition().BossPhases.Num() == 0)
 	{
@@ -2122,32 +2351,47 @@ void AReEchoEnemyActor::ApplyBloodDepletedPhase2MaxHealth()
 		       *GetNameSafe(this));
 		return;
 	}
-	// Locate the second-phase definition by PhaseIndex and apply its maximum health only when it requests a refill.
-	const FReEchoBossPhaseDefinition* PhaseTwo = nullptr;
+	const int32 CurrentPhaseIndex = EnemyLogic->GetSnapshot().CurrentPhaseIndex;
+	const FReEchoBossPhaseDefinition* PhaseToApply =
+	    RequestedPhase.PhaseIndex == CurrentPhaseIndex ? &RequestedPhase : nullptr;
 	for (const FReEchoBossPhaseDefinition& Phase : EnemyLogic->GetDefinition().BossPhases)
 	{
-		if (Phase.PhaseIndex == 2)
+		if (!PhaseToApply && Phase.PhaseIndex == CurrentPhaseIndex)
 		{
-			PhaseTwo = &Phase;
+			PhaseToApply = &Phase;
 			break;
 		}
 	}
-	if (!PhaseTwo || PhaseTwo->RefillHealthPolicy != EReEchoBossRefillHealthPolicy::RefillToMaximum ||
-	    PhaseTwo->PhaseMaxHealth <= 0.0f)
+	float ResolvedPhaseMaxHealth = PhaseToApply ? PhaseToApply->PhaseMaxHealth : 0.0f;
+	if (CurrentPhaseIndex >= 3)
+	{
+		const FReEchoBossPhaseDefinition* Phase2 = EnemyLogic->GetDefinition().BossPhases.FindByPredicate(
+		    [](const FReEchoBossPhaseDefinition& Phase)
+		    {
+			    return Phase.bEnabled && Phase.PhaseIndex == 2;
+		    });
+		if (Phase2 && BossPhase1MaxHealth > 0.0f && Phase2->PhaseMaxHealth > 0.0f)
+		{
+			ResolvedPhaseMaxHealth = (BossPhase1MaxHealth + Phase2->PhaseMaxHealth) *
+			                         (PhaseToApply ? PhaseToApply->PreviousPhasesHealthMultiplier : 1.0f);
+		}
+	}
+	if (!PhaseToApply || PhaseToApply->RefillHealthPolicy != EReEchoBossRefillHealthPolicy::RefillToMaximum ||
+	    ResolvedPhaseMaxHealth <= 0.0f)
 	{
 		UE_LOG(LogReEcho,
 		       Warning,
 		       TEXT("[SheepPhase2Trace][Refill] enemy=%s decision=Reject phaseFound=%d policy=%d maxHealth=%.3f"),
 		       *GetNameSafe(this),
-		       PhaseTwo ? 1 : 0,
-		       PhaseTwo ? static_cast<int32>(PhaseTwo->RefillHealthPolicy) : -1,
-		       PhaseTwo ? PhaseTwo->PhaseMaxHealth : -1.0f);
+		       PhaseToApply ? 1 : 0,
+		       PhaseToApply ? static_cast<int32>(PhaseToApply->RefillHealthPolicy) : -1,
+		       PhaseToApply ? PhaseToApply->PhaseMaxHealth : -1.0f);
 		return;
 	}
 	// Resize to the new ceiling and refill to full so the second form starts as a fresh fight.
 	const float PreviousHealth = Combatant->CurrentHealth;
 	const float PreviousMaxHealth = Combatant->Stats.HpMax;
-	Combatant->Stats.HpMax = PhaseTwo->PhaseMaxHealth;
+	Combatant->Stats.HpMax = ResolvedPhaseMaxHealth;
 	Combatant->InitializeFromStats(Combatant->Stats, /*bFullHealth=*/true);
 	UE_LOG(LogReEcho,
 	       Warning,

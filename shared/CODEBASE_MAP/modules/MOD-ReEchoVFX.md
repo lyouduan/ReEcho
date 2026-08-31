@@ -2,6 +2,22 @@
 
 ## 模块状态
 
+GroundTriple与开场共用Skill03地裂：消费bGroundedSlam或bPhaseOpening时以Boss自身地面锚点为中心，无升空/下降延时及提前地裂；仅ImpactResolved生成每击地裂。bGroundedSlam不是免伤标记，伤害由宿主的开场状态区分。非原地Skill03保持既有路径。
+
+羊一→二、二→三阶段共用BeginBossTransformationEffects，蓄力统一改GoatSkill04Charging（NS_Goat_Skill04_Charging）；地面预警、爆发、挂点/缩放/时序保持不变。周围献祭怪物仍使用GoatSkill03Charging。
+
+落地改为等待怪物变身动画实际结束；等待期间GoatSkill03Charging继续随身体播放，实际落地才清理，不按原3.9秒硬关闭。羊爆发时间不顺延。
+
+怪物献祭蓄力独立于BeginSacrificeVisual，改为演出时钟1.0秒一次启动，仍在3.9秒落地清理；升空与怪物变身动画保持0.8秒。取消后重置启动状态。
+
+后续同步调整：怪物蓄力VFX/升空/变身动画均从0.8秒开始，去掉单独0.5秒蓄力等待；VFX随身体保持至3.9秒落地，羊的爆发在3.5秒悬停结束，清理逻辑不变。
+
+用户澄清：2.8秒触发的是怪物自身变身动画，不是羊；羊仍按原流程在4.0秒爆发，怪物蓄力跟随至4.4秒落地结束。下段“Boss2.8秒”说明已被本条覆盖。
+
+献祭怪物改用与Boss变身一致的GoatSkill03Charging（不再GoatSkill02Impact），在聚焦结束时启动，按Flipbook体型缩放，实时跟随视觉中心；系统提前完成则重新激活，落地/取消结束，不再落地重播受击特效。Boss阶段提交及变身爆发移到空中挣扎开始时（默认2.8秒），怪物悬停到4.0秒才下落。
+
+Boss一→二阶段献祭使用独立 `SacrificeEffect` 生命周期：只读表现请求 `GoatSkill02Impact`（NS_Goat_Skill02_BeAttacked），起点与逐帧位置来自目标Flipbook世界Bounds中心；不会发送伤害事件。升空消失时停止，原位显现开始时重播一次，演出结束/取消及StopAllEffects时清理。该效果不复用Boss技能待处理计时器，也不改Niagara资产。
+
 - 当前形态：`MOD-ReEcho` 内的文档型逻辑入口，**不是**独立 Runtime Module。
 - 功能检索标识：`AREA-Presentation`。
 - 代码根：`Source/ReEcho/{Public,Private}/Presentation/VFX/`。
@@ -10,6 +26,8 @@
 - 导入清单：`Design/Art/VFX/combat_vfx_import_manifest.csv`。
 
 ## 存在原因
+
+Boss 变身使用独立的 Charge/Ground/Burst Niagara 实例，复用羊 Skill03 资源但不调用技能伤害。由 GameMode 显式 Begin/Burst/End，身体蓄力取当前 Flipbook 世界包围盒顶部，法阵取 Boss 地面高度且固定朝上；二、三阶段倍率来自程序 DA。实例与技能特效字段分离，阶段事件清技能特效时不误清演出；死亡/清场同步清理。资源内部可见性、亮度及画面节奏仍须 PIE 验收。
 
 攻击逻辑只应表达“兔子开始前摇”“某次投射物移动”“某次近战已提交”“某个目标实际受伤”等事实，不应知道 Niagara 路径、朝向轴、透明层级或销毁方式。反过来，粒子是否成功加载、播放多久或何时结束，也不能决定攻击提交、命中或伤害。
 
@@ -81,7 +99,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
 | GoatSkill01 | `MoonStaff` + `NS_Goat_Skill02_BeAttacked` | 羊 Boss 从 Plan104 的 `DA_WeaponPresentation_MoonStaff` 读取持有贴图、尺寸和偏移；近战攻击窗口驱动法杖挥舞，并在法杖世界位置复用 Skill02 BeAttacked，玩法圆形命中不变 |
 | GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 两种投射技能共用；Charging 挂在 `BossWeaponTipRoot`，该节点位于包含 MoonStaff DA 最终左右偏移的法杖贴图顶部，Bullet 使用 Local Space。StationaryVolley 在 Recovery 窗口内逐颗发布四次 Spawned，MovingSpread 同帧发布三向 Spawned；每颗投影权威弹道、命中后经 Combat 结算单弹配表伤害并发布 Ended，实际 `AppliedDamage > 0` 时在角色世界命中坐标播放命中 |
-| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | Charging 附着 Boss；预警固定在锁定角色落点并使用显式世界向上法线，Boss 落在预警 XY 中心；BeAttacked 作为同尺寸地裂贴地播放，实际伤害仍由 Combat 裁决 |
+| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | 普通Skill03维持Charging/锁定角色地面预警与下砸地裂：Phase1/2落地生成，Phase3下降开始生成且落地去重。特殊开场bPhaseOpening不播放蓄力/预警、不跳跃，Boss原地连续Attack；每个攻击窗口由Host立即发ImpactResolved，地裂只生成一次，XY为Boss中心、Z对齐Boss自身GroundRoot/FootRoot，不读玩家高度。玩家伤害圈不因参演怪物震退半径扩大 |
 | GoatSkill04 | `NS_Goat_Skill04_Charging` / `NS_Goat_Skill03_Alarming` / `Lighting` | Charging 开始时显示目标快照预警，权威锁定后重启到 LockedTargetLocation；Lighting 从预警中心释放并使用 CameraPlane mesh facing，伤害起点同一锁点；AbilityEnded/Death/清场清理 |
 | PlayerMeleeSlash / Element Slash | 默认 `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01`；火/雷/草/水分别为 `NS_People_Sword_Attack_Fire` / `Thunder` / `Grass` / `Water` | 长剑提交时按该次攻击的最终元素选择专用斩击，继承默认长剑的挂点、镜头正面修正、左右播放与 Local Space 契约；无元素或资源不可用时回退默认斩击 |
 | PlayerScytheSlash / Element Slash | 默认 `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01`；火/雷/草/水分别为 `NS_People_Sickle_Attack_Fire` / `Thunder` / `Grass` / `Water` | 镰刀提交时按该次攻击最终元素选择专用斩击，继承默认镰刀的延迟、挂点、CameraPlane 朝向和 Local Space 契约；无元素或资源不可用时回退默认斩击 |
@@ -90,7 +108,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | PlayerGunFlight / Element Flight / Muzzle | 默认 `/Game/VFX/People/Bullet/Particle/NS_People_Bullet_Fly`；火/雷/草/水分别为 `NS_People_Bullet_Fire_Fly` / `Thunder_Fly` / `Grass_Fly` / `Water_Fly`；Muzzle 为 `NS_People_Bullet_spark` | 飞行 System 绑定权威投射物 Actor；Gun 按该颗投射物已经解析的最终战斗元素选择专用 Travel，成功生成后隐藏字母元素回退；无元素或资源不可用时保留默认 Travel 与字母提示。每次 `Pattern.GunShot` 提交时，Muzzle 附着最终 `WeaponAttackVfxRoot` 立即播放，不在目标命中点重复播放；Muzzle 启用发射器使用 Local Space，所有启用 Sprite renderer 绑定 `User.DirectionSpriteRotationDegrees`。枪模型只区分左右，因此运行时先把瞄准方向量化为相机水平纯左/纯右，再写入 Sprite 旋转，瞄准高度不驱动枪口主体上下浮动 |
 | EnemyHurt | `/Game/VFX/People/Sword/Particle/NS_Rabbit_BeAttacked_01` | 怪物实际受伤时世界位置单次播放 |
 | EchoWaterAura / EchoGrassAura | `/Game/VFX/Echo/Particle/NS_Echo_Water` / `NS_Echo_Grass` | `G_2_07/G_2_08` 共享 Cards 权威 2 秒脉冲；一次性附着 Echo 专用 Aura 挂点、角色视觉中心、角色 Priority `-1`，双卡同脉冲并发、自动结束 |
-| EchoBorn | `/Game/VFX/Echo/Particle/NS_Echo_Born` | 只在第一关转第二关时自动播放：镜头先定位隐藏 Echo 并保持静止，解除全局暂停但保持玩法门禁，法阵建立 `0.4` 秒后显示 Echo/武器并开始后续镜头，法阵继续播放到原生命周期结束；普通关卡、读档和跳关生成 Echo 时不播放。正常尺寸直接使用 Echo 当前表现宽度的 `0.8` 倍，仅在 Bounds 无效时回退源法阵 `0.25` 倍缩放；独立材质使用 `1.65` 中性 HDR 增亮，副本内粒子颜色按原强度映射为 HDR 冰蓝比例 `(0.75, 1.17, 1.50)`；两个法阵 Mesh Emitter 保留 XY Scale `25`、把 Z Scale 从 `40` 压平为 `0.1`，使 Mesh 底面与 `Z=0` 粒子出生平面对齐；全部启用 Sprite Renderer 使用 `CustomFacingVector` 并绑定 `User.GroundNormal=(0,0,1)`，始终朝地面世界 Up 而不面向相机；实例是独立世界组件，只读取阴影位置但不附着，失败时立即显形并继续；`GMEchoBorn` 复用同一路径 |
+| EchoBorn | `/Game/VFX/Echo/Particle/NS_Echo_Born` | 只在第一关转第二关时自动播放：后台准备 Encounter 2 时启用 Echo 过渡玩法门禁；世界解暂停后仍允许回响、武器表现、法阵和相机 Tick，但禁止回放推进、目标搜索、攻击提交，并暂停 WeaponLogic 冷却。先关闭不透明 CG 覆盖层，再显示 Echo/武器并完整刷新脚点、`GroundRoot`、`GroundShadow`，随后从阴影中心激活法阵；只有镜头全部结束、`Director->StartEncounter()` 后才解除 Echo 与武器门禁并正常攻击。普通关卡、读档和跳关生成 Echo 时不播放。运行时使用 Catalog 默认 `1.0` Component Scale；Fountain004 Mesh 与 Sprite Fountain002/003/005 保持资产作者尺寸。法阵实例是独立世界组件，不附着 Echo；资源失败仍保持回响显形并继续；`GMEchoBorn` 复用同一路径 |
 
 `PlayerMeleeSlash` 与 `PlayerScytheSlash` 分别绑定长剑、镰刀 AttackPattern，不是通用 Melee 标签。长剑、镰刀、弓和枪的默认 Niagara 引用从 Plan78 起由对应 Weapon Presentation DA 配置：长剑/镰刀的 AttackCommitted Slot 播放斩击轨迹，DamageApplied Slot 消费来源侧最终 `OnHit` 并在 `AppliedDamage > 0` 时播放命中；弓的 Travel Slot 附着逻辑载体且 DamageApplied 在首次正伤害结果播放；枪的默认 Travel Slot 附着逻辑载体，`NS_People_Bullet_spark` 由 AttackCommitted Slot 在最终武器枪口播放，不再作为目标命中反馈。长剑/镰刀四元素 Slash 与 Bow/Gun 四元素 Travel 都由 Combat VFX Catalog 消费攻击已经解析的 `EReEchoElement`，不建立第二份玩法元素；Development `GMElement` 在表现事件或投射物初始化前覆盖同一最终元素，使 VFX 与后续 `HitIntent` 一致，棱镜逐弹解析的最终元素也直接驱动对应 Travel。近战命中特效包含致死正伤害，不依赖目标是否还能播放 Hurt。所有需要服从组件方向/位移的武器 System（包括四个元素长剑/镰刀 Slash、Bow/Gun Travel 与 Gun Muzzle）必须保证全部启用发射器使用 Local Space，并由自动化锁定；长剑与镰刀斩击网格均按资源真实的本地 YZ 平面定向，本地 X 法线映射世界向上、本地 Y 映射攻击方向，Sprite 同步绑定 `User.GroundNormal` 与 `User.GroundTangent`，不得再由相机法线重新竖起。武器战斗 Niagara 使用 `1000` 前景排序下限压过角色与怪物表现。鞭和正式法杖已退出生产清单；表现缺失不得阻塞攻击。
 

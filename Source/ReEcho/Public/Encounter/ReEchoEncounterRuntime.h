@@ -3,11 +3,7 @@
 #include "CoreMinimal.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 
-enum class EReEchoScheduledSpawnEventType : uint8
-{
-	Warning,
-	Commit
-};
+#include "Encounter/ReEchoScheduledSpawnEvent.h"
 
 /** Pure lifecycle decision between the completed encounter and the next configured encounter. */
 struct REECHO_API FReEchoStageTransitionDecision
@@ -39,23 +35,23 @@ REECHO_API int32 CalculateReservationCount(int32 ActiveUnitLimit,
                                            bool bCountsTowardUnitLimit = true);
 }
 
-/** One typed, deterministic role batch emitted by the encounter clock. */
-struct REECHO_API FReEchoScheduledSpawnEvent
-{
-	EReEchoScheduledSpawnEventType Type = EReEchoScheduledSpawnEventType::Warning;
-	FName WaveId = NAME_None;
-	FName EnemyRole = NAME_None;
-	FName EnemyId = NAME_None;
-	int32 Count = 0;
-	float EventSeconds = 0.0f;
-	float SpawnSeconds = 0.0f;
-};
-
 /** Pure fixed-clock wave gate. It never reads World time or spawns actors. */
 class REECHO_API FReEchoEncounterWaveScheduler
 {
 public:
 	bool Configure(const FReEchoCsvDataSnapshot& Snapshot, FName EncounterId, FString& OutError);
+	bool ConfigureRepeatedOrdinaryPlan(const FReEchoCsvDataSnapshot& Snapshot,
+	                                   FName EncounterId,
+	                                   int32 Repetitions,
+	                                   float StartSeconds,
+	                                   FString& OutError);
+
+	const TArray<FReEchoScheduledSpawnEvent>& GetEvents() const
+	{
+		return Events;
+	}
+
+	void RestoreEvents(const TArray<FReEchoScheduledSpawnEvent>& InEvents, int32 InNextEventIndex);
 	TArray<FReEchoScheduledSpawnEvent> AdvanceTo(float EncounterSeconds);
 	void RestoreNextEventIndex(int32 InNextEventIndex);
 	void Reset();

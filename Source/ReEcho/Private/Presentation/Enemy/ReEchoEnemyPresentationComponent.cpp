@@ -9,6 +9,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "Graybox/ReEchoBillboardDebug.h"
 #include "Graybox/ReEchoCollisionDebug.h"
 #include "Graybox/ReEchoEnemyActor.h"
@@ -23,6 +24,7 @@
 #include "Presentation/Animation2D/ReEcho2DPresentationController.h"
 #include "Presentation/Animation2D/ReEcho2DPresentationCatalog.h"
 #include "Presentation/Combat/ReEchoCombatPresentationCoordinator.h"
+#include "Presentation/Scene/ReEchoArenaCameraActor.h"
 #include "Presentation/Weapon/ReEchoWeaponPresentationProfile.h"
 #include "UI/ReEchoDamageNumberActor.h"
 #include "UI/ReEchoElementReactionPopupActor.h"
@@ -32,6 +34,11 @@ namespace ReEchoEnemyVisual
 constexpr float HitReactionDuration = 0.22f;
 constexpr float BlinkSlamDuration = 0.5f;
 constexpr float BlinkSlamStartHeightCm = 300.0f;
+constexpr float Phase3BlinkSlamWindupDuration = 0.5f;
+constexpr float Phase3BlinkSlamWindupHeightCm = 300.0f;
+constexpr float Phase3LandingHoldDuration = 0.1f;
+constexpr float Phase3AnimationScaleMultiplier = 2.0f;
+constexpr float Phase3AttackScaleMultiplier = 2.0f;
 constexpr float DeathKnockbackDurationSeconds = 0.3f;
 constexpr float DeathKnockbackDistanceCm = 90.0f;
 constexpr TCHAR MoonStaffProfilePath[] =
@@ -78,6 +85,7 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	PresentationRoot = InPresentationRoot;
 	VisualEffectRoot = InVisualEffectRoot;
 	FootRoot = InFootRoot;
+	TerminalDeathMotionRoot = VisualEffectRoot ? VisualEffectRoot->GetAttachParent() : nullptr;
 	FlipbookRoot = InFlipbookRoot;
 	EffectsRoot = InEffectsRoot;
 	BossWeaponRoot = InBossWeaponRoot;
@@ -92,6 +100,8 @@ void UReEchoEnemyPresentationComponent::ConfigureComponents(USceneComponent* InP
 	GroundRoot = GroundShadow ? GroundShadow->GetAttachParent() : nullptr;
 	Collision = InCollision;
 	AuthoredMotionLocation = VisualEffectRoot ? VisualEffectRoot->GetRelativeLocation() : FVector::ZeroVector;
+	AuthoredTerminalDeathMotionLocation =
+	    TerminalDeathMotionRoot ? TerminalDeathMotionRoot->GetRelativeLocation() : FVector::ZeroVector;
 	if (PresentationController)
 	{
 		PresentationController->BindCollisionDriver(FrameCollisionDriver);
@@ -243,6 +253,11 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 	}
 	if (PresentationController)
 	{
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetDisplayScaleMultiplier(1.0f);
+			SequenceAnimation->SetDisplayScaleReferenceHeight(0.0f);
+		}
 		PresentationController->Configure(CharacterSprite, SequenceAnimation, Profile);
 	}
 	if (VisualEffectRoot)
@@ -250,6 +265,10 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 		VisualEffectRoot->SetRelativeLocation(AuthoredMotionLocation);
 		VisualEffectRoot->SetRelativeScale3D(FVector::OneVector);
 		BaseVisualScale = VisualEffectRoot->GetRelativeScale3D();
+	}
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation);
 	}
 	if (FlipbookRoot)
 	{
@@ -268,7 +287,7 @@ void UReEchoEnemyPresentationComponent::ApplyVisual(const FName PresentationId)
 }
 
 bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(const FVector& KnockbackWorldDirection,
-	                                                       FSimpleDelegate OnCompleted,
+                                                           FSimpleDelegate OnCompleted,
                                                            float& OutExpectedDurationSeconds)
 {
 	OutExpectedDurationSeconds = 0.0f;
@@ -287,15 +306,25 @@ bool UReEchoEnemyPresentationComponent::BeginTerminalDeath(const FVector& Knockb
 	AttackVisualRemaining = 0.0f;
 	ResetTransientRoot();
 	DeathKnockbackElapsedSeconds = 0.0f;
-	DeathKnockbackLocalDirection = PresentationRoot
-	                                   ? PresentationRoot->GetComponentTransform()
-	                                         .InverseTransformVectorNoScale(KnockbackWorldDirection)
-	                                         .GetSafeNormal2D()
-	                                   : KnockbackWorldDirection.GetSafeNormal2D();
+	DeathKnockbackLocalDirection = PresentationRoot ? PresentationRoot->GetComponentTransform()
+	                                                      .InverseTransformVectorNoScale(KnockbackWorldDirection)
+	                                                      .GetSafeNormal2D()
+	                                                : KnockbackWorldDirection.GetSafeNormal2D();
 	if (EffectsRoot)
 	{
 		EffectsRoot->SetVisibility(false, true);
 		EffectsRoot->SetHiddenInGame(true, true);
+	}
+	if (CurrentBossPhaseIndex >= 3 && PresentationController)
+	{
+		// Phase3 has Walk/Slam only. Its terminal presentation explicitly reuses the black-goat Death,
+		// rather than letting the missing Phase3 clip fall back to the default white-goat set.
+		PresentationController->SetWeaponVisualSetId(TEXT("Phase2"));
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetDisplayScaleReferenceHeight(0.0f);
+			SequenceAnimation->SetDisplayScaleMultiplier(1.0f);
+		}
 	}
 	const bool bStarted = PresentationController &&
 	                      PresentationController->BeginTerminalDeath(MoveTemp(OnCompleted), OutExpectedDurationSeconds);
@@ -329,6 +358,10 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
                                                 const float DeltaSeconds)
 {
 	const float SafeDelta = FMath::Max(0.0f, DeltaSeconds);
+	if (bSacrificeVisualActive)
+	{
+		return;
+	}
 	if (Host && CharacterSprite && SequenceAnimation && !SequenceAnimation->IsAnimationActive())
 	{
 		ReEchoBillboardDebug::DrawBounds(
@@ -365,7 +398,139 @@ void UReEchoEnemyPresentationComponent::Advance(const FReEchoEnemyPresentationSn
 		bHitVisualActive = false;
 	}
 	UpdateSpriteAnimation(Snapshot, SafeDelta);
+	UpdateBossPhase3BlinkSlamWindupMotion(SafeDelta);
 	UpdateBossBlinkSlamMotion(SafeDelta);
+}
+
+void UReEchoEnemyPresentationComponent::NormalizeSacrificeBornDuration()
+{
+	if (IsBornPlaying() && SequenceAnimation && SequenceAnimation->GetFlipbook())
+	{
+		// Runtime-only rate: preserve the complete clip and let normal completion enter the base pose.
+		SequenceAnimation->SetLooping(false);
+		SequenceAnimation->SetPlayRate(SequenceAnimation->GetFlipbookLength() / 0.5f);
+	}
+}
+
+bool UReEchoEnemyPresentationComponent::PrepareSacrificeGroundPose()
+{
+	if (bSacrificeVisualActive)
+	{
+		return true;
+	}
+	if (PresentationController)
+	{
+		PresentationController->UpdatePlaybackCompletion();
+	}
+	// Host gameplay Tick is frozen during the push, but Born still needs per-frame foot alignment.
+	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+	return !IsBornPlaying();
+}
+
+bool UReEchoEnemyPresentationComponent::BeginSacrificeVisual()
+{
+	if (!PrepareSacrificeGroundPose())
+	{
+		return false;
+	}
+	if (bSacrificeVisualActive || bDeathVisualActive || !VisualEffectRoot || !SequenceAnimation ||
+	    !SequenceAnimation->GetFlipbook() || !SequenceAnimation->IsVisible())
+	{
+		return false;
+	}
+	bSacrificeVisualActive = true;
+	bSacrificeTransformPlayed = false;
+	bSacrificeTransformStartedSuccessfully = false;
+	SacrificeOriginalTransform = VisualEffectRoot->GetRelativeTransform();
+	SacrificeOriginalColor = SequenceAnimation->GetSpriteColor();
+	SacrificeRiseHeight = FMath::Max(20.0f, SequenceAnimation->Bounds.BoxExtent.Z * 2.0f) * 1.8f;
+	bSacrificeOriginalShadowVisible = GroundShadow && GroundShadow->IsVisible();
+	if (PresentationController)
+	{
+		bSacrificeOriginalControllerTick = PresentationController->IsComponentTickEnabled();
+		PresentationController->SetComponentTickEnabled(false);
+	}
+	return true;
+}
+
+void UReEchoEnemyPresentationComponent::PlaySacrificeTransformAnimation()
+{
+	if (!bSacrificeVisualActive || bSacrificeTransformPlayed)
+	{
+		return;
+	}
+	bSacrificeTransformPlayed = true;
+	// Presentation only: use this monster's authored transition, without changing gameplay phase/stats.
+	if (PresentationController)
+	{
+		bSacrificeTransformStartedSuccessfully = PresentationController->BeginAnimationSetTransition(
+		    TEXT("Phase2"), ReEcho2DAnimationTags::Transform_Phase2);
+		if (bSacrificeTransformStartedSuccessfully && SequenceAnimation)
+		{
+			SequenceAnimation->SetLooping(false);
+		}
+	}
+}
+
+bool UReEchoEnemyPresentationComponent::IsSacrificeTransformComplete() const
+{
+	// The controller is deliberately frozen; query renderer completion, not its stale semantic state.
+	return !bSacrificeTransformStartedSuccessfully || !SequenceAnimation ||
+	       (!SequenceAnimation->IsPlaying() && !SequenceAnimation->IsPlaybackPaused());
+}
+
+void UReEchoEnemyPresentationComponent::UpdateSacrificeVisual(const float RiseAlpha,
+                                                              const float Opacity,
+                                                              const FVector& ShakeWorldOffset)
+{
+	if (!bSacrificeVisualActive || !VisualEffectRoot || !SequenceAnimation)
+	{
+		return;
+	}
+	const FVector WorldOffset =
+	    FVector::UpVector * SacrificeRiseHeight * FMath::Clamp(RiseAlpha, 0.0f, 1.0f) + ShakeWorldOffset;
+	const USceneComponent* Parent = VisualEffectRoot->GetAttachParent();
+	const FVector LocalOffset =
+	    Parent ? Parent->GetComponentTransform().InverseTransformVector(WorldOffset) : WorldOffset;
+	VisualEffectRoot->SetRelativeLocation(SacrificeOriginalTransform.GetLocation() + LocalOffset);
+	FLinearColor Color = SacrificeOriginalColor;
+	Color.A *= FMath::Clamp(Opacity, 0.0f, 1.0f);
+	SequenceAnimation->SetSpriteColor(Color);
+	if (GroundShadow)
+	{
+		GroundShadow->SetVisibility(bSacrificeOriginalShadowVisible && Opacity > 0.01f);
+	}
+}
+
+FVector UReEchoEnemyPresentationComponent::GetSacrificeVisualCenter() const
+{
+	return SequenceAnimation ? SequenceAnimation->Bounds.Origin
+	                         : (GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector);
+}
+
+void UReEchoEnemyPresentationComponent::EndSacrificeVisual()
+{
+	if (!bSacrificeVisualActive)
+	{
+		return;
+	}
+	bSacrificeVisualActive = false;
+	if (VisualEffectRoot)
+	{
+		VisualEffectRoot->SetRelativeTransform(SacrificeOriginalTransform);
+	}
+	if (SequenceAnimation)
+	{
+		SequenceAnimation->SetSpriteColor(SacrificeOriginalColor);
+	}
+	if (GroundShadow)
+	{
+		GroundShadow->SetVisibility(bSacrificeOriginalShadowVisible);
+	}
+	if (PresentationController)
+	{
+		PresentationController->SetComponentTickEnabled(bSacrificeOriginalControllerTick);
+	}
 }
 
 FVector UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(const float RemainingSeconds,
@@ -380,10 +545,29 @@ FVector UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(const fl
 	return FVector::UpVector * StartHeightCm * FMath::Square(RemainingRatio);
 }
 
+FVector UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(const float RemainingSeconds,
+                                                                              const float DurationSeconds,
+                                                                              const float EndHeightCm)
+{
+	if (DurationSeconds <= KINDA_SMALL_NUMBER || RemainingSeconds <= 0.0f || EndHeightCm <= 0.0f)
+	{
+		return RemainingSeconds <= 0.0f ? FVector::UpVector * FMath::Max(0.0f, EndHeightCm) : FVector::ZeroVector;
+	}
+	const float Progress = 1.0f - FMath::Clamp(RemainingSeconds / DurationSeconds, 0.0f, 1.0f);
+	const float FastRise = 1.0f - FMath::Pow(1.0f - Progress, 3.0f);
+	return FVector::UpVector * EndHeightCm * FastRise;
+}
+
+float UReEchoEnemyPresentationComponent::ResolveCameraFacingSign(const FVector& FacingDirection,
+                                                                 const FVector& CameraRight)
+{
+	return FVector::DotProduct(FacingDirection, CameraRight) < 0.0f ? -1.0f : 1.0f;
+}
+
 FVector UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(const FVector& LocalDirection,
-	                                                                    const float ElapsedSeconds,
-	                                                                    const float DurationSeconds,
-	                                                                    const float DistanceCm)
+                                                                       const float ElapsedSeconds,
+                                                                       const float DurationSeconds,
+                                                                       const float DistanceCm)
 {
 	if (DurationSeconds <= KINDA_SMALL_NUMBER || DistanceCm <= 0.0f || LocalDirection.IsNearlyZero())
 	{
@@ -397,12 +581,10 @@ FVector UReEchoEnemyPresentationComponent::ResolveDeathKnockbackOffset(const FVe
 void UReEchoEnemyPresentationComponent::UpdateDeathKnockbackMotion(const float DeltaSeconds)
 {
 	DeathKnockbackElapsedSeconds += FMath::Max(0.0f, DeltaSeconds);
-	ApplyPresentationMotion(
-	    ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
-	                                DeathKnockbackElapsedSeconds,
-	                                ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
-	                                ReEchoEnemyVisual::DeathKnockbackDistanceCm),
-	    FVector::OneVector);
+	ApplyTerminalDeathMotion(ResolveDeathKnockbackOffset(DeathKnockbackLocalDirection,
+	                                                     DeathKnockbackElapsedSeconds,
+	                                                     ReEchoEnemyVisual::DeathKnockbackDurationSeconds,
+	                                                     ReEchoEnemyVisual::DeathKnockbackDistanceCm));
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float DeltaSeconds)
@@ -412,9 +594,101 @@ void UReEchoEnemyPresentationComponent::UpdateBossBlinkSlamMotion(const float De
 		return;
 	}
 	BossBlinkSlamRemaining = FMath::Max(0.0f, BossBlinkSlamRemaining - DeltaSeconds);
+	// Foot alignment must observe the final Phase3 scale. Applying the scale after alignment lets the enlarged
+	// GroundSlam expand below its ground anchor for the first landing frame.
+	ApplyBossPhase3FixedRendererScale();
 	ApplyPresentationMotion(
 	    ResolveBlinkSlamVisualOffset(BossBlinkSlamRemaining, BossBlinkSlamDuration, BossBlinkSlamStartHeightCm),
 	    FVector::OneVector);
+}
+
+void UReEchoEnemyPresentationComponent::UpdateBossPhase3BlinkSlamWindupMotion(const float DeltaSeconds)
+{
+	if (BossPhase3BlinkSlamWindupRemaining <= 0.0f)
+	{
+		return;
+	}
+	BossPhase3BlinkSlamWindupRemaining =
+	    FMath::Max(0.0f, BossPhase3BlinkSlamWindupRemaining - FMath::Max(0.0f, DeltaSeconds));
+	if (bBossPhase3PendingWindupWalk)
+	{
+		BossPhase3LandingHoldRemaining =
+		    FMath::Max(0.0f, BossPhase3LandingHoldRemaining - FMath::Max(0.0f, DeltaSeconds));
+		if (BossPhase3LandingHoldRemaining <= 0.0f)
+		{
+			bBossPhase3PendingWindupWalk = false;
+			bBossPhase3AttackScaleActive = false;
+			if (PresentationController)
+			{
+				PresentationController->CancelAttackAction();
+			}
+		}
+	}
+	ApplyBossPhase3FixedRendererScale();
+	ApplyPresentationMotion(ResolvePhase3BlinkSlamWindupOffset(BossPhase3BlinkSlamWindupRemaining,
+	                                                           BossPhase3BlinkSlamWindupDuration,
+	                                                           ReEchoEnemyVisual::Phase3BlinkSlamWindupHeightCm),
+	                        FVector::OneVector);
+	if (BossPhase3BlinkSlamWindupRemaining <= 0.0f)
+	{
+		bBossPhase3BlinkSlamHidden = true;
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetVisibility(false);
+			SequenceAnimation->SetHiddenInGame(true);
+		}
+		if (GroundShadow)
+		{
+			GroundShadow->SetVisibility(false);
+			GroundShadow->SetHiddenInGame(true);
+		}
+	}
+}
+
+void UReEchoEnemyPresentationComponent::ApplyBossPhase3FixedRendererScale()
+{
+	if (CurrentBossPhaseIndex < 3 || !SequenceAnimation)
+	{
+		return;
+	}
+	SequenceAnimation->SetDisplayScaleMultiplier(ReEchoEnemyVisual::Phase3AnimationScaleMultiplier);
+}
+
+FVector UReEchoEnemyPresentationComponent::ResolveBossPhase3AnimationScale(const FVector& AuthoredScale,
+                                                                           const bool bAttackActive)
+{
+	return AuthoredScale.GetAbs() * (bAttackActive ? ReEchoEnemyVisual::Phase3AttackScaleMultiplier
+	                                               : ReEchoEnemyVisual::Phase3AnimationScaleMultiplier);
+}
+
+void UReEchoEnemyPresentationComponent::ApplyBossPhase3Facing(const FVector& LockedDirection)
+{
+	if (!Host || !PresentationController || LockedDirection.IsNearlyZero())
+	{
+		return;
+	}
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(Host, 0);
+	if (!Camera)
+	{
+		return;
+	}
+	const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
+	const float FacingSign = ResolveCameraFacingSign(LockedDirection, CameraRight);
+	ApplyFacingSign(FacingSign);
+	RefreshBossWeaponFacingOffset(FacingSign);
+}
+
+void UReEchoEnemyPresentationComponent::FitBossPhase3AttackPlaybackToWindow(const float WindowSeconds)
+{
+	if (!SequenceAnimation || WindowSeconds <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	const float ClipSeconds = SequenceAnimation->GetFlipbookLength();
+	if (ClipSeconds > KINDA_SMALL_NUMBER)
+	{
+		SequenceAnimation->SetPlayRate(ClipSeconds / WindowSeconds);
+	}
 }
 
 void UReEchoEnemyPresentationComponent::UpdateBossWeaponMotion(const float DeltaSeconds)
@@ -450,13 +724,17 @@ void UReEchoEnemyPresentationComponent::UpdateCameraFacing(const FReEchoEnemyPre
 		    UReEcho2DAnimationComponent::CalculateCameraFacingRotation(Camera->GetCameraRotation()));
 	}
 	const FVector CameraRight = FRotationMatrix(Camera->GetCameraRotation()).GetUnitAxis(EAxis::Y);
-	const float ScreenHorizontalDirection = FVector::DotProduct(Snapshot.FacingDirection, CameraRight);
-	const float FacingSign = ScreenHorizontalDirection < 0.0f ? -1.0f : 1.0f;
+	const float FacingSign = ResolveCameraFacingSign(Snapshot.FacingDirection, CameraRight);
+	ApplyFacingSign(FacingSign);
+	RefreshBossWeaponFacingOffset(FacingSign);
+}
+
+void UReEchoEnemyPresentationComponent::ApplyFacingSign(const float FacingSign)
+{
 	if (PresentationController)
 	{
 		PresentationController->SetFacingSign(FacingSign);
 	}
-	RefreshBossWeaponFacingOffset(FacingSign);
 }
 
 void UReEchoEnemyPresentationComponent::RefreshBossWeaponFacingOffset(const float FacingSign)
@@ -480,6 +758,19 @@ FVector UReEchoEnemyPresentationComponent::ResolveBossWeaponFacingOffsetForTests
 
 void UReEchoEnemyPresentationComponent::ResetTransientRoot()
 {
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation);
+	}
+	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+}
+
+void UReEchoEnemyPresentationComponent::ApplyTerminalDeathMotion(const FVector& Offset)
+{
+	if (TerminalDeathMotionRoot)
+	{
+		TerminalDeathMotionRoot->SetRelativeLocation(AuthoredTerminalDeathMotionLocation + Offset);
+	}
 	ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 }
 
@@ -537,8 +828,12 @@ void UReEchoEnemyPresentationComponent::RefreshGroundShadowFromFlipbook()
 	const FVector BottomWorld = SequenceAnimation->GetComponentTransform().TransformPosition(LocalGroundAnchor);
 	if (!bUseAuthoredDeathPivot)
 	{
-		const FVector BottomInFootRoot = FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
-		GroundRoot->SetRelativeLocation(FVector(BottomInFootRoot.X, BottomInFootRoot.Y, AuthoredGroundRootLocation.Z));
+		const USceneComponent* GroundParent = GroundRoot->GetAttachParent();
+		const FVector BottomInGroundParent =
+		    GroundParent ? GroundParent->GetComponentTransform().InverseTransformPosition(BottomWorld)
+		                 : FootRoot->GetComponentTransform().InverseTransformPosition(BottomWorld);
+		GroundRoot->SetRelativeLocation(
+		    FVector(BottomInGroundParent.X, BottomInGroundParent.Y, AuthoredGroundRootLocation.Z));
 	}
 
 	const float FlipbookWidth = UReEcho2DAnimationComponent::CalculateFlipbookPresentationWidth(
@@ -629,11 +924,124 @@ void UReEchoEnemyPresentationComponent::UpdateSpriteAnimation(const FReEchoEnemy
 
 void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent& Intent)
 {
-	if (Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam") && Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	const bool bBlinkSlam = Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
+	                        Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlamMoving;
+	const bool bPhase3BlinkSlam = CurrentBossPhaseIndex >= 3 && bBlinkSlam;
+	const EReEchoBossIntentType ShakeEvent = (Intent.bPhaseOpening || Intent.bGroundedSlam) && bBlinkSlam
+	                                             ? EReEchoBossIntentType::ImpactResolved
+	                                             : EReEchoBossIntentType::AttackWindowStarted;
+	if (Intent.Type == ShakeEvent && Intent.Attack.IsValid() && Intent.Attack.Sequence != LastBossCameraShakeSequence &&
+	    (bBlinkSlam || Intent.AbilityKind == EReEchoBossAbilityKind::PrayerBeam))
 	{
+		if (const APlayerController* PlayerController = UGameplayStatics::GetPlayerController(Host, 0))
+		{
+			if (AReEchoArenaCameraActor* ArenaCamera = Cast<AReEchoArenaCameraActor>(PlayerController->GetViewTarget()))
+			{
+				if (Intent.AbilityKind == EReEchoBossAbilityKind::PrayerBeam)
+				{
+					ArenaCamera->PlayImpactShake(20.0f, 0.20f);
+				}
+				else
+				{
+					ArenaCamera->PlayImpactShake(14.0f, 0.25f);
+				}
+				LastBossCameraShakeSequence = Intent.Attack.Sequence;
+			}
+		}
+	}
+	if (bPhase3BlinkSlam && (Intent.bPhaseOpening || Intent.bGroundedSlam))
+	{
+		// Opening is three grounded Attack clips, not the normal blink/rise/descent choreography.
+		bBossPhase3PendingWindupWalk = false;
+		BossPhase3LandingHoldRemaining = 0.0f;
+		BossPhase3BlinkSlamWindupRemaining = 0.0f;
+		BossBlinkSlamRemaining = 0.0f;
+		bBossPhase3BlinkSlamHidden = false;
+		bBossPhase3AttackScaleActive = Intent.Type != EReEchoBossIntentType::AbilityEnded;
+		ApplyBossPhase3Facing(Intent.LockedDirection);
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetVisibility(true);
+			SequenceAnimation->SetHiddenInGame(false);
+		}
+		if (GroundShadow)
+		{
+			GroundShadow->SetVisibility(true);
+			GroundShadow->SetHiddenInGame(false);
+		}
+		if (PresentationController && Intent.Type == EReEchoBossIntentType::TelegraphStarted)
+		{
+			PresentationController->SetWeaponVisualSetId(TEXT("Phase3"));
+			PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true, Intent.Attack.Sequence);
+			FitBossPhase3AttackPlaybackToWindow(Intent.WindupSeconds + Intent.ActiveSeconds);
+		}
+		ApplyBossPhase3FixedRendererScale();
+		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+		return;
+	}
+	if (bPhase3BlinkSlam && Intent.Type == EReEchoBossIntentType::TelegraphStarted)
+	{
+		const bool bHoldPreviousLanding = bBossPhase3AttackScaleActive;
+		bBossPhase3PendingWindupWalk = bHoldPreviousLanding;
+		BossPhase3LandingHoldRemaining = bHoldPreviousLanding ? ReEchoEnemyVisual::Phase3LandingHoldDuration : 0.0f;
+		if (!bHoldPreviousLanding)
+		{
+			bBossPhase3AttackScaleActive = false;
+		}
+		ApplyBossPhase3Facing(Intent.LockedDirection);
+		// Combo windup may begin before the prior strike's 0.5 second descent presentation finishes.
+		BossBlinkSlamRemaining = 0.0f;
+		BossPhase3BlinkSlamWindupDuration = ReEchoEnemyVisual::Phase3BlinkSlamWindupDuration;
+		BossPhase3BlinkSlamWindupRemaining = BossPhase3BlinkSlamWindupDuration;
+		bBossPhase3BlinkSlamHidden = false;
+		if (PresentationController)
+		{
+			PresentationController->SetWeaponVisualSetId(TEXT("Phase3"));
+			// Charging/rising keeps the Phase3 Walk loop. In a combo this also retires the prior slam action before the
+			// next ascent; GroundSlam is selected only when the attack window starts and the boss begins descending.
+			if (!bHoldPreviousLanding)
+			{
+				PresentationController->CancelAttackAction();
+			}
+			ApplyBossPhase3FixedRendererScale();
+			ApplyPresentationMotion(
+			    ResolvePhase3BlinkSlamWindupOffset(BossPhase3BlinkSlamWindupRemaining,
+			                                       BossPhase3BlinkSlamWindupDuration,
+			                                       ReEchoEnemyVisual::Phase3BlinkSlamWindupHeightCm),
+			    FVector::OneVector);
+		}
+	}
+	if ((Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
+	     Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlamMoving) &&
+	    Intent.Type == EReEchoBossIntentType::AttackWindowStarted)
+	{
+		if (bPhase3BlinkSlam)
+		{
+			bBossPhase3PendingWindupWalk = false;
+			BossPhase3LandingHoldRemaining = 0.0f;
+			bBossPhase3AttackScaleActive = true;
+			ApplyBossPhase3Facing(Intent.LockedDirection);
+		}
+		if (bPhase3BlinkSlam && PresentationController)
+		{
+			PresentationController->SetWeaponVisualSetId(TEXT("Phase3"));
+		}
+		BossPhase3BlinkSlamWindupRemaining = 0.0f;
+		bBossPhase3BlinkSlamHidden = false;
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetVisibility(true);
+			SequenceAnimation->SetHiddenInGame(false);
+		}
+		if (GroundShadow)
+		{
+			GroundShadow->SetVisibility(true);
+			GroundShadow->SetHiddenInGame(false);
+		}
 		BossBlinkSlamDuration = ReEchoEnemyVisual::BlinkSlamDuration;
 		BossBlinkSlamRemaining = BossBlinkSlamDuration;
 		BossBlinkSlamStartHeightCm = ReEchoEnemyVisual::BlinkSlamStartHeightCm;
+		ApplyBossPhase3FixedRendererScale();
 		ApplyPresentationMotion(
 		    ResolveBlinkSlamVisualOffset(BossBlinkSlamRemaining, BossBlinkSlamDuration, BossBlinkSlamStartHeightCm),
 		    FVector::OneVector);
@@ -648,9 +1056,27 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 		BossWeaponSwingRemaining = 0.0f;
 		BossWeaponRoot->SetRelativeRotation(BossWeaponRestRotation);
 	}
-	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && Intent.AbilityId == TEXT("M_SHEEP_BlinkSlam"))
+	if (Intent.Type == EReEchoBossIntentType::AbilityEnded &&
+	    (Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
+	     Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlamMoving))
 	{
+		bBossPhase3PendingWindupWalk = false;
+		BossPhase3LandingHoldRemaining = 0.0f;
+		bBossPhase3AttackScaleActive = false;
+		BossPhase3BlinkSlamWindupRemaining = 0.0f;
+		bBossPhase3BlinkSlamHidden = false;
 		BossBlinkSlamRemaining = 0.0f;
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetVisibility(true);
+			SequenceAnimation->SetHiddenInGame(false);
+		}
+		if (GroundShadow)
+		{
+			GroundShadow->SetVisibility(true);
+			GroundShadow->SetHiddenInGame(false);
+		}
+		ApplyBossPhase3FixedRendererScale();
 		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
 	}
 	if (Intent.Type == EReEchoBossIntentType::AbilityEnded && bStunPaused)
@@ -659,6 +1085,10 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 	}
 	if (Intent.Type != EReEchoBossIntentType::TelegraphStarted &&
 	    Intent.Type != EReEchoBossIntentType::AttackWindowStarted)
+	{
+		return;
+	}
+	if (bPhase3BlinkSlam && Intent.Type == EReEchoBossIntentType::TelegraphStarted)
 	{
 		return;
 	}
@@ -671,12 +1101,25 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 		                                       : ReEcho2DAnimationTags::Attack_Basic,
 		                                   true,
 		                                   Sequence);
+		if (bPhase3BlinkSlam)
+		{
+			FitBossPhase3AttackPlaybackToWindow(Intent.Type == EReEchoBossIntentType::TelegraphStarted
+			                                        ? BossPhase3BlinkSlamWindupDuration
+			                                        : BossBlinkSlamDuration);
+			ApplyBossPhase3FixedRendererScale();
+		}
 	}
 }
 
 void UReEchoEnemyPresentationComponent::HandlePresentationAction(const FReEchoPresentationActionEvent& Event)
 {
 	if (!PresentationController)
+	{
+		return;
+	}
+	// Phase3 owns only Boss Skill03. BossIntent already selects and scales its authored attack; replaying the
+	// generic committed action afterwards resets the renderer to the profile-normalized (smaller) scale.
+	if (CurrentBossPhaseIndex >= 3)
 	{
 		return;
 	}
@@ -721,6 +1164,15 @@ void UReEchoEnemyPresentationComponent::ConsumePresentationActionForTests(const 
 
 void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemyPhaseTransitionEvent& Event)
 {
+	CurrentBossPhaseIndex = Event.AnimationSetId == TEXT("Phase3")   ? 3
+	                        : Event.AnimationSetId == TEXT("Phase2") ? 2
+	                                                                 : CurrentBossPhaseIndex;
+	if (Event.AnimationSetId == TEXT("Phase3") && BossWeaponSprite)
+	{
+		bBossPhase3AttackScaleActive = false;
+		BossWeaponSprite->SetVisibility(false);
+		BossWeaponSprite->SetHiddenInGame(true);
+	}
 	if (!PresentationController)
 	{
 		return;
@@ -732,7 +1184,22 @@ void UReEchoEnemyPresentationComponent::HandlePhaseTransition(const FReEchoEnemy
 	}
 	else
 	{
+		const bool bEnteringPhase3 = Event.AnimationSetId == TEXT("Phase3");
+		if (SequenceAnimation && !bEnteringPhase3)
+		{
+			SequenceAnimation->SetDisplayScaleMultiplier(1.0f);
+			SequenceAnimation->SetDisplayScaleReferenceHeight(0.0f);
+		}
 		PresentationController->CompleteAnimationSetTransition(Event.AnimationSetId);
+		if (bEnteringPhase3 && SequenceAnimation)
+		{
+			const UPaperFlipbook* Phase3Walk = SequenceAnimation->GetFlipbook();
+			const float Phase3ReferenceHeight = Phase3Walk ? Phase3Walk->GetRenderBounds().BoxExtent.Z * 2.0f : 0.0f;
+			SequenceAnimation->SetDisplayScaleReferenceHeight(Phase3ReferenceHeight);
+			SequenceAnimation->SetDisplayScaleMultiplier(ReEchoEnemyVisual::Phase3AnimationScaleMultiplier);
+			// Recalculate foot and shadow anchors from the enlarged Phase3 Walk bounds immediately on transition.
+			ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+		}
 	}
 }
 
@@ -766,7 +1233,9 @@ void UReEchoEnemyPresentationComponent::HandleCombatHurt(const FReEchoDamageEven
 	}
 	ShakeDirection = FVector::CrossProduct(FVector::UpVector, KnockbackDirection).GetSafeNormal();
 	bHitVisualActive = true;
-	if (PresentationController)
+	// Phase3 only authors Walk and GroundSlam. Resolving its missing Hit semantic would fall back to the
+	// default (Phase1) animation set and interrupt the multi-slam presentation.
+	if (PresentationController && CurrentBossPhaseIndex < 3)
 	{
 		PresentationController->PlayAction(ReEcho2DAnimationTags::Hit, true);
 	}

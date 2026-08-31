@@ -16,6 +16,7 @@
 #include "NiagaraEmitterHandle.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraRendererProperties.h"
+#include "NiagaraScript.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemInstance.h"
@@ -81,9 +82,33 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossBlinkSlamPresentationTest,
 
 bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 {
+	TestEqual(TEXT("Camera-right targets face right"),
+	          UReEchoEnemyPresentationComponent::ResolveCameraFacingSign(FVector::RightVector,
+	                                                                    FVector::RightVector),
+	          1.0f);
+	TestEqual(TEXT("Camera-left targets face left"),
+	          UReEchoEnemyPresentationComponent::ResolveCameraFacingSign(-FVector::RightVector,
+	                                                                    FVector::RightVector),
+	          -1.0f);
+	const FBoxSphereBounds Phase3AnimationBounds(
+	    FVector(120.0f, -30.0f, 240.0f), FVector(80.0f, 15.0f, 110.0f), 140.0f);
+	TestTrue(TEXT("Phase3 charging resolves to the animation top center"),
+	         UReEchoCombatVfxComponent::ResolveBossPhase3ChargingTopWorldLocation(Phase3AnimationBounds)
+	             .Equals(FVector(120.0f, -30.0f, 350.0f), KINDA_SMALL_NUMBER));
+	const FBox LayeredImpactBounds(FVector(-100.0f, -80.0f, -35.0f), FVector(100.0f, 80.0f, 65.0f));
+	TestTrue(TEXT("Skill03 layered impact raises its authored lowest point onto the warning ground plane"),
+	         UReEchoCombatVfxComponent::ResolveGroundAlignedEffectOrigin(
+	             FVector(400.0f, 250.0f, 12.0f), LayeredImpactBounds, FVector(1.0f, 1.0f, 2.0f))
+	             .Equals(FVector(400.0f, 250.0f, 82.0f), KINDA_SMALL_NUMBER));
 	const FVector StartOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.5f, 0.5f, 300.0f);
 	const FVector HalfwayOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.25f, 0.5f, 300.0f);
 	const FVector LandedOffset = UReEchoEnemyPresentationComponent::ResolveBlinkSlamVisualOffset(0.0f, 0.5f, 300.0f);
+	const FVector WindupStart =
+	    UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(0.5f, 0.5f, 300.0f);
+	const FVector WindupHalfway =
+	    UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(0.25f, 0.5f, 300.0f);
+	const FVector WindupHidden =
+	    UReEchoEnemyPresentationComponent::ResolvePhase3BlinkSlamWindupOffset(0.0f, 0.5f, 300.0f);
 
 	TestTrue(TEXT("Blink slam starts 300 cm above the locked landing point"),
 	         StartOffset.Equals(FVector(0.0f, 0.0f, 300.0f), KINDA_SMALL_NUMBER));
@@ -91,6 +116,11 @@ bool FReEchoBossBlinkSlamPresentationTest::RunTest(const FString& Parameters)
 	         HalfwayOffset.Equals(FVector(0.0f, 0.0f, 75.0f), KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Blink slam presentation finishes exactly at the gameplay landing point"),
 	         LandedOffset.IsNearlyZero());
+	TestTrue(TEXT("Phase3 windup begins at the sheep's grounded position"), WindupStart.IsNearlyZero());
+	TestTrue(TEXT("Phase3 windup rises while the Phase3 attack remains active"),
+	         WindupHalfway.Equals(FVector(0.0f, 0.0f, 262.5f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Phase3 windup reaches its hidden height before the downward slam"),
+	         WindupHidden.Equals(FVector(0.0f, 0.0f, 300.0f), KINDA_SMALL_NUMBER));
 	return true;
 }
 
@@ -113,6 +143,32 @@ bool FReEchoEnemyDeathKnockbackPresentationTest::RunTest(const FString& Paramete
 	         HalfwayOffset.Equals(Direction.GetSafeNormal() * 78.75f, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Fatal presentation reaches the stronger 90 cm displacement"),
 	         EndOffset.Equals(Direction.GetSafeNormal() * 90.0f, KINDA_SMALL_NUMBER));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEnemyDeathMotionHierarchyTest,
+                                 "ReEcho.Presentation.VFX.EnemyDeathMotionHierarchy",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEnemyDeathMotionHierarchyTest::RunTest(const FString& Parameters)
+{
+	AReEchoEnemyActor* Enemy = GetMutableDefault<AReEchoEnemyActor>();
+	const USceneComponent* FootRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("FootRoot"))) : nullptr;
+	const USceneComponent* TerminalDeathRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("TerminalDeathMotionRoot"))) : nullptr;
+	const USceneComponent* MotionRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("PresentationMotionRoot"))) : nullptr;
+	const USceneComponent* GroundRoot =
+	    Enemy ? Cast<USceneComponent>(Enemy->GetDefaultSubobjectByName(TEXT("GroundRoot"))) : nullptr;
+
+	TestNotNull(TEXT("Enemy owns a terminal death presentation root"), TerminalDeathRoot);
+	TestTrue(TEXT("Terminal death root remains presentation-only below FootRoot"),
+	         FootRoot && TerminalDeathRoot && TerminalDeathRoot->GetAttachParent() == FootRoot);
+	TestTrue(TEXT("Body presentation inherits terminal death displacement"),
+	         MotionRoot && MotionRoot->GetAttachParent() == TerminalDeathRoot);
+	TestTrue(TEXT("Ground shadow anchor inherits the same terminal death displacement"),
+	         GroundRoot && GroundRoot->GetAttachParent() == TerminalDeathRoot);
 	return true;
 }
 
@@ -472,10 +528,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoElementReactionVfxCatalog::ResolvePlacement(EReEchoElementReactionVfxSemantic::EnhanceWater);
 	TestTrue(TEXT("Reaction effects preserve authored world size"), GrowthPlacement.bPreserveWorldSize);
 	TestTrue(TEXT("Growth matches the target Flipbook size"), GrowthPlacement.bMatchTargetFlipbookSize);
-	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"),
-	         EnhanceGrassPlacement.bMatchTargetFlipbookSize);
-	TestTrue(TEXT("Enhance Water matches the target Flipbook size"),
-	         EnhanceWaterPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Grass matches the target Flipbook size"), EnhanceGrassPlacement.bMatchTargetFlipbookSize);
+	TestTrue(TEXT("Enhance Water matches the target Flipbook size"), EnhanceWaterPlacement.bMatchTargetFlipbookSize);
 	TestTrue(TEXT("Burn visual lifetime follows the timed Burn status"),
 	         UReEchoCombatVfxComponent::IsElementReactionStateDriven(TEXT("Y_ER_F_G")));
 	TestFalse(TEXT("Growth is emitted only by its resolved reaction event"),
@@ -1152,17 +1206,10 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 	    FReEchoCombatVfxCatalog::ResolvePlacement(EReEchoCombatVfxSemantic::EchoBorn);
 	TestTrue(TEXT("Echo Born keeps a stable world size"),
 	         EchoBornPlacement.ScalePolicy == EReEchoVfxScalePolicy::PreserveWorldSize);
-	TestTrue(TEXT("Echo Born renders at one quarter of the source circle size"),
-	         EchoBornPlacement.Scale.Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
+	TestTrue(TEXT("Echo Born preserves the source asset's authored component size"),
+	         EchoBornPlacement.Scale.Equals(FVector::OneVector, KINDA_SMALL_NUMBER));
 	TestTrue(TEXT("Echo Born owns a finite one-shot presentation lifetime"),
 	         FMath::IsNearlyEqual(EchoBornPlacement.PlaybackDurationSeconds, 0.8f));
-	TestTrue(TEXT("Echo Born scale resolves a requested world diameter from authored ground bounds"),
-	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(
-	             120.0f, FBox(FVector(-500.0f, -300.0f, -100.0f), FVector(500.0f, 300.0f, 400.0f)), FVector(0.25f))
-	             .Equals(FVector(0.12f), KINDA_SMALL_NUMBER));
-	TestTrue(TEXT("Echo Born invalid bounds retain the catalog fallback scale"),
-	         UReEchoCombatVfxComponent::ResolveEchoBornWorldScale(120.0f, FBox(EForceInit::ForceInit), FVector(0.25f))
-	             .Equals(FVector(0.25f), KINDA_SMALL_NUMBER));
 	for (const EReEchoCombatVfxSemantic Semantic : RequiredSystems)
 	{
 		const FString AssetPath = FReEchoCombatVfxCatalog::ResolvePath(Semantic);
@@ -1196,6 +1243,8 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 		{
 			TestFalse(TEXT("Echo Born loads without deferred Niagara compilation"),
 			          System->HasOutstandingCompilationRequests(true));
+			int32 EchoBornMeshScaleParameterCount = 0;
+			FString EchoBornMeshScaleEmitterName;
 			for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 			{
 				if (EmitterHandle.GetIsEnabled())
@@ -1205,6 +1254,34 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					         EmitterData && EmitterData->bLocalSpace);
 					if (EmitterData)
 					{
+						TArray<UNiagaraScript*> Scripts;
+						EmitterData->GetScripts(Scripts, false, false);
+						for (const UNiagaraScript* Script : Scripts)
+						{
+							if (!Script)
+							{
+								continue;
+							}
+							for (const FNiagaraVariableWithOffset& Parameter :
+							     Script->RapidIterationParameters.ReadParameterVariables())
+							{
+								if (Parameter.GetType() != FNiagaraTypeDefinition::GetVec3Def() ||
+								    !Parameter.GetName().ToString().EndsWith(TEXT("InitializeParticle.Mesh Scale")))
+								{
+									continue;
+								}
+								const FVector3f MeshScale =
+								    Script->RapidIterationParameters.GetParameterValue<FVector3f>(Parameter);
+								++EchoBornMeshScaleParameterCount;
+								EchoBornMeshScaleEmitterName = EmitterHandle.GetName().ToString();
+								TestTrue(TEXT("Echo Born mesh preserves its authored local X size"),
+								         FMath::IsNearlyEqual(MeshScale.X, 25.0f));
+								TestTrue(TEXT("Echo Born mesh preserves its authored local Y size"),
+								         FMath::IsNearlyEqual(MeshScale.Y, 25.0f));
+								TestTrue(TEXT("Echo Born mesh restores its authored visible local Z size"),
+								         FMath::IsNearlyEqual(MeshScale.Z, 40.0f));
+							}
+						}
 						for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 						{
 							const UNiagaraSpriteRendererProperties* Sprite =
@@ -1226,6 +1303,9 @@ bool FReEchoCombatVfxCatalogTest::RunTest(const FString& Parameters)
 					}
 				}
 			}
+			TestEqual(TEXT("Echo Born owns one authored mesh-scale parameter"), EchoBornMeshScaleParameterCount, 1);
+			TestTrue(TEXT("Echo Born mesh-scale parameter belongs to Fountain004"),
+			         EchoBornMeshScaleEmitterName.Contains(TEXT("Fountain004")));
 		}
 		const bool bRequiresComponentSpace =
 		    Semantic == EReEchoCombatVfxSemantic::PlayerMeleeSlash ||

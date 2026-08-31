@@ -23,6 +23,27 @@ bool FReEchoCombatAttackModeCommandTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatPresentationGateTest,
+                                 "ReEcho.Combat.PresentationSuspension",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoCombatPresentationGateTest::RunTest(const FString& Parameters)
+{
+	UReEchoCombatantComponent* Combatant = NewObject<UReEchoCombatantComponent>();
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Combatant->InitializeFromStats(Stats, true);
+	Combatant->SetDebugInvulnerable(true);
+	Combatant->SetPresentationSuspended(true);
+	TestEqual(
+	    TEXT("Presentation blocks even GMGod's visible damage"), Combatant->ApplyFinalDamageForTests(12.0f), 0.0f);
+	TestEqual(TEXT("Presentation preserves health"), Combatant->CurrentHealth, 100.0f);
+	Combatant->SetPresentationSuspended(false);
+	TestTrue(TEXT("Presentation does not clear GMGod"), Combatant->IsDebugInvulnerable());
+	TestEqual(TEXT("GMGod feedback returns after presentation"), Combatant->ApplyFinalDamageForTests(12.0f), 12.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatantSnapshotTest,
                                  "ReEcho.Combat.CombatantSnapshot",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -101,15 +101,27 @@ bool FReEchoDebugInvulnerabilityTest::RunTest(const FString& Parameters)
 
 	Fixture.Combatant->SetDebugInvulnerable(true);
 	TestTrue(TEXT("Debug invulnerability reports enabled"), Fixture.Combatant->IsDebugInvulnerable());
-	TestEqual(TEXT("Invulnerability rejects final damage"), Fixture.Combatant->ApplyFinalDamageForTests(25.0f), 0.0f);
+	TestEqual(TEXT("GMGod preserves resolved damage for hit feedback"),
+	          Fixture.Combatant->ApplyFinalDamageForTests(25.0f),
+	          25.0f);
 	TestEqual(TEXT("Invulnerability preserves health"), Fixture.Combatant->CurrentHealth, 100.0f);
 	TestEqual(TEXT("Invulnerability does not consume block"), Fixture.Combatant->Stats.Block, 1);
+	TestEqual(TEXT("GMGod reports lethal damage without clamping feedback to health"),
+	          Fixture.Combatant->ApplyFinalDamageForTests(150.0f),
+	          150.0f);
+	TestTrue(TEXT("GMGod prevents lethal damage from killing the owner"), Fixture.Combatant->IsAlive());
+	TestEqual(TEXT("Lethal GMGod hit preserves authoritative health"), Fixture.Attributes->GetHealth(), 100.0f);
+	TestEqual(TEXT("Lethal GMGod hit preserves authoritative block"), Fixture.Attributes->GetBlock(), 1.0f);
 
 	Fixture.Combatant->SetDebugInvulnerable(false);
 	TestFalse(TEXT("Debug invulnerability reports disabled"), Fixture.Combatant->IsDebugInvulnerable());
 	TestEqual(
 	    TEXT("Normal damage path resumes after disabling"), Fixture.Combatant->ApplyFinalDamageForTests(25.0f), 0.0f);
 	TestEqual(TEXT("Normal damage consumes block after disabling"), Fixture.Combatant->Stats.Block, 0);
+	TestEqual(TEXT("Unblocked damage resumes after disabling GMGod"),
+	          Fixture.Combatant->ApplyFinalDamageForTests(25.0f),
+	          25.0f);
+	TestEqual(TEXT("Unblocked damage reduces authoritative health"), Fixture.Attributes->GetHealth(), 75.0f);
 	return true;
 }
 
@@ -224,6 +236,113 @@ bool FReEchoGasDeathAndTagsTest::RunTest(const FString& Parameters)
 	         Basic->GetAssetTags().HasTagExact(ReEchoGameplayTags::Ability_Attack_Basic));
 	TestTrue(TEXT("Active attack has ability tag"),
 	         Active->GetAssetTags().HasTagExact(ReEchoGameplayTags::Ability_Attack_Active));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoTransientAttackSpeedStackParityTest,
+                                 "ReEcho.GAS.TransientAttackSpeedStackParity",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoTransientAttackSpeedStackParityTest::RunTest(const FString& Parameters)
+{
+	// Regression guard: the player binds an ability system while Echoes do not, so a transient stat stack
+	// must be owned by exactly one backend. Writing the fallback delta on top of a live Gameplay Effect
+	// double counted it on grant, and expiry removed the effect first - restoring Stats from the attribute -
+	// then subtracted the same delta again, draining player attack speed below base on every single expiry.
+	FReEchoGasFixture GasFixture;
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.AttackSpeed = 1.0f;
+	Stats.MovementSpeed = 1.0f;
+	GasFixture.Combatant->InitializeFromStats(Stats, true);
+
+	AActor* EchoOwner = GasFixture.World->SpawnActor<AActor>();
+	UReEchoCombatantComponent* Echo = NewObject<UReEchoCombatantComponent>(EchoOwner, TEXT("TestEchoCombatant"));
+	Echo->RegisterComponent();
+	Echo->InitializeFromStats(Stats, true);
+
+	const FName StackSource(TEXT("Test.AttackSpeedRune"));
+	const float BonusFraction = 0.10f;
+	const float DurationSeconds = 10.0f;
+	const int32 MaxStacks = 8;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		GasFixture.Combatant->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+		Echo->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+	}
+
+	TestTrue(TEXT("Ability-system owner gains attack speed"), GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Echo gains attack speed"), Echo->Stats.AttackSpeed > 1.0f);
+
+	GasFixture.Combatant->AdvanceTimedRuneEffectsForTests(1000.0f);
+	Echo->AdvanceTimedRuneEffectsForTests(1000.0f);
+
+	TestEqual(TEXT("Ability-system owner returns to base attack speed"), GasFixture.Combatant->Stats.AttackSpeed, 1.0f, 0.001f);
+	TestEqual(TEXT("Echo returns to base attack speed"), Echo->Stats.AttackSpeed, 1.0f, 0.001f);
+	TestEqual(TEXT("Ability-system owner clears transient stacks"), GasFixture.Combatant->GetTransientStatStackCount(StackSource), 0);
+	TestEqual(TEXT("Echo clears transient stacks"), Echo->GetTransientStatStackCount(StackSource), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoInEncounterRefreshKeepsStatStacksTest,
+                                 "ReEcho.GAS.InEncounterRefreshKeepsStatStacks",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoInEncounterRefreshKeepsStatStacksTest::RunTest(const FString& Parameters)
+{
+	// Regression guard: kills and element reactions refresh the player's stats mid-encounter through
+	// InitializeFromStats(bFillHealth=false). That refresh used to drop every transient stack, so stacked
+	// attack-speed runes were wiped on each kill while Echoes - which never refresh mid-encounter - kept
+	// theirs, leaving the player attacking far slower than its own Echo.
+	FReEchoGasFixture GasFixture;
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.AttackSpeed = 1.0f;
+	Stats.MovementSpeed = 1.0f;
+	GasFixture.Combatant->InitializeFromStats(Stats, true);
+
+	AActor* EchoOwner = GasFixture.World->SpawnActor<AActor>();
+	UReEchoCombatantComponent* Echo = NewObject<UReEchoCombatantComponent>(EchoOwner, TEXT("TestEchoCombatant"));
+	Echo->RegisterComponent();
+	Echo->InitializeFromStats(Stats, true);
+
+	const FName StackSource(TEXT("Test.AttackSpeedRune"));
+	const float BonusFraction = 0.10f;
+	const float DurationSeconds = 30.0f;
+	const int32 MaxStacks = 8;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		GasFixture.Combatant->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+		Echo->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+	}
+
+	TestTrue(TEXT("Player stacks attack speed before the refresh"),
+	         GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Echo stacks attack speed before the refresh"), Echo->Stats.AttackSpeed > 1.0f);
+
+	// Mid-encounter refresh, exactly what a kill or an element reaction triggers.
+	GasFixture.Combatant->InitializeFromStats(Stats, false);
+	Echo->InitializeFromStats(Stats, false);
+
+	TestEqual(TEXT("Player keeps its transient stacks across an in-encounter refresh"),
+	          GasFixture.Combatant->GetTransientStatStackCount(StackSource),
+	          3);
+	TestEqual(TEXT("Echo keeps its transient stacks across an in-encounter refresh"),
+	          Echo->GetTransientStatStackCount(StackSource),
+	          3);
+	TestTrue(TEXT("Player keeps the stacked attack speed across the refresh"),
+	         GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Echo keeps the stacked attack speed across the refresh"), Echo->Stats.AttackSpeed > 1.0f);
+
+	// A full initialization must still clear them.
+	GasFixture.Combatant->InitializeFromStats(Stats, true);
+	Echo->InitializeFromStats(Stats, true);
+	TestEqual(TEXT("A full initialization still clears the player stacks"),
+	          GasFixture.Combatant->GetTransientStatStackCount(StackSource),
+	          0);
+	TestEqual(TEXT("A full initialization still clears the Echo stacks"),
+	          Echo->GetTransientStatStackCount(StackSource),
+	          0);
 	return true;
 }
 
