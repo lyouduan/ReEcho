@@ -110,7 +110,7 @@
 - 最终发布集成：等待原发布者将锁候选纳入 `14f95a64` 并正常解锁后，以本地正式提交 `de650dab` 原子取得 `main-publish-lock`，核验锁准确指向本提交，再 fetch 并 merge `origin/main@14f95a64`。传入后续卡牌测试/文档没有新增结算冲突；按用户确认选择本地 WBP 与 Restart 无运行时排版的实现，其他 main 内容和共享文档组合保留。相对 main 的最终差异仅本 Plan 的代码/测试/蓝图/同步工具/指导文档及完整重建的预构建包。
 - 最终组合候选 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功（134 actions，47.42 秒）；生成包校验通过，7 个模块，Engine Build ID `55116800`，source fingerprint `d6ad607a0053`。未选择任一侧旧 DLL/manifest作为发布结果。仍只有既有 `CompressImageArray` 弃用警告。
 - 最终组合候选 `ReEcho.UI.RestartWidget`：2/2 Success，日志 `Saved/Logs/ReEcho-session-20260831-090254-pid49932.log`；真实已保存 WBP 加载并验证全部32个统计文本的保存参数/任意编辑参数在构造、页面切换、重构造后保留，统计数字仍更新。已知启动期 `Condition failed` 和缺图回退测试的 Warning 仍单独存在，不视为全启动无警告。
-- 最终 `validate_project.py`、`git diff --cached --check`、`setup_lfs.py --check`、LFS fsck 与 prebuilt check 通过。对新增测试区域执行仓库 `.clang-format` 格式化，未产生字节差异；格式器 dry-run 仍提示该区域的 CRLF 空行替换及旧区域格式，不为处理旧样式重写无关代码。构建后源码未改变。
+- 最终 `validate_project.py`、`git diff --cached --check`、`setup_lfs.py --check`、LFS fsck 与 prebuilt check 通过。对新增测试区域执行仓库 `.clang-format` 格式化，未产生 Git 内容差异（规范化后 blob 同为 `06f4bc17`）；格式器 dry-run 仍提示该区域的 CRLF 空行替换及旧区域格式，不为处理旧样式重写无关代码。构建后源码指纹未改变。
 - 用户最终蓝图 blob 在合并和测试后仍为 `25db061d72d6aba390d9131b05d08d348e6b9491`，没有重跑一次性同步或远端字体 authoring 脚本。最终 UI 人工认可来自用户微调后明确发布指令及冲突取舍确认，不声称 AI 完成主观 PIE 验收。
 - 规划基线：`origin/main@11dc24d2d3e36a3bcec5898bb40dd05385046156`。
 - 编号审计：远端 `origin/main` 最大已发布编号为 `155`，Plan156 无占用。
