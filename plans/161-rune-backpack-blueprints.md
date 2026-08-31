@@ -7,7 +7,7 @@
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
 - 任务状态：`Review`。
-- 人工验收：`PendingBeforeClose`。
+- 人工验收：`Passed`（用户微调后要求推送并合入主分支）。
 - 本地规划 / 实现基线：`origin/main` / `531bd9cb08f8808f254de59dd0ff99fe36588a56`。
 - 本地实现方式：独立 worktree，`plan/161-rune-backpack-blueprints`。
 - 依赖 / 阻塞：沿用已发布 Plan160 符文份数与合成投影、Plan157 商店 Tooltip；无玩法阻塞。
@@ -18,6 +18,7 @@
   - `Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp`
   - `Content/ReEcho/UI/WBP_ReEchoRuneBackpack.uasset`
   - `Content/ReEcho/UI/WBP_ReEchoRuneBackpackEntry.uasset`
+  - `Content/ReEcho/UI/WBP_ReEchoInventoryShopScreen.uasset`（仅纳入用户本轮已保存微调，不由工具重建）。
   - `scripts/ue/author_plan161_rune_backpack.py`
   - `scripts/ue/audit_plan161_rune_backpack.py`
   - `Design/UI/ReEcho_商店浮窗调整指南.md`
@@ -26,7 +27,7 @@
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
   - 本 Plan 与 Git 规则允许的匹配 Win64 Editor 预构建包。
-- Stable Reads：Run 的 `FReEchoWeaponPartShopView` / `FReEchoShopOffer`、符文装备命令、`WBP_ReEchoInventoryShopScreen`、共用 Tooltip、已导入纹理和字体、UI Framework。
+- Stable Reads：Run 的 `FReEchoWeaponPartShopView` / `FReEchoShopOffer`、符文装备命令、共用 Tooltip、已导入纹理和字体、UI Framework。
 - 影响模式：`SharedContract`（限商店表现适配）。
 - 兼容承诺 / 下游操作：保留槽位/武器兼容过滤、真实未装备份数、稳定条目索引与槽位 occurrence、装备而非购买命令、切换/关闭与余额订阅行为；不改变合成、存档、CSV/XLSX。
 - 明确排除：武器背包重构、商店整页重建、已有用户蓝图修改、增加玩法、旧 Plan158 WIP 分支强制清理、实现自动发布 main。
@@ -53,7 +54,7 @@
 - [x] 点击仍只装备已拥有且兼容的符文，双槽 occurrence 正确，数量/合成语义不变。
 - [x] 主线已有商店蓝图、武器背包及其他用户微调不被覆盖。
 - [x] 静态、编译、聚焦自动化和真实渲染证据通过。
-- [ ] 用户完成视觉与可编辑性验收。
+- [x] 用户微调后接受当前候选并要求发布。
 - [x] 未提交预构建允许列表之外的 UE 生成产物。
 
 ## Step 0 门禁
@@ -115,6 +116,13 @@
 
 - Designer 与运行时不同分辨率需人工确认观感；不将自动化等同于人工作品验收。
 - 本轮为本地技术交付；正式 main 发布需要用户验收与届时最新远端审计、发布锁、最终 FullRebuild，不能复用本地开发构建冒充发布门禁。
+
+### 用户微调与发布审计
+
+- 用户明确要求纳入微调并合入 main。磁盘仅有商店主蓝图修改，已确认 Editor 关闭；`WBP_ReEchoInventoryShopScreen.uasset` SHA256 为 `CF9DDB70FE02F17F68641B67AC88B649129FA4A2AA500FDA6A60C38C1EC70143`，原样纳入，不重建该资产。
+- 最新远端 `428b83fd` 相对本任务发布基线新增 `e895eb9b` 的符文购买空槽自动装备、对应回归和模块文档，以及发布合并/构建记录。无 Plan 编号变化；代码与 UI 资产无物理冲突，只有精选预构建 DLL/manifest 双方更新冲突，获锁合并后由最终 FullRebuild 重新生成。
+- 语义与耦合审计：保留远端 Run 的购买填空槽/原槽合成/满槽保留背包行为；Plan161 只消费更新后的 `BackpackCount` 并发送手动装备请求，两者契约兼容。远端源码和回归逐字保留，文档同时保留远端玩法描述与本任务 Designer 入口。最终重跑商店 UI、符文库存与购买相关测试。
+- 架构关闭复核：`ARCHITECTURE.md` 已审阅无需修改（无新模块/拓扑/所有权变化）；`README.md` 已有调参索引；`MOD-ReEcho.md`、`MOD-ReEchoUI.md` 保留本任务组件条目并合入远端自动装备描述；两份 UI 指南保留调整入口与新宽度。最终发布证据待完成后登记。
 
 ### 人工验收结果/请求
 
