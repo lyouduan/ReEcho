@@ -314,18 +314,18 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Purchased rune enters part ownership"), RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
 	          RunSubsystem->InventoryItems.Contains(TEXT("P_CORE_FLAME")));
-	TestFalse(TEXT("Purchased core stays in backpack until explicitly equipped"),
-	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	              [](const FReEchoEquippedPartSnapshot& Part)
-	              {
-		              return Part.PartId == TEXT("P_CORE_FLAME");
-	              }));
-	TestFalse(TEXT("Purchased weapon-specific rune stays in backpack until explicitly equipped"),
-	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	              [](const FReEchoEquippedPartSnapshot& Part)
-	              {
-		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
-	              }));
+	TestTrue(TEXT("Purchased core fills its empty equipment slot"),
+	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	             [](const FReEchoEquippedPartSnapshot& Part)
+	             {
+		             return Part.PartId == TEXT("P_CORE_FLAME");
+	             }));
+	TestTrue(TEXT("Purchased weapon-specific rune fills its empty equipment slot"),
+	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	             [](const FReEchoEquippedPartSnapshot& Part)
+	             {
+		             return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
+	             }));
 	const int32 ShardsAfterDuplicate = RunSubsystem->TimeShards;
 	TestFalse(TEXT("Duplicate rune purchase is rejected"), RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
