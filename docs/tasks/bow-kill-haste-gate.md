@@ -61,3 +61,13 @@
 - 以干净正式候选 `74874c0986c6f66116f7c2e3a6ffa99576afb96b` 使用空 expected lease 原子取得 `main-publish-lock`，核验后重新 fetch 确认 main 未前进，再执行 merge；未 rebase 或重写候选历史。预构建冲突暂取准确远端包作为占位，最终 FullRebuild 必须重新生成，旧包不作为验证证据。
 - 相同卡牌登记合并为远端已存在的一份；本地4项回归并入 `test_validate_card_registration.py`，删除本任务重复文件 `test_validate_card_registrations.py`（内容在本地提交 `74874c09` 可恢复）。远端已正式登记 UI 文档标识，因此保留其索引/文档契约，撤销本地临时链接写法，不改校验器规则。
 - 相关文档重新审阅：主模块文档保留双方行为说明；README、UI 文档和 ARCHITECTURE 沿主线已有结构，无新增模块或依赖。最终验证/发布结果在后续记录补齐，不套用 Plan158/160 的配表豁免。
+
+## 最终组合候选验证与发布准备
+
+- 集成提交为 `2030ea18`，已包含准确主线 `a73e5d5a514d6dc2bc99e93487eccf78e7deb552`，并保持最初锁候选 `74874c09` 的后代关系。
+- 最终 `Build-Editor.cmd -Configuration Development -FullRebuild` 成功：96 个动作，42.63 秒；精选 7 个模块全部刷新，Build ID `55116800`，源码指纹前缀 `6337b7272d92`。`prebuilt_editor.py check` 通过。只有既有 `CompressImageArray` 弃用编译警告。
+- 组合自动化筛选 `ReEcho.Weapons.Runes.KillHasteNonRefreshingWindow+ReEcho.Shop+ReEcho.UI.Shop+ReEcho.Run.SaveSnapshot`：发现并执行 34 项，34 项全部 `Result={Success}`，`TEST COMPLETE. EXIT CODE: 0`。证据位于本工作树 `Saved/KillHaste-PublishAutomation.log`；构建证据位于 `Saved/KillHaste-PublishBuild.log`。日志仅本地保留，不进入精选发布产物。
+- 日志启动阶段仍有既有 `Condition failed`，发生在上述测试开始前；另有可选分析 DLL 和非 Win64 SDK 缺失信息。本次没有把整份日志描述为零错误，也没有声称完成 PIE 或主观玩法验收。
+- `test_validate_card_registration.py` 4/4、`test_sync_xlsx_to_csv.py` 18/18、`sync_xlsx_to_csv.py --check`、`validate_project.py`、`git diff --check` 全部通过。相对 `origin/main` 的 `Content/Data` 无差异，生产 CSV 字节保持不变，XLSX 回写未被主线合并覆盖。
+- 最终构建/测试前已通过 LFS 检出检查并原子取得本克隆 Unreal 锁，结束后仅释放本次取得的锁。最终 `git lfs fsck` 通过；预构建变化仅包含 manifest 及其 7 个 DLL，target/modules 内容无需改动。
+- 发布前再次 fetch，主线仍为 `a73e5d5a`、远端发布锁仍准确指向本任务初始候选。下一步将正式提交本记录和匹配产物，普通快进更新锁与 main，并按最终提交号核验远端引用/LFS 对象后以准确 lease 释放发布锁；实际远端结果在交付回复报告，不提前宣称推送成功。
