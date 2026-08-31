@@ -122,8 +122,9 @@ public:
 
 	bool TryEquipParts(const TArray<FName>& PartIds, FString& OutError);
 	/**
-	 * 购买即装备：把刚购买的配件直接装入其槽位。
-	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在 OwnedPartIds（回落背包）。
+	 * 显式背包装备：购买只入包/合成，不调用本命令自动挤槽。
+	 * 槽位已满时挤出该槽位最早装备的旧件，旧件仍保留在
+	 * OwnedPartIds（回落背包）。
 	 */
 	bool TryEquipPurchasedPart(FName PartId, FString& OutError);
 	/**
@@ -132,8 +133,6 @@ public:
 	 * untouched (TryEquipPurchasedPart instead squeezes the oldest one, which visibly disturbs both slots).
 	 */
 	bool TryEquipPurchasedPartAt(FName PartId, int32 TargetOccurrenceIndex, FString& OutError);
-	/** Consumes redundant lower-tier runes per rune_upgrades.csv and synthesizes the next tier after a rune is acquired. */
-	void ProcessRuneSynthesis(const FReEchoCsvDataSnapshot& Snapshot);
 	/**
 	 * Rolls a fresh set of three cards for a tier pack. A tier configured with several purchases must behave
 	 * like several distinct packs, so each repeat purchase re-rolls instead of reusing the page's first roll.

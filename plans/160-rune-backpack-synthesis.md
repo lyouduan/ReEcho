@@ -6,7 +6,7 @@
 - Executor 负责人：Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
+- 任务状态：`Review`（实现及最终构建/专项回归已完成，待人工验收；基线静态检查及卡牌旧断言失败单独保留）。
 - 人工验收：`PendingBeforeClose`。
 - 本地规划 / 实现基线：`origin/main@ac28c32d796fedfa486ff215d4403dc26a29099f`。
 - 本地实现方式：独立 worktree `ReEcho-plan160-rune-backpack-synthesis`，分支 `plan/160-rune-backpack-synthesis`。
@@ -52,14 +52,14 @@
 
 ## 锁定验收
 
-- [ ] 买首个 I / 核心宝石仅入包，空槽不自动装备；异武器符文仍入包。
-- [ ] 装备 I + 买 I -> 装备 II，其他槽不变；背包 I + 买 I -> 背包 II。
-- [ ] 装备 II + 背包 I + 买 I -> 装备 III，材料正确扣除；背包可连续 I->II->III。
-- [ ] 手动替换、卸下与换武器导致的入包也调用同一合成结算；双槽升级保持对应槽位。
-- [ ] 新局份数清零；同一实例/跨实例存读档恢复已购页，不能重买已购报价或 III 对应 I；旧档兼容迁移覆盖。
-- [ ] 原子失败测试证明坏配方/无效升级装备不扣钱、不消耗材料；重复重取投影不改变玩法或报价。
+- [x] 买首个 I / 核心宝石仅入包，空槽不自动装备；异武器符文仍入包（自动化）。
+- [x] 装备 I + 买 I -> 装备 II，其他槽不变；背包 I + 买 I -> 背包 II（自动化）。
+- [x] 装备 II + 背包 I + 买 I -> 装备 III，材料正确扣除；背包可连续 I->II->III（自动化）。
+- [x] 手动替换、卸下与换武器导致的入包也调用同一合成结算；双槽升级保持对应槽位（自动化）。
+- [x] 新局份数清零；同一实例/跨实例存读档恢复已购页，不能重买已购报价或 III 对应 I；旧档兼容迁移覆盖（自动化）。
+- [x] 原子失败测试证明坏配方/无效候选不扣钱、不消耗材料；重复重取投影不改变玩法或报价（自动化）。
 - [ ] 聚焦自动化、构建、静态检查通过；人工验证背包更新和原槽升级。
-- [ ] 不提交允许列表之外的生成物，不修改生产表或主目录已有 WBP 未提交内容。
+- [x] 本地改动仅包含计划源文件/文档及允许的七模块精选包；未修改生产表或主目录已有 WBP 未提交内容，尚未提交实现。
 
 ## Step 0 门禁
 
@@ -90,21 +90,43 @@
 
 ### 变化
 
-- 待实现。
+- 新增无副作用 `ReEchoRuneInventory::TrySettle`，按稳定配方顺序结算，校验同族相邻等级/2 合 1，并对非法份数、循环/跨族配方、溢出拒绝输出候选。
+- Run 的 `TryResolveRuneInventory` 统一购买、显式装配和换武器回包路径；最终候选经 WeaponRuntime 重编译效果后才提交。新购匹配装备直接升级原槽，其余只入包；背包级联完成后继续与装备级联，不自动挤占无关装备。
+- 新局与清空全部符文的卡牌效果同步清理份数；SaveVersion 26 保存份数和当前页已购集合，恢复时重置旧实例残留，旧档从合法拥有/装备恢复最小份数并过滤孤立计数。
+- III 持有过滤覆盖新报价、缓存投影、购买入口；读档不重摇其他槽。删除 GameMode 购买按钮的免费重装捷径，背包装备仍走独立命令。
+- 背包投影新增真实 `BackpackCount`，列表与购买审计减去装备占用再显示份数。总份数含装备，不重复计算。
+- 新增六项 `ReEcho.Shop.Rune.*` 自动化；同步现有购买入包断言与已购页/未购页稳定性断言。相关弓/镰刀/剑符文旧测试使用退役无等级 ID，更新为相同符文族的 I 级，未削弱兼容性或装备断言。
 
 ### 证据
 
 - 2026-08-31：用户确认两项边界；已完成只读代码/配方审计，独立工作树创建，LFS 检出通过。
 - 2026-08-31：准确基线 `ac28c32d` 的 `validate_project.py` 报 `card_effects.csv:78 Card.EasterShardThreshold` 未注册，但 C++ 目录已有该行为注册。本次只有新增 Plan，用户明确批准仅对 Plan160 纯文档发布豁免此项既有校验失败；记录为未通过，不豁免后续实现的构建/针对性测试。`git diff --check` 通过。
+- 2026-08-31：Plan-only 已发布 `a7eb82a5`；实现停留本地工作树，未推送实现。
+- 2026-08-31 21:20：Development Editor 构建成功（最后已验证源码指纹 `1dffa0505044`），七模块精选包 `prebuilt_editor.py check` 通过；仅现有 `CompressImageArray` API 弃用警告。六项新增符文测试全部 `Success`，覆盖 31 个活跃族、双槽原位升级、跨武器回包、存档内存序列化和失败不扣费。`ReEcho.Shop` 扩展运行 23 项、19 成功、4 失败。
+- 2026-08-31 21:22：用主目录未修改源代码的预编译包（`source=f040da08d1c2`，HEAD `ca635500`）复核旧商店回归，17 项中 6 项失败；与本任务基线相比 Run/ShopTests/相关卡牌数据无差异。复现卡牌折扣/购买奖励旧数值、旧卡组投放/价格/单购假设、退役符文 ID 和已购页断言问题。未改卡牌玩法或表格来迎合旧测试；本任务只同步相关符文夹具与批准语义。
+- 2026-08-31：最后两项退役符文夹具 ID 更新后，验证曾被 `fix/bow-kill-haste-gate` 的锁和 Plan158 编辑器占用阻挡，未删除他人锁或关闭其进程；用户明确关闭后才继续最终验证。
+- 2026-08-31 21:30：用户关闭 Editor；确认无 Editor/Cmd 进程与锁后以 CreateNew 获取同克隆锁，完成最终 Development Editor 构建，`source=7164884ae23f`，七模块精选包 `prebuilt_editor.py check` 通过。完成后仅释放本任务持有的锁。远端规则与 Plan-only 基线相比无变更。
+- 最终 `ReEcho.Shop`：23 项 / 21 Success / 2 Fail；六项新增 `ReEcho.Shop.Rune.*`、当前武器背包过滤、武器切换、连续购买页稳定及购买后手动配装均通过。剩余 `CardRulesAreAtomicAndPersistent`、`PageUsesFixedPartSlotsAndConfiguredCardTiers` 使用旧卡牌折扣/奖励/投放/卡组购买次数假设（含未排除彩蛋候选的旧数量断言），已在主分支复核其失败，不在本任务改卡牌规则或降低断言。证据：`Saved/Logs/Plan160-Shop.log`，基线：`Saved/Logs/Plan160-BaselineShop.log`。
+- 最终 `ReEcho.Run.SaveSnapshot`：1 项 / 1 Success，证据 `Saved/Logs/Plan160-SaveSnapshot.log`。LFS 和 `git diff --check` 通过；`validate_project.py` 仍报告原有 `Card.EasterShardThreshold` 注册扫描失败，保持未通过。最终所有实现及配套夹具已进入上述构建，未推送。
 
 ### 剩余风险
 
 - 旧档没有保存的历史购买事实不能完整重建，采用最小可靠拥有集合与当前页过滤，不伪造额外副本。
+- 全项目静态校验仍因基线 `Card.EasterShardThreshold` 注册扫描失败而未通过；无关卡牌旧断言仍需独立同步，未豁免为通过。
+
+### 本次发布审计
+
+- 用户在收到验收清单后明确要求推送并合入 main，并批准仅豁免已告知的既有 `Card.EasterShardThreshold` 静态检查失败；完整重建、相关回归与发布锁不豁免，不把失败记为通过。用户未另行要求清理本工作树。
+- 2026-08-31 发布前 fetch：`origin/main@2d6d6da2`。相对实现基线，传入 Plan159 完整余额事件/Designer-owned 刷新文字、用户商店/HUD 资产布局，以及 Plan158 Boss 血环与选卡 UI。它们不改符文等级、份数或合成规则；本地不覆盖主目录未提交内容，不回退传入资产。Plan160 编号已单独发布，无编号冲突。
+- 重叠：Run/ShopWidget/GameMode 的余额通知与整页投影、旧 ShopTests 夹具修正、两份模块文档及精选二进制。保留远端事件生命周期与作者布局，组合本地购买入包/合成候选；相同已购页测试合并保留报价缓存稳定与消费后不可购买两种断言。生成包不作二进制内容拼接，最终 FullRebuild 统一刷新。
+- 最新 Plan158 已补齐该行为 ID 与 `CritNegateAmplification` 校验注册。获锁合并后重跑完整校验；如果已通过则本次不实际使用上述豁免。其他新失败不会套用该授权。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：完成构建后交付具名清单。
+- `PendingBeforeClose`：打开 `ReEcho-plan160-rune-backpack-synthesis/ReEcho.uproject`（不要打开主目录的旧实现）。验收：首个 I/核心只入包；装备 I + 买 I -> 原槽 II；装备 II + 背包 I + 买 I -> 原槽 III；不匹配装备不被挤掉；替换/卸下/换武器回包也合成；III 阻断同族 I；存读档本页不重复购买；新局首购无幽灵副本。真实 UI 位置/操作手感尚未由 AI 执行 PIE 验收。
 
 ### 架构文档审阅结果
 
-- 实现完成后填写。
+- 已更新 `MOD-ReEcho.md` 与 `MOD-ReEchoUI.md`：统一候选事务、购买/背包装配分离、总份数/背包投影及 v26 存档契约。
+- 已审阅 `shared/CODEBASE_MAP/ARCHITECTURE.md`：无 Runtime Module 或依赖方向变化，Run 权威不变，无需修改总架构图。
+- 已审阅 `README.md`：无启动/构建入口变化，无需修改。主目录两个既有 WBP 未提交修改保持不动；未修改 XLSX/CSV/美术资产。

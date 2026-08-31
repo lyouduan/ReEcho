@@ -279,22 +279,22 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 	RunSubsystem->TimeShards = 1000;
 	TestTrue(TEXT("Core purchase succeeds when it is on the current page"), FindAndBuy(TEXT("P_CORE_FLAME")));
 	TestTrue(TEXT("Arrowhead purchase succeeds when it is on the current page"),
-	         FindAndBuy(TEXT("P_BOW_SPLIT_ARROWHEAD")));
+	         FindAndBuy(TEXT("P_BOW_SPLIT_ARROWHEAD_I")));
 	TestTrue(TEXT("Purchased rune enters part ownership"), RunSubsystem->OwnedPartIds.Contains(TEXT("P_CORE_FLAME")));
 	TestFalse(TEXT("Purchased rune stays out of ordinary item inventory"),
 	          RunSubsystem->InventoryItems.Contains(TEXT("P_CORE_FLAME")));
-	TestTrue(TEXT("Purchased runes are equipped immediately"),
-	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	             [](const FReEchoEquippedPartSnapshot& Part)
-	             {
-		             return Part.PartId == TEXT("P_CORE_FLAME");
-	             }));
-	TestTrue(TEXT("Purchased weapon-specific rune is equipped immediately"),
-	         RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
-	             [](const FReEchoEquippedPartSnapshot& Part)
-	             {
-		             return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD");
-	             }));
+	TestFalse(TEXT("Purchased core stays in backpack until explicitly equipped"),
+	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	              [](const FReEchoEquippedPartSnapshot& Part)
+	              {
+		              return Part.PartId == TEXT("P_CORE_FLAME");
+	              }));
+	TestFalse(TEXT("Purchased weapon-specific rune stays in backpack until explicitly equipped"),
+	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
+	              [](const FReEchoEquippedPartSnapshot& Part)
+	              {
+		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
+	              }));
 	const int32 ShardsAfterDuplicate = RunSubsystem->TimeShards;
 	TestFalse(TEXT("Duplicate rune purchase is rejected"), RunSubsystem->PurchaseShopItem(TEXT("P_CORE_FLAME")));
 	TestEqual(TEXT("Rejected duplicate is atomic"), RunSubsystem->TimeShards, ShardsAfterDuplicate);
@@ -324,7 +324,7 @@ bool FReEchoWeaponPartShopLoadoutTest::RunTest(const FString& Parameters)
 
 	// The public equip operation remains available for owned/backpack selection and idempotent re-commit.
 	TestTrue(TEXT("Core and arrowhead equip as one loadout"),
-	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
+	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD_I")}, Error));
 	TestEqual(TEXT("Committed loadout contains both equipped slot groups"),
 	          RunSubsystem->CurrentBuild.EquippedParts.Num(),
 	          2);
@@ -402,6 +402,15 @@ bool FReEchoStableWeaponPartPageTest::RunTest(const FString& Parameters)
 		}
 		for (int32 SlotIndex = 0; SlotIndex < InitialPage.SlotOffers.Num(); ++SlotIndex)
 		{
+			TestEqual(TEXT("Purchase never rerolls cached content IDs"),
+			          RunSubsystem->CreateSaveSnapshot()->WeaponPartShopOfferIds[SlotIndex],
+			          InitialPage.SlotOffers[SlotIndex].ItemId);
+			if (RunSubsystem->PurchasedWeaponPartOfferIds.Contains(InitialPage.SlotOffers[SlotIndex].ItemId))
+			{
+				TestFalse(TEXT("Consumed rune offers cannot be bought again on this page"),
+				          PageAfterPurchase.SlotOffers[SlotIndex].bCanPurchase);
+				continue;
+			}
 			TestEqual(TEXT("Purchase preserves the other weapon/rune offer ids"),
 			          PageAfterPurchase.SlotOffers[SlotIndex].ItemId,
 			          InitialPage.SlotOffers[SlotIndex].ItemId);
@@ -498,7 +507,7 @@ bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
 
 	Error.Reset();
 	TestTrue(TEXT("Bow accepts a universal core and bow-specific arrowhead"),
-	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD")}, Error));
+	         RunSubsystem->TryEquipParts({TEXT("P_CORE_FLAME"), TEXT("P_BOW_SPLIT_ARROWHEAD_I")}, Error));
 	TestTrue(TEXT("An owned alternate weapon can be equipped for free"),
 	         RunSubsystem->TryEquipOwnedWeapon(TEXT("W_J_01"), Error));
 	TestEqual(TEXT("Owned weapon selection updates the authoritative build"),
@@ -514,7 +523,7 @@ bool FReEchoOwnedWeaponBackpackTest::RunTest(const FString& Parameters)
 	          RunSubsystem->CurrentBuild.EquippedParts.ContainsByPredicate(
 	              [](const FReEchoEquippedPartSnapshot& Part)
 	              {
-		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD");
+		              return Part.PartId == TEXT("P_BOW_SPLIT_ARROWHEAD_I");
 	              }));
 
 	const FReEchoBuildSnapshot BeforeRejectedSwitch = RunSubsystem->CurrentBuild;
@@ -1312,21 +1321,21 @@ bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
 	UReEchoRunSubsystem* Run = NewObject<UReEchoRunSubsystem>(GameInstance);
 	Run->StartRun(TEXT("J_SPADE"), TEXT("W_J_04"));
 	Run->OwnedPartIds.AddUnique(TEXT("P_CORE_PRIMORDIAL"));
-	Run->OwnedPartIds.AddUnique(TEXT("P_SCYTHE_MOVESTACK_GRIP"));
-	Run->OwnedPartIds.AddUnique(TEXT("P_LONGSWORD_HASTE_GRIP"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_SCYTHE_MOVESTACK_GRIP_I"));
+	Run->OwnedPartIds.AddUnique(TEXT("P_LONGSWORD_HASTE_GRIP_I"));
 
 	const FReEchoWeaponPartShopView ScytheView = Run->GetWeaponPartShopView();
 	TestTrue(TEXT("The scythe backpack contains its own grip rune"),
 	         ScytheView.OwnedParts.ContainsByPredicate(
 	             [](const FReEchoShopOffer& Offer)
 	             {
-		             return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP");
+		             return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP_I");
 	             }));
 	TestFalse(TEXT("The scythe backpack excludes a longsword grip rune despite the shared slot name"),
 	          ScytheView.OwnedParts.ContainsByPredicate(
 	              [](const FReEchoShopOffer& Offer)
 	              {
-		              return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP");
+		              return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP_I");
 	              }));
 	TestTrue(TEXT("A universal core remains visible for the scythe"),
 	         ScytheView.OwnedParts.ContainsByPredicate(
@@ -1336,7 +1345,7 @@ bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
 	             }));
 	FString EquipError;
 	TestFalse(TEXT("The backend still rejects the incompatible longsword rune"),
-	          Run->TryEquipPurchasedPart(TEXT("P_LONGSWORD_HASTE_GRIP"), EquipError));
+	          Run->TryEquipPurchasedPart(TEXT("P_LONGSWORD_HASTE_GRIP_I"), EquipError));
 
 	Run->OwnedWeaponIds.Add(TEXT("W_J_01"));
 	TestTrue(TEXT("The owned longsword can be equipped"), Run->TryEquipOwnedWeapon(TEXT("W_J_01"), EquipError));
@@ -1345,13 +1354,13 @@ bool FReEchoRuneBackpackWeaponCompatibilityTest::RunTest(const FString&)
 	         LongSwordView.OwnedParts.ContainsByPredicate(
 	             [](const FReEchoShopOffer& Offer)
 	             {
-		             return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP");
+		             return Offer.ContentId == TEXT("P_LONGSWORD_HASTE_GRIP_I");
 	             }));
 	TestFalse(TEXT("Switching weapons hides the scythe-only grip rune"),
 	          LongSwordView.OwnedParts.ContainsByPredicate(
 	              [](const FReEchoShopOffer& Offer)
 	              {
-		              return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP");
+		              return Offer.ContentId == TEXT("P_SCYTHE_MOVESTACK_GRIP_I");
 	              }));
 	return true;
 }

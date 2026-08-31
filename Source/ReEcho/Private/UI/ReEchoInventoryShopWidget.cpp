@@ -2693,7 +2693,7 @@ void UReEchoInventoryShopWidget::HandleAttachmentSlotClicked(const int32 SlotInd
 	    [&](const FReEchoShopOffer& Candidate)
 	    {
 		    return Candidate.SlotTypeId == SlotTypeId && IsPartCompatibleWithCurrentWeapon(Candidate) &&
-		           !IsPartEquipped(Candidate.ContentId);
+		           (Candidate.BackpackCount >= 0 ? Candidate.BackpackCount > 0 : !IsPartEquipped(Candidate.ContentId));
 	    });
 	if (!bHasBackpack)
 	{
@@ -2905,7 +2905,7 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 	for (const FReEchoShopOffer& Candidate : CurrentPartShopView.OwnedParts)
 	{
 		if (Candidate.SlotTypeId != SlotTypeId || !IsPartCompatibleWithCurrentWeapon(Candidate) ||
-		    IsPartEquipped(Candidate.ContentId))
+		    (Candidate.BackpackCount >= 0 ? Candidate.BackpackCount == 0 : IsPartEquipped(Candidate.ContentId)))
 		{
 			continue;
 		}
@@ -2928,7 +2928,11 @@ void UReEchoInventoryShopWidget::BuildBackpackPopup(const int32 SlotIndex)
 		IconSlot->SetVerticalAlignment(VAlign_Center);
 		UTextBlock* NameText =
 		    CreateText(WidgetTree, *FString::Printf(TEXT("BackpackItemName%d"), ThisIndex), 17, FLinearColor::White);
-		NameText->SetText(Candidate.DisplayName);
+		NameText->SetText(Candidate.BackpackCount > 1
+		                      ? FText::Format(NSLOCTEXT("ReEcho", "RuneBackpackCopies", "{0} ×{1}"),
+		                                      Candidate.DisplayName,
+		                                      FText::AsNumber(Candidate.BackpackCount))
+		                      : Candidate.DisplayName);
 		NameText->SetAutoWrapText(false);
 		UHorizontalBoxSlot* NameSlot = ItemRow->AddChildToHorizontalBox(NameText);
 		NameSlot->SetVerticalAlignment(VAlign_Center);

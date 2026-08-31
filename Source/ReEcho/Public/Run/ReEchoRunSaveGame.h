@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v25 adds persistent Easter-card runtime state and page-compatible Easter offers. */
-	static constexpr int32 CurrentSaveVersion = 25;
+	/** v26 persists consumed rune offers separately from current ownership and synthesis counts. */
+	static constexpr int32 CurrentSaveVersion = 26;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -104,6 +104,10 @@ public:
 	/** Fixed three content ids; NAME_None represents an empty slot. */
 	UPROPERTY(SaveGame)
 	TArray<FName> WeaponPartShopOfferIds;
+
+	/** Added in v26. Consumed offers on the saved encounter/refresh page, even if synthesis consumed the item. */
+	UPROPERTY(SaveGame)
+	TArray<FName> PurchasedWeaponPartOfferIds;
 
 	/** Added in v17. Desired deterministic weapon/rune page sequence, independent from card packs. */
 	UPROPERTY(SaveGame)
