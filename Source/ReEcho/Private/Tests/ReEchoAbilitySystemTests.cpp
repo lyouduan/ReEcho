@@ -272,4 +272,66 @@ bool FReEchoTransientAttackSpeedStackParityTest::RunTest(const FString& Paramete
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoInEncounterRefreshKeepsStatStacksTest,
+                                 "ReEcho.GAS.InEncounterRefreshKeepsStatStacks",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoInEncounterRefreshKeepsStatStacksTest::RunTest(const FString& Parameters)
+{
+	// Regression guard: kills and element reactions refresh the player's stats mid-encounter through
+	// InitializeFromStats(bFillHealth=false). That refresh used to drop every transient stack, so stacked
+	// attack-speed runes were wiped on each kill while Echoes - which never refresh mid-encounter - kept
+	// theirs, leaving the player attacking far slower than its own Echo.
+	FReEchoGasFixture GasFixture;
+	FReEchoStatBlock Stats;
+	Stats.HpMax = 100.0f;
+	Stats.AttackSpeed = 1.0f;
+	Stats.MovementSpeed = 1.0f;
+	GasFixture.Combatant->InitializeFromStats(Stats, true);
+
+	AActor* EchoOwner = GasFixture.World->SpawnActor<AActor>();
+	UReEchoCombatantComponent* Echo = NewObject<UReEchoCombatantComponent>(EchoOwner, TEXT("TestEchoCombatant"));
+	Echo->RegisterComponent();
+	Echo->InitializeFromStats(Stats, true);
+
+	const FName StackSource(TEXT("Test.AttackSpeedRune"));
+	const float BonusFraction = 0.10f;
+	const float DurationSeconds = 30.0f;
+	const int32 MaxStacks = 8;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		GasFixture.Combatant->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+		Echo->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
+	}
+
+	TestTrue(TEXT("Player stacks attack speed before the refresh"),
+	         GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Echo stacks attack speed before the refresh"), Echo->Stats.AttackSpeed > 1.0f);
+
+	// Mid-encounter refresh, exactly what a kill or an element reaction triggers.
+	GasFixture.Combatant->InitializeFromStats(Stats, false);
+	Echo->InitializeFromStats(Stats, false);
+
+	TestEqual(TEXT("Player keeps its transient stacks across an in-encounter refresh"),
+	          GasFixture.Combatant->GetTransientStatStackCount(StackSource),
+	          3);
+	TestEqual(TEXT("Echo keeps its transient stacks across an in-encounter refresh"),
+	          Echo->GetTransientStatStackCount(StackSource),
+	          3);
+	TestTrue(TEXT("Player keeps the stacked attack speed across the refresh"),
+	         GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Echo keeps the stacked attack speed across the refresh"), Echo->Stats.AttackSpeed > 1.0f);
+
+	// A full initialization must still clear them.
+	GasFixture.Combatant->InitializeFromStats(Stats, true);
+	Echo->InitializeFromStats(Stats, true);
+	TestEqual(TEXT("A full initialization still clears the player stacks"),
+	          GasFixture.Combatant->GetTransientStatStackCount(StackSource),
+	          0);
+	TestEqual(TEXT("A full initialization still clears the Echo stacks"),
+	          Echo->GetTransientStatStackCount(StackSource),
+	          0);
+	return true;
+}
+
 #endif

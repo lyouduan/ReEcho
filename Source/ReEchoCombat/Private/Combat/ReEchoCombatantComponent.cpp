@@ -71,9 +71,18 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	bDeathBroadcast = false;
 	bHasLastPlayerEchoDamageSource = false;
 	LastPlayerEchoDamageSource = EReEchoDamageSource::Player;
-	for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+	// Only a full initialization drops transient stacks. bFillHealth=false is the in-encounter refresh run
+	// after card reactions and kills; clearing stacks there wiped the player's stacked attack-speed runes on
+	// every single kill, while Echoes - which never refresh this way - kept theirs and attacked far faster.
+	// Only a full initialization drops transient stacks. bFillHealth=false is the in-encounter refresh run
+	// after card reactions and kills; clearing stacks there wiped the player's stacked attack-speed runes on
+	// every single kill, while Echoes - which never refresh this way - kept theirs and attacked far faster.
+	if (bFillHealth)
 	{
-		RemoveTransientStatStack(Index);
+		for (int32 Index = TransientStatStacks.Num() - 1; Index >= 0; --Index)
+		{
+			RemoveTransientStatStack(Index);
+		}
 	}
 	AdditiveAttackModifiers.Reset();
 	BleedingStacks.Reset();
@@ -108,6 +117,15 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 		return;
 	}
 	Stats = InStats;
+	// Fold retained stacks back in: the block was just rebuilt from authored values, so any stacks that
+	// survived an in-encounter refresh must be re-applied. Ability-system owners instead re-derive these
+	// from the still-live Gameplay Effects during SyncFromAbilitySystem above.
+	for (const FTransientStatStack& Stack : TransientStatStacks)
+	{
+		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
+		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
+	}
 	CurrentHealth = bFillHealth ? Stats.HpMax : FMath::Min(CurrentHealth, Stats.HpMax);
 	OnHealthChanged.Broadcast(GetEffectiveCurrentHealth(), Stats.HpMax);
 	PublishHealthChange(PreviousHealth);
