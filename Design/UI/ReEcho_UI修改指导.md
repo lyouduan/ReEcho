@@ -197,6 +197,9 @@ Plan45 普通暂停使用交付切图组装为命中测试不可见的表现层�
 
 ### 5.5 Inventory/Shop
 
+- 右上角刷新按钮文字在 `WBP_ReEchoInventoryShopScreen` → `ShopRefreshButton` → `DesignerRefreshOverlay` → `DesignerRefreshTextCanvas` → `DesignerRefreshTextBox` → `ShopRefreshCountText`。选中文字修改字体、字号、颜色、换行及 Overlay 插槽的垂直/水平对齐；选中 `DesignerRefreshTextBox` 拖动或改变 Canvas 插槽尺寸。默认提供 `刷新|2次·5碎片` 样例，运行时只按真实次数/费用替换内容，不覆盖这些样式。不要改名或取消文字的 `Is Variable`。如要移动整个按钮，调整外层 `ShopRefreshButton`。
+- `scripts/ue/author_shop_refresh_text.py` 只用于首次迁移刷新按钮内部；已经存在 `ShopRefreshCountText` 时不重置人工修改。不要为改刷新文本重跑会重建整页的旧商店作者化脚本。
+
 - 商店悬停说明及已获得卡牌的“实际效果”附加框统一由 `WBP_ReEchoShopTooltip` 作者化；角色属性浮窗使用 `WBP_ReEchoAttributeTooltip`，每行样式由 `WBP_ReEchoAttributeRow` 持有。三个独立 Designer 均提供示例，运行时只填数据和控制显隐，不覆盖字体、边框和尺寸。具体控件与预览步骤见 [商店浮窗调整指南](ReEcho_商店浮窗调整指南.md)。
 - `InventoryPanel` 与 `ShopPanel` 是同一屏幕的两种展示模式。
 - 商店逻辑固定拆为普通商品、规则/刷新、武器配件购买、装备槽位草稿、回响管理五块；不要再把不同类型的报价合并到同一索引数组。

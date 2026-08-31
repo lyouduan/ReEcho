@@ -950,13 +950,15 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		UVerticalBoxSlot* RefreshSlot = ShopControlPanel->AddChildToVerticalBox(ShopRefreshButton);
 		RefreshSlot->SetPadding(FMargin(8.0f, 12.0f, 8.0f, 4.0f));
 	}
-	if (!ShopRefreshText)
+	// A complete authored refresh button already owns its content. The legacy
+	// text-only fallback must not detach that tree before the presentation bind.
+	if (!ShopRefreshCountText && !ShopRefreshText)
 	{
 		ShopRefreshText = CreateText(WidgetTree, TEXT("ShopRefreshText"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		ShopRefreshText->SetJustification(ETextJustify::Center);
 		ShopRefreshButton->SetContent(ShopRefreshText);
 	}
-	else if (bCreatedRefreshButton)
+	else if (bCreatedRefreshButton && !ShopRefreshCountText)
 	{
 		ShopRefreshButton->SetContent(ShopRefreshText);
 	}
@@ -1291,10 +1293,10 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 	TargetCurrencyText = Cast<UTextBlock>(GetWidgetFromName(TEXT("DesignerCurrencyText")));
 	TargetRefreshLimitText = Cast<UTextBlock>(GetWidgetFromName(TEXT("DesignerRefreshLimitText")));
 	ShopRefreshButton = Cast<UButton>(GetWidgetFromName(TEXT("ShopRefreshButton")));
-	if (ShopRefreshButton)
+	if (ShopRefreshButton && !ShopRefreshCountText)
 	{
-		// BuildOfferEntries() also supports the legacy shop and therefore creates a text-only
-		// child first. Restore the authored Plan110 button art after that legacy pass.
+		// Compatibility for older WBP assets without an authored refresh label.
+		// The complete WBP path never rebuilds content or overrides text/slot styles.
 		UImage* RefreshArt = Cast<UImage>(GetWidgetFromName(TEXT("DesignerRefreshArt")));
 		if (!RefreshArt)
 		{
@@ -1339,8 +1341,10 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 		{
 			ShopRefreshText->SetVisibility(ESlateVisibility::Collapsed);
 		}
-		ShopRefreshButton->OnClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
-		ShopRefreshButton->OnClicked.AddDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
+	}
+	if (ShopRefreshButton)
+	{
+		ShopRefreshButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
 	}
 
 	DesignerPartOfferCards.Reset();
