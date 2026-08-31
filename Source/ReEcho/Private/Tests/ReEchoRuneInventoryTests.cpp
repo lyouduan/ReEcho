@@ -137,9 +137,9 @@ bool FReEchoRunePurchaseTest::RunTest(const FString&)
 	FString Error;
 	TestTrue(TEXT("Exact purchase page restores"), SetRunePage(Run, {Core, RuneI}));
 	TestTrue(TEXT("First core purchase succeeds"), Run->PurchaseShopItem(Core));
-	TestFalse(TEXT("Purchased core does not auto-equip"), HasEquipped(Run, Core));
+	TestTrue(TEXT("Purchased core auto-equips into its empty slot"), HasEquipped(Run, Core));
 	TestTrue(TEXT("First rune purchase succeeds"), Run->PurchaseShopItem(RuneI));
-	TestFalse(TEXT("Purchased I does not auto-equip"), HasEquipped(Run, RuneI));
+	TestTrue(TEXT("Purchased I auto-equips into its empty slot"), HasEquipped(Run, RuneI));
 	TestEqual(TEXT("First I has one copy"), Run->RuneAcquisitionCounts.FindRef(RuneI), 1);
 	TestTrue(TEXT("Core equips through backpack"), Run->TryEquipPurchasedPart(Core, Error));
 	TestTrue(TEXT("I equips through backpack"), Run->TryEquipPurchasedPart(RuneI, Error));
@@ -198,6 +198,7 @@ bool FReEchoRuneSaveTest::RunTest(const FString&)
 	UReEchoRunSubsystem* Restored = NewRuneRun();
 	TestTrue(TEXT("Fresh instance restores purchased page"), Restored->RestoreSaveSnapshot(*Saved));
 	TestEqual(TEXT("Saved I count restores"), Restored->RuneAcquisitionCounts.FindRef(RuneI), 1);
+	TestTrue(TEXT("Auto-equipped purchase survives save and restore"), HasEquipped(Restored, RuneI));
 	TestTrue(TEXT("Consumed slot stays empty after real serialization"),
 	         Restored->GetWeaponPartShopView().SlotOffers[0].ItemId.IsNone());
 	TestEqual(TEXT("Unpurchased neighboring slot stays stable"),
@@ -230,6 +231,77 @@ bool FReEchoRuneSaveTest::RunTest(const FString&)
 	         Restored->GetWeaponPartShopView().SlotOffers[0].ItemId.IsNone());
 	TestEqual(
 	    TEXT("Legacy unrelated offer not rerolled"), Restored->GetWeaponPartShopView().SlotOffers[1].ItemId, Core);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuneEmptySlotPurchaseTest,
+                                 "ReEcho.Shop.Rune.EmptySlotAutoEquip",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoRuneEmptySlotPurchaseTest::RunTest(const FString&)
+{
+	const FName Other(TEXT("P_GUN_TRIPLESPREAD_MUZZLE_I"));
+	const FName OtherCore(TEXT("P_CORE_TIDE"));
+	FString Error;
+	UReEchoRunSubsystem* Run = NewRuneRun();
+	TestTrue(TEXT("Occupied muzzle fixture equips"), Run->TryEquipParts({Other}, Error));
+	TestTrue(TEXT("Full-slot purchase page restores"), SetRunePage(Run, {RuneI}));
+	TestTrue(TEXT("Full-slot purchase succeeds into backpack"), Run->PurchaseShopItem(RuneI));
+	TestTrue(TEXT("Occupied muzzle is not displaced"), HasEquipped(Run, Other));
+	TestFalse(TEXT("Empty core or grip cannot accept a muzzle"), HasEquipped(Run, RuneI));
+	TestEqual(TEXT("Unchanged equipped count with full matching slot"), Run->CurrentBuild.EquippedParts.Num(), 1);
+	TestEqual(TEXT("Full-slot purchase retains one real copy"), Run->RuneAcquisitionCounts.FindRef(RuneI), 1);
+	TestTrue(TEXT("Explicit unequip succeeds"), Run->TryEquipParts({}, Error));
+	TestTrue(TEXT("Unequip does not auto-fill from inventory"), Run->CurrentBuild.EquippedParts.IsEmpty());
+	TestTrue(TEXT("New page with now-free muzzle restores"), SetRunePage(Run, {RuneI}));
+	TestTrue(TEXT("Purchase into empty slot fuses with the backpack copy"), Run->PurchaseShopItem(RuneI));
+	TestTrue(TEXT("Merged II remains equipped in the newly filled slot"), HasEquipped(Run, RuneII));
+	TestFalse(TEXT("Unrelated backpack rune is not auto-equipped"), HasEquipped(Run, Other));
+	TestEqual(TEXT("Merged result owns exactly one copy"), Run->RuneAcquisitionCounts.FindRef(RuneII), 1);
+	TestFalse(TEXT("Merged I copies are consumed"), Run->RuneAcquisitionCounts.Contains(RuneI));
+
+	Run = NewRuneRun();
+	Run->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_3_22"));
+	TestTrue(TEXT("Dual-slot fixture equips one muzzle and one core"), Run->TryEquipParts({Core, Other}, Error));
+	TestTrue(TEXT("Dual-slot page restores"), SetRunePage(Run, {RuneI, OtherCore}));
+	int32 BalanceEvents = 0;
+	const int32 Before = Run->TimeShards;
+	const int32 Price = Run->GetWeaponPartShopView().SlotOffers[0].EffectivePrice;
+	const FDelegateHandle BalanceHandle = Run->OnTimeShardBalanceChanged.AddLambda(
+	    [&](const FReEchoTimeShardBalance&, const FReEchoTimeShardBalance&)
+	    {
+		    ++BalanceEvents;
+		    TestTrue(TEXT("Balance observers already see auto-equipped purchase"), HasEquipped(Run, RuneI));
+		    TestTrue(TEXT("Balance observers see the consumed offer"),
+		             Run->PurchasedWeaponPartOfferIds.Contains(RuneI));
+	    });
+	TestTrue(TEXT("Purchase fills the second muzzle slot"), Run->PurchaseShopItem(RuneI));
+	Run->OnTimeShardBalanceChanged.Remove(BalanceHandle);
+	TestEqual(TEXT("Auto-equip charges only once"), Run->TimeShards, Before - Price);
+	TestEqual(TEXT("Auto-equip emits one final balance event"), BalanceEvents, 1);
+	TestTrue(TEXT("Existing muzzle remains equipped"), HasEquipped(Run, Other));
+	TestTrue(TEXT("New muzzle is also equipped"), HasEquipped(Run, RuneI));
+	TestEqual(TEXT("Core plus exactly two muzzles"), Run->CurrentBuild.EquippedParts.Num(), 3);
+	TestTrue(TEXT("Other core purchase succeeds into backpack"), Run->PurchaseShopItem(OtherCore));
+	TestTrue(TEXT("Double slots never displace the single core"), HasEquipped(Run, Core));
+	TestFalse(TEXT("Double slots do not auto-equip a second core"), HasEquipped(Run, OtherCore));
+	TestEqual(TEXT("Core limit preserves equipment count"), Run->CurrentBuild.EquippedParts.Num(), 3);
+
+	Run = NewRuneRun();
+	Run->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_3_22"));
+	TestTrue(TEXT("Same-tier fixture leaves a spare muzzle slot"), Run->TryEquipParts({Core, RuneI}, Error));
+	TestTrue(TEXT("Same-tier page restores"), SetRunePage(Run, {RuneI}));
+	TestTrue(TEXT("Repeat purchase still fuses into the original slot"), Run->PurchaseShopItem(RuneI));
+	TestTrue(TEXT("Original rune is upgraded"), HasEquipped(Run, RuneII));
+	TestEqual(TEXT("Fusion does not occupy the spare slot with a duplicate"), Run->CurrentBuild.EquippedParts.Num(), 2);
+
+	Run = NewRuneRun();
+	TestTrue(TEXT("Insufficient-currency page restores"), SetRunePage(Run, {RuneI}));
+	Run->TimeShards = 0;
+	TestFalse(TEXT("Unaffordable purchase fails"), Run->PurchaseShopItem(RuneI));
+	TestTrue(TEXT("Failed purchase cannot fill the empty slot"), Run->CurrentBuild.EquippedParts.IsEmpty());
+	TestTrue(TEXT("Failed purchase cannot create copies"), Run->RuneAcquisitionCounts.IsEmpty());
+	TestFalse(TEXT("Failed purchase does not consume the offer"), Run->PurchasedWeaponPartOfferIds.Contains(RuneI));
 	return true;
 }
 

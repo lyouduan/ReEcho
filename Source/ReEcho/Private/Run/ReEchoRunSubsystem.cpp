@@ -543,6 +543,29 @@ bool TryResolveRuneInventory(const FReEchoCsvDataSnapshot& Snapshot,
 	{
 		Input.EquippedIds.Add(Part.PartId);
 	}
+	// Only a purchase supplies AcquiredId. Fill a compatible free slot in the candidate, never
+	// displacing an existing rune or auto-equipping unrelated inventory during manual settlement.
+	const FReEchoCsvPartRow* AcquiredPart = Snapshot.Parts.Find(AcquiredId);
+	const FReEchoCsvWeaponRow* Weapon = Snapshot.FindEnabledWeapon(Build.WeaponId);
+	if (AcquiredPart && Weapon && !Input.EquippedIds.Contains(AcquiredId) &&
+	    IsPartCompatibleWithWeapon(Snapshot, *AcquiredPart, *Weapon))
+	{
+		int32 OccupiedSlots = 0;
+		for (const FReEchoEquippedPartSnapshot& Equipped : Build.EquippedParts)
+		{
+			const FReEchoCsvPartRow* EquippedPart = Snapshot.Parts.Find(Equipped.PartId);
+			if (EquippedPart && EquippedPart->SlotTypeId == AcquiredPart->SlotTypeId)
+			{
+				++OccupiedSlots;
+			}
+		}
+		const int32 Capacity = ReEchoWeaponRuntime::GetEffectiveSlotCapacity(
+		    Snapshot, Build, Weapon->WeaponTypeId, AcquiredPart->SlotTypeId);
+		if (OccupiedSlots < Capacity)
+		{
+			Input.EquippedIds.Add(AcquiredId);
+		}
+	}
 	ReEchoRuneInventory::FState Resolved;
 	FReEchoBuildSnapshot ResolvedBuild;
 	if (!ReEchoRuneInventory::TrySettle(Snapshot, Input, AcquiredId, Resolved, OutError) ||
