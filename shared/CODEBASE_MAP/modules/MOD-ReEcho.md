@@ -319,6 +319,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
 - 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous Echo、单条时间锚点记录与 `CardState.Runtime.AnchorRecordingId`、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 24；BuildSnapshot 内的 CardState 语义由 Cards 定义。不存在运行时回响存储容量或可购买的扩容/“指定回放解锁”商品；旧 SaveGame 的 `StoredEchoes` 恢复时仅折叠到当前锚点，`StorageCapacity` / `SelectedReplayIds` / `SpecificReplayLimit` 只为反序列化兼容，新存档写零/空。三槽运行存档摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
+- 非战斗经济通知：`GetTimeShardBalance` 返回现金/非负债务快照；`OnTimeShardBalanceChanged(Before, After)` 在外层 Run 事务完成后比较两字段并最多广播一次，嵌套扣费、卡牌收益、还债合并，不发布中间态或无变化事件。边界覆盖开局/读档、结算、正常/GM授卡、武器/符文与卡组付款/领取、两类逐槽刷新、主商店刷新和非战斗 `GrantTimeShards`。战斗拾取与战斗卡牌结算继续使用既有 HUD 路径，不在此改造。GM现金修改使用 `DebugAddTimeShards` / `DebugSetTimeShards`，保持原非负/上限钳制；UI不能反向修改事务。`ReEchoShopBalanceTests.cpp` 验证原子通知、债务/同净值恢复和商店订阅。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。`GetOwnedBuildCardView()` 从 `CardState.OwnedCardIds` 与卡牌目录生成保持获得顺序的已拥有卡牌只读投影，并与商店复用同一 `FReEchoShopOffer` 图标路径和通用卡图回退契约；失败结算只在该投影上按 `Tier` 选取最多五张，不反向修改构筑。
 - 三槽存档：新游戏先选择第一个空槽；若从主菜单的“新游戏”进入且三槽全满，则只把最旧槽选为待覆盖活动槽，不提前删除存档或预览。角色页返回主界面、武器页返回角色页均不得产生持久化副作用；只有最终角色/武器组合确认后的首次 `SaveRun` 才覆盖活动槽，此后所有既有 `SaveRun` 调用继续写回该槽。点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。存档回溯列表在三槽全满时不伪造空槽新建入口。
 - 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
@@ -400,6 +401,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：活跃屏幕实例、Viewport 层、焦点、输入模式和屏幕暂停策略。
 - 输入：玩法只读摘要、用户选择和稳定 ID。
 - 输出：类型化命令，不直接写 Run/Combat/Weapon 内部状态。
+- 商店余额：`RefreshShopFromRun` 首次读取初值并幂等订阅 Run 最终余额事件；`RemoveFromParent` 立即解绑、`NativeDestruct` 幂等兜底，选卡覆盖层不解绑。事件仅更新现金/债务缓存、唯一余额文字出口与已有购买/刷新按钮资格，不重建控件、Tooltip、报价或分页，不覆盖 WBP 作者样式。GameMode 保留商品/装备/卡包待选状态的必要刷新，删除 GM纯余额操作的整页刷新；详见 `MOD-ReEchoUI` 的 Plan159 契约。
+- 商店刷新文字：`WBP_ReEchoInventoryShopScreen` 持有 `ShopRefreshCountText` 与可拖动的 `DesignerRefreshTextBox`；`ReEchoInventoryShopWidget` 只投影原有次数/费用文案、按钮资格和点击请求。完整作者化按钮不进入 legacy `SetContent` 或字体/几何重建，缺少作者化文字的旧资产与原生路径仍保留兜底。
 - 结算统计：`UReEchoRestartWidget` 只向 `VictoryCanvas` / `DefeatCanvas` 的八组统计数值写入现有只读快照；全部标签与数值的几何、字体、颜色、对齐、换行和裁切由 `WBP_ReEchoRestart` 保存，不在构造或结果页切换时回填程序布局。统计采集、重开和主菜单请求保持原契约。
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
 - 终局重开：死亡/胜利结算界面只暂停当前 World；玩家确认「重新开始」后必须通过 `OpenLevel` 完整替换 World，不能依赖逐类清理瞬态 Actor。GameInstance 生命周期的 UI Flow 只保存并一次性消费旅行后的 Loadout 目标，使新 `StartPlay()` 跳过主菜单；普通启动和退出到主菜单不设置该目标。
@@ -418,6 +421,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development`。
 - 自动化：`scripts/ue/Run-Automation.cmd -Filter <focused>`。
 - 静态：`python scripts/validate_project.py`、`git diff --check`、预构建包检查。
+- Plan159 回归消费现行效果/价格配置与分级符文 ID，并区分“已购符文槽为空”和“未购报价保持稳定”；多份卡组逐次支付/领取直至耗尽。v22 迁移测试按用户确认的当前角色表差值验证，保留历史输入和二次读档幂等性；不代表跨历史平衡版本的构筑保真承诺。
 - 边界：自动化不能替代用户对手感、视觉、音频可听性和可用性的判断。
 
 ## 常见任务阅读路线

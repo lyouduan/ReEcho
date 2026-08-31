@@ -531,6 +531,9 @@ bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
 	Source->StartRun(TEXT("J_DIAMOND"), TEXT("W_J_01"));
 	const FReEchoStatBlock OriginalStats = Source->CurrentBuild.Stats;
+	UReEchoRunSubsystem* CurrentBrave = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
+	CurrentBrave->StartRun(TEXT("J_HEART"), TEXT("W_J_01"));
+	const FReEchoStatBlock CurrentBraveStats = CurrentBrave->CurrentBuild.Stats;
 	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
 	LegacySave->SaveVersion = 22;
 	LegacySave->CurrentBuild.CharacterId = TEXT("J_HEART");
@@ -546,6 +549,12 @@ bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
 	LegacySave->CurrentBuild.Stats.RoleId = TEXT("Brave");
 	LegacySave->CurrentBuild.EquipmentBaseStats = LegacySave->CurrentBuild.Stats;
 
+	// User accepted the existing current-catalog delta semantics on 2026-08-31.
+	// Keep the historical payload: this characterizes today's migration, not historical-balance recovery.
+	const float ExpectedHpMax = LegacySave->CurrentBuild.Stats.HpMax + OriginalStats.HpMax - CurrentBraveStats.HpMax;
+	const float ExpectedElementalAttack = LegacySave->CurrentBuild.Stats.ElementalAttack +
+	                                      OriginalStats.ElementalAttack - CurrentBraveStats.ElementalAttack;
+
 	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* Restored = NewObject<UReEchoRunSubsystem>(RestoredGameInstance);
 	TestTrue(TEXT("v22 promoted save restores"), Restored->RestoreSaveSnapshot(*LegacySave));
@@ -555,11 +564,18 @@ bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Migration restores the selected Hunter role"),
 	          Restored->CurrentBuild.Stats.RoleId,
 	          FName(TEXT("Hunter")));
-	TestEqual(
-	    TEXT("Migration reverses promoted maximum health"), Restored->CurrentBuild.Stats.HpMax, OriginalStats.HpMax);
-	TestEqual(TEXT("Migration reverses promoted elemental attack"),
+	TestEqual(TEXT("Migration applies the current character-table health delta"),
+	          Restored->CurrentBuild.Stats.HpMax,
+	          ExpectedHpMax);
+	TestEqual(TEXT("Migration applies the current character-table elemental-attack delta"),
 	          Restored->CurrentBuild.Stats.ElementalAttack,
-	          OriginalStats.ElementalAttack);
+	          ExpectedElementalAttack);
+	TestEqual(TEXT("Equipment base receives the same health delta"),
+	          Restored->CurrentBuild.EquipmentBaseStats.HpMax,
+	          ExpectedHpMax);
+	TestEqual(TEXT("Equipment base receives the same elemental-attack delta"),
+	          Restored->CurrentBuild.EquipmentBaseStats.ElementalAttack,
+	          ExpectedElementalAttack);
 	TestEqual(TEXT("Migration restores the Hunter movement ability"),
 	          Restored->CurrentBuild.Stats.MovementSpeed,
 	          OriginalStats.MovementSpeed);
@@ -577,6 +593,12 @@ bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Migrated save round-trips"), RoundTrip->RestoreSaveSnapshot(*RoundTripSave));
 	TestEqual(
 	    TEXT("Round-trip keeps the selected character"), RoundTrip->CurrentBuild.CharacterId, FName(TEXT("J_DIAMOND")));
+	TestEqual(TEXT("Round-trip does not apply the health migration twice"),
+	          RoundTrip->CurrentBuild.Stats.HpMax,
+	          ExpectedHpMax);
+	TestEqual(TEXT("Round-trip does not apply the elemental migration twice"),
+	          RoundTrip->CurrentBuild.Stats.ElementalAttack,
+	          ExpectedElementalAttack);
 
 	UReEchoRunSaveGame* MissingOriginalSave = Source->CreateSaveSnapshot();
 	MissingOriginalSave->SaveVersion = 22;

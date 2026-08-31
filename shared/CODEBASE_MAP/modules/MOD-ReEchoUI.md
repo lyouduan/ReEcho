@@ -30,6 +30,7 @@
 - 商店/背包页允许 `WBP_ReEchoRestart` 以更高 Pause 层覆盖：按 `P` 不关闭商店，不触发战后推进或回响存储门禁；关闭 Pause 后必须重新聚焦商店并继续保持世界暂停与菜单能力阻挡。
 - 结算统计文字由 `WBP_ReEchoRestart` 的 `VictoryCanvas` / `DefeatCanvas` 独立作者化：每页关卡、构筑数量、碎片、回响伤害、本体伤害、反应次数、最高单次伤害与击杀数的标签/数值，其位置、尺寸、字体、字号、颜色、对齐、换行和裁切全部以 WBP 为准。`UReEchoRestartWidget` 不再在构造时回填固定三列坐标或 18/20 字号，只更新真实数值；保留控件名与 `Is Variable` 绑定，标签文案可以直接编辑。`ReEcho.UI.RestartWidgetAuthoredStats` 对保存值和人工微调值验证首次构造、切换结果页与再次构造均不覆盖表现。
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
+- 商店刷新按钮的 `ShopRefreshCountText` 使用 `BindWidgetOptional`，由 `WBP_ReEchoInventoryShopScreen` 保存示例、字体、字号、颜色、换行、裁切与对齐；其 `DesignerRefreshTextBox` 为 Canvas 子控件，可以直接拖动和改变文字区域。C++ 的兼容内容重建只在缺少此文字时运行，正常路径仅更新实时文案、按钮可用状态和既有刷新委托。`ReEcho.UI.Shop.AuthoredRefreshText` 检查保存值、任意微调值、构造前数据更新、再次构造以及免费/付费/无限/禁用状态。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
 - `UReEchoEncounterTransitionWidget` 是默认 ZOrder 10000 的非交互视口最上层 Screen。第一关结算后通过 WmfMedia/HAP、MediaTexture 直绘播放无音轨 `Stage01To02.mov`，并在首个有效视频表面出现后独立启动 `S_Stage01To02`；GameMode使用既有局间门停止玩法并显式停止Music State，但不暂停World媒体时钟。该路径不先播放 Hap Alpha、不打开 CardChoice 或 Shop。第二关及以后在权威时间到 00 后通过动态材质从第0帧播放 `EncounterEndToCardChoiceV2.mov`（Hap Alpha、RGBA、120帧、40FPS）：0–57完成一次入场和首轮摆动，再追加两遍27–57，使钟表共来回摆动三轮；后两轮跳过重复中心帧。第一段与 `CardChoiceToShop.mov` 共用 `(0.17,0.0806)–(0.83,0.8006)` 的16:9 Fit区域，顶部对齐 `ArtClockNeedle` 的作者位置Y=87。第2–7关全部免费抽卡完成后播放第二段：立即关闭已确认的TraitChoice以露出游戏场景，再创建正常Enabled、`HitTestInvisible`、初始透明的商店；源58–78帧用0.5秒SmoothStep将商店从0渐入到1，实现游戏场景到商店的平滑过渡，不使用纯黑Backdrop。商店创建后解除其菜单Pause但保持Run阶段和能力阻挡，使媒体时钟继续推进。商店从第58帧起提供 `ArtFormalLoadoutTree` 实际几何；第68帧起媒体缩放、移动到小面具人锚点并淡出，此时商店渐入进度约50%，终点保留初始媒体57.5%尺寸。媒体完成后恢复商店 `Visible`、焦点和World Pause。失败时幂等放行；两段透明视频无音轨且不循环，`Music.Shop`连续。03→00场景重影仍由相机后处理负责。
 - Stage01To02 播放时媒体画面保持 `HitTestInvisible`，仅右上角 `StageCgSkipButton` 接收点击。按钮资格由 GameMode 根据 RunSubsystem 的账号级已观看状态注入；首次播放、失败路径和非 CG 状态均折叠。Widget 点击后立即禁用按钮并广播一次请求，不直接写存档或推进关卡。
@@ -73,6 +74,15 @@ Plan158 Boss 表面补充：弧形颜色/透明度以 WBP 中用户当前微调�
 - `ReEchoLoadoutSelectionWidget::RefreshActionButtons` 统一运行时与 Designer 的按钮状态：确认和返回以及独立标签始终可见，确认仅在当前阶段有选择且尚未提交时启用；返回在未最终提交前保持启用。确认标签跟随确认禁用，返回标签仅在 Hover 时启用其正常亮态、离开灰显；这不修改字体、颜色、几何或游戏候选。
 - `WBP_ReEchoLoadoutSelection` 的 Button Style 持有明暗：确认 Disabled 暗，返回 Normal/Disabled 暗、Hovered/Pressed 亮；C++ 不改写 Style。原有角色页回主菜单、武器页回角色选择、防重复提交和点击选中契约不变。
 - 验证入口为 `ReEcho.UI.Shop.TooltipBlueprints`（真实背板引用、数据及样式保留）、`ReEcho.UI.LoadoutSelection.Flow` / `.Assets`（常驻显示、禁用与 Hover 灰显、WBP 明暗状态）。
+
+## 商店最终余额订阅（Plan159）
+
+- Run 仍独占现金与债务。运行时 GameMode 使用 `RefreshShopFromRun` 初始化/刷新商店商品、装备与规则投影；该入口首次绑定 `OnTimeShardBalanceChanged` 并读取余额初值，重复调用复用同一个 DelegateHandle，不重新写入现金缓存，也不重置已选择的卡牌页。
+- 余额事件按完整外层事务提交后发布的 `Cash/Debt` 更新缓存。`RefreshCurrencyText` 是余额文字唯一写入点；保持 `TimeShards - TimeShardDebt` 文案，只在内容不同时 SetText，不改 WBP 字体、颜色、对齐或几何。
+- `RefreshPurchaseAvailability` / `RefreshShopControlState` 从 Run 最新只读投影更新既有购买与刷新按钮。该局部路径不调用整页 `Refresh`、不重建控件/Tooltip、不重抽报价、不关闭武器/符文背包、不切卡牌页。现金与债务改变但净额相同仍需要同步资格。
+- 商店上方打开已付款选卡层时保留订阅，所以付款、逐槽付费刷新和还债都能立即反映到底层商店。关闭选卡层不靠补刷新余额；商店经 `RemoveFromParent` 关闭时立即解绑（即使 Slate 仍持有引用），`NativeDestruct` 再作幂等兜底，重新打开读取最新初值并只订阅一次。旧 `ShowInventory` / `ShowShop` 数值快照入口只保留独立初始化兼容，不作为 GameMode 的商店余额推送路径。
+- GM 加/设碎片改走 Run 窄命令，不再触发商店整页刷新。购买、换装、主刷新、授卡后的内容更新仍保留；卡包付款后也更新待选状态（包括零价无余额事件的情况），不能因统一余额事件而删掉非余额投影。
+- 验证：`ReEcho.Shop.BalanceTransactions`、`ReEcho.Shop.BalanceOfferCommands` 与 `ReEcho.UI.Shop.BalanceSubscription`，源码为 `Source/ReEcho/Private/Tests/ReEchoShopBalanceTests.cpp`；同时回归既有 `ReEcho.Shop` / `ReEcho.UI.Shop`、Save、Trait。人工检查已付款选卡返回、第二页和弹窗不被纯余额更新干扰。
 
 ## 依赖方向
 

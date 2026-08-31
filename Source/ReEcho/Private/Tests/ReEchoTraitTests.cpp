@@ -24,8 +24,8 @@ bool FReEchoOwnedEasterCardQueryTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossPhase3FinalStatMultiplierTest,
-	                             "ReEcho.Traits.BossPhase3FinalStatMultiplierPersists",
-	                             EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 "ReEcho.Traits.BossPhase3FinalStatMultiplierPersists",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FReEchoBossPhase3FinalStatMultiplierTest::RunTest(const FString& Parameters)
 {
@@ -37,7 +37,8 @@ bool FReEchoBossPhase3FinalStatMultiplierTest::RunTest(const FString& Parameters
 	const FReEchoStatBlock CanonicalEquipmentBase = Run->CurrentBuild.EquipmentBaseStats;
 
 	TestTrue(TEXT("Phase3 final-stat multiplier activates once"), Run->ActivateBossPhase3FinalStatMultiplier());
-	TestFalse(TEXT("Phase3 final-stat multiplier cannot stack repeatedly"), Run->ActivateBossPhase3FinalStatMultiplier());
+	TestFalse(TEXT("Phase3 final-stat multiplier cannot stack repeatedly"),
+	          Run->ActivateBossPhase3FinalStatMultiplier());
 	TestEqual(TEXT("Phase3 doubles the effective physical attack"),
 	          Run->CurrentBuild.Stats.PhysicalAttack,
 	          CanonicalStats.PhysicalAttack * 2.0f);
@@ -462,10 +463,24 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	}
 
 	const float PhysicalBefore = RunSubsystem->CurrentBuild.Stats.PhysicalAttack;
+	const FReEchoCardDefinition* PhysicalCard = Snapshot->CardCatalog->Find(TEXT("G_1_03"));
+	if (!TestNotNull(TEXT("Physical-strength card exists in the current CSV catalog"), PhysicalCard))
+	{
+		return false;
+	}
+	const FReEchoCardEffectDefinition* PhysicalEffect = PhysicalCard->Effects.FindByPredicate(
+	    [](const FReEchoCardEffectDefinition& Effect)
+	    {
+		    return Effect.Target == TEXT("PhysicalAttack");
+	    });
+	if (!TestNotNull(TEXT("Physical-strength card defines its authored attack gain"), PhysicalEffect))
+	{
+		return false;
+	}
 	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->DebugGrantCard(TEXT("G_1_03")));
 	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
-	          PhysicalBefore + 4.0f);
+	          PhysicalBefore + PhysicalEffect->Value);
 
 	EReEchoHealthAdjustment CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
 	FReEchoStatBlock CommittedStats;
@@ -704,22 +719,39 @@ bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters
 
 	Run->EncounterIndex = 1;
 	TestTrue(TEXT("Reaction tracker grants for pending outcome projection"), Run->DebugGrantCard(TEXT("G_2_06")));
+	const TSharedPtr<const FReEchoCsvDataSnapshot> ReactionSnapshot = Run->GetRunDataSnapshot();
+	const FReEchoCardDefinition* ReactionCard = ReactionSnapshot.IsValid() && ReactionSnapshot->CardCatalog.IsValid()
+	                                                ? ReactionSnapshot->CardCatalog->Find(TEXT("G_2_06"))
+	                                                : nullptr;
+	if (!TestTrue(TEXT("Reaction tracker has an authored effect"), ReactionCard && !ReactionCard->Effects.IsEmpty()))
+	{
+		return false;
+	}
+	const FReEchoCardEffectDefinition& ReactionEffect = ReactionCard->Effects[0];
+	const int32 ReactionThreshold = FMath::RoundToInt(ReactionEffect.ParamValue);
+	if (!TestTrue(TEXT("Reaction tracker has a positive threshold"), ReactionThreshold > 0))
+	{
+		return false;
+	}
+	constexpr int32 ReactionCount = 9;
+	const float ExpectedReactionGain = (ReactionCount / ReactionThreshold) * ReactionEffect.Value;
+	const FString ExpectedReactionText = FString::Printf(TEXT("元素攻击力 +%g"), ExpectedReactionGain);
 	Run->BeginEncounter();
 	const float ElementalBefore = Run->CurrentBuild.Stats.ElementalAttack;
-	for (int32 ReactionIndex = 0; ReactionIndex < 9; ++ReactionIndex)
+	for (int32 ReactionIndex = 0; ReactionIndex < ReactionCount; ++ReactionIndex)
 	{
 		Run->NotifyCardReaction(*FString::Printf(TEXT("REACTION_%d"), ReactionIndex), true);
 	}
 	Run->CompleteEncounter(FReEchoRecording(), true, false);
 	TestEqual(TEXT("Reaction tracker still applies its authored permanent gain"),
 	          Run->CurrentBuild.Stats.ElementalAttack,
-	          ElementalBefore + 2.0f);
+	          ElementalBefore + ExpectedReactionGain);
 	const FReEchoWeaponPartShopView SettledReactionView = Run->GetWeaponPartShopView();
 	const FReEchoShopOffer* SettledReaction = FindOwnedCard(SettledReactionView, TEXT("G_2_06"));
 	if (TestNotNull(TEXT("Settled reaction tracker remains projected"), SettledReaction))
 	{
 		TestTrue(TEXT("Settled reaction tracker exposes the actual elemental gain"),
-		         SettledReaction->OutcomeText.ToString().Contains(TEXT("元素攻击力 +2")));
+		         SettledReaction->OutcomeText.ToString().Contains(ExpectedReactionText));
 	}
 
 	UReEchoRunSaveGame* Save = Run->CreateSaveSnapshot();
@@ -737,7 +769,7 @@ bool FReEchoResolvedCardOutcomeProjectionTest::RunTest(const FString& Parameters
 		TestTrue(TEXT("Hunt outcome survives save/load"),
 		         RestoredHunt && RestoredHunt->OutcomeText.ToString().Contains(TEXT("物理攻击力 +1")));
 		TestTrue(TEXT("Reaction outcome survives save/load"),
-		         RestoredReaction && RestoredReaction->OutcomeText.ToString().Contains(TEXT("元素攻击力 +2")));
+		         RestoredReaction && RestoredReaction->OutcomeText.ToString().Contains(ExpectedReactionText));
 	}
 
 	UReEchoRunSaveGame* LegacySave = Run->CreateSaveSnapshot();

@@ -439,6 +439,149 @@ void UReEchoInventoryShopWidget::NativeConstruct()
 	Refresh();
 }
 
+void UReEchoInventoryShopWidget::RemoveFromParent()
+{
+	// Screen removal is the close boundary even if Slate still holds a focused widget reference.
+	StopObservingRunBalance();
+	Super::RemoveFromParent();
+}
+
+void UReEchoInventoryShopWidget::NativeDestruct()
+{
+	StopObservingRunBalance();
+	Super::NativeDestruct();
+}
+
+void UReEchoInventoryShopWidget::ObserveRunBalance(UReEchoRunSubsystem* Run)
+{
+	if (BalanceSource.Get() == Run && BalanceChangedHandle.IsValid())
+	{
+		return;
+	}
+	StopObservingRunBalance();
+	if (Run)
+	{
+		BalanceSource = Run;
+		BalanceChangedHandle =
+		    Run->OnTimeShardBalanceChanged.AddUObject(this, &UReEchoInventoryShopWidget::HandleTimeShardBalanceChanged);
+		const FReEchoTimeShardBalance Initial = Run->GetTimeShardBalance();
+		CurrentTimeShards = Initial.Cash;
+		CurrentPartShopView.TimeShardDebt = Initial.Debt;
+	}
+}
+
+void UReEchoInventoryShopWidget::StopObservingRunBalance()
+{
+	if (UReEchoRunSubsystem* Run = BalanceSource.Get())
+	{
+		Run->OnTimeShardBalanceChanged.Remove(BalanceChangedHandle);
+	}
+	BalanceChangedHandle.Reset();
+	BalanceSource.Reset();
+}
+
+void UReEchoInventoryShopWidget::RefreshShopFromRun(UReEchoRunSubsystem* Run, const EReEchoInventoryShopMode InMode)
+{
+	if (!Run)
+	{
+		return;
+	}
+	const bool bOpening = BalanceSource.Get() != Run || !BalanceChangedHandle.IsValid();
+	Mode = InMode;
+	bShowingShop = InMode != EReEchoInventoryShopMode::Inventory;
+	if (bOpening)
+	{
+		ActiveOwnedCardPage = 0;
+	}
+	CurrentPartShopView = Run->GetWeaponPartShopView();
+	CurrentShopCharacterId = Run->CurrentBuild.CharacterId;
+	CurrentOwnedItems = Run->InventoryItems;
+	const FReEchoCardRuleSnapshot Rules = Run->GetCardRules();
+	const FReEchoCardRuntimeState& Runtime = Run->CurrentBuild.CardState.Runtime;
+	CurrentShopDiscount = Rules.ShopDiscount;
+	CurrentFreeShopRefreshes = Runtime.FreeShopRefreshes;
+	bCurrentUnlimitedFreeRefresh = Runtime.bEasterUnlimitedRefreshUnlocked;
+	bCurrentShopRefreshAllowed = !Rules.bDisableShopRefresh;
+	bCurrentExtraCardPurchaseAllowed = !Rules.bDisableExtraCardPurchase;
+	CurrentShopRefreshSequence = Runtime.ShopRefreshSequence;
+	InjectCharacterPassiveCardIntoOwnedView();
+	// Only a new subscription takes an initial balance. Subsequent content refreshes never overwrite it.
+	ObserveRunBalance(Run);
+	PurchasedItemIds.Reset();
+	bEchoStoragePopupOpen = false;
+	if (EchoPanel)
+	{
+		EchoPanel->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	if (CloseConfirmWidget)
+	{
+		CloseConfirmWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	Refresh();
+	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
+	{
+		SetEchoSummary(Run->GetEchoStorageSummary());
+	}
+}
+
+void UReEchoInventoryShopWidget::HandleTimeShardBalanceChanged(const FReEchoTimeShardBalance& Before,
+                                                               const FReEchoTimeShardBalance& After)
+{
+	CurrentTimeShards = After.Cash;
+	CurrentPartShopView.TimeShardDebt = After.Debt;
+	if (UReEchoRunSubsystem* Run = BalanceSource.Get(); Run && bShowingShop)
+	{
+		const FReEchoWeaponPartShopView View = Run->GetWeaponPartShopView();
+		const auto SyncOffers = [](TArray<FReEchoShopOffer>& Existing, const TArray<FReEchoShopOffer>& Latest)
+		{
+			for (FReEchoShopOffer& Offer : Existing)
+			{
+				const FReEchoShopOffer* Match = Latest.FindByPredicate(
+				    [&Offer](const FReEchoShopOffer& Candidate)
+				    {
+					    return Candidate.ItemId == Offer.ItemId;
+				    });
+				if (Match)
+				{
+					Offer.bCanPurchase = Match->bCanPurchase;
+					Offer.EffectivePrice = Match->EffectivePrice;
+				}
+			}
+		};
+		// Preserve page identity, owned-card indices and popup contents; only project economy-related fields.
+		SyncOffers(VisibleWeaponPartOffers, View.Offers);
+		SyncOffers(VisibleRunItemOffers, View.RunItemOffers);
+		SyncOffers(CurrentPartShopView.Offers, View.Offers);
+		SyncOffers(CurrentPartShopView.RunItemOffers, View.RunItemOffers);
+		for (FReEchoShopCardPackOffer& Pack : CurrentPartShopView.CardPackOffers)
+		{
+			if (const FReEchoShopCardPackOffer* Match = View.CardPackOffers.FindByPredicate(
+			        [&Pack](const FReEchoShopCardPackOffer& Candidate)
+			        {
+				        return Candidate.Tier == Pack.Tier;
+			        }))
+			{
+				Pack = *Match;
+			}
+		}
+		CurrentPartShopView.bWeaponRuneRefreshAllowed = View.bWeaponRuneRefreshAllowed;
+		CurrentPartShopView.bWeaponRuneRefreshUnlimited = View.bWeaponRuneRefreshUnlimited;
+		CurrentPartShopView.WeaponRuneRefreshesRemaining = View.WeaponRuneRefreshesRemaining;
+		CurrentPartShopView.WeaponRuneRefreshCost = View.WeaponRuneRefreshCost;
+		CurrentPartShopView.bUnlimitedShopCredit = View.bUnlimitedShopCredit;
+		const FReEchoCardRuleSnapshot Rules = Run->GetCardRules();
+		const FReEchoCardRuntimeState& Runtime = Run->CurrentBuild.CardState.Runtime;
+		CurrentShopDiscount = Rules.ShopDiscount;
+		CurrentFreeShopRefreshes = Runtime.FreeShopRefreshes;
+		bCurrentUnlimitedFreeRefresh = Runtime.bEasterUnlimitedRefreshUnlocked;
+		bCurrentShopRefreshAllowed = !Rules.bDisableShopRefresh;
+		bCurrentExtraCardPurchaseAllowed = !Rules.bDisableExtraCardPurchase;
+		RefreshPurchaseAvailability();
+		RefreshShopControlState();
+	}
+	RefreshCurrencyText();
+}
+
 void UReEchoInventoryShopWidget::BindEchoPresentation()
 {
 	if (!WidgetTree)
@@ -559,6 +702,7 @@ void UReEchoInventoryShopWidget::BindEchoPresentation()
 
 void UReEchoInventoryShopWidget::ShowInventory(const int32 TimeShards, const TArray<FName>& OwnedItems)
 {
+	StopObservingRunBalance();
 	Mode = EReEchoInventoryShopMode::Inventory;
 	bShowingShop = false;
 	ActiveOwnedCardPage = 0;
@@ -597,6 +741,7 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
                                           const int32 RefreshSequence,
                                           const bool bUnlimitedFreeRefresh)
 {
+	StopObservingRunBalance();
 	Mode = EReEchoInventoryShopMode::ManualShop;
 	bShowingShop = true;
 	ActiveOwnedCardPage = 0;
@@ -950,13 +1095,15 @@ void UReEchoInventoryShopWidget::BuildOfferEntries()
 		UVerticalBoxSlot* RefreshSlot = ShopControlPanel->AddChildToVerticalBox(ShopRefreshButton);
 		RefreshSlot->SetPadding(FMargin(8.0f, 12.0f, 8.0f, 4.0f));
 	}
-	if (!ShopRefreshText)
+	// A complete authored refresh button already owns its content. The legacy
+	// text-only fallback must not detach that tree before the presentation bind.
+	if (!ShopRefreshCountText && !ShopRefreshText)
 	{
 		ShopRefreshText = CreateText(WidgetTree, TEXT("ShopRefreshText"), 20, FLinearColor(0.9f, 0.82f, 0.66f));
 		ShopRefreshText->SetJustification(ETextJustify::Center);
 		ShopRefreshButton->SetContent(ShopRefreshText);
 	}
-	else if (bCreatedRefreshButton)
+	else if (bCreatedRefreshButton && !ShopRefreshCountText)
 	{
 		ShopRefreshButton->SetContent(ShopRefreshText);
 	}
@@ -1291,10 +1438,10 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 	TargetCurrencyText = Cast<UTextBlock>(GetWidgetFromName(TEXT("DesignerCurrencyText")));
 	TargetRefreshLimitText = Cast<UTextBlock>(GetWidgetFromName(TEXT("DesignerRefreshLimitText")));
 	ShopRefreshButton = Cast<UButton>(GetWidgetFromName(TEXT("ShopRefreshButton")));
-	if (ShopRefreshButton)
+	if (ShopRefreshButton && !ShopRefreshCountText)
 	{
-		// BuildOfferEntries() also supports the legacy shop and therefore creates a text-only
-		// child first. Restore the authored Plan110 button art after that legacy pass.
+		// Compatibility for older WBP assets without an authored refresh label.
+		// The complete WBP path never rebuilds content or overrides text/slot styles.
 		UImage* RefreshArt = Cast<UImage>(GetWidgetFromName(TEXT("DesignerRefreshArt")));
 		if (!RefreshArt)
 		{
@@ -1339,8 +1486,10 @@ bool UReEchoInventoryShopWidget::BindAuthoredShopPresentation()
 		{
 			ShopRefreshText->SetVisibility(ESlateVisibility::Collapsed);
 		}
-		ShopRefreshButton->OnClicked.RemoveDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
-		ShopRefreshButton->OnClicked.AddDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
+	}
+	if (ShopRefreshButton)
+	{
+		ShopRefreshButton->OnClicked.AddUniqueDynamic(this, &UReEchoInventoryShopWidget::HandleRefreshClicked);
 	}
 
 	DesignerPartOfferCards.Reset();
@@ -1893,7 +2042,7 @@ void UReEchoInventoryShopWidget::RebuildTargetOfferRows()
 	}
 }
 
-void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
+void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards(const bool bAvailabilityOnly)
 {
 	const auto SetBuyState = [](UReEchoIndexedButton* Button,
 	                            UImage* Art,
@@ -1922,7 +2071,7 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 	{
 		UCanvasPanel* Card = DesignerPartOfferCards[Index];
 		const bool bHasOffer = VisibleWeaponPartOffers.IsValidIndex(Index);
-		if (Card)
+		if (!bAvailabilityOnly && Card)
 		{
 			Card->SetVisibility(bHasOffer ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 			Card->SetToolTip(nullptr);
@@ -1946,11 +2095,11 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		// A tier-I rune can be bought again to feed I->II->III synthesis, so owning one must not gate it.
 		const bool bRepeatableRune = Offer.Type == EReEchoShopOfferType::WeaponPart && Offer.bRepeatPurchasable;
 		const bool bCanBuy = (!bOwned || bRepeatableRune) && Offer.bCanPurchase;
-		if (Card)
+		if (!bAvailabilityOnly && Card)
 		{
 			Card->SetToolTip(BuildSlotTooltip(Offer));
 		}
-		if (DesignerPartOfferIcons.IsValidIndex(Index) && DesignerPartOfferIcons[Index])
+		if (!bAvailabilityOnly && DesignerPartOfferIcons.IsValidIndex(Index) && DesignerPartOfferIcons[Index])
 		{
 			UTexture2D* OfferIcon = Offer.Type == EReEchoShopOfferType::Weapon ? ShopAttachmentSlotTexture.Get()
 			                                                                   : ResolveWeaponPartIcon(Offer.ContentId);
@@ -1964,7 +2113,7 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 			DesignerPartOfferIcons[Index]->SetBrushFromTexture(OfferIcon, true);
 			DesignerPartOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 		}
-		if (DesignerPartOfferTierBadges.IsValidIndex(Index))
+		if (!bAvailabilityOnly && DesignerPartOfferTierBadges.IsValidIndex(Index))
 		{
 			// Re-resolve if the badge was never created or was dropped by a widget rebuild.
 			UTextBlock* Badge = DesignerPartOfferTierBadges[Index];
@@ -1987,7 +2136,8 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 				                                        : ESlateVisibility::HitTestInvisible);
 			}
 		}
-		if (DesignerPartOfferDescriptions.IsValidIndex(Index) && DesignerPartOfferDescriptions[Index])
+		if (!bAvailabilityOnly && DesignerPartOfferDescriptions.IsValidIndex(Index) &&
+		    DesignerPartOfferDescriptions[Index])
 		{
 			// The offer card only carries the rune name; the full effect remains in its tooltip.
 			DesignerPartOfferDescriptions[Index]->SetText(Offer.DisplayName);
@@ -2013,12 +2163,12 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		UCanvasPanel* Card = DesignerPackOfferCards[Index];
 		UImage* Base = DesignerPackOfferBases.IsValidIndex(Index) ? DesignerPackOfferBases[Index] : nullptr;
 		const bool bHasPack = CurrentPartShopView.CardPackOffers.IsValidIndex(Index);
-		if (Card)
+		if (!bAvailabilityOnly && Card)
 		{
 			Card->SetVisibility(bHasPack ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 			Card->SetToolTip(nullptr);
 		}
-		if (Base)
+		if (!bAvailabilityOnly && Base)
 		{
 			Base->SetVisibility(bHasPack ? ESlateVisibility::Visible : ESlateVisibility::HitTestInvisible);
 			Base->SetToolTip(nullptr);
@@ -2029,24 +2179,25 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards()
 		}
 
 		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[Index];
-		if (Card)
+		if (!bAvailabilityOnly && Card)
 		{
 			Card->SetToolTip(BuildCardPackTooltip(Pack));
 		}
-		if (Base)
+		if (!bAvailabilityOnly && Base)
 		{
 			Base->SetToolTip(BuildCardPackTooltip(Pack));
 		}
 		const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
 		const int32 EffectivePrice = Pack.EffectivePrice;
 		const bool bCanPurchase = Pack.bCanPurchase && bCurrentExtraCardPurchaseAllowed;
-		if (DesignerPackOfferIcons.IsValidIndex(Index) && DesignerPackOfferIcons[Index])
+		if (!bAvailabilityOnly && DesignerPackOfferIcons.IsValidIndex(Index) && DesignerPackOfferIcons[Index])
 		{
 			DesignerPackOfferIcons[Index]->SetBrushFromTexture(ShopEmptyCardSlotIconTexture.Get(), false);
 			DesignerPackOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 			DesignerPackOfferIcons[Index]->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
-		if (DesignerPackOfferDescriptions.IsValidIndex(Index) && DesignerPackOfferDescriptions[Index])
+		if (!bAvailabilityOnly && DesignerPackOfferDescriptions.IsValidIndex(Index) &&
+		    DesignerPackOfferDescriptions[Index])
 		{
 			// A tier configured with several packs shows how many are still buyable, e.g. "一级卡组（剩余：2）".
 			const FText PackTitle =
@@ -3226,6 +3377,121 @@ UWidget* UReEchoInventoryShopWidget::BuildAttributePanel(const FReEchoStatBlock&
 	return Tooltip;
 }
 
+void UReEchoInventoryShopWidget::RefreshPurchaseAvailability()
+{
+	for (int32 Index = 0; Index < VisibleRunItemOffers.Num(); ++Index)
+	{
+		const FReEchoShopOffer& Offer = VisibleRunItemOffers[Index];
+		const bool bEnabled = !Offer.ItemId.IsNone() && !CurrentOwnedItems.Contains(Offer.ItemId) && Offer.bCanPurchase;
+		if (OfferButtons.IsValidIndex(Index) && OfferButtons[Index])
+		{
+			OfferButtons[Index]->SetIsEnabled(bEnabled);
+		}
+		if (UButton* Button = Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("TargetBuildBuy%d"), Index))))
+		{
+			Button->SetIsEnabled(bEnabled);
+		}
+	}
+	for (int32 Index = 0; Index < VisibleWeaponPartOffers.Num(); ++Index)
+	{
+		const FReEchoShopOffer& Offer = VisibleWeaponPartOffers[Index];
+		if (WeaponPartOfferButtons.IsValidIndex(Index) && WeaponPartOfferButtons[Index])
+		{
+			WeaponPartOfferButtons[Index]->SetIsEnabled(Offer.bCanPurchase);
+		}
+		if (UButton* Button = Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("TargetPartBuy%d"), Index))))
+		{
+			Button->SetIsEnabled(Offer.bCanPurchase);
+		}
+	}
+	for (int32 Index = 0; Index < CurrentPartShopView.CardPackOffers.Num(); ++Index)
+	{
+		const FReEchoShopCardPackOffer& Pack = CurrentPartShopView.CardPackOffers[Index];
+		const bool bPendingChoice = Pack.Status == EReEchoShopCardPackStatus::PaidPendingChoice;
+		const bool bEnabled = Pack.bCanPurchase || bPendingChoice;
+		const FText ActionText = bPendingChoice ? NSLOCTEXT("ReEcho", "ShopCardPackContinue", "继续选择")
+		                         : Pack.IsAvailable()
+		                             ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackBuy", "购买 · {0}"),
+		                                             FText::AsNumber(Pack.EffectivePrice))
+		                             : Pack.StatusText;
+		if (CardPackButtons.IsValidIndex(Index) && CardPackButtons[Index])
+		{
+			CardPackButtons[Index]->SetIsEnabled(bEnabled);
+		}
+		if (CardPackTexts.IsValidIndex(Index) && CardPackTexts[Index])
+		{
+			CardPackTexts[Index]->SetText(FText::Format(
+			    NSLOCTEXT("ReEcho", "ShopCardPackLogicFormat", "{0}卡组\n{1}"), Pack.DisplayName, ActionText));
+		}
+		if (UButton* Button = Cast<UButton>(GetWidgetFromName(*FString::Printf(TEXT("TargetCardPackButton%d"), Index))))
+		{
+			Button->SetIsEnabled(bEnabled);
+		}
+		if (UTextBlock* Label =
+		        Cast<UTextBlock>(GetWidgetFromName(*FString::Printf(TEXT("TargetCardPackButtonText%d"), Index))))
+		{
+			Label->SetText(ActionText);
+		}
+	}
+	// State-only mode keeps existing icons, geometry and tooltip UObject instances intact.
+	RefreshAuthoredOfferCards(true);
+}
+
+void UReEchoInventoryShopWidget::RefreshShopControlState()
+{
+	if (ShopRefreshButton && (ShopRefreshText || ShopRefreshCountText))
+	{
+		const bool bCanRefresh = bCurrentShopRefreshAllowed && CurrentPartShopView.bWeaponRuneRefreshAllowed;
+		ShopRefreshButton->SetIsEnabled(bCanRefresh);
+		const FText PaidRemaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
+		                                ? NSLOCTEXT("ReEcho", "ShopRefreshUnlimited", "∞")
+		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
+		const FText RefreshLabel =
+		    bCurrentUnlimitedFreeRefresh
+		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonUnlimitedFree", "刷新|∞次免费|{0}次·{1}碎片"),
+		                        PaidRemaining,
+		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
+		        : (CurrentFreeShopRefreshes > 0
+		               ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonWithFree", "刷新|{0}次免费|{1}次·{2}碎片"),
+		                               FText::AsNumber(CurrentFreeShopRefreshes),
+		                               PaidRemaining,
+		                               FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
+		               : FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonCounted", "刷新|{0}次·{1}碎片"),
+		                               PaidRemaining,
+		                               FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
+		if (ShopRefreshText)
+		{
+			ShopRefreshText->SetText(RefreshLabel);
+		}
+		if (ShopRefreshCountText)
+		{
+			ShopRefreshCountText->SetText(RefreshLabel);
+		}
+	}
+	if (TargetRefreshLimitText)
+	{
+		const FText PaidRemaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
+		                                ? NSLOCTEXT("ReEcho", "TargetRefreshUnlimited", "∞")
+		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
+		TargetRefreshLimitText->SetText(
+		    CurrentFreeShopRefreshes > 0
+		        ? FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshWithFree", "武器/符文刷新：免费 {0} / 付费 {1}"),
+		                        FText::AsNumber(CurrentFreeShopRefreshes),
+		                        PaidRemaining)
+		        : FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshCounted", "武器/符文刷新：剩余 {0} · {1} 碎片"),
+		                        PaidRemaining,
+		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
+	}
+	if (ShopRuleText)
+	{
+		ShopRuleText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCardGroupRule", "商店折扣 {0}%　额外卡牌组：{1}"),
+		                                    FText::AsNumber(FMath::RoundToInt(CurrentShopDiscount * 100.0f)),
+		                                    bCurrentExtraCardPurchaseAllowed
+		                                        ? NSLOCTEXT("ReEcho", "ShopCardGroupAllowed", "可购买")
+		                                        : NSLOCTEXT("ReEcho", "ShopCardGroupDisabled", "已被永久代价禁用")));
+	}
+}
+
 void UReEchoInventoryShopWidget::Refresh()
 {
 	if (!InventoryPanel || !ShopPanel || !InventoryText || !CurrencyText)
@@ -3302,8 +3568,6 @@ void UReEchoInventoryShopWidget::Refresh()
 	}
 	InventoryText->SetText(FText::FromString(InventoryDescription));
 
-	CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"),
-	                                    FText::AsNumber(GetDisplayedTimeShardBalance())));
 	for (int32 OfferIndex = 0; OfferIndex < VisibleRunItemOffers.Num(); ++OfferIndex)
 	{
 		const FReEchoShopOffer& Offer = VisibleRunItemOffers[OfferIndex];
@@ -3319,57 +3583,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		        ? NSLOCTEXT("ReEcho", "ShopOwned", "已获得")
 		        : FText::Format(NSLOCTEXT("ReEcho", "ShopPrice", "{0} 碎片"), FText::AsNumber(Offer.EffectivePrice))));
 	}
-	if (ShopRefreshButton && (ShopRefreshText || ShopRefreshCountText))
-	{
-		const bool bCanRefresh = bCurrentShopRefreshAllowed && CurrentPartShopView.bWeaponRuneRefreshAllowed;
-		ShopRefreshButton->SetIsEnabled(bCanRefresh);
-		const FText PaidRemaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
-		                                ? NSLOCTEXT("ReEcho", "ShopRefreshUnlimited", "∞")
-		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
-		const FText RefreshLabel =
-		    bCurrentUnlimitedFreeRefresh
-		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonUnlimitedFree", "刷新|∞次免费|{0}次·{1}碎片"),
-		                        PaidRemaining,
-		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
-		        : (CurrentFreeShopRefreshes > 0
-		               ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonWithFree", "刷新|{0}次免费|{1}次·{2}碎片"),
-		                               FText::AsNumber(CurrentFreeShopRefreshes),
-		                               PaidRemaining,
-		                               FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
-		               : FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonCounted", "刷新|{0}次·{1}碎片"),
-		                               PaidRemaining,
-		                               FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
-		if (ShopRefreshText)
-		{
-			ShopRefreshText->SetText(RefreshLabel);
-		}
-		if (ShopRefreshCountText)
-		{
-			ShopRefreshCountText->SetText(RefreshLabel);
-		}
-	}
-	if (TargetRefreshLimitText)
-	{
-		const FText PaidRemaining = CurrentPartShopView.bWeaponRuneRefreshUnlimited
-		                                ? NSLOCTEXT("ReEcho", "TargetRefreshUnlimited", "∞")
-		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
-		TargetRefreshLimitText->SetText(
-		    CurrentFreeShopRefreshes > 0
-		        ? FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshWithFree", "武器/符文刷新：免费 {0} / 付费 {1}"),
-		                        FText::AsNumber(CurrentFreeShopRefreshes),
-		                        PaidRemaining)
-		        : FText::Format(NSLOCTEXT("ReEcho", "TargetRefreshCounted", "武器/符文刷新：剩余 {0} · {1} 碎片"),
-		                        PaidRemaining,
-		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
-	}
-	if (ShopRuleText)
-	{
-		ShopRuleText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCardGroupRule", "商店折扣 {0}%　额外卡牌组：{1}"),
-		                                    FText::AsNumber(FMath::RoundToInt(CurrentShopDiscount * 100.0f)),
-		                                    bCurrentExtraCardPurchaseAllowed
-		                                        ? NSLOCTEXT("ReEcho", "ShopCardGroupAllowed", "可购买")
-		                                        : NSLOCTEXT("ReEcho", "ShopCardGroupDisabled", "已被永久代价禁用")));
-	}
+	RefreshShopControlState();
 	if (WeaponLoadoutPanel && WeaponLoadoutText)
 	{
 		const bool bShowWeaponBlocks = bShowingShop && !CurrentPartShopView.WeaponId.IsNone();
@@ -3406,11 +3620,6 @@ void UReEchoInventoryShopWidget::Refresh()
 	{
 		ShopPresentationLayer->SetVisibility(bShowingShop ? ESlateVisibility::SelfHitTestInvisible
 		                                                  : ESlateVisibility::Collapsed);
-		if (TargetCurrencyText)
-		{
-			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
-			                                          FText::AsNumber(GetDisplayedTimeShardBalance())));
-		}
 		CurrencyText->SetVisibility(ESlateVisibility::Collapsed);
 		if (ShopRefreshButton)
 		{
@@ -3443,6 +3652,7 @@ void UReEchoInventoryShopWidget::Refresh()
 		DesignerLoadoutCanvas->SetVisibility(bShowingShop ? ESlateVisibility::SelfHitTestInvisible
 		                                                  : ESlateVisibility::Collapsed);
 	}
+	RefreshCurrencyText();
 }
 
 void UReEchoInventoryShopWidget::RequestPurchase(const int32 OfferIndex)
@@ -3687,18 +3897,26 @@ void UReEchoInventoryShopWidget::HandleConfirmReturnClicked()
 
 // ============================ Public echo API (delegates to GameMode) ============================
 
-void UReEchoInventoryShopWidget::SetTimeShards(int32 NewShards)
+void UReEchoInventoryShopWidget::RefreshCurrencyText()
 {
-	CurrentTimeShards = NewShards;
+	const int32 Balance = GetDisplayedTimeShardBalance();
 	if (TargetCurrencyText)
 	{
-		TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
-		                                          FText::AsNumber(GetDisplayedTimeShardBalance())));
+		const FText Text =
+		    FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"), FText::AsNumber(Balance));
+		if (!TargetCurrencyText->GetText().EqualTo(Text))
+		{
+			TargetCurrencyText->SetText(Text);
+		}
 	}
 	if (CurrencyText)
 	{
-		CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"),
-		                                    FText::AsNumber(GetDisplayedTimeShardBalance())));
+		const FText Text =
+		    FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"), FText::AsNumber(Balance));
+		if (!CurrencyText->GetText().EqualTo(Text))
+		{
+			CurrencyText->SetText(Text);
+		}
 	}
 }
 
@@ -3724,19 +3942,6 @@ void UReEchoInventoryShopWidget::MarkItemPurchased(FName ItemId)
 		RebuildOwnedCardSlots();
 	}
 	RebuildTargetOfferRows();
-	if (bShowingShop)
-	{
-		if (TargetCurrencyText)
-		{
-			TargetCurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "TargetShopCurrency", "时间碎片：{0}"),
-			                                          FText::AsNumber(GetDisplayedTimeShardBalance())));
-		}
-	}
-	else if (CurrencyText)
-	{
-		CurrencyText->SetText(FText::Format(NSLOCTEXT("ReEcho", "ShopCurrency", "时间碎片  {0}"),
-		                                    FText::AsNumber(GetDisplayedTimeShardBalance())));
-	}
 }
 
 int32 UReEchoInventoryShopWidget::GetDisplayedTimeShardBalance() const

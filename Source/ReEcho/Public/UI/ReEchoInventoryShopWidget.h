@@ -16,6 +16,8 @@ class UReEchoIndexedButton;
 class UReEchoShopTooltipWidget;
 class UReEchoAttributeTooltipWidget;
 class UReEchoButtonVisualFeedback;
+class UReEchoRunSubsystem;
+struct FReEchoTimeShardBalance;
 class UScaleBox;
 class UScrollBox;
 class USizeBox;
@@ -53,6 +55,7 @@ class REECHO_API UReEchoInventoryShopWidget : public UUserWidget
 
 public:
 	UReEchoInventoryShopWidget(const FObjectInitializer& ObjectInitializer);
+	virtual void RemoveFromParent() override;
 	bool GetCardChoiceToShopCollapseTargetAbsolute(FVector2D& OutAbsoluteCenter) const;
 
 	FReEchoInventoryShopClosed OnClosed;
@@ -70,6 +73,8 @@ public:
 	/** 以只读背包模式刷新当前资源与已拥有物品。 */
 	void ShowInventory(int32 TimeShards, const TArray<FName>& OwnedItems);
 	void SetWeaponPartShopView(const FReEchoWeaponPartShopView& PartShopView, FName CharacterId = NAME_None);
+	/** Runtime entry: subscribes once, initializes the balance, then refreshes only non-currency content. */
+	void RefreshShopFromRun(UReEchoRunSubsystem* Run, EReEchoInventoryShopMode InMode);
 
 	/** 以商店模式刷新报价；实际扣款由外部订阅者决定。 */
 	void ShowShop(int32 TimeShards,
@@ -98,8 +103,6 @@ public:
 	/** 注入当前玩家属性块，用于 DesignerShopClock 悬停属性面板。 */
 	void SetPlayerStats(const FReEchoStatBlock& Stats);
 
-	/** 更新时间碎片显示（购买后扣费，不重摇报价）。 */
-	void SetTimeShards(int32 NewShards);
 	/** 按 ItemId 标记某报价槽位为已购；构筑卡同步进入右侧卡牌槽，不触发重摇。 */
 	void MarkItemPurchased(FName ItemId);
 
@@ -111,6 +114,7 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 
 	/** Shared authored appearance for all shop item descriptions, including resolved card outcomes. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shop|Tooltips")
@@ -120,6 +124,17 @@ protected:
 	TSubclassOf<UReEchoAttributeTooltipWidget> AttributeTooltipWidgetClass;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FReEchoShopBalanceSubscriptionTest;
+#endif
+	void ObserveRunBalance(UReEchoRunSubsystem* Run);
+	void StopObservingRunBalance();
+	void HandleTimeShardBalanceChanged(const FReEchoTimeShardBalance& Before, const FReEchoTimeShardBalance& After);
+	void RefreshCurrencyText();
+	void RefreshPurchaseAvailability();
+	void RefreshShopControlState();
+	TWeakObjectPtr<UReEchoRunSubsystem> BalanceSource;
+	FDelegateHandle BalanceChangedHandle;
 	void BuildWidgetTree();
 	/** Resolves the authored echo-storage modal by stable Designer names and binds its interactions. */
 	void BindEchoPresentation();
@@ -135,7 +150,7 @@ private:
 	void BindSaveAndLeaveVisualFeedback();
 	void BindDesignerLoadoutLayout();
 	void RebuildTargetOfferRows();
-	void RefreshAuthoredOfferCards();
+	void RefreshAuthoredOfferCards(bool bAvailabilityOnly = false);
 	void RebuildOwnedCardSlots();
 	/** Silently injects the selected character's passive as a synthetic "character card" into the owned-card
 	 *  view so it shows in the right-side card panel; no grant popup, no RunSubsystem inventory mutation. */
@@ -306,9 +321,8 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshText;
 
-	// Runtime overlay text drawn on top of the cleaned refresh-button texture
-	// (the baked-in "刷新" label was removed from the source PNG).
-	UPROPERTY(Transient)
+	/** Designer-owned refresh label; runtime updates its content, never its presentation. */
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshCountText;
 
 	UPROPERTY(meta = (BindWidgetOptional))
