@@ -6,7 +6,7 @@
 - Executor 负责人：JosephLE910 + Codex（同一 AI 规划与执行）。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`（实现已验收、组合候选门禁已完成；发布按下方记录核验远端引用）。
 - 人工验收：`Passed`（用户请求发布本次已调好的候选；不代表 AI 手工 PIE 验收）。
 - 本地规划 / 实现基线：`origin/main` / `fad6d0813fdd84d05cad0bba06769bf2af5b10b5`。
 - 本地实现方式：独立 worktree `ReEcho-plan158-boss-clock-health-arc`，分支 `plan/158-boss-clock-health-arc`。
@@ -25,6 +25,7 @@
   - 用户后续三选一小型修复：`Source/ReEcho/{Public,Private}/UI/ReEchoTraitCardChoiceWidget.*`、`Source/ReEcho/Private/Tests/ReEchoTraitChoiceAuthoringTests.cpp`、`Source/ReEcho/Private/Tests/ReEchoShopLogicBlockTests.cpp`（旧父级硬编码断言改为保护实际作者层级）、`docs/tasks/trait-choice-authored-presentation.md`。
   - `Design/UI/ReEcho_Boss弧形血条调整指南.md`、`Design/UI/ReEcho_UI修改指导.md`
   - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`
+  - `shared/CODEBASE_MAP/README.md`（发布时用户明确要求补齐 UI 文档索引登记，不新增运行时模块）。
   - 标准构建刷新、由 `Binaries/Win64/ReEchoEditor.prebuilt.json` 声明的精选 Editor 预构建文件。
 - Stable Reads：`ReEchoGameMode.cpp`、`ReEchoBossTransformation.cpp`、`Graybox/ReEchoEnemyActor.cpp`、`Content/Data/boss_phases.csv`、`DA_SheepBossPhase3`、已有钟面/指针纹理、`ReEcho.Build.cs`、UI Framework。
 - 影响模式：`SharedContract`，仅扩展 HUD 表现绑定与可编辑预览属性，不改变玩法公共契约。
@@ -95,8 +96,19 @@
 
 ## 执行记录
 
+### 最终发布集成（2026-08-31）
+
+- 基线与恢复点：远端 `8cde526195eb2a4dd6e078aaad4c38821e832eff`；原本地检查点 `6f9a73cf` 及工作分支保留；正式候选 `8e4fd3df` 与该检查点 tree 完全相同。以正式授权提交 `7b832809` 原子取得 `main-publish-lock` 后，再次 fetch 并形成集成提交 `5e770f2d`；没有提前集成主线、没有强推 main。
+- 合并范围：只对 manifest / 7 个 DLL 的冲突作生成物处理，最终完整重建替换临时结果；远端商店/PlayerHud 两份蓝图、GameMode/Run/商店代码及生产 CSV/XLSX 与 `8cde5261` 相同。我们的 HUD、三选一、Entry 和弧形材质与 `6f9a73cf` 的 Git blob 完全相同，用户微调不因构建/测试被保存覆盖。额外代码差异均属于原 Plan158 已批准实现；用户追加的唯一范围为 UI 文档索引登记。
+- 最终构建：`Saved/plan158-publish-full-build.log`，`Build-Editor.cmd -Configuration Development -FullRebuild` 成功，97/97 actions；精选预构建 7 模块，BuildId `55116800`，完整源码指纹 `325eb362f2c1b65577ede9a630eef69baa86c06907c3722cc53d76b571aa48a8`，`prebuilt_editor.py check` 通过。最终格式收敛把新增弧形控件的 `GetHealthRatio` 从头文件内联改为原签名的 cpp 实现，避免 UFUNCTION 周边的反复格式诊断；返回值和蓝图接口不变，并在此之后重新完成完整构建与聚焦验证。最终构建后仅更新 Markdown，没有改变构建输入。
+- 相关自动化：`Saved/plan158-publish-focused-tests-engine.log` 14/14 Success、进程退出 0，覆盖 Boss 生命比例/指针/GPU 弧形与整体凸起、作者属性保护、三选一模板/双选/逐槽刷新、真实双选领取及远端商店余额/作者样式/Tooltip。GPU 离屏截图是客观渲染证据，不是人工 PIE 声明。
+- 额外基线诊断：最初扩展运行 16 项中，14 项成功，`ReEcho.Characters.SageBonusCadence` 与 `ReEcho.Characters.SageBonusCadenceCountsShopGroups` 失败；在干净的准确远端 `8cde5261` 工程/匹配预构建上单独复现同样两项失败，日志 `Saved/plan158-remote-baseline-sage-engine.log`，进程退出 255。旧测试假定五次/低阶卡累计及延后额外选卡；当前远端 CSV 为间隔 4、最低二级，Run 已使用当前卡包内多选并清除旧延后标志。这两项不属于本 Plan 的必需聚焦验收，作为额外已知基线诊断如实记录为失败，不扩张修改远端逻辑、数值或测试，也不宣称整套自动化全绿。
+- 静态：登记测试 3/3、Encounter 契约 6/6、独立 `validate_workflow()`（含新增 UI 文档索引）、格式检查、diff、LFS hydrated/fsck、精选预构建均通过。原始 `validate_project.py` 仍在 `cards.csv, card_effects.csv` 与 XLSX 漂移处退出 1；仅此具名检查经本轮人工确认豁免，未修改数据/校验器掩盖结果，后续 workflow 已单独执行通过。文档索引问题按用户要求修复，没有豁免。
+- 发布边界：最终提交包含重新生成的匹配预构建、文档索引及本记录；以该候选快进更新锁后重新 fetch/核对祖先，再普通推送 main。发布后必须核对精确引用、LFS dry-run 和资产 blob，再以准确 lease 释放锁。本地工程/恢复分支保留，不删除用户测试材料。
+
 ### 变化
 
+- 发布追加授权：独立 workflow 检查发现远端 `8cde5261` 模块文档引用 `MOD-ReEchoUI`，索引却只写 UI，用户明确要求“要加上文档索引登记”。仅在 README 的文档型逻辑入口登记此文档检索标识，仍标明非 Runtime Module；不删除或改写远端商店契约、不放宽校验器。
 - 正式发布授权：用户要求推送合入主分支，并限定“只碰我们改了的，远端的保持不变”。在准确远端 `8cde5261` / 本地 `6f9a73cf` 上说明风险并建议先问程序后，用户明确确认仅豁免已知 `cards.csv, card_effects.csv` 与 XLSX 同步检查，并确认 `JosephLE910 + Codex` 提交身份。生产 CSV/XLSX 保持远端原值；其余构建、测试、LFS、差异审计照常。该豁免不适用于新失败或范围变化。
 - 发布候选 `publish/plan158-ui` 在同一物理工程使用与 `6f9a73cf` 完全相同的 tree 形成正式提交 `8e4fd3df`；原 `plan/158-boss-clock-health-arc` / `6f9a73cf` 保留作为本地恢复点，没有改写原分支。获锁前只读 merge-tree 已确认冲突仅为 manifest 与 7 个 DLL，必须在最新组合源码上完整重建；UI 文档可合并，远端商店/PlayerHud 资产与本地三份作者蓝图不同路径、均须原样保留。尚未提前合入 main 或开始最终构建。
 - 本地提交轮次（2026-08-31）：用户确认需收录最新蓝图微调。本次只形成 Plan158 本地 WIP 检查点，不推远端、不合并 main、不关闭 Plan。最新 `origin/main=8cde5261` 仅在上一轮审计后新增商店/玩家 HUD 蓝图发布及匹配预构建；规则、三选一与 Boss 源码/资产未变。物理耦合为精选预构建，逻辑相邻但不改本任务的可选数量契约，正式集成留待获得发布授权与锁后处理。三选一可选数量读取 RunSubsystem 本次免费/付费卡包额度，不按角色名硬编码；双选标题与确认数量测试通过。
@@ -156,7 +168,7 @@
 ### 剩余风险
 
 - 三选一最新本地证据：`Saved/plan158-choice-authoring-build.log` 构建成功，预构建 7 模块 / BuildId `55116800` / 源码指纹 `59d43ba74ca7`；`Saved/plan158-choice-final-tests-engine.log` 三项聚焦自动化全部 Success（作者表现、正式资产、原生/商店抽卡流程）。旧测试的固定 `RootPanel` 父级断言改为保留实际作者父级/槽位，实测为 `ConfirmButton / ButtonSlot_0`。两份 WBP 前后哈希一致，本轮不写资产；完整证据见 `docs/tasks/trait-choice-authored-presentation.md`。workflow、格式、diff、LFS/prebuilt 通过；完整静态仍仅失败于已知表格漂移，未发布实现。
-- 用户已反馈血条调好；当前待验收项为同一工程三选一的最新作者文案/几何修复。聚焦自动化不等同人工 PIE 视觉验收。
+- 用户已完成血条和三选一/Entry 微调并要求提交发布；按本次人类确认完成验收。聚焦自动化不等同 AI 手工 PIE 视觉验收。
 - 项目完整静态校验仍有当前基线已有的 `cards.csv` / `card_effects.csv` 与 XLSX 漂移，按本轮准确授权记录为未通过；不得作为已通过证据或默默覆盖数据。实现 main 发布时如基线/风险改变须重新按门禁确认。
 - 引擎启动还报告已有 `M_ArenaBackground` 缺纹理警告；本轮未触碰该独立资产。
 
@@ -167,7 +179,7 @@
 ### 架构文档审阅结果
 
 - `shared/CODEBASE_MAP/ARCHITECTURE.md`：已审阅、无需修改。GameMode → HUD 的只读生命投影不变，无模块拓扑/依赖/存档变化。
-- `shared/CODEBASE_MAP/README.md`：已审阅、无需修改。新表现控件仍归 `MOD-ReEcho` / `AREA-UI`，不新增模块或路由。
+- `shared/CODEBASE_MAP/README.md`：已按用户发布时追加要求，补齐现有 UI 文档入口的 `MOD-ReEchoUI` 文档标识登记；非 Runtime Module，不改变全局拓扑或生产依赖。
 - `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已补充弧形控件、材质、设计期预览和聚焦渲染测试落点。
 - `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已将正式 Boss 横条描述更新为下半钟环，保留原权威数据来源/普通关约束。
 - `Design/UI/ReEcho_UI修改指导.md`：已更新 Boss 绑定入口；新增 `Design/UI/ReEcho_Boss弧形血条调整指南.md`，覆盖参数、几何、层级、运行时与初次迁移脚本边界。

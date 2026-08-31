@@ -27,10 +27,10 @@
 
 | 文档入口 | 当前状态 | 设计与代码文档 | 一句话职责 |
 |---|---|---|---|
-| UI | 文档型逻辑入口；非 Runtime Module | [`modules/MOD-ReEchoUI.md`](modules/MOD-ReEchoUI.md) | 路由到现有 UI Framework、Widget/WBP 分工和 UI 架构设计规范；当前实现仍属于 `MOD-ReEcho` |
+| `MOD-ReEchoUI`（UI） | 文档型逻辑入口；非 Runtime Module | [`modules/MOD-ReEchoUI.md`](modules/MOD-ReEchoUI.md) | 路由到现有 UI Framework、Widget/WBP 分工和 UI 架构设计规范；当前实现仍属于 `MOD-ReEcho` |
 | VFX | 文档型逻辑入口；非 Runtime Module | [`modules/MOD-ReEchoVFX.md`](modules/MOD-ReEchoVFX.md) | 集中战斗语义到 Niagara/纹理资产的只读适配、生命周期和精确导入规则；当前实现仍属于 `MOD-ReEcho` |
 
-文档型入口用于聚合成熟领域的阅读路线，不注册新的稳定架构标识，也不改变 `ReEcho.uproject`、Build 依赖或全局 Runtime Module 拓扑；不得将其表述为已经拆分的代码模块。
+文档型入口用于聚合成熟领域的阅读路线；上表可登记被模块文档引用的文档检索标识，但不注册新的 Runtime Module，也不改变 `ReEcho.uproject`、Build 依赖或全局 Runtime Module 拓扑；不得将其表述为已经拆分的代码模块。
 
 ## 模块与内部领域索引
 

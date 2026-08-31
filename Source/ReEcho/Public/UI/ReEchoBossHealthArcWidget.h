@@ -79,11 +79,7 @@ public:
 	void SetHealthRatio(float InRatio);
 
 	UFUNCTION(BlueprintPure, Category = "Boss Health Arc")
-
-	float GetHealthRatio() const
-	{
-		return HealthRatio;
-	}
+	float GetHealthRatio() const;
 
 	virtual void SynchronizeProperties() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;

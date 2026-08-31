@@ -27,6 +27,11 @@ void UReEchoBossHealthArcWidget::SetHealthRatio(const float InRatio)
 	UpdateMaterial();
 }
 
+float UReEchoBossHealthArcWidget::GetHealthRatio() const
+{
+	return HealthRatio;
+}
+
 void UReEchoBossHealthArcWidget::UpdateMaterial()
 {
 	if (MaterialSource != ArcMaterial || (!DynamicMaterial && ArcMaterial))
