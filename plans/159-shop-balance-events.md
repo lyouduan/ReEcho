@@ -5,11 +5,11 @@
 - Planner / Executor：JosephLE910 + Codex，同一 AI 规划、实现和自审。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Review`。
+- 任务状态：`Closed`（本地集成与技术/人工验收完成；本次远端发布结果以 Git 引用核验）。
 - 人工验收：`Passed`（2026-08-31 用户确认“当前表现是对的，应该按当前表现来算。然后合并远端主分支”；不代表 AI 完成 PIE 主观验收）。
 - 规划基线：`ac4bbb3e`（origin/main）；实现可组合本对话上一轮的本地提交 `8b36a501`（刷新文字作者化）。该组合不随本次 Plan-only 发布进入远端。
 - 本地实现方式：独立 `ReEcho-plan159-shop-balance-events` / `fix/shop-balance-events`。
-- 依赖 / 阻塞：既有 `Card.EasterShardThreshold` 静态校验白名单失败；用户于 2026-08-31 明确允许仅本次 Plan 文档发布跳过这一项既有失败。实现构建、专项测试和后续实现发布不继承豁免。
+- 依赖 / 阻塞：既有 `Card.EasterShardThreshold` 静态清单漏项；先前 Plan-only 豁免未复用，用户在本轮风险说明后另行明确确认先发布实现、再处理该项，准确候选与范围见“本次实现发布的具名静态例外”。其余发布门禁均已执行。
 - Writes：本 Plan；`Source/ReEcho/{Public,Private}/Run/ReEchoRunSubsystem.*`；`Source/ReEcho/{Public,Private}/ReEchoGameMode.*`；`Source/ReEcho/{Public,Private}/UI/ReEchoInventoryShopWidget.*`；`Source/ReEcho/Private/Tests/` 内本功能聚焦测试；`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`；必要时同步 `shared/CODEBASE_MAP/ARCHITECTURE.md`；源码匹配的精选 Win64 Editor 预构建包。
 - Stable Reads：Run 的卡牌、商店和存档契约；`ReEchoShopCatalog.h`；Cards 纯逻辑与生产 XLSX/CSV；现有商店/选卡 WBP；`ReEchoUIFlowCoordinatorSubsystem.*`；现有购买、债务和选卡测试。
 - 影响模式：`SharedContract`（同 Runtime Module 中 Run 到 UI 的只读通知契约）。
@@ -35,13 +35,13 @@
 
 ## 锁定验收
 
-- [ ] 购买武器/符文、购买卡包、卡槽刷新、主商店刷新、正常/GM授卡的碎片变化、结算收益与债务、重开/读档初值均有正确通知或初始化。
-- [ ] 每笔发生余额变化的完整事务最多一次最终通知；无变化与原子失败不广播；组合状态一致。
-- [ ] 买卡包→刷新卡牌→返回商店，现金、债务、显示余额和购买可用性同步。
-- [ ] GM改余额、债务变化不重置第二页、不改变商品身份与刷新序列、不关闭已打开子层。
-- [ ] 关闭商店不再接收回调，重新打开只有一个订阅并读取最新余额。
-- [ ] 保留 WBP 作者文字样式和既有按钮悬停交互；清理旧余额写入路径。
-- [ ] 格式、构建、聚焦测试、LFS与 diff 检查有真实证据；既有失败如实记录，不放宽验证。
+- [x] 购买武器/符文、购买卡包、卡槽刷新、主商店刷新、正常/GM授卡的碎片变化、结算收益与债务、重开/读档初值均有正确通知或初始化。
+- [x] 每笔发生余额变化的完整事务最多一次最终通知；无变化与原子失败不广播；组合状态一致。
+- [x] 买卡包→刷新卡牌→返回商店，现金、债务、显示余额和购买可用性同步。
+- [x] GM改余额、债务变化不重置第二页、不改变商品身份与刷新序列、不关闭已打开子层。
+- [x] 关闭商店不再接收回调，重新打开只有一个订阅并读取最新余额。
+- [x] 保留 WBP 作者文字样式和既有按钮悬停交互；清理旧余额写入路径。
+- [x] 格式、构建、聚焦测试、LFS与 diff 检查有真实证据；静态失败按具名人工例外记录，不伪报通过。
 
 ## Step 0 门禁
 
@@ -110,7 +110,16 @@
 - 其他门禁全部保留：准确租约 main 发布锁、获锁后 merge 最新 main、Development FullRebuild、匹配精选二进制、45项专项测试、diff/LFS检查和发布后的远端提交核验。若出现其他错误或实质性远端变动，重新审计，不扩大此例外。
 - 合入远端后再处理登记清单；本次先发候选不夹带校验器修补，顺序遵从用户要求。
 
-### 架构文档审阅结果（延续）
+### 发布集成与最终技术证据（2026-08-31）
+
+- 抢锁正式候选 `e3e63cbc65b4700213ee7e4b9f47c699890ae2cd`；准确空租约创建远端 `main-publish-lock` 后核验持有，再 fetch 并 merge `origin/main@a7eb82a5`，集成提交 `88439a4072c006c3545a60d9d13cbff2043a9e28`。无冲突，仅传入 Plan160 文档。
+- 在该准确源码/内容组合执行 `Build-Editor.cmd -Configuration Development -FullRebuild`：96/96 actions，退出0；Development Win64、UE5.8 Build ID `55116800`、7模块精选包全部更新；`prebuilt_editor.py check` 通过，源码指纹 `8ebca95f113e3d8fb3c8bf3683f634f5f0e44bf975b59bdab856863bb1606afc`。
+- 构建后再次执行同一45项 Shop/UI/Trait/Save过滤器，45/45通过，测试退出0。证据 `Saved/Plan159/publish-full-build.log`、`publish-tests.log`、`publish-test-console.log`。
+- `validate_project.py` 再次仅报告具名 `Card.EasterShardThreshold` 清单漏项，按本轮确认暂缓，不称通过；LFS还原、fsck与diff检查通过。生产表/其他任务 WBP 未改；上一轮作者化刷新 WBP 与实现一起进入本次发布候选。
+- 本地集成与验收已闭环；最后证据/精选包提交后，严格按普通 push 更新锁分支、再检查 main 祖先与准确锁值、普通 push main、核验并释放准确锁。远端发布成功后再进行已合并工作分支清理。
+- 删除工作树前，保留本轮日志到 Git common directory 的 `reecho-evidence/plan159-20260831-88439a40/`；历史开发失败、干净基线和本次通过证据分别保留，不以新日志覆盖旧结论。
+
+### 架构文档审阅结果（最终）
 
 - `modules/MOD-ReEcho.md`：已更新 AREA-Run 最终余额通知、覆盖/排除边界与 AREA-UI 消费契约。
 - `modules/MOD-ReEchoUI.md`：已更新初始化/生命周期绑定、局部刷新、样式保护、GM旧路径清理与专项测试入口。

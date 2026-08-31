@@ -2,7 +2,7 @@
 
 - 基线：`fad6d0813fdd84d05cad0bba06769bf2af5b10b5`。
 - 工作区：`ReEcho-shop-refresh-authored-text`；分支：`fix/shop-refresh-authored-text`。
-- 类型：单按钮表现绑定的小型修复；不发布远端，不迁移数据表。
+- 类型：单按钮表现绑定的小型修复；初始为本地实现，现按用户后续授权与 Plan159 一起集成发布；不迁移数据表。
 - 目标：`WBP_ReEchoInventoryShopScreen` 内直接预览并编辑刷新文本的位置、字体、字号、颜色、对齐与换行；运行时只投影刷新次数/费用等文字内容、按钮可用状态和既有点击事件。
 - 影响：`MOD-ReEcho` / `AREA-UI`，控件表现由 WBP 持有；Run 的刷新状态、扣费和随机数逻辑、公共数据契约均不变。
 - Writes：`ReEchoInventoryShopWidget.h/.cpp`、刷新文本聚焦测试、目标 WBP、窄范围作者化脚本、匹配的精选预构建包、本记录、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`、相关 UI 使用说明。
@@ -10,7 +10,7 @@
 - 实现原则：优先复用完整作者化内容，禁止 legacy fallback 的 `SetContent` 覆盖；无 WBP 时保留最低可用兜底。蓝图只迁移目标按钮内部，其他几何/样式保持原样。
 - 验证：构建、目标蓝图编译/保存、作者值及任意微调值在构造/刷新/重建后保持、免费/付费/无限/禁用状态、原生 fallback、`git diff --check`、LFS/预构建检查。
 - 已知基线问题：项目校验中 `Card.EasterShardThreshold` 白名单缺失；XLSX 与 `cards.csv` / `card_effects.csv` 有差异。上轮一次性发布豁免不复用于本任务；不为此修改表或放宽校验。
-- 状态：本地实现完成；人工视觉验收待用户测试，未推送远端。
+- 状态：用户已确认当前表现正确；随 Plan159 完成本地集成与最终发布构建，远端结果以对应候选引用核验。
 
 ## 实现与证据
 
@@ -24,7 +24,13 @@
 - `python -m py_compile scripts/ue/author_shop_refresh_text.py`、LFS checkout/fsck、预构建指纹检查、`git diff --check` 均通过。
 - 全局 `validate_project.py` 仍因基线行为白名单失败；`sync_xlsx_to_csv.py --check` 仍报告同两份 CSV 漂移。这两项未通过，也没有为本任务重新豁免。未改动任何 CSV/XLSX 或上轮发布的 About/TraitCardChoice 蓝图。
 
-## 文档审阅
+## Plan159 联合发布验证（2026-08-31）
+
+- 本任务提交 `8b36a501` 已包含于 Plan159 集成提交 `88439a40`。本轮没有再次重排/迁移 WBP；`AuthoredRefreshText` 在45项最终聚焦回归中通过。
+- 联合候选已执行 Development FullRebuild 并更新全部精选包，Build ID `55116800`；完整证据和当前具名静态校验例外见 `plans/159-shop-balance-events.md`。
+- 用户确认当前表现，授权推送 main 并清理已合并工作分支；旧本地证据保留为历史记录，发布后的测试入口为主线工程。
+
+## 文档审阅（延续）
 
 - `MOD-ReEcho.md`、`MOD-ReEchoUI.md`：已更新，记录刷新文本表现权威与兼容边界。
 - `Design/UI/ReEcho_UI修改指导.md`：已更新，提供文字与可拖动外框的准确层级。
