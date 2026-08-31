@@ -1114,8 +1114,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterDamageCardRewardTest,
 bool FReEchoEasterDamageCardRewardTest::RunTest(const FString&)
 {
 	FReEchoCardDefinition Easter =
-	    MakeCard(TEXT("G_4_6"), 0, TEXT("Card.EasterDamageCards"), TEXT("OnDamageResolved"), TEXT("Damage"), 55.0f,
-	             TEXT("GrantCount"), 5.0f, true);
+	    MakeCard(TEXT("G_4_6"), 0, TEXT("Card.EasterDamageCards"), TEXT("OnEncounterEnd"), TEXT("MinimumGuaranteedTier"),
+	             1.0f, TEXT("GrantTier"), 1.0f, true);
 	Easter.OfferGroup = TEXT("EasterEgg");
 	TArray<FReEchoCardDefinition> Cards = {Easter};
 	for (int32 Index = 1; Index <= 6; ++Index)
@@ -1134,18 +1134,31 @@ bool FReEchoEasterDamageCardRewardTest::RunTest(const FString&)
 	FReEchoCardBuildState State;
 	State.DomainRevision = Catalog.GetDomainRevision();
 	State.OwnedCardIds = {Easter.Id, Cards[1].Id};
-	const FReEchoCardGrantResult Before =
-	    ReEchoCardRuntime::OnPlayerDamageReceived(Catalog, State, FReEchoStatBlock{}, 0, 54.0f, 1, 99);
-	TestEqual(TEXT("Damage below fifty-five grants no card"), Before.GrantedCardIds.Num(), 0);
-	const FReEchoCardGrantResult Triggered =
-	    ReEchoCardRuntime::OnPlayerDamageReceived(Catalog, Before.CardState, Before.Stats, 0, 1.0f, 1, 99);
-	TestEqual(TEXT("The threshold grants five cards when five unowned normal cards remain"),
-	          Triggered.GrantedCardIds.Num(),
-	          5);
-	TestFalse(TEXT("The Easter card never grants itself"), Triggered.GrantedCardIds.Contains(Easter.Id));
-	const FReEchoCardGrantResult Again = ReEchoCardRuntime::OnPlayerDamageReceived(
-	    Catalog, Triggered.CardState, Triggered.Stats, 0, 100.0f, 1, 100);
-	TestEqual(TEXT("The threshold card triggers only once per run"), Again.GrantedCardIds.Num(), 0);
+
+	// Damage taken is only recorded while the encounter runs; nothing is granted the moment it lands.
+	const FReEchoCardGrantResult Recorded =
+	    ReEchoCardRuntime::OnPlayerDamageReceived(Catalog, State, FReEchoStatBlock{}, 0, 55.0f, 1, 99);
+	TestEqual(TEXT("Damage taken grants nothing until the encounter ends"), Recorded.GrantedCardIds.Num(), 0);
+	TestEqual(TEXT("The encounter records the damage taken"), Recorded.CardState.Runtime.EasterDamageTaken, 55.0f);
+
+	// Ending the encounter converts the recorded damage into tier-1 cards.
+	const FReEchoCardEventResult Settled =
+	    ReEchoCardRuntime::EndEncounter(Catalog, Recorded.CardState, FReEchoStatBlock{}, 1, 0, 0, 99);
+	const FReEchoCardOutcomeState* Reward = Settled.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	    [](const FReEchoCardOutcomeState& Outcome)
+	    {
+		    return Outcome.CardId == TEXT("G_4_6") && Outcome.Kind == EReEchoCardOutcomeKind::GrantedCards;
+	    });
+	TestTrue(TEXT("Ending the encounter records a card reward"), Reward != nullptr);
+	TestTrue(TEXT("The reward grants at least one card"), Reward && Reward->RelatedCardIds.Num() >= 1);
+	TestFalse(TEXT("The Easter card never grants itself"), Reward && Reward->RelatedCardIds.Contains(Easter.Id));
+	// Tier-2 normals are never eligible and the already-owned tier-1 card is skipped.
+	TestFalse(TEXT("Only unowned tier-1 cards are granted"),
+	          Reward && (Reward->RelatedCardIds.Contains(Cards[3].Id) ||
+	                     Reward->RelatedCardIds.Contains(Cards[1].Id)));
+	TestEqual(TEXT("The recorded damage is cleared after settling"),
+	          Settled.CardState.Runtime.EasterDamageTaken,
+	          0.0f);
 	return true;
 }
 

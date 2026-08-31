@@ -594,7 +594,8 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
                                           const int32 FreeRefreshes,
                                           const bool bRefreshAllowed,
                                           const bool bExtraCardPurchaseAllowed,
-                                          const int32 RefreshSequence)
+                                          const int32 RefreshSequence,
+                                          const bool bUnlimitedFreeRefresh)
 {
 	Mode = EReEchoInventoryShopMode::ManualShop;
 	bShowingShop = true;
@@ -604,6 +605,7 @@ void UReEchoInventoryShopWidget::ShowShop(const int32 TimeShards,
 	CurrentTimeShards = TimeShards;
 	CurrentShopDiscount = FMath::Clamp(ShopDiscount, 0.0f, 1.0f);
 	CurrentFreeShopRefreshes = FMath::Max(0, FreeRefreshes);
+	bCurrentUnlimitedFreeRefresh = bUnlimitedFreeRefresh;
 	bCurrentShopRefreshAllowed = bRefreshAllowed;
 	bCurrentExtraCardPurchaseAllowed = bExtraCardPurchaseAllowed;
 	CurrentShopRefreshSequence = FMath::Max(0, RefreshSequence);
@@ -3325,14 +3327,18 @@ void UReEchoInventoryShopWidget::Refresh()
 		                                ? NSLOCTEXT("ReEcho", "ShopRefreshUnlimited", "∞")
 		                                : FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshesRemaining);
 		const FText RefreshLabel =
-		    CurrentFreeShopRefreshes > 0
-		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonWithFree", "刷新|{0}次免费|{1}次·{2}碎片"),
-		                        FText::AsNumber(CurrentFreeShopRefreshes),
+		    bCurrentUnlimitedFreeRefresh
+		        ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonUnlimitedFree", "刷新|∞次免费|{0}次·{1}碎片"),
 		                        PaidRemaining,
 		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
-		        : FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonCounted", "刷新|{0}次·{1}碎片"),
-		                        PaidRemaining,
-		                        FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost));
+		        : (CurrentFreeShopRefreshes > 0
+		               ? FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonWithFree", "刷新|{0}次免费|{1}次·{2}碎片"),
+		                               FText::AsNumber(CurrentFreeShopRefreshes),
+		                               PaidRemaining,
+		                               FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost))
+		               : FText::Format(NSLOCTEXT("ReEcho", "ShopRefreshButtonCounted", "刷新|{0}次·{1}碎片"),
+		                               PaidRemaining,
+		                               FText::AsNumber(CurrentPartShopView.WeaponRuneRefreshCost)));
 		if (ShopRefreshText)
 		{
 			ShopRefreshText->SetText(RefreshLabel);

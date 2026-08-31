@@ -3708,10 +3708,16 @@ bool UReEchoRunSubsystem::TryRefreshWeaponRuneShop(FString& OutError)
 		OutError = TEXT("The current card rules disable shop refreshes");
 		return false;
 	}
-	const bool bUsesFreeRefresh = CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0;
+	// G_4_1 grants free refreshes permanently once the shard balance has reached its threshold, so it takes
+	// the free branch as well but never spends the finite free-refresh budget granted by other cards.
+	const bool bEasterFreeRefresh = CurrentBuild.CardState.Runtime.bEasterUnlimitedRefreshUnlocked;
+	const bool bUsesFreeRefresh = bEasterFreeRefresh || CurrentBuild.CardState.Runtime.FreeShopRefreshes > 0;
 	if (bUsesFreeRefresh)
 	{
-		--CurrentBuild.CardState.Runtime.FreeShopRefreshes;
+		if (!bEasterFreeRefresh)
+		{
+			--CurrentBuild.CardState.Runtime.FreeShopRefreshes;
+		}
 	}
 	else
 	{

@@ -69,6 +69,7 @@ bool IsAllowedCardEffectTarget(const FName Target)
 	    TEXT("ElementCanCrit"),
 	    TEXT("CriticalRollCount"),
 	    TEXT("MinimumGuaranteedTier"),
+	    TEXT("CritNegateAmplification"),
 	    TEXT("FreeShopRefresh"),
 	    TEXT("NonCoreSlotCapacity"),
 	    TEXT("ShopPrice"),

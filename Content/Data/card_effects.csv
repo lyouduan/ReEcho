@@ -79,6 +79,7 @@ G_4_1_REFRESH,G_4_1,3,OnEncounterEnd,CardBehavior,FreeShopRefresh,Override,2000,
 G_4_2_CRIT,G_4_2,1,OnGrant,CardBehavior,CriticalRate,Add,1,Card.EasterIndependentGrant,Chance,0.5
 G_4_2_CRIT_EFFECT,G_4_2,2,OnGrant,CardBehavior,CriticalEffect,Add,3,Card.EasterIndependentGrant,Chance,0.5
 G_4_2_HP,G_4_2,3,OnGrant,CardBehavior,HpPoint,Override,5,Card.EasterIndependentGrant,Chance,0.5
+G_4_2_CRIT_PENALTY,G_4_2,4,OnGrant,CardBehavior,CritNegateAmplification,Override,1,Card.EasterIndependentGrant,Chance,0.5
 G_4_3_CONTACT_DAMAGE,G_4_3,1,OnCompileRules,CardBehavior,Damage,Add,20,Card.EasterEchoContact,PlayerHealing,10
 G_4_4_HP,G_4_4,1,OnGrant,CardBehavior,HpMaxAndPoint,Add,1,Card.EasterShardSacrifice,ShardUnit,15
 G_4_4_PHYSICAL,G_4_4,2,OnGrant,CardBehavior,PhysicalAttack,Add,1,Card.EasterShardSacrifice,ShardUnit,15
@@ -90,7 +91,7 @@ G_4_4_REACTION,G_4_4,7,OnGrant,CardBehavior,ReactionEfficiency,Add,0.05,Card.Eas
 G_4_5_STUN,G_4_5,1,OnEncounterTick,CardBehavior,Stun,Override,1,Card.EasterRandomStun,PulseInterval,0.5
 G_4_5_RADIUS,G_4_5,2,OnEncounterTick,CardBehavior,Damage,Override,500,Card.EasterRandomStun,RadiusCm,500
 G_4_5_COUNT,G_4_5,3,OnEncounterTick,CardBehavior,Stun,Override,5,Card.EasterRandomStun,TargetCount,5
-G_4_6_THRESHOLD,G_4_6,1,OnDamageResolved,CardBehavior,Damage,Add,55,Card.EasterDamageCards,GrantCount,5
+G_4_6_REWARD,G_4_6,1,OnEncounterEnd,CardBehavior,MinimumGuaranteedTier,Override,1,Card.EasterDamageCards,GrantTier,1
 G_4_7_ZERO,G_4_7,1,BeforeOutgoingHit,CardBehavior,Damage,Override,0,Card.EasterPhysicalLottery,Probability,0.15
 G_4_7_TEN,G_4_7,2,BeforeOutgoingHit,CardBehavior,Damage,Override,10,Card.EasterPhysicalLottery,Probability,0.35
 G_4_7_HUNDRED,G_4_7,3,BeforeOutgoingHit,CardBehavior,Damage,Override,100,Card.EasterPhysicalLottery,Probability,0.4

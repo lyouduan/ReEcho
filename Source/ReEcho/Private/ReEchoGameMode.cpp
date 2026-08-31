@@ -4882,7 +4882,8 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 		                              Runtime.FreeShopRefreshes,
 		                              !Rules.bDisableShopRefresh,
 		                              !Rules.bDisableExtraCardPurchase,
-		                              Runtime.ShopRefreshSequence);
+		                              Runtime.ShopRefreshSequence,
+		                              Runtime.bEasterUnlimitedRefreshUnlocked);
 	}
 	// #8-A: 商店每次刷新(打开/购买/刷新)都重设主角属性面板，并读取 CurrentBuild.Stats
 	// 以反映已购属性卡，而非上一场的 Combatant->Stats。

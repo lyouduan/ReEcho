@@ -78,7 +78,8 @@ public:
 	              int32 FreeRefreshes = 0,
 	              bool bRefreshAllowed = true,
 	              bool bExtraCardPurchaseAllowed = true,
-	              int32 RefreshSequence = 0);
+	              int32 RefreshSequence = 0,
+	              bool bUnlimitedFreeRefresh = false);
 
 	/** Opens the same shop presentation with intermission-only echo management enabled. */
 	void ShowPostTraitIntermission(int32 TimeShards,
@@ -464,6 +465,7 @@ private:
 	int32 CurrentTimeShards = 0;
 	float CurrentShopDiscount = 0.0f;
 	int32 CurrentFreeShopRefreshes = 0;
+	bool bCurrentUnlimitedFreeRefresh = false;
 	bool bCurrentShopRefreshAllowed = true;
 	bool bCurrentExtraCardPurchaseAllowed = true;
 	int32 CurrentShopRefreshSequence = 0;

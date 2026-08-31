@@ -204,6 +204,8 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterUnlimitedRefreshUnlocked = false;
 	/** G_4_3: Echo contact damage/healing doubling, applied once per completed encounter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EasterEchoContactScale = 1.0f;
+	/** G_4_2: rolled downside - every critical hit loses all damage amplification. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterCritNegatesAmplification = false;
 	/** SaveVersion <= 16 compatibility only. Weapon/rune and card refreshes no longer share this sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
 	/** Stable build-card pack page for the current encounter. */

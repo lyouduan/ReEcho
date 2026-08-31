@@ -536,16 +536,27 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				}
 				if (GetEasterGrantRandom().FRand() < FMath::Clamp(Effect.ParamValue, 0.0f, 1.0f))
 				{
-					if (!ApplyStatEffect(Result.Stats, Effect))
+					if (Effect.Target == TEXT("CritNegateAmplification"))
+					{
+						// Not a stat: G_4_2's downside lives in persistent run state, so it must not be routed
+						// through ApplyStatEffect, which would reject the target and fail the whole grant.
+						Result.CardState.Runtime.bEasterCritNegatesAmplification = true;
+						Outcome.DetailTargets.Add(Effect.Target);
+						Outcome.DetailValues.Add(Effect.Value);
+					}
+					else if (!ApplyStatEffect(Result.Stats, Effect))
 					{
 						Result.Error = FString::Printf(TEXT("Unsupported Easter stat target: %s"), *Effect.Target.ToString());
 						return false;
 					}
-					Outcome.DetailTargets.Add(Effect.Target);
-					Outcome.DetailValues.Add(Effect.Value);
-					if (Effect.Target == TEXT("HpPoint"))
+					else
 					{
-						Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+						Outcome.DetailTargets.Add(Effect.Target);
+						Outcome.DetailValues.Add(Effect.Value);
+						if (Effect.Target == TEXT("HpPoint"))
+						{
+							Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+						}
 					}
 				}
 			}
@@ -969,6 +980,15 @@ FReEchoCardOutgoingHitResult ReEchoCardRuntime::ModifyOutgoingHit(const FReEchoC
 		    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
 		Result.Element = static_cast<EReEchoElement>(
 		    Random.RandRange(static_cast<int32>(EReEchoElement::Flame), static_cast<int32>(EReEchoElement::Water)));
+	}
+
+	// G_4_2 downside: a critical hit loses every damage amplification - crit multiplier, distance,
+	// proximity and alternating-source bonuses - collapsing back to the un-amplified damage. Placed
+	// after the amplification chain but before BeforeOutgoingHit, so effects that overwrite damage
+	// outright (such as the G_4_7 lottery) are still honoured.
+	if (Result.bCritical && Result.CardState.Runtime.bEasterCritNegatesAmplification)
+	{
+		Result.RawDamage = PreCriticalDamage;
 	}
 
 	ForEachOwnedEffect(
@@ -1507,63 +1527,15 @@ FReEchoCardGrantResult ReEchoCardRuntime::OnPlayerDamageReceived(const FReEchoCa
 	Result.CardState = State;
 	Result.Stats = Stats;
 	Result.TimeShards = TimeShards;
-	if (AppliedDamage <= 0.0f || Result.CardState.Runtime.bEasterDamageCardsGranted ||
-	    !HasCard(Result.CardState, TEXT("G_4_6")))
+	if (AppliedDamage <= 0.0f || !HasCard(Result.CardState, TEXT("G_4_6")))
 	{
 		return Result;
 	}
+	// G_4_6 only records the damage taken during this encounter. EndEncounter converts the running total
+	// into one tier-1 card per point of damage, so nothing is granted at the moment damage lands.
 	Result.CardState.Runtime.EasterDamageTaken += AppliedDamage;
-	const FReEchoCardDefinition* Card = Catalog.Find(TEXT("G_4_6"));
-	if (!Card || Card->Effects.IsEmpty() || Result.CardState.Runtime.EasterDamageTaken < Card->Effects[0].Value)
-	{
-		return Result;
-	}
-	Result.CardState.Runtime.bEasterDamageCardsGranted = true;
-	TArray<FReEchoCardDefinition> Pool = BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), INDEX_NONE, EncounterIndex);
-	Pool.RemoveAll(
-	    [&](const FReEchoCardDefinition& Candidate)
-	    {
-		    return HasCard(Result.CardState, Candidate.Id);
-	    });
-	FRandomStream Random(
-	    HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
-	for (int32 Index = Pool.Num() - 1; Index > 0; --Index)
-	{
-		Pool.Swap(Index, Random.RandRange(0, Index));
-	}
-	const int32 GrantCount = FMath::Min(FMath::Max(0, FMath::RoundToInt(Card->Effects[0].ParamValue)), Pool.Num());
-	for (int32 Index = 0; Index < GrantCount; ++Index)
-	{
-		FReEchoCardGrantInput Input;
-		Input.Stats = Result.Stats;
-		Input.CardState = Result.CardState;
-		Input.TimeShards = Result.TimeShards;
-		Input.EncounterIndex = EncounterIndex;
-		Input.RandomSeed = HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Index));
-		const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, Pool[Index].Id, Input);
-		if (!Grant.bSucceeded)
-		{
-			Result.bSucceeded = false;
-			Result.Error = Grant.Error;
-			return Result;
-		}
-		Result.Stats = Grant.Stats;
-		Result.CardState = Grant.CardState;
-		Result.TimeShards = Grant.TimeShards;
-		Result.GrantedCardIds.Append(Grant.GrantedCardIds);
-		Result.bClearWeaponRunes |= Grant.bClearWeaponRunes;
-		if (Grant.HealthAdjustment != EReEchoHealthAdjustment::None)
-		{
-			Result.HealthAdjustment = Grant.HealthAdjustment;
-		}
-	}
-	FReEchoCardOutcomeState& Outcome =
-	    FindOrAddOutcome(Result.CardState.Runtime, TEXT("G_4_6"), EReEchoCardOutcomeKind::GrantedCards);
-	Outcome.RelatedCardIds = Result.GrantedCardIds;
-	Outcome.ResolutionCount = Result.GrantedCardIds.Num();
 	return Result;
 }
-
 FReEchoCardEventResult ReEchoCardRuntime::OnNegativeStatusApplied(const FReEchoCardCatalog& Catalog,
                                                                   const FReEchoCardBuildState& State,
                                                                   const FReEchoStatBlock& Stats,
@@ -1606,6 +1578,48 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 	if (HasCard(Result.CardState, TEXT("G_4_3")))
 	{
 		Result.CardState.Runtime.EasterEchoContactScale *= 2.0f;
+	}
+	// G_4_6 converts the damage taken during this encounter into one tier-1 card per point of damage.
+	// The damage was recorded throughout the encounter; settling here makes it a per-encounter payout.
+	if (HasCard(Result.CardState, TEXT("G_4_6")) && Result.CardState.Runtime.EasterDamageTaken > 0.0f)
+	{
+		const int32 Requested = FMath::RoundToInt(Result.CardState.Runtime.EasterDamageTaken);
+		Result.CardState.Runtime.EasterDamageTaken = 0.0f;
+		TArray<FReEchoCardDefinition> Pool =
+		    BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), INDEX_NONE, EncounterIndex);
+		Pool.RemoveAll(
+		    [&](const FReEchoCardDefinition& Candidate)
+		    {
+			    return Candidate.Tier != 1 || HasCard(Result.CardState, Candidate.Id);
+		    });
+		FRandomStream Random(
+		    HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+		FReEchoCardOutcomeState& Outcome =
+		    FindOrAddOutcome(Result.CardState.Runtime, TEXT("G_4_6"), EReEchoCardOutcomeKind::GrantedCards);
+		for (int32 Index = 0; Index < Requested && !Pool.IsEmpty(); ++Index)
+		{
+			const int32 Pick = Random.RandRange(0, Pool.Num() - 1);
+			FReEchoCardGrantInput Input;
+			Input.Stats = Result.Stats;
+			Input.CardState = Result.CardState;
+			Input.TimeShards = TimeShards;
+			Input.EncounterIndex = EncounterIndex;
+			Input.RandomSeed = HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Index));
+			const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, Pool[Pick].Id, Input);
+			if (!Grant.bSucceeded)
+			{
+				break;
+			}
+			Result.Stats = Grant.Stats;
+			Result.CardState = Grant.CardState;
+			Outcome.RelatedCardIds.Append(Grant.GrantedCardIds);
+			// Unique tier-1 cards are exhausted once owned; stackable ones stay available for re-rolls.
+			if (Pool[Pick].StackPolicy == TEXT("Unique"))
+			{
+				Pool.RemoveAtSwap(Pick);
+			}
+		}
+		Outcome.ResolutionCount = Outcome.RelatedCardIds.Num();
 	}
 	ForEachOwnedEffect(
 	    Catalog,
