@@ -1,5 +1,6 @@
 {
   "binaries": {
+<<<<<<< HEAD
     "ReEchoEditor.target": "41dbe66d9c5da88f98e7cd92701a860bf82d9043a2759bcce47e4e8b2350ba34",
     "UnrealEditor-ReEcho.dll": "7173a834c8453c40429e24bafc0f26d474b9ccfa9fd128dccd2867c9c772fa54",
     "UnrealEditor-ReEchoAudio.dll": "33f01c434a158341000c90b8bbf9cb26b6004e40067338f1fe2a67c64af7c88a",
@@ -8,6 +9,16 @@
     "UnrealEditor-ReEchoEnemies.dll": "da97ac090ffacb9f1f6603f6ff8eebc8c7cce6c4a03edaefec7ab85ed10312eb",
     "UnrealEditor-ReEchoPresentation.dll": "4bdc3551b45212182f0baf58e3b5cdd45beb931150e807f2be5b73fe9499f263",
     "UnrealEditor-ReEchoWeapons.dll": "484d5f2ddab98f59c6fd4b7f504bf596903745b3fc476efdb4a420b661c383f6",
+=======
+    "ReEchoEditor.target": "14f9ceda70c4a706b29338c9fbf4108afc03c0b4cf77a909659801987de468d3",
+    "UnrealEditor-ReEcho.dll": "dd52f250b74f6a0a51049df0c4da7d1d811931717353ae187c66877f33a6bad0",
+    "UnrealEditor-ReEchoAudio.dll": "6e1b3373a6a490d7ee2edb8afca5bb5e8326f25f9237a89eadbd4f8c2af041e0",
+    "UnrealEditor-ReEchoCards.dll": "1e79b996b80ee9e05e738fc116da2d33bdf649c476209bf8586c3a5e5f80b84d",
+    "UnrealEditor-ReEchoCombat.dll": "ad8d5f77eb65add062771d2bfa233ae0a10bf20219dee50413ef2bb91ad70738",
+    "UnrealEditor-ReEchoEnemies.dll": "e48599e4c317a8b164b9bacdf0a69aebadfd9fe66f72c719ea229d04275fdd99",
+    "UnrealEditor-ReEchoPresentation.dll": "93f980a923061fa05ccd28c3d1c079f14eb8ce588504409faa8427a6f769838e",
+    "UnrealEditor-ReEchoWeapons.dll": "c40fc9136e7ebc47b36d7af84185aab7c3601a90b2fb7cfbbdac21457fe827f7",
+>>>>>>> 42569844 (feat(cards): retune easter egg cards G_4_3/G_4_5/G_4_7/G_4_9 and refresh all nine descriptions)
     "UnrealEditor.modules": "ba4535bd63b6eba65aec19614a2631d70f0de46fb7ae3b773c24dbce84bc73fb"
   },
   "configuration": "Development",
@@ -35,7 +46,7 @@
     "Source/ReEcho/Private/Data/ReEchoCharacterBuildCsvReader.h": "6657a75906033ffc8d0bb3cf1dbee8921b07899dea125da18d931193453e8a43",
     "Source/ReEcho/Private/Data/ReEchoCsvDataReader.cpp": "5a2deedeadef26d960ad6551b7cb6ec9baf61c86db14239e92b3095a4d2eefe4",
     "Source/ReEcho/Private/Data/ReEchoCsvDataReader.h": "f98ea1bdc6ce884fabb87699ffeed23db208ecae104cf5bb89291eeebd3c1c1f",
-    "Source/ReEcho/Private/Data/ReEchoCsvDataRegistry.cpp": "c96c6f17f93d732f4b0d4560354fb2cae5088f3ac7ef68c03a1e09c44937cd96",
+    "Source/ReEcho/Private/Data/ReEchoCsvDataRegistry.cpp": "7f4d069822b59151973213a7c07f364a23261ff7b717b7160987abd890771603",
     "Source/ReEcho/Private/Data/ReEchoElementReactionCsvReader.cpp": "15692bba3cd15aef1666f1e66c2dd131efce94406a2b13d65df440685759eec4",
     "Source/ReEcho/Private/Data/ReEchoElementReactionCsvReader.h": "496f51a511ed1c0a9eb1d654f3b600ef6d5586b5445ae0a7b84b7f1be8b21ff8",
     "Source/ReEcho/Private/Data/ReEchoEncounterCsvReader.cpp": "03beb0c674fbf41de0daa681506d6b9fb23bfff82b515effb5d0d8ffab92b125",
@@ -80,9 +91,15 @@
     "Source/ReEcho/Private/Presentation/Weapon/ReEchoWeaponPresentationCatalog.cpp": "7902ea0c44efd3779e1bf8c1fa918b993cc43d645d82c6acf295886b032486d2",
     "Source/ReEcho/Private/Presentation/Weapon/ReEchoWeaponPresentationProfile.cpp": "8c3e8c9e4af3880c2c84e93045684f741772820ef2cef409cb40b4faf7170246",
     "Source/ReEcho/Private/ReEcho.cpp": "99560fd213944a3c17d9ead20488ccedd33f2cf79326317ec305f4d8a6d4b0f2",
+<<<<<<< HEAD
     "Source/ReEcho/Private/ReEchoBossSacrifice.cpp": "9069ab8eb0f2ff80ee52c31661f4aeb4a3fc573571479cc4d300d323a5e13725",
     "Source/ReEcho/Private/ReEchoBossTransformation.cpp": "0b6e019fa38337ec7263a75e07e9f1913548d55a0069e4b27b10b1901321f0c5",
     "Source/ReEcho/Private/ReEchoGameMode.cpp": "94f15304ed7974ee5553dbbb37e474bb6f58397a137df1b88963fc09c8120599",
+=======
+    "Source/ReEcho/Private/ReEchoBossSacrifice.cpp": "c371049cc888713519b16a998de1ee4767a2bbe72306234d82ff6565c508f930",
+    "Source/ReEcho/Private/ReEchoBossTransformation.cpp": "76b21ca812fe922e6e23eeb9a86b339336992fdc6b90916ff473bb9833f06f9b",
+    "Source/ReEcho/Private/ReEchoGameMode.cpp": "ee954a8056e6c5ff2f44f0f1d7220780f912415aad7d0071550f87b4524eacc9",
+>>>>>>> 42569844 (feat(cards): retune easter egg cards G_4_3/G_4_5/G_4_7/G_4_9 and refresh all nine descriptions)
     "Source/ReEcho/Private/Recording/ReEchoPlaybackComponent.cpp": "0ace9ea2556fed5e76c661f60ee72ec19f2b7d801e8f116f9e0aab8cee681a45",
     "Source/ReEcho/Private/Recording/ReEchoRecorderComponent.cpp": "a917fe146b41f7dec9268dc53ba8667e1869f05f55414e4449001997bc3f4144",
     "Source/ReEcho/Private/Run/CharacterAbilities/ReEchoCharacterAbilityRuntime.cpp": "d0f98b9339c8cb2de9c15ea378d4129a40e756a84e377722875c3363c7e840b2",
@@ -274,13 +291,13 @@
     "Source/ReEchoAudio/Public/ReEchoAudioTypes.h": "8c8119a44cc4e144f6cef2c43cae323fc58fb72b4f89f939929b29ec14cef7e3",
     "Source/ReEchoAudio/Public/ReEchoAudioUserSettings.h": "fa3b65390478ba893f77069a4226a3f1f2b599fa6ea424f203575c2f7143f71a",
     "Source/ReEchoAudio/ReEchoAudio.Build.cs": "d52731416615623439e3f7952a4d1ee41ce829454540c73759f0e365b504529f",
-    "Source/ReEchoCards/Private/Cards/ReEchoCardCatalog.cpp": "b2c16a72099276250274383502f3f38b701880c07a3be4f1ff7daf93b788e282",
-    "Source/ReEchoCards/Private/Cards/ReEchoCardRuntime.cpp": "1b9ab874b803243f8dba8557a9c9de317ae2b63b00807fb1fccbadb8646686d8",
+    "Source/ReEchoCards/Private/Cards/ReEchoCardCatalog.cpp": "0754fdd4b2943cb785e3843c7e2383940aa55a60bb5ebce2c52c4c9cc36b2f84",
+    "Source/ReEchoCards/Private/Cards/ReEchoCardRuntime.cpp": "9e0e4f32de76716ee7acac8780030971c4170a4adaf4ce1ac597d98c3ca3c68c",
     "Source/ReEchoCards/Private/ReEchoCards.cpp": "d260e556b4761af12c51ebc31e2f21eb5e5312fea43435f44bc6b5a5df11f746",
     "Source/ReEchoCards/Private/Tests/ReEchoCardRuntimeTests.cpp": "3713144aa90141cc2411a4562828345f61d785f32f319601885a30c785aa69ad",
     "Source/ReEchoCards/Public/Cards/ReEchoCardCatalog.h": "8c149f503f73c0a8fa88be6368ca419ba1cbe609334101f19880f1f96e8616ec",
     "Source/ReEchoCards/Public/Cards/ReEchoCardRuntime.h": "cbd83c6175f11f7db95b8d3805b104e62d1e08b732a730c85b2892b831e9a57a",
-    "Source/ReEchoCards/Public/Cards/ReEchoCardTypes.h": "ab79c22453c8ff927d39909caad8724e18e8e5e986c0d53863d24160a78a353b",
+    "Source/ReEchoCards/Public/Cards/ReEchoCardTypes.h": "1b7cc2acfb625b6f84fa75980ad147390f2de24e1e76b517c4505e283f46850f",
     "Source/ReEchoCards/Public/ReEchoCards.h": "25b24a2fb0e9362e56891f5092e7ec3eedf5ee8abba70569bb325edec6f982b9",
     "Source/ReEchoCards/ReEchoCards.Build.cs": "4d6d7b31adc98f299c8ec8f6d6fc859158875fe2324d9b0dbe6108313f858be1",
     "Source/ReEchoCombat/Private/AbilitySystem/ReEchoCombatAttributeSet.cpp": "c6e756bde729f550d052cf55a6e4aed68ab1028b2d582d7856cbabac7d693b16",
@@ -367,6 +384,10 @@
     "Source/ReEchoWeapons/Public/Weapons/ReEchoWeaponTypes.h": "d5e7823c6eef0a467451c0e90f9e09f09d3c297f0f897173971f86e3c0bd07cd",
     "Source/ReEchoWeapons/ReEchoWeapons.Build.cs": "742015c983f1ca029a5bc8fcab4122a4b2bde60b8632e01fcf5bb51a90ea5038"
   },
+<<<<<<< HEAD
   "source_fingerprint": "d6ad607a0053b492774c62ad9c4dbb797975bb28419d62dceb62125d2be78fee",
+=======
+  "source_fingerprint": "2545cc7f04a5ac06dca95013a42dba4e502d7beda537d284f60dd3febaac5d76",
+>>>>>>> 42569844 (feat(cards): retune easter egg cards G_4_3/G_4_5/G_4_7/G_4_9 and refresh all nine descriptions)
   "target": "ReEchoEditor"
 }

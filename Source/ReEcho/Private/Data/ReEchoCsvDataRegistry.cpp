@@ -763,6 +763,7 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	         FName(TEXT("Card.OverhealCapacity")),
 	         FName(TEXT("Card.AlternatingSources")),
 	         FName(TEXT("Card.EasterShardSwing")),
+	         FName(TEXT("Card.EasterShardThreshold")),
 	         FName(TEXT("Card.EasterIndependentGrant")),
 	         FName(TEXT("Card.EasterEchoContact")),
 	         FName(TEXT("Card.EasterShardSacrifice")),

@@ -3931,19 +3931,29 @@ void AReEchoGameMode::HandleFixedStep(float)
 				NearbyEnemies.Add(Enemy);
 			}
 		}
+		const int32 PulseTargetCount = FMath::Max(1, CardTick.EasterRandomStunTargetCount);
 		for (int32 PulseOffset = 0; PulseOffset < CardTick.EasterRandomStunPulseCount && !NearbyEnemies.IsEmpty();
 		     ++PulseOffset)
 		{
 			const int32 PulseIndex = CardTick.CardState.Runtime.LastEasterStunPulseIndex - PulseOffset;
 			FRandomStream Random(RunSubsystem->BuildCardEffectRandomSeed(TEXT("G_4_5_STUN_TARGET"), PulseIndex));
-			AReEchoEnemyActor* Target = NearbyEnemies[Random.RandRange(0, NearbyEnemies.Num() - 1)];
-			FReEchoTimedStatusCommand Stun;
-			Stun.StatusId = TEXT("Z_Stun");
-			Stun.CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-			Stun.DurationSeconds = CardTick.EasterRandomStunDuration;
-			Stun.Attack.Source = Player;
-			Stun.Attack.Sequence = PulseIndex;
-			Target->GetCombatantComponent()->ApplyTimedStatus(Stun);
+			// G_4_5 stuns several distinct enemies per pulse. The pool is rebuilt every pulse so a later
+			// pulse may pick an enemy again, but a single pulse never hits the same enemy twice.
+			TArray<AReEchoEnemyActor*> PulsePool = NearbyEnemies;
+			const int32 HitCount = FMath::Min(PulseTargetCount, PulsePool.Num());
+			for (int32 TargetIndex = 0; TargetIndex < HitCount; ++TargetIndex)
+			{
+				const int32 Pick = Random.RandRange(0, PulsePool.Num() - 1);
+				AReEchoEnemyActor* Target = PulsePool[Pick];
+				PulsePool.RemoveAtSwap(Pick);
+				FReEchoTimedStatusCommand Stun;
+				Stun.StatusId = TEXT("Z_Stun");
+				Stun.CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+				Stun.DurationSeconds = CardTick.EasterRandomStunDuration;
+				Stun.Attack.Source = Player;
+				Stun.Attack.Sequence = PulseIndex;
+				Target->GetCombatantComponent()->ApplyTimedStatus(Stun);
+			}
 		}
 	}
 	if (Rules.bEasterEchoContact)

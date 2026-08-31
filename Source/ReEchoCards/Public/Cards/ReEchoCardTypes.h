@@ -200,6 +200,10 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PreviousEncounterGrossShardIncome = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 CurrentEncounterGrossShardIncome = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterShardIncomeMultiplier = 1.0f;
+	/** G_4_1: set once shards ever reached the free-refresh threshold; the unlock then persists. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterUnlimitedRefreshUnlocked = false;
+	/** G_4_3: Echo contact damage/healing doubling, applied once per completed encounter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EasterEchoContactScale = 1.0f;
 	/** SaveVersion <= 16 compatibility only. Weapon/rune and card refreshes no longer share this sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
 	/** Stable build-card pack page for the current encounter. */
@@ -278,6 +282,8 @@ struct REECHOCARDS_API FReEchoCardRuleSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunRadiusCm = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunDuration = 0.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunInterval = 0.5f;
+	/** How many nearby enemies each stun pulse hits. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 EasterRandomStunTargetCount = 1;
 };
 
 USTRUCT()
@@ -324,6 +330,7 @@ struct REECHOCARDS_API FReEchoCardEncounterTickResult
 	int32 EasterRandomStunPulseCount = 0;
 	float EasterRandomStunRadiusCm = 0.0f;
 	float EasterRandomStunDuration = 0.0f;
+	int32 EasterRandomStunTargetCount = 1;
 };
 
 USTRUCT()

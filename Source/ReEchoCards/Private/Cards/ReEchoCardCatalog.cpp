@@ -80,6 +80,7 @@ const TSet<FName>& SupportedBehaviors()
 	                                   TEXT("Card.OverhealCapacity"),
 	                                   TEXT("Card.AlternatingSources"),
 	                                   TEXT("Card.EasterShardSwing"),
+	                                   TEXT("Card.EasterShardThreshold"),
 	                                   TEXT("Card.EasterIndependentGrant"),
 	                                   TEXT("Card.EasterEchoContact"),
 	                                   TEXT("Card.EasterShardSacrifice"),

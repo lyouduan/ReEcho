@@ -285,6 +285,11 @@ void ApplyRuleEffect(FReEchoCardRuleSnapshot& Rules, const FReEchoCardEffectDefi
 		{
 			Rules.EasterRandomStunRadiusCm = FMath::Max(Rules.EasterRandomStunRadiusCm, Effect.ParamValue);
 		}
+		else if (Effect.ParamName == TEXT("TargetCount"))
+		{
+			Rules.EasterRandomStunTargetCount =
+			    FMath::Max(Rules.EasterRandomStunTargetCount, FMath::RoundToInt(Effect.Value));
+		}
 	}
 }
 
@@ -447,6 +452,13 @@ FReEchoCardRuleSnapshot ReEchoCardRuntime::CompileRules(const FReEchoCardCatalog
 	Rules.bDisableExtraCardPurchase = State.Runtime.EconomyPenalty == EReEchoCardEconomyPenalty::NoExtraCardPurchase;
 	Rules.bDisableEnemyShardDrops = State.Runtime.EconomyPenalty == EReEchoCardEconomyPenalty::NoEnemyShardDrops;
 	Rules.bEchoTrinityComplete = Rules.bEchoHead && Rules.bEchoBody && Rules.bEchoLegs;
+	// G_4_3 doubles its Echo contact damage and healing after every completed encounter. Authored values
+	// are compiled first, then scaled here where the saved per-run doubling progress is available.
+	if (Rules.bEasterEchoContact && State.Runtime.EasterEchoContactScale > 1.0f)
+	{
+		Rules.EasterEchoContactDamage *= State.Runtime.EasterEchoContactScale;
+		Rules.EasterEchoContactHealing *= State.Runtime.EasterEchoContactScale;
+	}
 	return Rules;
 }
 
@@ -841,6 +853,7 @@ FReEchoCardEncounterTickResult ReEchoCardRuntime::AdvanceEncounter(const FReEcho
 			Result.EasterRandomStunPulseCount = PulseIndex - Result.CardState.Runtime.LastEasterStunPulseIndex;
 			Result.EasterRandomStunRadiusCm = TickRules.EasterRandomStunRadiusCm;
 			Result.EasterRandomStunDuration = TickRules.EasterRandomStunDuration;
+			Result.EasterRandomStunTargetCount = FMath::Max(1, TickRules.EasterRandomStunTargetCount);
 			Result.CardState.Runtime.LastEasterStunPulseIndex = PulseIndex;
 		}
 	}
@@ -1588,6 +1601,12 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 	FReEchoCardEventResult Result;
 	Result.CardState = State;
 	Result.Stats = Stats;
+	// G_4_3 doubles its Echo contact damage and healing once per completed encounter, so the rule
+	// compiled for the next encounter uses the enlarged values.
+	if (HasCard(Result.CardState, TEXT("G_4_3")))
+	{
+		Result.CardState.Runtime.EasterEchoContactScale *= 2.0f;
+	}
 	ForEachOwnedEffect(
 	    Catalog,
 	    State,
@@ -1619,6 +1638,17 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			    Outcome.DetailValues = {Multiplier, static_cast<float>(Bonus)};
 			    ++Outcome.ResolutionCount;
 		    }
+		    else if (Effect.BehaviorId == TEXT("Card.EasterShardThreshold") && Effect.Order == 1)
+		    {
+			    // G_4_1: reaching the shard balance once unlocks free shop refreshes permanently, so the
+			    // unlock survives later spending. Checked after the swing so it sees the settled balance.
+			    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+			    if (!Result.CardState.Runtime.bEasterUnlimitedRefreshUnlocked &&
+			        Result.ProjectedTimeShards >= Threshold)
+			    {
+				    Result.CardState.Runtime.bEasterUnlimitedRefreshUnlocked = true;
+			    }
+		    }
 		    else if (Effect.BehaviorId == TEXT("Card.EasterShardComparison") && Effect.Order == 1)
 		    {
 			    float NextMultiplier = 1.0f;
@@ -1646,17 +1676,26 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.EasterAttendance"))
 		    {
-			    if (Effect.Target == TEXT("HpMaxAndPoint"))
+			    // G_4_9 rolls every stat independently between the configured minimum and Max.
+			    const float Maximum = FMath::Max(Effect.Value, Effect.ParamValue);
+			    FReEchoCardEffectDefinition Rolled = Effect;
+			    if (Maximum > Effect.Value)
 			    {
-				    Result.Stats.HpMax += Effect.Value;
-				    Result.Stats.HpPoint += Effect.Value;
+				    FRandomStream Random(
+				        HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+				    Rolled.Value = FMath::RoundToInt(FMath::FRandRange(Effect.Value, Maximum));
+			    }
+			    if (Rolled.Target == TEXT("HpMaxAndPoint"))
+			    {
+				    Result.Stats.HpMax += Rolled.Value;
+				    Result.Stats.HpPoint += Rolled.Value;
 				    Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
 			    }
 			    else
 			    {
-				    ApplyStatEffect(Result.Stats, Effect);
+				    ApplyStatEffect(Result.Stats, Rolled);
 			    }
-			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, Effect.Target, Effect.Value);
+			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, Rolled.Target, Rolled.Value);
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.EndKillRefresh"))
 		    {
