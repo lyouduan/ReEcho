@@ -30870,12 +30870,12 @@
   "Version": {
     "BranchName": "++UE5+Release-5.8",
     "BuildId": "55116800",
-    "Changelist": 56057345,
-    "CompatibleChangelist": 55116800,
+    "Changelist": 55116800,
+    "CompatibleChangelist": 0,
     "IsLicenseeVersion": 0,
     "IsPromotedBuild": 0,
     "MajorVersion": 5,
     "MinorVersion": 8,
-    "PatchVersion": 1
+    "PatchVersion": 0
   }
 }
