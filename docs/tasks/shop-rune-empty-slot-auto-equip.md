@@ -13,7 +13,7 @@
 - 所有者继续是 `MOD-ReEcho / AREA-Run`；在 `TryResolveRuneInventory` 的有购买AcquiredId路径，先把兼容且对应空槽的新购份数放入候选装备，再调用既有纯合成规划器和WeaponRuntime校验。不调用会挤出旧件的手动装配接口，不增加UI侧玩法逻辑。
 - Writes：Run cpp、相关Rune/Shop测试、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`MOD-ReEchoUI.md`、本记录和开发构建的精选Editor包。
 - `ARCHITECTURE.md` / `README.md` 的拓扑与稳定标识无变化；模块文档同步新的购买去向。既有Plan160保存为历史批准记录，由本记录说明后续修订。
-- 基线完整静态校验已通过，XLSX/CSV同步问题已由最新主线解决；不沿用旧发布例外。本轮只本地实现、验证，未获新发布请求，不推送main。
+- 基线完整静态校验已通过，XLSX/CSV同步问题已由最新主线解决；不沿用旧发布例外。初始交付只本地实现、验证；后续用户明确要求直接推送远端合入主分支，发布过程见下文。
 
 ## 验证目标
 
@@ -29,4 +29,14 @@
 - `python scripts/validate_project.py`、`python scripts/ue/prebuilt_editor.py check`、LFS还原/对象检查及 `git diff --check` 均通过。构建/测试共享Unreal锁已按所有者释放。
 - 本地证据：`Saved/RuneAutoEquip/build.log`、`Saved/RuneAutoEquip/tests.log`、`Saved/RuneAutoEquip/test-console.log`；日志不提交。
 - 已复核架构索引、架构图及模块路由：无新增模块、公开接口、跨模块依赖或稳定标识；只需上述两个模块说明更新。没有修改UI资产、CSV/XLSX、存档格式或主目录用户蓝图。
-- 用户测试入口：本工作树根目录 `ReEcho.uproject`。实际PIE视觉/鼠标交互尚待人工确认；当前未推送或合并远端主分支。
+- 初始用户测试入口：本工作树根目录 `ReEcho.uproject`。未声称完成人工PIE视觉/鼠标交互验收；用户随后明确要求完成后直接发布。
+
+## 发布审计（2026-09-01）
+
+- 发布授权：用户“处理完后直接推送远端合入主分支”。范围仅本次自动装备及匹配构建包，不包含主目录未提交资产。
+- 干净正式候选 `e895eb9bd4d4a836a90bbd349efe5f1df81d98da`，作者 `JosephLE910 + Codex`；以空expected lease原子取得 `main-publish-lock`，随后重新fetch。
+- 获锁后传入 `e69ae0fcf057dc9ceca51254b9ff244a254feb2a`，由同账号Codex发布，只新增 `plans/161-rune-backpack-blueprints.md`。物理冲突：无；逻辑冲突：无（仅背包UI作者化规划，继续消费Run投影和原装备命令）；耦合：后续Plan161实现需保留本次购买策略，但当前没有其实现进入候选；本任务无编号变更。
+- 用merge保留远端Plan161，集成提交 `a94d397a`；未rebase、覆盖旧史或接入其他本地工作分支。获锁后执行最终FullRebuild及回归，不复用开发构建作为发布证据。
+- 最终 `scripts/ue/Build-Editor.cmd -Configuration Development -FullRebuild` 成功；7个模块，UE 5.8 Build ID `55116800`，匹配源码指纹仍为 `82c239d75604a5a02fed9bcea61c486c5dbfcf542423951dc07d705ef46f98e5`。仅有既存 `CompressImageArray` 弃用警告，无编译错误。
+- 最终同组自动化52/52通过、退出码0；项目静态检查（含XLSX/CSV）、预构建包一致性通过。发布证据保留在 `Saved/RuneAutoEquipRelease/`，不提交机器日志；LFS与最终diff门禁另在push前核验。
+- 最终候选包含以上源码、测试、文档及manifest允许列表构建产物。普通push依次推进自有锁和main，远端准确提交/LFS对象复核成功后才能用准确lease释放锁；实际远端结果随发布回复交付。
