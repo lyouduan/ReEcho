@@ -93,14 +93,23 @@ bool FReEchoGrantAllTierOneCardsTest::RunTest(const FString&)
 {
 	const FReEchoCardDefinition TierOneOwned =
 	    MakeCard(TEXT("TIER_ONE_OWNED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
-	const FReEchoCardDefinition TierOneMissing =
-	    MakeCard(TEXT("TIER_ONE_MISSING"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
+	const FReEchoCardDefinition TierOneMissing = MakeCard(
+	    TEXT("TIER_ONE_MISSING"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 1.0f);
 	FReEchoCardDefinition TierOneDisabled =
 	    MakeCard(TEXT("TIER_ONE_DISABLED"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("HpMax"), 1.0f);
 	TierOneDisabled.bEnabled = false;
+	TierOneDisabled.bOfferable = false;
 	const FReEchoCardDefinition GrantAll =
 	    MakeCard(TEXT("GRANT_ALL_TIER_ONE"), 3, TEXT("Card.GrantAllTier1"), TEXT("OnGrant"), TEXT("Tier"), 1.0f);
-	const FReEchoCardCatalog Catalog = BuildCatalog({TierOneOwned, TierOneMissing, TierOneDisabled, GrantAll});
+	FReEchoCardCatalog Catalog;
+	FString CatalogError;
+	if (!TestTrue(TEXT("Grant-all fixture satisfies the catalog contract"),
+	              Catalog.Initialize(
+	                  {TierOneOwned, TierOneMissing, TierOneDisabled, GrantAll}, TEXT("cards-test-v1"), CatalogError)))
+	{
+		AddError(CatalogError);
+		return false;
+	}
 
 	FReEchoCardGrantInput Input;
 	Input.CardState.DomainRevision = Catalog.GetDomainRevision();

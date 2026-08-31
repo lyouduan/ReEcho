@@ -101,15 +101,27 @@ bool FReEchoDebugInvulnerabilityTest::RunTest(const FString& Parameters)
 
 	Fixture.Combatant->SetDebugInvulnerable(true);
 	TestTrue(TEXT("Debug invulnerability reports enabled"), Fixture.Combatant->IsDebugInvulnerable());
-	TestEqual(TEXT("Invulnerability rejects final damage"), Fixture.Combatant->ApplyFinalDamageForTests(25.0f), 0.0f);
+	TestEqual(TEXT("GMGod preserves resolved damage for hit feedback"),
+	          Fixture.Combatant->ApplyFinalDamageForTests(25.0f),
+	          25.0f);
 	TestEqual(TEXT("Invulnerability preserves health"), Fixture.Combatant->CurrentHealth, 100.0f);
 	TestEqual(TEXT("Invulnerability does not consume block"), Fixture.Combatant->Stats.Block, 1);
+	TestEqual(TEXT("GMGod reports lethal damage without clamping feedback to health"),
+	          Fixture.Combatant->ApplyFinalDamageForTests(150.0f),
+	          150.0f);
+	TestTrue(TEXT("GMGod prevents lethal damage from killing the owner"), Fixture.Combatant->IsAlive());
+	TestEqual(TEXT("Lethal GMGod hit preserves authoritative health"), Fixture.Attributes->GetHealth(), 100.0f);
+	TestEqual(TEXT("Lethal GMGod hit preserves authoritative block"), Fixture.Attributes->GetBlock(), 1.0f);
 
 	Fixture.Combatant->SetDebugInvulnerable(false);
 	TestFalse(TEXT("Debug invulnerability reports disabled"), Fixture.Combatant->IsDebugInvulnerable());
 	TestEqual(
 	    TEXT("Normal damage path resumes after disabling"), Fixture.Combatant->ApplyFinalDamageForTests(25.0f), 0.0f);
 	TestEqual(TEXT("Normal damage consumes block after disabling"), Fixture.Combatant->Stats.Block, 0);
+	TestEqual(TEXT("Unblocked damage resumes after disabling GMGod"),
+	          Fixture.Combatant->ApplyFinalDamageForTests(25.0f),
+	          25.0f);
+	TestEqual(TEXT("Unblocked damage reduces authoritative health"), Fixture.Attributes->GetHealth(), 75.0f);
 	return true;
 }
 

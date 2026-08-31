@@ -94,6 +94,7 @@ ReEchoData.xlsx → cards.csv + card_effects.csv
 
 ## 验证
 
+- `ReEcho.Cards.Grant.GrantAllTierOneAddsEveryEnabledCard` 使用符合 Catalog 契约的禁用且不可抽取卡，先断言夹具初始化成功，再检查全一级卡授予对已持有、未持有与禁用卡的区别。
 - 数据测试覆盖 39 张卡的精确集合、Tier 数量和全部行为注册；纯规则覆盖属性/层级赠卡原子性、阈值、伤害资源、经济、跨关余数和精确暴击次数。
 - 数据校验覆盖工作簿、CSV Schema、精确 ID 集合、Tier 数量和行为白名单。
 - 集成自动化覆盖 Run、Shop、Combat、Echo、Weapons、Enemies 与 Save v8→v9。

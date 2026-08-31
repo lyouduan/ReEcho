@@ -190,6 +190,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 `GMGod <On|Off|Toggle>` 只切换当前 Player Combatant 的 Development 最终伤害门禁；它不修改生命上限、格挡、元素规则或敌人结算，且 Shipping 中始终不可用。
 
+`ReEcho.GAS.DebugInvulnerability` 验证 GMGod 保留反馈用的结算伤害（包括致命伤害），同时维持 GAS 生命与格挡；关闭后恢复正常格挡消耗和扣血，不将 GMGod 与完全屏蔽伤害反馈的演出保护混同。
+
 `GMElement <None|Flame|Lightning|Grass|Water>` 在 Player 的最终出手修正末端持续覆盖每次攻击的元素，直至再次指定；`None` 关闭覆盖并恢复武器权威元素。`GMReaction` 是纯表现验收入口：它在最近存活敌人的受击表现根直接播放指定反应 Niagara，不写入元素附着、伤害、状态或正式反应事件；正式战斗反应仍只由 Combat 权威链路触发。
 
 ## 代码位置与阅读路线
