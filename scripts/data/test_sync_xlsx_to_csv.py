@@ -293,7 +293,8 @@ class SyncXlsxToCsvTests(unittest.TestCase):
             {
                 "weapon_types.csv": (b"Pattern.LongSwordCombo", b"Pattern.LongSwordDashOnly"),
                 "weapons.csv": (b"W_J_04,Scythe", b"W_J_04,ScytheOld"),
-                "attack_steps.csv": (b"0.7,0.6,250", b"0.75,0.6,250"),
+                # Seed drift through a stable row ID, not a balance tuple that changes during tuning.
+                "attack_steps.csv": (b"AS_SCYTHE_1,Pattern.ScytheSweep", b"AS_SCYTHE_OLD,Pattern.ScytheSweep"),
             }
         )
         temp_data = self.make_temp_data_dir(old)

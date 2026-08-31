@@ -404,7 +404,7 @@ WeaponActor 不复制第二套冷却计时。其他可叠层符文维持原规�
 - 权威：活跃屏幕实例、Viewport 层、焦点、输入模式和屏幕暂停策略。
 - 输入：玩法只读摘要、用户选择和稳定 ID。
 - 输出：类型化命令，不直接写 Run/Combat/Weapon 内部状态。
-- 商店余额：`RefreshShopFromRun` 首次读取初值并幂等订阅 Run 最终余额事件；`RemoveFromParent` 立即解绑、`NativeDestruct` 幂等兜底，选卡覆盖层不解绑。事件仅更新现金/债务缓存、唯一余额文字出口与已有购买/刷新按钮资格，不重建控件、Tooltip、报价或分页，不覆盖 WBP 作者样式。GameMode 保留商品/装备/卡包待选状态的必要刷新，删除 GM纯余额操作的整页刷新；详见 `MOD-ReEchoUI` 的 Plan159 契约。
+- 商店余额：`RefreshShopFromRun` 首次读取初值并幂等订阅 Run 最终余额事件；`RemoveFromParent` 立即解绑、`NativeDestruct` 幂等兜底，选卡覆盖层不解绑。事件仅更新现金/债务缓存、唯一余额文字出口与已有购买/刷新按钮资格，不重建控件、Tooltip、报价或分页，不覆盖 WBP 作者样式。GameMode 保留商品/装备/卡包待选状态的必要刷新，删除 GM纯余额操作的整页刷新；详见 [UI 文档入口](MOD-ReEchoUI.md) 的 Plan159 契约。
 - 商店刷新文字：`WBP_ReEchoInventoryShopScreen` 持有 `ShopRefreshCountText` 与可拖动的 `DesignerRefreshTextBox`；`ReEchoInventoryShopWidget` 只投影原有次数/费用文案、按钮资格和点击请求。完整作者化按钮不进入 legacy `SetContent` 或字体/几何重建，缺少作者化文字的旧资产与原生路径仍保留兜底。
 - 结算统计：`UReEchoRestartWidget` 只向 `VictoryCanvas` / `DefeatCanvas` 的八组统计数值写入现有只读快照；全部标签与数值的几何、字体、颜色、对齐、换行和裁切由 `WBP_ReEchoRestart` 保存，不在构造或结果页切换时回填程序布局。统计采集、重开和主菜单请求保持原契约。
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。

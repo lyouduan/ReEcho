@@ -209,6 +209,7 @@ CARD_TARGETS = {
     "RandomElement",
     "ElementCanCrit",
     "CriticalRollCount",
+    "CritNegateAmplification",
     "MinimumGuaranteedTier",
     "FreeShopRefresh",
     "NonCoreSlotCapacity",
