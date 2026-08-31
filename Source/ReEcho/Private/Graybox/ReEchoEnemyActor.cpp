@@ -612,6 +612,15 @@ FReEchoEnemyRuntimeState AReEchoEnemyActor::CaptureRuntimeState() const
 	Result.AttackSequence = LogicSnapshot.AttackSequence;
 	Result.bSelfDestructCommitted = LogicSnapshot.bSelfDestructCommitted;
 	Result.BossProjectiles = BossProjectiles;
+	Result.SavedMaxHealth = Combatant ? Combatant->Stats.HpMax : 0.0f;
+	Result.OpeningRepulseDisplacement = OpeningRepulseDisplacement;
+	Result.OpeningRepulseDuration = OpeningRepulseDuration;
+	Result.OpeningRepulseElapsed = OpeningRepulseElapsed;
+	Result.bPendingSlam = bBossBlinkSlamPending;
+	Result.PendingSlamSeconds = PendingBossBlinkSlamRemainingSeconds;
+	Result.PendingSlamIntent = PendingBossBlinkSlamIntent;
+	Result.PendingSlamIntent.Target.Reset();
+	Result.PendingSlamIntent.Attack.Source.Reset();
 	return Result;
 }
 
@@ -632,7 +641,22 @@ void AReEchoEnemyActor::RestoreRuntimeState(const FReEchoEnemyRuntimeState& Save
 	EndBornGameplayGate();
 	SetActorLocation(SavedState.Transform.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorScale3D(SavedState.Transform.GetScale3D());
+	if (FMath::IsFinite(SavedState.SavedMaxHealth) && SavedState.SavedMaxHealth > 0.0f)
+	{
+		FReEchoStatBlock RestoredStats = Combatant->Stats;
+		RestoredStats.HpMax = SavedState.SavedMaxHealth;
+		Combatant->InitializeFromStats(RestoredStats, false);
+	}
 	Combatant->RestoreCurrentHealth(SavedState.CurrentHealth);
+	OpeningRepulseDisplacement = SavedState.OpeningRepulseDisplacement;
+	OpeningRepulseDisplacement.Z = 0.0f;
+	OpeningRepulseDuration = FMath::Max(0.0f, SavedState.OpeningRepulseDuration);
+	OpeningRepulseElapsed = FMath::Clamp(SavedState.OpeningRepulseElapsed, 0.0f, OpeningRepulseDuration);
+	bBossBlinkSlamPending = SavedState.bPendingSlam && Combatant->IsAlive();
+	PendingBossBlinkSlamRemainingSeconds = FMath::Max(0.0f, SavedState.PendingSlamSeconds);
+	PendingBossBlinkSlamIntent = SavedState.PendingSlamIntent;
+	PendingBossBlinkSlamIntent.Attack.Source = this;
+	PendingBossBlinkSlamIntent.Target = UGameplayStatics::GetPlayerPawn(this, 0);
 	SetCanBeDamaged(Combatant->IsAlive());
 
 	FReEchoElementState RestoredElementState = SavedState.ElementState;
@@ -1136,11 +1160,16 @@ void AReEchoEnemyActor::Tick(const float DeltaSeconds)
 
 	FReEchoEnemyActionIntent Intent;
 	const float WorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const bool bRepulsed = IsAlive() && OpeningRepulseElapsed < OpeningRepulseDuration;
+	if (bRepulsed)
+	{
+		AdvanceBossOpeningRepulse(DeltaSeconds);
+	}
 	const bool bStunned =
 	    IsAlive() && (WorldTime < CardStunnedUntilWorldTime || (Combatant && Combatant->IsActionDisabled(WorldTime)));
 	EnemyPresentation->SetStunPaused(bStunned);
 	UpdateStunState(bStunned);
-	if (IsAlive() && !bStunned)
+	if (IsAlive() && !bStunned && !bRepulsed)
 	{
 		FReEchoEnemySenseSnapshot Sense;
 		Sense.SelfLocation = GetActorLocation();
@@ -1760,14 +1789,20 @@ void AReEchoEnemyActor::ApplyBossIntent(const FReEchoBossIntent& Intent)
 		{
 			return;
 		}
-		if (Intent.bRequestTeleport && !Intent.TeleportDestination.IsNearlyZero())
+		const bool bGrounded = Intent.bPhaseOpening || Intent.bGroundedSlam;
+		if (!bGrounded && Intent.bRequestTeleport && !Intent.TeleportDestination.IsNearlyZero())
 		{
 			SetActorLocation(Intent.TeleportDestination, false, nullptr, ETeleportType::TeleportPhysics);
 		}
 		PendingBossBlinkSlamIntent = Intent;
 		PendingBossBlinkSlamIntent.bRequestTeleport = false;
-		PendingBossBlinkSlamRemainingSeconds = 0.5f;
+		PendingBossBlinkSlamRemainingSeconds = bGrounded ? 0.0f : 0.5f;
 		bBossBlinkSlamPending = true;
+		if (bGrounded)
+		{
+			// Stationary opening has no descent: impact, VFX and crowd repulse share this attack beat.
+			AdvancePendingBossBlinkSlam(0.0f);
+		}
 		return;
 	}
 	if (Intent.AbilityId == TEXT("M_SHEEP_PrayerBeam"))
@@ -1796,13 +1831,100 @@ void AReEchoEnemyActor::AdvancePendingBossBlinkSlam(const float DeltaSeconds)
 		return;
 	}
 	bBossBlinkSlamPending = false;
+	if (!IsAlive())
+	{
+		return;
+	}
+	if ((PendingBossBlinkSlamIntent.bPhaseOpening || PendingBossBlinkSlamIntent.bGroundedSlam) && EnemyLogic)
+	{
+		const FReEchoBossPhaseDefinition* Phase = EnemyLogic->GetDefinition().BossPhases.FindByPredicate(
+		    [](const FReEchoBossPhaseDefinition& Value)
+		    {
+			    return Value.bEnabled && Value.PhaseIndex == 3;
+		    });
+		if (Phase)
+		{
+			const FVector Center = PendingBossBlinkSlamIntent.LockedTargetLocation;
+			if (AReEchoPlayerPawn* TargetPlayer = Cast<AReEchoPlayerPawn>(PendingBossBlinkSlamIntent.Target.Get()))
+			{
+				if (FVector::DistSquared2D(TargetPlayer->GetActorLocation(), Center) <=
+				    FMath::Square(Phase->OpeningRepulseRadiusCm))
+				{
+					TargetPlayer->BeginBossRepulse(
+					    Center, Phase->OpeningRepulseDistanceCm, Phase->OpeningRepulseSeconds);
+				}
+			}
+			const TArray<FReEchoEnemyRosterEntrySnapshot> Entries =
+			    EnemyRoster ? EnemyRoster->GetEntries() : TArray<FReEchoEnemyRosterEntrySnapshot>();
+			for (const FReEchoEnemyRosterEntrySnapshot& Entry : Entries)
+			{
+				AReEchoEnemyActor* Enemy = Entry.bAlive ? Cast<AReEchoEnemyActor>(Entry.Host.Get()) : nullptr;
+				if (Enemy && Enemy != this &&
+				    FVector::DistSquared2D(Enemy->GetActorLocation(), Center) <=
+				        FMath::Square(Phase->OpeningRepulseRadiusCm))
+				{
+					Enemy->BeginBossOpeningRepulse(
+					    Center, Phase->OpeningRepulseDistanceCm, Phase->OpeningRepulseSeconds);
+				}
+			}
+		}
+	}
 	if (EnemyEvents)
 	{
 		FReEchoBossIntent ImpactIntent = PendingBossBlinkSlamIntent;
 		ImpactIntent.Type = EReEchoBossIntentType::ImpactResolved;
 		EnemyEvents->PublishBossIntent(ImpactIntent);
 	}
-	ApplyBossAttackWindow(PendingBossBlinkSlamIntent);
+	if (!PendingBossBlinkSlamIntent.bPhaseOpening)
+	{
+		ApplyBossAttackWindow(PendingBossBlinkSlamIntent);
+	}
+}
+
+bool AReEchoEnemyActor::QueueBossPhaseOpening()
+{
+	return IsAlive() && EnemyLogic && EnemyLogic->QueueBossPhaseOpening();
+}
+
+bool AReEchoEnemyActor::BeginBossOpeningRepulse(const FVector& Center,
+                                                const float DistanceCm,
+                                                const float DurationSeconds)
+{
+	if (!IsAlive() || !EnemyLogic || GetKind() == EReEchoEnemyKind::Boss || bBornGameplayGateActive ||
+	    bEncounterSimulationSuspended || !FMath::IsFinite(DistanceCm) || !FMath::IsFinite(DurationSeconds) ||
+	    DistanceCm <= 0.0f || DurationSeconds <= 0.0f || Center.ContainsNaN())
+	{
+		return false;
+	}
+	FVector Direction = (GetActorLocation() - Center).GetSafeNormal2D();
+	if (Direction.IsNearlyZero())
+	{
+		Direction =
+		    FVector::ForwardVector.RotateAngleAxis(static_cast<float>(GetSpawnIndex() % 360), FVector::UpVector);
+	}
+	OpeningRepulseDisplacement = Direction * DistanceCm;
+	OpeningRepulseDuration = DurationSeconds;
+	OpeningRepulseElapsed = 0.0f;
+	EnemyLogic->CancelActiveActionsForStun();
+	return true;
+}
+
+void AReEchoEnemyActor::AdvanceBossOpeningRepulse(const float DeltaSeconds)
+{
+	if (!IsAlive() || bEncounterSimulationSuspended || OpeningRepulseDuration <= 0.0f || DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+	const float Before = FMath::Clamp(OpeningRepulseElapsed / OpeningRepulseDuration, 0.0f, 1.0f);
+	OpeningRepulseElapsed = FMath::Min(OpeningRepulseDuration, OpeningRepulseElapsed + DeltaSeconds);
+	const float After = OpeningRepulseElapsed / OpeningRepulseDuration;
+	const float Step = FMath::Square(1.0f - Before) - FMath::Square(1.0f - After);
+	FHitResult Hit;
+	AddActorWorldOffset(OpeningRepulseDisplacement * Step, true, &Hit);
+	if (Hit.bBlockingHit)
+	{
+		OpeningRepulseElapsed = OpeningRepulseDuration;
+	}
 }
 
 void AReEchoEnemyActor::AdvancePendingBossPrayerBeam(const float DeltaSeconds)
@@ -2250,7 +2372,8 @@ void AReEchoEnemyActor::ApplyBloodDepletedBossPhaseHealth(const FReEchoBossPhase
 		    });
 		if (Phase2 && BossPhase1MaxHealth > 0.0f && Phase2->PhaseMaxHealth > 0.0f)
 		{
-			ResolvedPhaseMaxHealth = BossPhase1MaxHealth + Phase2->PhaseMaxHealth;
+			ResolvedPhaseMaxHealth = (BossPhase1MaxHealth + Phase2->PhaseMaxHealth) *
+			                         (PhaseToApply ? PhaseToApply->PreviousPhasesHealthMultiplier : 1.0f);
 		}
 	}
 	if (!PhaseToApply || PhaseToApply->RefillHealthPolicy != EReEchoBossRefillHealthPolicy::RefillToMaximum ||

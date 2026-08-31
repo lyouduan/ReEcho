@@ -3,6 +3,7 @@
 #include "Camera/CameraComponent.h"
 #include "Data/ReEchoCsvDataRegistry.h"
 #include "Enemies/ReEchoEnemyRosterComponent.h"
+#include "Enemies/ReEchoEnemyLogicComponent.h"
 #include "Engine/GameInstance.h"
 #include "EngineUtils.h"
 #include "Graybox/ReEchoEnemyActor.h"
@@ -14,6 +15,27 @@
 #include "Presentation/VFX/ReEchoCombatVfxComponent.h"
 #include "Run/ReEchoRunSubsystem.h"
 
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#endif
+
+namespace
+{
+constexpr int32 OpeningCrowdSectors = 8;
+
+int32 OpeningCrowdSectorQuota(const int32 Total, const int32 Sector)
+{
+	return Total / OpeningCrowdSectors + (Sector < Total % OpeningCrowdSectors ? 1 : 0);
+}
+
+FVector SampleOpeningCrowdOffset(FRandomStream& Random, const int32 Sector, const float Rotation, const float Radius)
+{
+	const float Angle = Rotation + (Sector + Random.FRand()) * (2.0f * PI / OpeningCrowdSectors);
+	const float Distance = Radius * FMath::Sqrt(Random.FRandRange(0.09f, 1.0f));
+	return FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
+}
+}
+
 void AReEchoGameMode::PrepareBossSacrifice()
 {
 	const AReEchoEnemyActor* Boss = TransformingBoss.Get();
@@ -24,6 +46,11 @@ void AReEchoGameMode::PrepareBossSacrifice()
 	}
 	const UReEchoBossPhase3Config* Config =
 	    BossPhase3Config ? BossPhase3Config.Get() : GetDefault<UReEchoBossPhase3Config>();
+	const bool bOpeningCrowd = BossTransformTargetPhase == 3;
+	if (bOpeningCrowd && Boss->GetEnemyLogicComponent()->GetSnapshot().bBossOpeningConsumed)
+	{
+		return;
+	}
 	TArray<AReEchoEnemyActor*> Candidates;
 	for (TActorIterator<AReEchoEnemyActor> It(GetWorld()); It; ++It)
 	{
@@ -68,6 +95,10 @@ void AReEchoGameMode::PrepareBossSacrifice()
 	    });
 	for (AReEchoEnemyActor* Enemy : Candidates)
 	{
+		if (bOpeningCrowd)
+		{
+			break; // Existing actors remain on the ground; only new summons need Born tracking.
+		}
 		if (BossSacrificeEnemies.Num() >= FMath::Clamp(Config->SacrificeMaxEnemies, 0, 8))
 		{
 			break;
@@ -92,9 +123,16 @@ void AReEchoGameMode::PrepareBossSacrifice()
 	{
 		const int32 Needed = FMath::Clamp(Config->SacrificeSummonCount, 0, 20);
 		FRandomStream Random(FMath::Rand());
+		const float CrowdRotation = bOpeningCrowd ? Random.FRandRange(0.0f, 2.0f * PI) : 0.0f;
+		int32 SectorCounts[OpeningCrowdSectors] = {};
 		// Bounded random candidates: never hang a cinematic if the arena is full or obstructed.
 		for (int32 Attempt = 0; Attempt < 640 && SpawnedCount < Needed; ++Attempt)
 		{
+			const int32 Sector = Attempt % OpeningCrowdSectors;
+			if (bOpeningCrowd && SectorCounts[Sector] >= OpeningCrowdSectorQuota(Needed, Sector))
+			{
+				continue;
+			}
 			const FName EnemyId = Config->SacrificeSummonTypes[SpawnedCount % Config->SacrificeSummonTypes.Num()];
 			const FReEchoCsvEnemyRow* Row = Snapshot->FindEnemy(EnemyId);
 			if (!Row || !Row->bEnabled || Row->Archetype == TEXT("Boss"))
@@ -108,6 +146,11 @@ void AReEchoGameMode::PrepareBossSacrifice()
 			const float Angle = Random.FRandRange(0.0f, 2.0f * PI);
 			FVector Location =
 			    Boss->GetActorLocation() + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
+			if (bOpeningCrowd)
+			{
+				Location = Boss->GetActorLocation() +
+				           SampleOpeningCrowdOffset(Random, Sector, CrowdRotation, Config->SacrificeRadiusCm);
+			}
 			Location.Z = ArenaScene->GetGameplayPlaneWorldZ() + HalfHeight;
 			const FVector ToCamera = Location - Camera->GetComponentLocation();
 			const float HalfWidth = Camera->OrthoWidth * 0.5f;
@@ -115,10 +158,11 @@ void AReEchoGameMode::PrepareBossSacrifice()
 			    Location.Y - Radius < Bounds.Min.Y || Location.Y + Radius > Bounds.Max.Y ||
 			    FVector::Dist2D(Location, Player->GetActorLocation()) <
 			        FMath::Max(Policy->MinPlayerDistanceCm, Spacing) ||
-			    FVector::DotProduct(ToCamera, Camera->GetForwardVector()) <= 0.0f ||
-			    FMath::Abs(FVector::DotProduct(ToCamera, Camera->GetRightVector())) + Radius > HalfWidth ||
-			    FMath::Abs(FVector::DotProduct(ToCamera, Camera->GetUpVector())) + HalfHeight >
-			        HalfWidth / FMath::Max(0.1f, Camera->AspectRatio))
+			    (!bOpeningCrowd &&
+			     (FVector::DotProduct(ToCamera, Camera->GetForwardVector()) <= 0.0f ||
+			      FMath::Abs(FVector::DotProduct(ToCamera, Camera->GetRightVector())) + Radius > HalfWidth ||
+			      FMath::Abs(FVector::DotProduct(ToCamera, Camera->GetUpVector())) + HalfHeight >
+			          HalfWidth / FMath::Max(0.1f, Camera->AspectRatio))))
 			{
 				continue;
 			}
@@ -151,6 +195,7 @@ void AReEchoGameMode::PrepareBossSacrifice()
 				break;
 			}
 			++SpawnedCount;
+			++SectorCounts[Sector];
 			FreezeBossTransformationActors();
 			UReEchoEnemyPresentationComponent* Visual =
 			    Enemy->FindComponentByClass<UReEchoEnemyPresentationComponent>();
@@ -295,3 +340,44 @@ void AReEchoGameMode::EndBossSacrifice()
 	bBossSacrificeChargeStarted = false;
 	bBossSacrificeReappearing = false;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossOpeningCrowdDistributionTest,
+                                 "ReEcho.Enemies.Host.Phase3OpeningCrowdDistribution",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossOpeningCrowdDistributionTest::RunTest(const FString& Parameters)
+{
+	for (int32 Total = 0; Total <= 20; ++Total)
+	{
+		int32 QuotaSum = 0;
+		for (int32 Sector = 0; Sector < OpeningCrowdSectors; ++Sector)
+		{
+			QuotaSum += OpeningCrowdSectorQuota(Total, Sector);
+		}
+		TestEqual(TEXT("Sector quotas preserve configured total"), QuotaSum, Total);
+	}
+	FRandomStream Random(153);
+	for (int32 Sector = 0; Sector < OpeningCrowdSectors; ++Sector)
+	{
+		TestTrue(TEXT("Twenty participants cover every direction with two or three slots"),
+		         OpeningCrowdSectorQuota(20, Sector) >= 2 && OpeningCrowdSectorQuota(20, Sector) <= 3);
+		for (int32 Sample = 0; Sample < 50; ++Sample)
+		{
+			const FVector Offset = SampleOpeningCrowdOffset(Random, Sector, 0.0f, 800.0f);
+			float Angle = FMath::Atan2(Offset.Y, Offset.X);
+			if (Angle < 0.0f)
+			{
+				Angle += 2.0f * PI;
+			}
+			TestTrue(TEXT("Random candidate stays inside its assigned sector"),
+			         Angle >= Sector * 2.0f * PI / OpeningCrowdSectors - KINDA_SMALL_NUMBER &&
+			             Angle <= (Sector + 1) * 2.0f * PI / OpeningCrowdSectors + KINDA_SMALL_NUMBER);
+			TestTrue(TEXT("Candidates scatter inside the boss annulus, not on the center"),
+			         Offset.Size2D() >= 240.0f - KINDA_SMALL_NUMBER && Offset.Size2D() <= 800.0f + KINDA_SMALL_NUMBER);
+			TestEqual(TEXT("Ground height is assigned separately"), Offset.Z, 0.0);
+		}
+	}
+	return true;
+}
+#endif

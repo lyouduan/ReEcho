@@ -1333,9 +1333,15 @@ void AReEchoGameMode::GMBossSkill(const FString& Skill, const int32 ComboCount)
 	{
 		AbilityId = TEXT("M_SHEEP_PrayerBeam");
 	}
+	else if (Skill.Equals(TEXT("GroundTriple"), ESearchCase::IgnoreCase) ||
+	         Skill.Equals(TEXT("Skill05"), ESearchCase::IgnoreCase))
+	{
+		AbilityId = TEXT("M_SHEEP_GroundTriple");
+	}
 	else
 	{
-		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04> [1|2|3]"), false);
+		PrintGMResult(TEXT("Usage: GMBossSkill <Skill01|Skill02|Skill02Moving|Skill03|Skill04|GroundTriple> [1|2|3]"),
+		              false);
 		return;
 	}
 
@@ -2209,6 +2215,9 @@ void AReEchoGameMode::CreateArena()
 
 void AReEchoGameMode::ClearCombatants()
 {
+	DeferredPhase3Spawns.Reset();
+	bHasPhase3SpawnPlan = false;
+	NextPhase3SpawnRetrySeconds = 0.0f;
 	ConnectionLineSideByPair.Reset();
 	ClearTimeShardPickups();
 	ClearEnemyRoster();
@@ -2665,6 +2674,9 @@ bool AReEchoGameMode::PrepareNextEncounter(const bool bDeferActivation)
 	bBossSuccessfullySpawnedThisEncounter = false;
 	bBossPostEchoPhaseTriggered = false;
 	bBossPhase3EscalationTriggered = false;
+	bHasPhase3SpawnPlan = false;
+	DeferredPhase3Spawns.Reset();
+	NextPhase3SpawnRetrySeconds = 0.0f;
 	RunSubsystem->BeginEncounter();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCsvEncounterRow* Encounter =
@@ -2858,6 +2870,12 @@ FReEchoEncounterRuntimeState AReEchoGameMode::CaptureEncounterRuntimeState() con
 	Result.EncounterTime = Director->EncounterTime;
 	Result.NextScheduledSpawnEventIndex = EncounterWaveScheduler.GetNextEventIndex();
 	Result.PendingSpawnBatches = PendingSpawnBatches;
+	Result.bHasPhase3SpawnPlan = bHasPhase3SpawnPlan;
+	if (bHasPhase3SpawnPlan)
+	{
+		Result.Phase3SpawnEvents = EncounterWaveScheduler.GetEvents();
+		Result.DeferredPhase3Spawns = DeferredPhase3Spawns;
+	}
 	Result.SpawnResolveSequence = EncounterSpawnSequence;
 	Result.ReservedSpawnLocations = EncounterSpawnLocations;
 	const TSharedPtr<const FReEchoCsvDataSnapshot> DataSnapshot = RunSubsystem->GetRunDataSnapshot();
@@ -2945,6 +2963,13 @@ void AReEchoGameMode::ResumeSavedEncounter()
 	}
 	Director->ConfigureEncounter(Encounter->DurationSeconds, Encounter->EndCondition == TEXT("Duration"));
 	EncounterWaveScheduler.RestoreNextEventIndex(SavedState.NextScheduledSpawnEventIndex);
+	bHasPhase3SpawnPlan = SavedState.bHasPhase3SpawnPlan;
+	if (bHasPhase3SpawnPlan)
+	{
+		EncounterWaveScheduler.RestoreEvents(SavedState.Phase3SpawnEvents, SavedState.NextScheduledSpawnEventIndex);
+		DeferredPhase3Spawns = SavedState.DeferredPhase3Spawns;
+		NextPhase3SpawnRetrySeconds = SavedState.EncounterTime + 0.5f;
+	}
 	PendingSpawnBatches = SavedState.PendingSpawnBatches;
 	EncounterSpawnSequence = FMath::Max(0, SavedState.SpawnResolveSequence);
 	EncounterSpawnLocations = SavedState.ReservedSpawnLocations;
@@ -3145,6 +3170,20 @@ void AReEchoGameMode::NotifyEnemySpecialStarted(const FName EnemyId,
 
 void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 {
+	if (bHasPhase3SpawnPlan && EncounterSeconds >= NextPhase3SpawnRetrySeconds)
+	{
+		NextPhase3SpawnRetrySeconds = EncounterSeconds + 0.5f;
+		TArray<FReEchoScheduledSpawnEvent> Retrying = MoveTemp(DeferredPhase3Spawns);
+		DeferredPhase3Spawns.Reset();
+		for (FReEchoScheduledSpawnEvent& Event : Retrying)
+		{
+			Event.Count = FMath::Max(0, Event.Count - SpawnScheduledBatch(Event));
+			if (Event.Count > 0)
+			{
+				DeferredPhase3Spawns.Add(Event);
+			}
+		}
+	}
 	for (const FReEchoScheduledSpawnEvent& Event : EncounterWaveScheduler.AdvanceTo(EncounterSeconds))
 	{
 		if (Event.EnemyRole == TEXT("Boss"))
@@ -3180,7 +3219,13 @@ void AReEchoGameMode::ProcessScheduledSpawnEvents(const float EncounterSeconds)
 			       Event.SpawnSeconds);
 			continue;
 		}
-		SpawnScheduledBatch(Event);
+		const int32 Spawned = SpawnScheduledBatch(Event);
+		if (bHasPhase3SpawnPlan && Event.EnemyRole != TEXT("Boss") && Spawned < Event.Count)
+		{
+			FReEchoScheduledSpawnEvent Deferred = Event;
+			Deferred.Count -= Spawned;
+			DeferredPhase3Spawns.Add(Deferred);
+		}
 	}
 }
 
@@ -3280,6 +3325,15 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 		Request.Seed = 1337 + Encounter->EncounterIndex * 7919;
 		Request.Sequence = EncounterSpawnSequence++;
 		Request.ExistingLocations = EncounterSpawnLocations;
+		if (bHasPhase3SpawnPlan)
+		{
+			// Only live hosts and current reservations occupy space; historic deaths must not exhaust the arena.
+			Request.ExistingLocations = Pending.Locations;
+			for (const FReEchoPendingSpawnBatchState& Reserved : PendingSpawnBatches)
+			{
+				Request.ExistingLocations.Append(Reserved.Locations);
+			}
+		}
 		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
 		{
 			if (Entry.bAlive && Entry.Host.IsValid())
@@ -3307,7 +3361,7 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 	PendingSpawnBatches.Add(MoveTemp(Pending));
 }
 
-void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event)
+int32 AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event)
 {
 	const UReEchoRunSubsystem* RunSubsystem = GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>();
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot =
@@ -3317,7 +3371,7 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	if (!Snapshot.IsValid() || !Encounter || !Player)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[EncounterSpawn] commit rejected because runtime data is unavailable."));
-		return;
+		return 0;
 	}
 
 	PrepareScheduledSpawnBatch(Event);
@@ -3329,12 +3383,26 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 	if (!PendingSpawnBatches.IsValidIndex(PendingIndex))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[EncounterSpawn] wave %s has no prepared batch."), *Event.WaveId.ToString());
-		return;
+		return 0;
 	}
 	const FReEchoPendingSpawnBatchState Pending = PendingSpawnBatches[PendingIndex];
 
 	int32 SuccessCount = 0;
-	for (int32 Index = 0; Index < Pending.Locations.Num(); ++Index)
+	int32 CommitCount = Pending.Locations.Num();
+	if (bHasPhase3SpawnPlan && Event.EnemyRole != TEXT("Boss"))
+	{
+		int32 Living = 0;
+		for (const FReEchoEnemyRosterEntrySnapshot& Entry : EnemyRoster->GetEntries())
+		{
+			Living += Entry.bAlive &&
+			                  (Encounter->bBossCountsTowardUnitLimit || Entry.Archetype != EReEchoEnemyArchetype::Boss)
+			              ? 1
+			              : 0;
+		}
+		CommitCount = ReEchoSpawnCapacity::CalculateReservationCount(
+		    ResolveBossPhase3ActiveUnitLimit(Encounter->ActiveUnitLimit, true, false), Living, 0, CommitCount);
+	}
+	for (int32 Index = 0; Index < CommitCount; ++Index)
 	{
 		if (SpawnConfiguredEnemy(Pending.EnemyId, Pending.Locations[Index], RunSubsystem->EncounterIndex))
 		{
@@ -3374,6 +3442,7 @@ void AReEchoGameMode::SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Even
 		}
 	}
 	PendingSpawnBatches.RemoveAt(PendingIndex);
+	return SuccessCount;
 }
 
 bool AReEchoGameMode::SpawnConfiguredEnemy(const FName EnemyId,
@@ -3481,6 +3550,14 @@ void AReEchoGameMode::HandleRunStatsEnemyHurt(const FReEchoDamageEvent& Event)
 
 void AReEchoGameMode::HandleRunStatsEnemyDeath(const FReEchoDamageEvent& Event)
 {
+	const AReEchoEnemyActor* DeadEnemy = Cast<AReEchoEnemyActor>(Event.Target.Get());
+	if (bHasPhase3SpawnPlan && DeadEnemy && DeadEnemy->GetKind() == EReEchoEnemyKind::Boss)
+	{
+		EncounterWaveScheduler.Reset();
+		DeferredPhase3Spawns.Reset();
+		PendingSpawnBatches.Reset();
+		bHasPhase3SpawnPlan = false;
+	}
 	if (UReEchoRunStatsSubsystem* Stats =
 	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunStatsSubsystem>() : nullptr)
 	{
@@ -3695,11 +3772,25 @@ void AReEchoGameMode::TriggerBossPhase3Escalation()
 		return;
 	}
 	const float PreviousHealth = Player->Combatant->CurrentHealth;
+	FReEchoEncounterWaveScheduler Phase3Plan;
+	FString PlanError;
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
+	if (!Snapshot.IsValid() || !BossPhase3Config || !Director ||
+	    !Phase3Plan.ConfigureRepeatedOrdinaryPlan(
+	        *Snapshot, CurrentEncounterId, BossPhase3Config->SpawnPlanRepetitions, Director->EncounterTime, PlanError))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[BossPhase3] Spawn plan rejected: %s"), *PlanError);
+		return;
+	}
 	if (!RunSubsystem->ActivateBossPhase3FinalStatMultiplier())
 	{
 		return;
 	}
 	bBossPhase3EscalationTriggered = true;
+	EncounterWaveScheduler = MoveTemp(Phase3Plan);
+	bHasPhase3SpawnPlan = true;
+	DeferredPhase3Spawns.Reset();
+	NextPhase3SpawnRetrySeconds = Director->EncounterTime + 0.5f;
 	Player->Combatant->InitializeFromStats(RunSubsystem->CurrentBuild.Stats, false);
 	Player->Combatant->RestoreCurrentHealth(PreviousHealth * 2.0f);
 	if (Player->Movement)
@@ -3741,7 +3832,8 @@ void AReEchoGameMode::ShowBossPhase3Announcement()
 
 int32 AReEchoGameMode::ResolveBossPhase3SpawnCount(const int32 AuthoredCount, const bool bPhase3, const bool bBossRole)
 {
-	return bPhase3 && !bBossRole ? AuthoredCount * 2 : AuthoredCount;
+	// Phase3 multiplies the schedule, never the individual batch again.
+	return AuthoredCount;
 }
 
 int32 AReEchoGameMode::ResolveBossPhase3ActiveUnitLimit(const int32 AuthoredLimit,

@@ -927,8 +927,10 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 	const bool bBlinkSlam = Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlam ||
 	                        Intent.AbilityKind == EReEchoBossAbilityKind::BlinkSlamMoving;
 	const bool bPhase3BlinkSlam = CurrentBossPhaseIndex >= 3 && bBlinkSlam;
-	if (Intent.Type == EReEchoBossIntentType::AttackWindowStarted && Intent.Attack.IsValid() &&
-	    Intent.Attack.Sequence != LastBossCameraShakeSequence &&
+	const EReEchoBossIntentType ShakeEvent = (Intent.bPhaseOpening || Intent.bGroundedSlam) && bBlinkSlam
+	                                             ? EReEchoBossIntentType::ImpactResolved
+	                                             : EReEchoBossIntentType::AttackWindowStarted;
+	if (Intent.Type == ShakeEvent && Intent.Attack.IsValid() && Intent.Attack.Sequence != LastBossCameraShakeSequence &&
 	    (bBlinkSlam || Intent.AbilityKind == EReEchoBossAbilityKind::PrayerBeam))
 	{
 		if (const APlayerController* PlayerController = UGameplayStatics::GetPlayerController(Host, 0))
@@ -943,9 +945,39 @@ void UReEchoEnemyPresentationComponent::HandleBossIntent(const FReEchoBossIntent
 				{
 					ArenaCamera->PlayImpactShake(14.0f, 0.25f);
 				}
+				LastBossCameraShakeSequence = Intent.Attack.Sequence;
 			}
 		}
-		LastBossCameraShakeSequence = Intent.Attack.Sequence;
+	}
+	if (bPhase3BlinkSlam && (Intent.bPhaseOpening || Intent.bGroundedSlam))
+	{
+		// Opening is three grounded Attack clips, not the normal blink/rise/descent choreography.
+		bBossPhase3PendingWindupWalk = false;
+		BossPhase3LandingHoldRemaining = 0.0f;
+		BossPhase3BlinkSlamWindupRemaining = 0.0f;
+		BossBlinkSlamRemaining = 0.0f;
+		bBossPhase3BlinkSlamHidden = false;
+		bBossPhase3AttackScaleActive = Intent.Type != EReEchoBossIntentType::AbilityEnded;
+		ApplyBossPhase3Facing(Intent.LockedDirection);
+		if (SequenceAnimation)
+		{
+			SequenceAnimation->SetVisibility(true);
+			SequenceAnimation->SetHiddenInGame(false);
+		}
+		if (GroundShadow)
+		{
+			GroundShadow->SetVisibility(true);
+			GroundShadow->SetHiddenInGame(false);
+		}
+		if (PresentationController && Intent.Type == EReEchoBossIntentType::TelegraphStarted)
+		{
+			PresentationController->SetWeaponVisualSetId(TEXT("Phase3"));
+			PresentationController->PlayAction(ReEcho2DAnimationTags::Attack_Basic, true, Intent.Attack.Sequence);
+			FitBossPhase3AttackPlaybackToWindow(Intent.WindupSeconds + Intent.ActiveSeconds);
+		}
+		ApplyBossPhase3FixedRendererScale();
+		ApplyPresentationMotion(FVector::ZeroVector, FVector::OneVector);
+		return;
 	}
 	if (bPhase3BlinkSlam && Intent.Type == EReEchoBossIntentType::TelegraphStarted)
 	{

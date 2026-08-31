@@ -1,8 +1,22 @@
 # `MOD-ReEcho`：`ReEcho`
 
-Boss 变身收尾震动：正常完成演出时，先清理变身 VFX、恢复镜头跟随，再触发一次 0.25 秒强震；不再在爆发换形点震动，取消/切关不触发。DA 的 `ShakeAmplitudeCm` 默认一→二阶段16 cm、二→三阶段28 cm；不改变 Skill03/Skill04 震动。
+Boss 变身收尾震动：正常完成演出时，清理变身 VFX 并触发一次 0.25 秒强震；一→二恢复镜头跟随，二→三首次开场三连则保留聚焦 Boss 的镜头序列。GameMode 独立持有开场镜头，依据 EnemyLogic 的 queued/active 状态跨三击保持，不用预估时长，不继续冻结战斗；实际三连结束后用 CameraMoveSeconds（默认0.8秒）平滑拉回玩家，再释放序列。死亡、取消、切关和 EndPlay 清理镜头所有权，世界暂停不推进。无开场队列时沿用正常结束。取消/切关不触发强震。DA 的 `ShakeAmplitudeCm` 默认一→二阶段16 cm、二→三阶段28 cm；不改变 Skill03/Skill04 震动。
 
 ## 模块状态
+
+GroundTriple独立技能：程序DA派生M_SHEEP_GroundTriple（仅Phase3，固定三拍，保留伤害/时序），参与循环；开场队列改用它。bGroundedSlam描述原地动画/圆心/即时地裂和震退，bPhaseOpening描述一次开场；开场Host跳过伤害，普通战斗正常结算。玩家在圈内通过PlayerPawn.BeginBossRepulse进行200cm/0.3s XY扫掠位移，世界下一帧Timer独立于冻结的玩家Tick，随世界暂停、死亡停止、遇墙停，本身不结算伤害；短时位移为瞬态不存档，EndPlay清理。普通技能不锁镜头、不补怪。GMBossSkill GroundTriple（别名Skill05）测试独立技能。
+
+三阶段开场控制门禁：镜头锁定和返回期间保留玩家Actor及非表现组件的原始暂停捕获值、State_Menu输入限制和Combatant表现受伤保护，恢复其余战斗实体以推进三连和击退；EndBossOpeningCamera统一释放玩家捕获状态，取消/死亡/切关同样清理。每次开场拍地的震动改由ImpactResolved触发14cm/0.25秒，攻击序号去重；其他技能震动事件不变。生命周期与开场测试覆盖玩家保护/冻结及三次真实相机偏移。
+
+三阶段放大后的取景：在CommitCinematicBossPhase同步应用Phase3 Walk缩放和接地后，重新调用现有相机聚焦入口，从放大Flipbook的世界包围中心计算投影焦点；用CameraMoveSeconds（0.8秒）平滑修正变身前旧焦点。只重采样一次，不随三连Attack包围盒变化追踪，镜头宽度不变。无需硬编码世界Z偏移，也不改变一→二/回响相机。
+
+三阶段参演怪散布：PrepareBossSacrifice只对三阶段新召唤使用Boss世界XY为圆心的8扇区分层随机采样，20只分为各方向2～3个名额，距离保持DA半径的30%～100%。按扇区轮流尝试，成功生成才消耗名额；不使用推进前玩家相机可见性裁剪，避免单侧偏置。场地/墙体/角色间距检查及640次上限保留，受阻扇区可以少生，不把全部怪物挤到畅通一侧。一→二采样不变。Phase3OpeningCrowdDistribution验证名额、角度和半径，实际场地分布仍需PIE。
+
+开场三连最新行为覆盖此前“落地三连”描述：二→三阶段镜头推进时，复用安全召唤逻辑额外生成程序DA配置的史莱姆/兔子/狐狸（默认20），等待完整Born接地，禁止该批参与升空献祭。变身结束后Boss在原地连续播放三次Phase3 Attack；无升空/隐藏/闪现/下降，锁定Boss而非玩家位置，在攻击窗口当帧同步地裂、伤害和震退，不再等待0.5秒下落。震退半径取DA的SacrificeRadiusCm与技能半径的较大值（默认800cm），只扩大非伤害的怪物位移筛选，不扩大玩家伤害圈。后续随机Skill03保留原行为。召唤有边界/间距/碰撞/有限尝试检查，空间不足允许少生，不能卡死演出。
+
+三阶段开场扩展：`UReEchoBossPhase3Config` 提供前两阶段生命总和倍率（5）、原始普通波次计划重复次数（5）、开场三连及震退距离/时长（200cm/0.3s）。Host 注入不可变阶段定义；生命以原始一阶段最大值和配置二阶段最大值计算，不乘当前血量。变身正常完成才调用生产开场命令；每次实际落地以锁定圆心/半径筛选存活普通怪，XY扫掠减速位移，遇墙停、无伤害。玩家/Echo/Boss及未完成Born者排除。读档保存生命上限、开场消费/排队、未完成落地与震退进度。
+
+GameMode进入三阶段时用`ConfigureRepeatedOrdinaryPlan`替换后续波次：原始普通波次重复五轮，单批不再翻倍，不额外生成Boss；保留当前活怪、原波次节奏和原三阶段同屏容量（基础上限x2）。保存完整计划及游标；满场/无位置的未生成名额每0.5秒重试，死亡后的历史位置不再占据预约空间。最终Boss死亡清除待生成计划。玩家最终倍率仍x2。新增测试为`ReEcho.Encounter.Phase3RepeatedPlan`、`ReEcho.Enemies.Host.Phase3OpeningCombo/Phase3OpeningRepulse`及SaveGame序列化覆盖；实际震退手感仍需PIE验收。
 
 镜头推进延长0.5秒：CameraPushSeconds默认1.3，CameraMoveSeconds保留0.8用于返回。推近后事件整体顺延0.5：怪物升空/变身1.3秒、怪物蓄力1.5秒、羊爆发4.0秒、基准结束5.2秒；二→三基础爆发1.8/结束2.9。Born/变身完成门禁仍可进一步延后。
 

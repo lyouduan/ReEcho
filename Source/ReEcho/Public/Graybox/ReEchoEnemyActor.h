@@ -61,6 +61,10 @@ public:
 	AReEchoEnemyActor();
 	/** Called once at the authored transformation burst, not by a VFX completion callback. */
 	bool CommitCinematicBossPhase(int32 PhaseIndex);
+	bool QueueBossPhaseOpening();
+	/** Swept, non-damaging world displacement; rejects Boss, dead and not-yet-born hosts. */
+	bool BeginBossOpeningRepulse(const FVector& Center, float DistanceCm, float DurationSeconds);
+	void AdvanceBossOpeningRepulse(float DeltaSeconds);
 	bool CommitSacrificePhase2();
 	void PrepareBossTransformation();
 	void CompensateBossTransformationPause(float SuspendedAtWorldTime);
@@ -396,6 +400,9 @@ private:
 	FReEchoBossIntent PendingBossBlinkSlamIntent;
 	float PendingBossBlinkSlamRemainingSeconds = 0.0f;
 	bool bBossBlinkSlamPending = false;
+	FVector OpeningRepulseDisplacement = FVector::ZeroVector;
+	float OpeningRepulseDuration = 0.0f;
+	float OpeningRepulseElapsed = 0.0f;
 	FReEchoBossIntent PendingBossPrayerBeamIntent;
 	float PendingBossPrayerBeamRemainingSeconds = 0.0f;
 	bool bBossPrayerBeamPending = false;

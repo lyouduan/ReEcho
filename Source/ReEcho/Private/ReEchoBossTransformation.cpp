@@ -65,6 +65,7 @@ bool AReEchoGameMode::BeginBossTransformation(AReEchoEnemyActor* Boss, const int
 		UE_LOG(LogTemp, Display, TEXT("[BossTransformation] queued phase=%d until world resumes"), TargetPhase);
 		return true;
 	}
+	EndBossOpeningCamera();
 	TransformingBoss = Boss;
 	BossTransformTargetPhase = TargetPhase;
 	BossTransformSettings = BossPhase3Config ? (TargetPhase == 3 ? BossPhase3Config->Phase3Presentation
@@ -122,9 +123,9 @@ bool AReEchoGameMode::BeginBossTransformation(AReEchoEnemyActor* Boss, const int
 	}
 	FreezeBossTransformationActors();
 	Boss->PrepareBossTransformation();
-	if (bBossSacrificeEnabled)
+	if (bBossSacrificeEnabled || TargetPhase == 3)
 	{
-		// Spawn once at the start of the camera push. Presentation ticks remain enabled for Born.
+		// Phase3 reuses only safe crowd summoning/Born, never the phase2 airborne sacrifice.
 		PrepareBossSacrifice();
 	}
 	if (ArenaCameraActor)
@@ -211,6 +212,7 @@ void AReEchoGameMode::AdvanceBossTransformation(const float DeltaSeconds)
 	}
 	if (BossTransformTargetPhase == 0)
 	{
+		AdvanceBossOpeningCamera();
 		return;
 	}
 	AReEchoEnemyActor* Boss = TransformingBoss.Get();
@@ -220,7 +222,7 @@ void AReEchoGameMode::AdvanceBossTransformation(const float DeltaSeconds)
 		return;
 	}
 	FreezeBossTransformationActors();
-	if (bBossSacrificeEnabled && !bBossSacrificeStarted)
+	if ((bBossSacrificeEnabled || BossTransformTargetPhase == 3) && !bBossSacrificeStarted)
 	{
 		bool bGroundReady = true;
 		for (const TWeakObjectPtr<AReEchoEnemyActor>& Weak : BossSacrificeEnemies)
@@ -298,13 +300,23 @@ void AReEchoGameMode::AdvanceBossTransformation(const float DeltaSeconds)
 			EndBossTransformation(false);
 			return;
 		}
+		if (BossTransformTargetPhase == 3 && ArenaCameraActor)
+		{
+			// Phase3 has synchronously applied its enlarged Walk bounds and ground alignment.
+			// Replace the pre-transformation focus once, then hold it through the opening attacks.
+			ArenaCameraActor->FocusStage01To02Target(
+			    Boss, BossTransformSettings.CameraWidthRatio, BossTransformSettings.CameraMoveSeconds);
+		}
 		if (UReEchoCombatVfxComponent* Vfx = Boss->FindComponentByClass<UReEchoCombatVfxComponent>())
 		{
 			Vfx->BurstBossTransformationEffects(BossTransformSettings.EffectScale);
 		}
 	}
 	const float Remaining = BossTransformSettings.DurationSeconds - BossTransformElapsed;
-	if (!bBossTransformCameraReturning && bBossTransformBurst && Remaining <= BossTransformSettings.CameraMoveSeconds)
+	const bool bKeepCameraForOpening =
+	    BossTransformTargetPhase == 3 && !Boss->GetEnemyLogicComponent()->GetSnapshot().bBossOpeningConsumed;
+	if (!bKeepCameraForOpening && !bBossTransformCameraReturning && bBossTransformBurst &&
+	    Remaining <= BossTransformSettings.CameraMoveSeconds)
 	{
 		bBossTransformCameraReturning = true;
 		if (ArenaCameraActor)
@@ -331,6 +343,10 @@ void AReEchoGameMode::AdvanceBossTransformation(const float DeltaSeconds)
 
 void AReEchoGameMode::EndBossTransformation(const bool bCompleted)
 {
+	if (!bCompleted)
+	{
+		EndBossOpeningCamera();
+	}
 	QueuedTransformingBoss.Reset();
 	QueuedBossTransformPhase = 0;
 	if (BossTransformTargetPhase == 0)
@@ -338,6 +354,7 @@ void AReEchoGameMode::EndBossTransformation(const bool bCompleted)
 		return;
 	}
 	const int32 CompletedPhase = BossTransformTargetPhase;
+	const TWeakObjectPtr<AReEchoEnemyActor> CompletedBoss = TransformingBoss;
 	EndBossSacrifice();
 	UE_LOG(LogTemp, Display, TEXT("[BossTransformation] end phase=%d completed=%d"), CompletedPhase, bCompleted);
 	BossTransformTargetPhase = 0;
@@ -356,51 +373,34 @@ void AReEchoGameMode::EndBossTransformation(const bool bCompleted)
 		}
 	}
 	BossTransformEnemyFreezeTimes.Reset();
-	for (const auto& Entry : BossTransformComponentTicks)
+	if (bCompleted && CompletedPhase == 3)
 	{
-		if (UActorComponent* Component = Entry.Key.Get())
+		if (AReEchoEnemyActor* Boss = CompletedBoss.Get())
 		{
-			Component->SetComponentTickEnabled(Entry.Value);
+			if (Boss->QueueBossPhaseOpening() && ArenaCameraActor)
+			{
+				BossOpeningCameraTarget = Boss;
+				bBossOpeningCameraHeld = true;
+				bBossOpeningCameraReturning = false;
+			}
 		}
 	}
-	for (const auto& Entry : BossTransformActorTicks)
-	{
-		if (AActor* Actor = Entry.Key.Get())
-		{
-			Actor->SetActorTickEnabled(Entry.Value);
-		}
-	}
-	for (const auto& Entry : BossTransformCombatGates)
-	{
-		if (UReEchoCombatantComponent* Combatant = Entry.Key.Get())
-		{
-			Combatant->SetPresentationSuspended(Entry.Value);
-		}
-	}
-	BossTransformComponentTicks.Reset();
-	BossTransformActorTicks.Reset();
-	BossTransformCombatGates.Reset();
+	RestoreBossTransformationActors(bBossOpeningCameraHeld);
 	if (Director)
 	{
 		Director->SetActorTickEnabled(bBossTransformPreviousDirectorTick);
 	}
-	if (Player)
+	if (!bBossOpeningCameraHeld)
 	{
-		if (bBossTransformInputBlocked && Player->AbilitySystem)
-		{
-			Player->AbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Menu);
-		}
-		if (APlayerController* Controller = Cast<APlayerController>(Player->GetController()))
-		{
-			Controller->SetIgnoreMoveInput(false);
-			Controller->SetIgnoreLookInput(false);
-		}
+		ReleaseBossTransformationPlayerInput();
 	}
-	bBossTransformInputBlocked = false;
 	TransformingBoss.Reset();
 	if (ArenaCameraActor)
 	{
-		ArenaCameraActor->EndStage01To02CameraSequence();
+		if (!bBossOpeningCameraHeld)
+		{
+			ArenaCameraActor->EndStage01To02CameraSequence();
+		}
 		if (bCompleted)
 		{
 			ArenaCameraActor->PlayImpactShake(BossTransformSettings.ShakeAmplitudeCm, 0.25f);
@@ -414,6 +414,114 @@ void AReEchoGameMode::EndBossTransformation(const bool bCompleted)
 	{
 		ShowBossPhase3Announcement();
 	}
+}
+
+void AReEchoGameMode::RestoreBossTransformationActors(const bool bKeepPlayer)
+{
+	for (auto It = BossTransformComponentTicks.CreateIterator(); It; ++It)
+	{
+		if (UActorComponent* Component = It.Key().Get())
+		{
+			if (bKeepPlayer && Component->GetOwner() == Player)
+			{
+				continue;
+			}
+			Component->SetComponentTickEnabled(It.Value());
+		}
+		It.RemoveCurrent();
+	}
+	for (auto It = BossTransformActorTicks.CreateIterator(); It; ++It)
+	{
+		if (AActor* Actor = It.Key().Get())
+		{
+			if (bKeepPlayer && Actor == Player)
+			{
+				continue;
+			}
+			Actor->SetActorTickEnabled(It.Value());
+		}
+		It.RemoveCurrent();
+	}
+	for (auto It = BossTransformCombatGates.CreateIterator(); It; ++It)
+	{
+		if (UReEchoCombatantComponent* Combatant = It.Key().Get())
+		{
+			if (bKeepPlayer && Combatant->GetOwner() == Player)
+			{
+				continue;
+			}
+			Combatant->SetPresentationSuspended(It.Value());
+		}
+		It.RemoveCurrent();
+	}
+}
+
+void AReEchoGameMode::ReleaseBossTransformationPlayerInput()
+{
+	if (Player && bBossTransformInputBlocked)
+	{
+		if (bBossTransformInputBlocked && Player->AbilitySystem)
+		{
+			Player->AbilitySystem->RemoveLooseGameplayTag(ReEchoGameplayTags::State_Menu);
+		}
+		if (APlayerController* Controller = Cast<APlayerController>(Player->GetController()))
+		{
+			Controller->SetIgnoreMoveInput(false);
+			Controller->SetIgnoreLookInput(false);
+		}
+	}
+	bBossTransformInputBlocked = false;
+}
+
+void AReEchoGameMode::AdvanceBossOpeningCamera()
+{
+	if (!bBossOpeningCameraHeld)
+	{
+		return;
+	}
+	const AReEchoEnemyActor* Boss = BossOpeningCameraTarget.Get();
+	if (!Boss || !Boss->IsAlive() || !Player || !Player->Combatant || !Player->Combatant->IsAlive() ||
+	    !ArenaCameraActor || bEncounterTransitioning)
+	{
+		EndBossOpeningCamera();
+		return;
+	}
+	if (bBossOpeningCameraReturning)
+	{
+		if (ArenaCameraActor->IsStage01To02CameraMoveComplete())
+		{
+			EndBossOpeningCamera();
+		}
+		return;
+	}
+	const FReEchoEnemyLogicSnapshot Snapshot = Boss->GetEnemyLogicComponent()->GetSnapshot();
+	if (Snapshot.CurrentPhaseIndex == 3 && (Snapshot.bBossOpeningQueued || Snapshot.bBossOpeningActive))
+	{
+		return;
+	}
+	// Observe actual combo completion, not a guessed duration. Gameplay remains unfrozen throughout.
+	bBossOpeningCameraReturning =
+	    ArenaCameraActor->FocusStage01To02TargetAtStandardWidth(Player, BossTransformSettings.CameraMoveSeconds);
+	if (!bBossOpeningCameraReturning)
+	{
+		EndBossOpeningCamera();
+	}
+}
+
+void AReEchoGameMode::EndBossOpeningCamera()
+{
+	if (bBossOpeningCameraHeld)
+	{
+		RestoreBossTransformationActors(false);
+		ReleaseBossTransformationPlayerInput();
+	}
+	if (bBossOpeningCameraHeld && ArenaCameraActor)
+	{
+		ArenaCameraActor->EndStage01To02CameraSequence();
+	}
+	BossOpeningCameraTarget.Reset();
+	bBossOpeningCameraHeld = false;
+	bBossOpeningCameraReturning = false;
 }
 
 void AReEchoGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)

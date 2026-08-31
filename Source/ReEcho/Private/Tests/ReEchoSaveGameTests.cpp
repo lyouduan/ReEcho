@@ -241,6 +241,17 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EncounterState.ActiveRecording.EncounterIndex = Source->EncounterIndex;
 	EncounterState.ActiveRecording.BuildSnapshot = Source->CurrentBuild;
 	EncounterState.bBossPostEchoPhaseTriggered = true;
+	EncounterState.bHasPhase3SpawnPlan = true;
+	FReEchoScheduledSpawnEvent Deferred;
+	Deferred.Type = EReEchoScheduledSpawnEventType::Commit;
+	Deferred.WaveId = TEXT("Phase3.2.Encounter.8.Wave.1");
+	Deferred.EnemyId = TEXT("M_RABBIT");
+	Deferred.EnemyRole = TEXT("Ranged");
+	Deferred.Count = 3;
+	Deferred.EventSeconds = 75.0f;
+	Deferred.SpawnSeconds = 75.0f;
+	EncounterState.Phase3SpawnEvents.Add(Deferred);
+	EncounterState.DeferredPhase3Spawns.Add(Deferred);
 	FReEchoEnemyRuntimeState EnemyState;
 	EnemyState.Kind = 2;
 	EnemyState.EnemyId = TEXT("M_RABBIT");
@@ -259,6 +270,15 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 	EnemyState.LogicSnapshot.BossActionPhase = EReEchoBossActionPhase::Windup;
 	EnemyState.LogicSnapshot.BossActionPhaseRemainingSeconds = 0.45f;
 	EnemyState.LogicSnapshot.BossEncounterElapsedSeconds = 31.0f;
+	EnemyState.LogicSnapshot.bBossOpeningConsumed = true;
+	EnemyState.LogicSnapshot.bBossOpeningQueued = true;
+	EnemyState.SavedMaxHealth = 25000.0f;
+	EnemyState.bPendingSlam = true;
+	EnemyState.PendingSlamSeconds = 0.2f;
+	EnemyState.PendingSlamIntent.bPhaseOpening = true;
+	EnemyState.OpeningRepulseDisplacement = FVector(200.0f, 0.0f, 0.0f);
+	EnemyState.OpeningRepulseDuration = 0.3f;
+	EnemyState.OpeningRepulseElapsed = 0.15f;
 	EncounterState.Enemies.Add(EnemyState);
 	UReEchoRunSaveGame* SuspendedSnapshot = Source->CreateSaveSnapshot(&EncounterState);
 	TestEqual(
@@ -298,9 +318,29 @@ bool FReEchoSaveSnapshotTest::RunTest(const FString& Parameters)
 		          7);
 		TestTrue(TEXT("Boss post-echo phase survives round trip"),
 		         DeserializedSnapshot->EncounterRuntimeState.bBossPostEchoPhaseTriggered);
+		TestTrue(TEXT("Dedicated phase3 plan flag survives archive"),
+		         DeserializedSnapshot->EncounterRuntimeState.bHasPhase3SpawnPlan);
+		TestEqual(TEXT("Dedicated phase3 events survive archive"),
+		          DeserializedSnapshot->EncounterRuntimeState.Phase3SpawnEvents.Num(),
+		          1);
+		const TArray<FReEchoScheduledSpawnEvent>& SavedDeferred =
+		    DeserializedSnapshot->EncounterRuntimeState.DeferredPhase3Spawns;
+		TestEqual(TEXT("Deferred quota survives archive"), SavedDeferred.Num(), 1);
+		if (SavedDeferred.Num() == 1)
+		{
+			TestEqual(TEXT("Only remaining quota is saved"), SavedDeferred[0].Count, 3);
+			TestEqual(TEXT("Deferred wave identity survives"), SavedDeferred[0].WaveId, Deferred.WaveId);
+		}
 		if (DeserializedSnapshot->EncounterRuntimeState.Enemies.Num() == 1)
 		{
 			const FReEchoEnemyRuntimeState& SerializedEnemy = DeserializedSnapshot->EncounterRuntimeState.Enemies[0];
+			TestTrue(TEXT("Opening consumption survives archive"), SerializedEnemy.LogicSnapshot.bBossOpeningConsumed);
+			TestTrue(TEXT("Queued opening survives archive"), SerializedEnemy.LogicSnapshot.bBossOpeningQueued);
+			TestEqual(TEXT("Phase3 health ceiling survives archive"), SerializedEnemy.SavedMaxHealth, 25000.0f);
+			TestTrue(TEXT("Pending landing survives archive"),
+			         SerializedEnemy.bPendingSlam && SerializedEnemy.PendingSlamIntent.bPhaseOpening);
+			TestEqual(TEXT("Landing remaining time survives archive"), SerializedEnemy.PendingSlamSeconds, 0.2f);
+			TestEqual(TEXT("Repulse progress survives archive"), SerializedEnemy.OpeningRepulseElapsed, 0.15f);
 			TestEqual(TEXT("Enemy attack cooldown survives round trip"), SerializedEnemy.AttackCooldown, 0.65f);
 			TestEqual(TEXT("Stable enemy id survives round trip"), SerializedEnemy.EnemyId, FName(TEXT("M_RABBIT")));
 			TestEqual(TEXT("Enemy fuse survives round trip"), SerializedEnemy.FuseRemaining, 0.4f);
@@ -515,9 +555,8 @@ bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Migration restores the selected Hunter role"),
 	          Restored->CurrentBuild.Stats.RoleId,
 	          FName(TEXT("Hunter")));
-	TestEqual(TEXT("Migration reverses promoted maximum health"),
-	          Restored->CurrentBuild.Stats.HpMax,
-	          OriginalStats.HpMax);
+	TestEqual(
+	    TEXT("Migration reverses promoted maximum health"), Restored->CurrentBuild.Stats.HpMax, OriginalStats.HpMax);
 	TestEqual(TEXT("Migration reverses promoted elemental attack"),
 	          Restored->CurrentBuild.Stats.ElementalAttack,
 	          OriginalStats.ElementalAttack);
@@ -536,9 +575,8 @@ bool FReEchoV22PromotionRemovalMigrationTest::RunTest(const FString& Parameters)
 	UGameInstance* RoundTripGameInstance = NewObject<UGameInstance>();
 	UReEchoRunSubsystem* RoundTrip = NewObject<UReEchoRunSubsystem>(RoundTripGameInstance);
 	TestTrue(TEXT("Migrated save round-trips"), RoundTrip->RestoreSaveSnapshot(*RoundTripSave));
-	TestEqual(TEXT("Round-trip keeps the selected character"),
-	          RoundTrip->CurrentBuild.CharacterId,
-	          FName(TEXT("J_DIAMOND")));
+	TestEqual(
+	    TEXT("Round-trip keeps the selected character"), RoundTrip->CurrentBuild.CharacterId, FName(TEXT("J_DIAMOND")));
 
 	UReEchoRunSaveGame* MissingOriginalSave = Source->CreateSaveSnapshot();
 	MissingOriginalSave->SaveVersion = 22;

@@ -2,6 +2,12 @@
 
 ## 模块状态
 
+Phase3 GroundTriple：不可变能力bGroundedSlam区分原地三连与BlinkSlam，bPhaseOpening只代表一次开场。原地变体不要求传送落点，锁SelfLocation，固定3连，后续参与能力循环；Intent携带bGroundedSlam供宿主和表现消费。普通Skill03仍锁目标、随机1～3连。玩家被动位移由ReEcho宿主所有。
+
+开场三连现为原地攻击：bBossOpeningActive时目标圆心和逻辑Origin取SelfLocation，不需要可用闪现落点，bRequestTeleport始终false；每击更新朝向但不移动Boss。三次前摇/攻击窗口仍复用Skill03节奏，后续非开场技能正常锁定玩家并下砸。Host负责开场当帧ImpactResolved，逻辑层不等待粒子或动画完成。
+
+`QueueBossPhaseOpening`为生产阶段开场命令，读取Host注入的阶段OpeningAbilityId/OpeningStrikeCount，不依赖GM。只允许存活Boss第三阶段一次排队；可用目标/落点出现后优先启动，无需等待原技能冷却，开场固定三连，之后恢复原随机连击。消费、排队和执行状态进入LogicSnapshot，BossIntent标识bPhaseOpening供Host在实际落地处理周围怪物震退；模块本身不扫描世界、不移动Actor、不结算额外伤害。取消变身不调用开场入口。
+
 献祭落地通过CompleteCinematicPhase2提交非Boss的权威阶段2，消费自动变身触发并清零过渡计时，发布完成意图而不重播开始动画；幂等，拒绝死亡/Boss/未配置二阶段的对象。状态使用既有snapshot保存恢复，未添加存档字段。CinematicPhase2Persistence覆盖提交、重复调用、保存恢复和死亡拒绝。
 
 - Runtime Module：`ReEchoEnemies`。

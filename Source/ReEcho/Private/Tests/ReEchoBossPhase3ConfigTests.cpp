@@ -32,7 +32,15 @@ bool FReEchoBossPhase3ConfigOverlayTest::RunTest(const FString& Parameters)
 
 	TestTrue(TEXT("The Sheep programmer DA overlays the compiled boss definition"),
 	         Config->ApplyTo(TEXT("M_SHEEP"), Definition));
-	TestEqual(TEXT("Phase3 reuses exactly the existing Skill03 ability"), Definition.Abilities.Num(), 1);
+	TestEqual(TEXT("Phase3 contains Skill03 and independent GroundTriple"), Definition.Abilities.Num(), 2);
+	const FReEchoEnemyAbilityDefinition& Triple = Definition.Abilities[1];
+	TestEqual(TEXT("Independent triple identity"), Triple.Id, FName(TEXT("M_SHEEP_GroundTriple")));
+	TestTrue(TEXT("Triple is stationary"), Triple.bGroundedSlam);
+	TestEqual(TEXT("Triple is phase3 only"), Triple.MinPhaseIndex, 3);
+	TestEqual(TEXT("Triple always has three beats"), Triple.ComboMin, 3);
+	TestEqual(TEXT("Triple always has three beats maximum"), Triple.ComboMax, 3);
+	TestTrue(TEXT("Normal combat triple retains authored damage"), Triple.Damage > 0.0f);
+	TestEqual(TEXT("Opening uses independent triple"), Definition.BossPhases[0].OpeningAbilityId, Triple.Id);
 	const FReEchoEnemyAbilityDefinition& Phase3Ability = Definition.Abilities[0];
 	TestEqual(TEXT("Phase3 ability identity"), Phase3Ability.Id, FName(TEXT("M_SHEEP_BlinkSlam")));
 	TestEqual(TEXT("Phase3 ability behavior"), Phase3Ability.BehaviorId, FName(TEXT("Boss.BlinkSlam")));
@@ -47,6 +55,13 @@ bool FReEchoBossPhase3ConfigOverlayTest::RunTest(const FString& Parameters)
 	    TEXT("Phase3 refills to its programmer-authored health"), Definition.BossPhases[0].PhaseMaxHealth, 500.0f);
 
 	FReEchoEnemyDefinition Other = Definition;
+	TestEqual(TEXT("Phase3 health multiplier comes from programmer DA"),
+	          Definition.BossPhases[0].PreviousPhasesHealthMultiplier,
+	          5.0f);
+	TestEqual(TEXT("Phase3 repeats the ordinary plan five times"), Config->SpawnPlanRepetitions, 5);
+	TestEqual(TEXT("Opening forces three strikes"), Definition.BossPhases[0].OpeningStrikeCount, 3);
+	TestEqual(TEXT("Opening repulse distance"), Definition.BossPhases[0].OpeningRepulseDistanceCm, 200.0f);
+	TestEqual(TEXT("Opening repulse duration"), Definition.BossPhases[0].OpeningRepulseSeconds, 0.3f);
 	TestFalse(TEXT("The DA never overlays another enemy"), Config->ApplyTo(TEXT("M_FOX"), Other));
 	return true;
 }

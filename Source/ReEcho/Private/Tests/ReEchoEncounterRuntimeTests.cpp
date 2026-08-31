@@ -5,6 +5,64 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoPhase3SpawnPlanTest,
+                                 "ReEcho.Encounter.Phase3RepeatedPlan",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoPhase3SpawnPlanTest::RunTest(const FString& Parameters)
+{
+	const FReEchoCsvLoadResult Load =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	if (!TestTrue(TEXT("Production snapshot loads"), Load.bSuccess))
+	{
+		return false;
+	}
+	FReEchoEncounterWaveScheduler Original, Repeated;
+	FString Error;
+	TestTrue(TEXT("Original configures"), Original.Configure(*Load.Snapshot, TEXT("Encounter.8"), Error));
+	int32 OriginalCount = 0;
+	TSet<FName> OriginalWaves;
+	for (const FReEchoScheduledSpawnEvent& Event : Original.GetEvents())
+	{
+		if (Event.EnemyRole != TEXT("Boss") && Event.Type == EReEchoScheduledSpawnEventType::Commit)
+		{
+			OriginalCount += Event.Count;
+			OriginalWaves.Add(Event.WaveId);
+		}
+	}
+	TestTrue(TEXT("Repeated plan configures"),
+	         Repeated.ConfigureRepeatedOrdinaryPlan(*Load.Snapshot, TEXT("Encounter.8"), 5, 12.0f, Error));
+	int32 RepeatedCount = 0;
+	TSet<FName> RepeatedWaves;
+	float PreviousTime = -1.0f;
+	for (const FReEchoScheduledSpawnEvent& Event : Repeated.GetEvents())
+	{
+		TestTrue(TEXT("Plan remains sorted and starts at entry"),
+		         Event.EventSeconds >= PreviousTime && Event.EventSeconds >= 12.0f);
+		TestTrue(TEXT("No extra Boss"), Event.EnemyRole != TEXT("Boss"));
+		PreviousTime = Event.EventSeconds;
+		if (Event.Type == EReEchoScheduledSpawnEventType::Commit)
+		{
+			RepeatedCount += Event.Count;
+			RepeatedWaves.Add(Event.WaveId);
+		}
+	}
+	TestEqual(TEXT("Total is x5, never x25"), RepeatedCount, OriginalCount * 5);
+	TestEqual(TEXT("Wave count is x5"), RepeatedWaves.Num(), OriginalWaves.Num() * 5);
+	Repeated.AdvanceTo(23.0f);
+	FReEchoEncounterWaveScheduler Restored;
+	Restored.RestoreEvents(Repeated.GetEvents(), Repeated.GetNextEventIndex());
+	TestEqual(TEXT("Restore does not replay consumed events"), Restored.AdvanceTo(23.0f).Num(), 0);
+	TestEqual(TEXT("Restored remaining events match"),
+	          Restored.AdvanceTo(10000.0f).Num(),
+	          Repeated.AdvanceTo(10000.0f).Num());
+	const int32 CountBeforeInvalid = Repeated.GetEventCount();
+	TestFalse(TEXT("Invalid multiplier rejected"),
+	          Repeated.ConfigureRepeatedOrdinaryPlan(*Load.Snapshot, TEXT("Encounter.8"), 0, 0.0f, Error));
+	TestEqual(TEXT("Rejected plan preserves previous schedule"), Repeated.GetEventCount(), CountBeforeInvalid);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEncounterWaveSchedulerTest,
                                  "ReEcho.Encounter.TableDrivenWaveScheduler",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -27,7 +85,8 @@ bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Wave one emits only its two role warnings at encounter start"), AtStart.Num(), 2);
 	for (const FReEchoScheduledSpawnEvent& Event : AtStart)
 	{
-		TestEqual(TEXT("Wave one encounter-start event is a warning"), Event.Type, EReEchoScheduledSpawnEventType::Warning);
+		TestEqual(
+		    TEXT("Wave one encounter-start event is a warning"), Event.Type, EReEchoScheduledSpawnEventType::Warning);
 		TestEqual(TEXT("Wave one warning preserves its full configured lead"), Event.SpawnSeconds, 0.8f);
 	}
 	TestEqual(TEXT("Wave one does not commit before its warning lead expires"), Scheduler.AdvanceTo(0.79f).Num(), 0);
@@ -59,7 +118,8 @@ bool FReEchoEncounterWaveSchedulerTest::RunTest(const FString& Parameters)
 	    });
 	TestNotNull(TEXT("Boss warning uses the shared spawn pipeline"), BossWarning);
 	TestNull(TEXT("Boss is not committed in the same frame as its warning"), EarlyBossCommit);
-	TestEqual(TEXT("Melee and ranged first-wave commits respect their 0.8 second lead"), Scheduler.AdvanceTo(0.8f).Num(), 2);
+	TestEqual(
+	    TEXT("Melee and ranged first-wave commits respect their 0.8 second lead"), Scheduler.AdvanceTo(0.8f).Num(), 2);
 	const TArray<FReEchoScheduledSpawnEvent> BossLeadExpiry = Scheduler.AdvanceTo(0.9f);
 	const FReEchoScheduledSpawnEvent* BossCommit = BossLeadExpiry.FindByPredicate(
 	    [](const FReEchoScheduledSpawnEvent& Event)
@@ -155,7 +215,8 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	FString RejectedError;
 	TestFalse(TEXT("Resolver fails closed when no in-bounds candidate satisfies constraints"),
 	          FReEchoSpawnResolver::Resolve(*Profile, *Policy, ImpossibleRequest, RejectedSpawn, RejectedError));
-	TestTrue(TEXT("Failed resolver names the wall-derived candidate failure"), RejectedError.Contains(TEXT("wall-derived")));
+	TestTrue(TEXT("Failed resolver names the wall-derived candidate failure"),
+	         RejectedError.Contains(TEXT("wall-derived")));
 
 	const FReEchoCsvSpawnProfileRow* BossProfile = Load.Snapshot->FindSpawnProfileByRole(TEXT("Boss"));
 	if (!TestNotNull(TEXT("Boss has a dedicated spawn profile"), BossProfile))

@@ -47,6 +47,8 @@ public:
 	const FReEchoEnemyDefinition& GetDefinition() const;
 	/** Development command: queues one configured Boss ability for the next normal ability start. */
 	bool DebugQueueBossAbility(FName AbilityId, int32 ForcedComboCount = 0);
+	/** Production one-shot command, issued only after a phase-three cinematic completes. */
+	bool QueueBossPhaseOpening();
 	/** Development command: immediately switches to one configured encounter phase. */
 	bool DebugForceBossPhase(int32 PhaseIndex, FReEchoEnemyActionIntent& OutIntent);
 	bool DebugSetBossEncounterElapsedSeconds(float Seconds);

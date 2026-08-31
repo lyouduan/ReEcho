@@ -73,9 +73,9 @@ bool FReEchoEncounterTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Phase3 doubles integer player attributes"), Phase3Stats.Block, 6);
 	TestEqual(TEXT("Phase3 doubles projectile count"), Phase3Stats.ProjectileCount, 4);
 	TestEqual(TEXT("Phase3 preserves non-numeric player identity"), Phase3Stats.RoleId, FName(TEXT("J_TEST")));
-	TestEqual(TEXT("Phase3 doubles non-Boss authored wave count"),
+	TestEqual(TEXT("Phase3 repeats waves without multiplying individual batches"),
 	          AReEchoGameMode::ResolveBossPhase3SpawnCount(5, true, false),
-	          10);
+	          5);
 	TestEqual(TEXT("Phase3 doubles non-Boss active unit capacity"),
 	          AReEchoGameMode::ResolveBossPhase3ActiveUnitLimit(12, true, false),
 	          24);

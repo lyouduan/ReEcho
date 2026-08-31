@@ -101,6 +101,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1.0"))
 	float PhaseMaxHealth = 500.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1.0"))
+	float PreviousPhasesHealthMultiplier = 5.0f;
+
+	/** Repeat original ordinary waves, keeping each batch count unchanged. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1", ClampMax = "20"))
+	int32 SpawnPlanRepetitions = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3|Opening", meta = (ClampMin = "1", ClampMax = "3"))
+	int32 OpeningStrikeCount = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3|Opening", meta = (ClampMin = "0.0"))
+	float OpeningRepulseDistanceCm = 200.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3|Opening", meta = (ClampMin = "0.01"))
+	float OpeningRepulseSeconds = 0.3f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill03")
 	FName AbilityId = TEXT("M_SHEEP_BlinkSlam");
 

@@ -184,6 +184,55 @@ TArray<FReEchoScheduledSpawnEvent> FReEchoEncounterWaveScheduler::AdvanceTo(cons
 	return Due;
 }
 
+bool FReEchoEncounterWaveScheduler::ConfigureRepeatedOrdinaryPlan(const FReEchoCsvDataSnapshot& Snapshot,
+                                                                  const FName EncounterId,
+                                                                  const int32 Repetitions,
+                                                                  const float StartSeconds,
+                                                                  FString& OutError)
+{
+	FReEchoEncounterWaveScheduler Template;
+	if (Repetitions < 1 || Repetitions > 20 || !FMath::IsFinite(StartSeconds) || StartSeconds < 0.0f)
+	{
+		OutError = TEXT("Invalid repeated spawn plan parameters.");
+		return false;
+	}
+	if (!Template.Configure(Snapshot, EncounterId, OutError))
+	{
+		return false;
+	}
+	Template.Events.RemoveAll(
+	    [](const FReEchoScheduledSpawnEvent& Event)
+	    {
+		    return Event.EnemyRole == TEXT("Boss");
+	    });
+	float Period = FMath::Max(1.0f, Snapshot.FindEncounter(EncounterId)->DurationSeconds);
+	for (const FReEchoScheduledSpawnEvent& Event : Template.Events)
+	{
+		Period = FMath::Max(Period, Event.SpawnSeconds + 1.0f);
+	}
+	TArray<FReEchoScheduledSpawnEvent> Repeated;
+	for (int32 Cycle = 0; Cycle < Repetitions; ++Cycle)
+	{
+		for (const FReEchoScheduledSpawnEvent& Original : Template.Events)
+		{
+			FReEchoScheduledSpawnEvent Event = Original;
+			Event.WaveId = FName(*FString::Printf(TEXT("Phase3.%d.%s"), Cycle, *Original.WaveId.ToString()));
+			Event.EventSeconds += StartSeconds + Cycle * Period;
+			Event.SpawnSeconds += StartSeconds + Cycle * Period;
+			Repeated.Add(Event);
+		}
+	}
+	RestoreEvents(Repeated, 0);
+	return true;
+}
+
+void FReEchoEncounterWaveScheduler::RestoreEvents(const TArray<FReEchoScheduledSpawnEvent>& InEvents,
+                                                  const int32 InNextEventIndex)
+{
+	Events = InEvents;
+	RestoreNextEventIndex(InNextEventIndex);
+}
+
 void FReEchoEncounterWaveScheduler::RestoreNextEventIndex(const int32 InNextEventIndex)
 {
 	NextEventIndex = FMath::Clamp(InNextEventIndex, 0, Events.Num());
@@ -284,6 +333,7 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 		OutSpawn.bUsedDeterministicFallback = true;
 		return true;
 	}
-	OutError = TEXT("No deterministic spawn candidate inside the wall-derived bounds satisfies distance and spacing constraints.");
+	OutError = TEXT(
+	    "No deterministic spawn candidate inside the wall-derived bounds satisfies distance and spacing constraints.");
 	return false;
 }

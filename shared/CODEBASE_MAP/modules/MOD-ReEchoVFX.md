@@ -2,6 +2,8 @@
 
 ## 模块状态
 
+GroundTriple与开场共用Skill03地裂：消费bGroundedSlam或bPhaseOpening时以Boss自身地面锚点为中心，无升空/下降延时及提前地裂；仅ImpactResolved生成每击地裂。bGroundedSlam不是免伤标记，伤害由宿主的开场状态区分。非原地Skill03保持既有路径。
+
 羊一→二、二→三阶段共用BeginBossTransformationEffects，蓄力统一改GoatSkill04Charging（NS_Goat_Skill04_Charging）；地面预警、爆发、挂点/缩放/时序保持不变。周围献祭怪物仍使用GoatSkill03Charging。
 
 落地改为等待怪物变身动画实际结束；等待期间GoatSkill03Charging继续随身体播放，实际落地才清理，不按原3.9秒硬关闭。羊爆发时间不顺延。
@@ -97,7 +99,7 @@ Niagara ─/─→ Commit / HitIntent / Combat / EnemyLogic / SaveGame
 | FoxImpact | `/Game/VFX/Monster/Fox/Particle/NS_Fox_Rush_BeAttacked` | 狐狸作为攻击来源且最终 `AppliedDamage > 0` 时，附着受击目标的 Hurt 挂点单次播放 |
 | GoatSkill01 | `MoonStaff` + `NS_Goat_Skill02_BeAttacked` | 羊 Boss 从 Plan104 的 `DA_WeaponPresentation_MoonStaff` 读取持有贴图、尺寸和偏移；近战攻击窗口驱动法杖挥舞，并在法杖世界位置复用 Skill02 BeAttacked，玩法圆形命中不变 |
 | GoatSkill02 | `NS_Goat_Skill02_Charging` / `Bullet` / `BeAttacked` | 两种投射技能共用；Charging 挂在 `BossWeaponTipRoot`，该节点位于包含 MoonStaff DA 最终左右偏移的法杖贴图顶部，Bullet 使用 Local Space。StationaryVolley 在 Recovery 窗口内逐颗发布四次 Spawned，MovingSpread 同帧发布三向 Spawned；每颗投影权威弹道、命中后经 Combat 结算单弹配表伤害并发布 Ended，实际 `AppliedDamage > 0` 时在角色世界命中坐标播放命中 |
-| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | Charging 附着 Boss；预警固定在锁定角色落点并使用显式世界向上法线，Boss 落在预警 XY 中心；BeAttacked 作为同尺寸地裂贴地播放，Phase1/2 在落地时生成，Phase3 每段连击在 0.5 秒下降开始时生成且落地去重；实际伤害仍统一在落地后由 Combat 裁决 |
+| GoatSkill03 | `NS_Goat_Skill03_Charging` / `Alarming` / `BeAttacked` | 普通Skill03维持Charging/锁定角色地面预警与下砸地裂：Phase1/2落地生成，Phase3下降开始生成且落地去重。特殊开场bPhaseOpening不播放蓄力/预警、不跳跃，Boss原地连续Attack；每个攻击窗口由Host立即发ImpactResolved，地裂只生成一次，XY为Boss中心、Z对齐Boss自身GroundRoot/FootRoot，不读玩家高度。玩家伤害圈不因参演怪物震退半径扩大 |
 | GoatSkill04 | `NS_Goat_Skill04_Charging` / `NS_Goat_Skill03_Alarming` / `Lighting` | Charging 开始时显示目标快照预警，权威锁定后重启到 LockedTargetLocation；Lighting 从预警中心释放并使用 CameraPlane mesh facing，伤害起点同一锁点；AbilityEnded/Death/清场清理 |
 | PlayerMeleeSlash / Element Slash | 默认 `/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01`；火/雷/草/水分别为 `NS_People_Sword_Attack_Fire` / `Thunder` / `Grass` / `Water` | 长剑提交时按该次攻击的最终元素选择专用斩击，继承默认长剑的挂点、镜头正面修正、左右播放与 Local Space 契约；无元素或资源不可用时回退默认斩击 |
 | PlayerScytheSlash / Element Slash | 默认 `/Game/VFX/People/Sickle/Particle/NS_People_Sickle_Attack_01`；火/雷/草/水分别为 `NS_People_Sickle_Attack_Fire` / `Thunder` / `Grass` / `Water` | 镰刀提交时按该次攻击最终元素选择专用斩击，继承默认镰刀的延迟、挂点、CameraPlane 朝向和 Local Space 契约；无元素或资源不可用时回退默认斩击 |

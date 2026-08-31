@@ -209,18 +209,22 @@ public:
 	TSubclassOf<AReEchoEchoActor> ResolveEchoClassForTests() const;
 	AReEchoEchoActor* SpawnEchoActorForTests();
 	void SetEchoGameplayClassForTests(TSubclassOf<AReEchoEchoActor> InClass);
+
 	void AddEchoForTests(AReEchoEchoActor* Echo)
 	{
 		Echoes.Add(Echo);
 	}
+
 	void RemoveRetiredEchoesForTests()
 	{
 		RemoveRetiredEchoes();
 	}
+
 	int32 GetEchoCountForTests() const
 	{
 		return Echoes.Num();
 	}
+
 	static int32 ClearTimeShardPickupsInWorldForTests(UWorld* World);
 	static bool ShouldGrantPostEntryInvulnerabilityForTests(int32 EncounterIndex, float DurationSeconds);
 #endif
@@ -228,6 +232,13 @@ public:
 private:
 	void AdvanceBossTransformation(float DeltaSeconds);
 	void EndBossTransformation(bool bCompleted);
+	void AdvanceBossOpeningCamera();
+	void EndBossOpeningCamera();
+	void RestoreBossTransformationActors(bool bKeepPlayer);
+	void ReleaseBossTransformationPlayerInput();
+	TWeakObjectPtr<AReEchoEnemyActor> BossOpeningCameraTarget;
+	bool bBossOpeningCameraHeld = false;
+	bool bBossOpeningCameraReturning = false;
 	void FreezeBossTransformationActors();
 	void BeginBossSacrifice();
 	void PrepareBossSacrifice();
@@ -391,6 +402,9 @@ private:
 	bool bBossSuccessfullySpawnedThisEncounter = false;
 	bool bBossPostEchoPhaseTriggered = false;
 	bool bBossPhase3EscalationTriggered = false;
+	bool bHasPhase3SpawnPlan = false;
+	TArray<FReEchoScheduledSpawnEvent> DeferredPhase3Spawns;
+	float NextPhase3SpawnRetrySeconds = 0.0f;
 	float ArenaSceneWorldHeight = 0.0f;
 	float ArenaSceneWorldWidth = 0.0f;
 	FReEchoEncounterWaveScheduler EncounterWaveScheduler;
@@ -560,7 +574,7 @@ private:
 	bool ConfigureEncounterSpawns(int32 EncounterIndex);
 	void ProcessScheduledSpawnEvents(float EncounterSeconds);
 	void PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEvent& Event);
-	void SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
+	int32 SpawnScheduledBatch(const FReEchoScheduledSpawnEvent& Event);
 	bool SpawnConfiguredEnemy(FName EnemyId,
 	                          const FVector& SpawnLocation,
 	                          int32 CombatIndex = INDEX_NONE,

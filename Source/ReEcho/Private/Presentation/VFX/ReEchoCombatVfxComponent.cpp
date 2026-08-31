@@ -1697,7 +1697,7 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnBossBeam(const FReEchoBossInt
 
 FVector UReEchoCombatVfxComponent::ResolveBossTargetGroundLocation(const FReEchoBossIntent& Intent) const
 {
-	if (const AActor* Target = Intent.Target.Get())
+	if (const AActor* Target = (Intent.bPhaseOpening || Intent.bGroundedSlam) ? GetOwner() : Intent.Target.Get())
 	{
 		TArray<USceneComponent*> SceneComponents;
 		Target->GetComponents(SceneComponents);
@@ -2831,6 +2831,12 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	if (Intent.Type == EReEchoBossIntentType::TelegraphStarted)
 	{
 		StopBossActionEffects();
+		if (bSkill03 && (Intent.bPhaseOpening || Intent.bGroundedSlam))
+		{
+			// Grounded opening starts the attack animation directly, without charging or a target telegraph.
+			BossGroundLocationByAttackSequence.Add(Intent.Attack.Sequence, ResolveBossTargetGroundLocation(Intent));
+			return;
+		}
 		if (bSkill01)
 		{
 			return;
@@ -2868,7 +2874,7 @@ void UReEchoCombatVfxComponent::HandleBossIntent(const FReEchoBossIntent& Intent
 	{
 		StopEffect(BossChargingEffect);
 		StopEffect(BossTelegraphEffect);
-		if (bSkill03 && CurrentBossPhaseIndex >= 3)
+		if (bSkill03 && CurrentBossPhaseIndex >= 3 && !Intent.bPhaseOpening && !Intent.bGroundedSlam)
 		{
 			SpawnBossSkill03Impact(Intent);
 			EarlyBossSkill03ImpactKeys.Add(MakeBossSkill03ImpactKey(Intent));

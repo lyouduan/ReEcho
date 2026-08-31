@@ -1562,6 +1562,9 @@ bool FReEchoBossTransformationLifecycleTest::RunTest(const FString& Parameters)
 	NewObject<UReEchoBossPhase3Config>()->ApplyTo(TEXT("M_SHEEP"), Definition);
 	AReEchoEnemyActor* Boss = Fixture.World->SpawnActor<AReEchoEnemyActor>();
 	Boss->SetEnemyId(TEXT("M_SHEEP"));
+	Boss->SetPresentationCatalog(LoadObject<UReEcho2DPresentationCatalog>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog")));
 	if (!Boss->ConfigureFromDefinition(Definition, 153))
 	{
 		return false;
@@ -1681,6 +1684,21 @@ bool FReEchoBossTransformationLifecycleTest::RunTest(const FString& Parameters)
 		          Boss->GetEnemyLogicComponent()->GetSnapshot().CurrentPhaseIndex,
 		          Phase);
 		TestTrue(TEXT("Gameplay stays blocked for the post-burst display"), Mode->IsBossTransformationActiveForTests());
+		if (Phase == 3)
+		{
+			FVector EnlargedCenter;
+			TestTrue(TEXT("Phase3 focus resolves the actual enlarged Flipbook"),
+			         AReEchoArenaCameraActor::TryResolveStage01To02VisualCenter(Boss, EnlargedCenter));
+			Camera->Tick(0.4f);
+			TestFalse(TEXT("Phase3 reframing is smooth, not an instant snap"),
+			          Camera->IsStage01To02CameraMoveComplete());
+			Camera->Tick(0.4f);
+			const FVector ToCenter = EnlargedCenter - Camera->ArenaCamera->GetComponentLocation();
+			TestTrue(TEXT("Enlarged Phase3 center is vertically centered after reframing"),
+			         FMath::Abs(FVector::DotProduct(ToCenter, Camera->ArenaCamera->GetUpVector())) < 0.1f);
+			TestTrue(TEXT("Reframing preserves horizontal boss centering"),
+			         FMath::Abs(FVector::DotProduct(ToCenter, Camera->ArenaCamera->GetRightVector())) < 0.1f);
+		}
 		UReEcho2DAnimationComponent* SacrificeRenderer =
 		    StunnedEnemy->FindComponentByClass<UReEcho2DAnimationComponent>();
 		float AdditionalSacrificeTime = 0.0f;
@@ -1716,16 +1734,36 @@ bool FReEchoBossTransformationLifecycleTest::RunTest(const FString& Parameters)
 			         SacrificeVisual->GetSacrificeVisualCenter().Equals(OriginalVisualCenter, 0.1f));
 		}
 		Camera->Tick(0.4f);
-		TestFalse(TEXT("Camera pull also lasts longer than 0.4 seconds"), Camera->IsStage01To02CameraMoveComplete());
+		if (Phase == 2)
+		{
+			TestFalse(TEXT("Camera pull also lasts longer than 0.4 seconds"),
+			          Camera->IsStage01To02CameraMoveComplete());
+		}
+		else
+		{
+			TestTrue(TEXT("Phase3 keeps boss zoom instead of pulling back before opening"),
+			         Camera->ArenaCamera->OrthoWidth < StandardWidth);
+		}
 		Mode->AdvanceBossTransformationForTests(0.4f);
 		Camera->Tick(0.4f);
 		TestTrue(TEXT("Camera pull completes at 0.8 seconds"), Camera->IsStage01To02CameraMoveComplete());
 		Mode->AdvanceBossTransformationForTests(0.4f);
 		TestFalse(TEXT("Cinematic ends"), Mode->IsBossTransformationActiveForTests());
+		TestEqual(TEXT("Only completed phase3 cinematic queues its production opening"),
+		          Boss->GetEnemyLogicComponent()->GetSnapshot().bBossOpeningQueued,
+		          Phase == 3);
 		TestEqual(TEXT("Sacrifice participants cleared on completion"), Mode->GetBossSacrificeCountForTests(), 0);
 		TestTrue(TEXT("Enemy opacity restored after rebirth"),
 		         SacrificeRenderer && FMath::IsNearlyEqual(SacrificeRenderer->GetSpriteColor().A, 1.0f));
-		TestEqual(TEXT("Camera width restored"), Camera->ArenaCamera->OrthoWidth, StandardWidth);
+		if (Phase == 2)
+		{
+			TestEqual(TEXT("Phase2 camera width restored"), Camera->ArenaCamera->OrthoWidth, StandardWidth);
+		}
+		else
+		{
+			TestTrue(TEXT("Phase3 camera remains focused while opening is queued"),
+			         Camera->ArenaCamera->OrthoWidth < StandardWidth);
+		}
 		TestFalse(TEXT("Completion triggers an immediate camera shake"),
 		          Camera->ArenaCamera->GetRelativeLocation().IsNearlyZero());
 		Camera->Tick(0.25f);
@@ -1733,10 +1771,67 @@ bool FReEchoBossTransformationLifecycleTest::RunTest(const FString& Parameters)
 		         Camera->ArenaCamera->GetRelativeLocation().IsNearlyZero());
 		TestEqual(TEXT("Boss tick restored exactly"), Boss->IsActorTickEnabled(), PreviousBossTick);
 		TestEqual(TEXT("Director tick restored exactly"), Director->IsActorTickEnabled(), PreviousDirectorTick);
-		TestFalse(TEXT("Player damage gate restored"), Player->Combatant->IsPresentationSuspended());
+		TestEqual(TEXT("Player protection lasts through phase3 opening"),
+		          Player->Combatant->IsPresentationSuspended(),
+		          Phase == 3);
 		TestEqual(TEXT("Presentation does not consume the fast-kill clock"),
 		          Boss->GetEnemyLogicComponent()->GetSnapshot().BossEncounterElapsedSeconds,
 		          FightTime);
+		if (Phase == 3)
+		{
+			const float HeldWidth = Camera->ArenaCamera->OrthoWidth;
+			TestFalse(TEXT("Player gameplay remains frozen during opening"), Player->IsActorTickEnabled());
+			const FVector HeldPosition = Camera->GetActorLocation();
+			const FVector OriginalPlayerPosition = Player->GetActorLocation();
+			Player->SetActorLocation(OriginalPlayerPosition + FVector(1000.0f, 0.0f, 0.0f));
+			Mode->AdvanceBossTransformationForTests(0.1f);
+			Camera->Tick(0.1f);
+			TestEqual(
+			    TEXT("Queued opening camera does not follow moving player"), Camera->GetActorLocation(), HeldPosition);
+			Fixture.World->GetWorldSettings()->SetPauserPlayerState(Pauser);
+			Mode->AdvanceBossTransformationForTests(10.0f);
+			Camera->Tick(10.0f);
+			TestEqual(TEXT("Paused opening retains boss zoom"), Camera->ArenaCamera->OrthoWidth, HeldWidth);
+			Fixture.World->GetWorldSettings()->SetPauserPlayerState(nullptr);
+			FReEchoEnemySenseSnapshot Sense;
+			Sense.Target = Player;
+			Sense.bTargetExists = true;
+			Sense.bTargetAlive = true;
+			Sense.bAttackPermitted = true;
+			Sense.SelfLocation = Boss->GetActorLocation();
+			Sense.TargetLocation = Player->GetActorLocation();
+			int32 StrikeCount = 0;
+			bool bOpeningEnded = false;
+			for (int32 Frame = 0; Frame < 1200 && !bOpeningEnded; ++Frame)
+			{
+				const FReEchoEnemyActionIntent Action = Boss->GetEnemyLogicComponent()->Advance(Sense, 1.0f / 60.0f);
+				for (const FReEchoBossIntent& Event : Action.BossIntents)
+				{
+					StrikeCount +=
+					    Event.bPhaseOpening && Event.Type == EReEchoBossIntentType::AttackWindowStarted ? 1 : 0;
+					bOpeningEnded |= Event.bPhaseOpening && Event.Type == EReEchoBossIntentType::AbilityEnded;
+				}
+				Mode->AdvanceBossTransformationForTests(1.0f / 60.0f);
+				if (!bOpeningEnded)
+				{
+					Camera->Tick(1.0f / 60.0f);
+					TestEqual(TEXT("All opening beats retain boss zoom"), Camera->ArenaCamera->OrthoWidth, HeldWidth);
+				}
+			}
+			TestTrue(TEXT("Opening camera observes actual combo completion"), bOpeningEnded);
+			TestEqual(TEXT("Camera holds across all three strikes"), StrikeCount, 3);
+			Camera->Tick(0.4f);
+			TestFalse(TEXT("Opening return takes more than 0.4 seconds"), Camera->IsStage01To02CameraMoveComplete());
+			TestTrue(TEXT("Player protected during camera return"), Player->Combatant->IsPresentationSuspended());
+			TestTrue(TEXT("Opening return smoothly widens"), Camera->ArenaCamera->OrthoWidth > HeldWidth);
+			Camera->Tick(0.4f);
+			Mode->AdvanceBossTransformationForTests(0.0f);
+			TestEqual(TEXT("Opening return restores standard width"), Camera->ArenaCamera->OrthoWidth, StandardWidth);
+			TestFalse(TEXT("Opening camera ownership released after return"),
+			          Camera->IsStage01To02CameraMoveComplete());
+			Player->SetActorLocation(OriginalPlayerPosition);
+			TestFalse(TEXT("Player protection released after return"), Player->Combatant->IsPresentationSuspended());
+		}
 	}
 	TestTrue(TEXT("Cancellation test starts"), Mode->BeginBossTransformation(Boss, 3));
 	Mode->CancelBossTransformationForTests();
@@ -1757,6 +1852,252 @@ bool FReEchoBossTransformationLifecycleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Legacy echo sequence still advances while paused"), Camera->IsStage01To02CameraMoveComplete());
 	Fixture.World->GetWorldSettings()->SetPauserPlayerState(nullptr);
 	Camera->EndStage01To02CameraSequence();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossOpeningComboTest,
+                                 "ReEcho.Enemies.Host.Phase3OpeningCombo",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossOpeningComboTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyHostWorldFixture Fixture;
+	const FReEchoCsvLoadResult Load =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	FReEchoEnemyDefinition Definition;
+	FString Error;
+	if (!Load.bSuccess || !ReEchoEnemyDefinitionCompiler::Compile(*Load.Snapshot, TEXT("M_SHEEP"), Definition, Error))
+	{
+		AddError(TEXT("Production sheep definition unavailable"));
+		return false;
+	}
+	TestTrue(TEXT("DA overlays definition"),
+	         GetDefault<UReEchoBossPhase3Config>()->ApplyTo(TEXT("M_SHEEP"), Definition));
+	AReEchoEnemyActor* Boss = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	Boss->SetPresentationCatalog(LoadObject<UReEcho2DPresentationCatalog>(
+	    nullptr,
+	    TEXT("/Game/ReEcho/DataAsset/Enemy/Catalogs/DA_EnemyPresentationCatalog.DA_EnemyPresentationCatalog")));
+	Boss->ConfigureFromDefinition(Definition, 153);
+	Boss->CompleteBornGameplayGateForTests();
+	UReEchoEnemyLogicComponent* Logic = Boss->FindComponentByClass<UReEchoEnemyLogicComponent>();
+	FReEchoEnemyActionIntent Transition;
+	TestFalse(TEXT("Phase1 cannot queue phase3 opening"), Logic->QueueBossPhaseOpening());
+	TestTrue(TEXT("Enter phase3 with production presentation"), Boss->DebugForceBossPhaseForGM(3));
+	TestTrue(TEXT("Production opening queues"), Logic->QueueBossPhaseOpening());
+	TestFalse(TEXT("Repeated callback cannot queue twice"), Logic->QueueBossPhaseOpening());
+	Logic->RestoreSnapshot(Logic->GetSnapshot());
+	TestTrue(TEXT("Queued opening survives snapshot"), Logic->GetSnapshot().bBossOpeningQueued);
+	TestFalse(TEXT("Restore cannot reset one-shot consumption"), Logic->QueueBossPhaseOpening());
+	AReEchoPlayerPawn* Target = Fixture.World->SpawnActor<AReEchoPlayerPawn>();
+	Target->SetActorLocation(FVector(1000.0f, 0.0f, 0.0f));
+	APlayerController* ShakeController = Fixture.World->SpawnActor<APlayerController>();
+	ShakeController->Possess(Target);
+	AReEchoArenaCameraActor* ShakeCamera = Fixture.World->SpawnActor<AReEchoArenaCameraActor>();
+	ShakeCamera->Configure(Target, nullptr);
+	ShakeController->SetViewTarget(ShakeCamera);
+	UReEchoEnemyPresentationComponent* Visual = Boss->FindComponentByClass<UReEchoEnemyPresentationComponent>();
+	UReEcho2DAnimationComponent* Animation = Boss->FindComponentByClass<UReEcho2DAnimationComponent>();
+	UReEchoCombatVfxComponent* Vfx = Boss->FindComponentByClass<UReEchoCombatVfxComponent>();
+	UPaperFlipbook* Attack = LoadObject<UPaperFlipbook>(
+	    nullptr, TEXT("/Game/ReEcho/Art/Animation2D/Enemies/Goat/Phase3/GroundSlam/GroundSlam.GroundSlam"));
+	FReEchoEnemySenseSnapshot Sense;
+	Sense.Target = Target;
+	Sense.bTargetExists = true;
+	Sense.bTargetAlive = true;
+	Sense.SelfLocation = Boss->GetActorLocation();
+	Sense.TargetLocation = Target->GetActorLocation();
+	Sense.TeleportDestination = Sense.TargetLocation;
+	Sense.bHasTeleportDestination = false;
+	Sense.bAttackPermitted = true;
+	int32 OpeningAttacks = 0;
+	bool bEnded = false;
+	for (int32 Frame = 0; Frame < 1200 && !bEnded; ++Frame)
+	{
+		ShakeCamera->Tick(1.0f / 60.0f);
+		const FReEchoEnemyActionIntent Intent = Boss->AdvanceBehaviorForTests(Sense, 1.0f / 60.0f);
+		Visual->AdvanceBossPhase3WindupPresentationForTests(1.0f / 60.0f);
+		TestTrue(TEXT("Opening never moves gameplay boss"), Boss->GetActorLocation().Equals(Sense.SelfLocation));
+		TestEqual(TEXT("Opening never starts descent presentation"), Visual->GetBossBlinkSlamRemainingForTests(), 0.0f);
+		TestTrue(TEXT("Opening never hides the boss"), Animation->IsVisible());
+		for (const FReEchoBossIntent& Event : Intent.BossIntents)
+		{
+			if (Event.bPhaseOpening && Event.Type == EReEchoBossIntentType::TelegraphStarted)
+			{
+				TestEqual(
+				    TEXT("Each opening beat uses Phase3 Attack, not Walk or phase1"), Animation->GetFlipbook(), Attack);
+			}
+			if (Event.bPhaseOpening && Event.Type == EReEchoBossIntentType::AttackWindowStarted)
+			{
+				++OpeningAttacks;
+				TestFalse(TEXT("Each actual ground impact shakes the camera"),
+				          ShakeCamera->ArenaCamera->GetRelativeLocation().IsNearlyZero());
+				TestEqual(TEXT("Every opening strike reports total three"), Event.ComboStrikeCount, 3);
+				TestEqual(
+				    TEXT("Opening uses independent triple"), Event.AbilityId, FName(TEXT("M_SHEEP_GroundTriple")));
+				TestTrue(TEXT("Opening exposes stationary skill independently from cinematic state"),
+				         Event.bGroundedSlam);
+				TestFalse(TEXT("Opening never requests a teleport"), Event.bRequestTeleport);
+				TestTrue(TEXT("Opening ground center is boss, not player"),
+				         Event.LockedTargetLocation.Equals(Sense.SelfLocation));
+			}
+			bEnded |= Event.bPhaseOpening && Event.Type == EReEchoBossIntentType::AbilityEnded;
+		}
+	}
+	TestTrue(TEXT("Opening completes"), bEnded);
+	TestEqual(TEXT("Exactly three opening attacks"), OpeningAttacks, 3);
+	TestEqual(
+	    TEXT("Exactly three immediate ground impacts reach VFX"), Vfx->GetBossSkill03ImpactIntentCountForTests(), 3);
+	TestFalse(TEXT("Opening cannot be repeated after completion"), Logic->QueueBossPhaseOpening());
+	TestTrue(TEXT("GroundTriple is independently selectable in combat"),
+	         Logic->DebugQueueBossAbility(TEXT("M_SHEEP_GroundTriple")));
+	int32 CombatTripleHits = 0;
+	bool bCombatTripleEnded = false;
+	for (int32 Frame = 0; Frame < 1200 && !bCombatTripleEnded; ++Frame)
+	{
+		const FReEchoEnemyActionIntent Action = Logic->Advance(Sense, 1.0f / 60.0f);
+		for (const FReEchoBossIntent& Event : Action.BossIntents)
+		{
+			if (Event.AbilityId != TEXT("M_SHEEP_GroundTriple"))
+			{
+				continue;
+			}
+			TestFalse(TEXT("Combat triple does not reactivate cinematic immunity"), Event.bPhaseOpening);
+			TestTrue(TEXT("Combat triple retains grounded choreography"), Event.bGroundedSlam);
+			if (Event.Type == EReEchoBossIntentType::AttackWindowStarted)
+			{
+				++CombatTripleHits;
+				TestTrue(TEXT("Combat triple carries normal damage"), Event.RawDamage > 0.0f);
+				TestFalse(TEXT("Combat triple never teleports"), Event.bRequestTeleport);
+			}
+			bCombatTripleEnded |= Event.Type == EReEchoBossIntentType::AbilityEnded;
+		}
+	}
+	TestTrue(TEXT("Independent triple completes"), bCombatTripleEnded);
+	TestEqual(TEXT("Independent triple has three combat hits"), CombatTripleHits, 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoBossOpeningRepulseTest,
+                                 "ReEcho.Enemies.Host.Phase3OpeningRepulse",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoBossOpeningRepulseTest::RunTest(const FString& Parameters)
+{
+	FReEchoEnemyHostWorldFixture Fixture;
+	AReEchoEnemyActor* Enemy = Fixture.Spawn(EReEchoEnemyKind::Grunt, 1);
+	Enemy->CompleteBornGameplayGateForTests();
+	Enemy->SetActorEnableCollision(false);
+	Enemy->SetActorLocation(FVector(100.0f, 0.0f, 80.0f));
+	const float Health = Enemy->GetCombatantComponent()->CurrentHealth;
+	TestTrue(TEXT("Ordinary enemy accepts non-damaging repulse"),
+	         Enemy->BeginBossOpeningRepulse(FVector::ZeroVector, 200.0f, 0.3f));
+	Enemy->AdvanceBossOpeningRepulse(0.15f);
+	TestTrue(TEXT("Ease-out moves 75 percent by halfway, preserving ground height"),
+	         Enemy->GetActorLocation().Equals(FVector(250.0f, 0.0f, 80.0f), 0.01f));
+	const FReEchoEnemyRuntimeState Saved = Enemy->CaptureRuntimeState();
+	Enemy->RestoreRuntimeState(Saved);
+	Enemy->AdvanceBossOpeningRepulse(0.15f);
+	TestTrue(TEXT("Resume finishes only remaining distance"),
+	         Enemy->GetActorLocation().Equals(FVector(300.0f, 0.0f, 80.0f), 0.01f));
+	Enemy->AdvanceBossOpeningRepulse(1.0f);
+	TestTrue(TEXT("Finished repulse does not drift"),
+	         Enemy->GetActorLocation().Equals(FVector(300.0f, 0.0f, 80.0f), 0.01f));
+	TestEqual(TEXT("Repulse never damages target"), Enemy->GetCombatantComponent()->CurrentHealth, Health);
+	const FReEchoCsvLoadResult Load =
+	    FReEchoCsvDataRegistry::LoadSnapshotFromDirectory(FReEchoCsvDataRegistry::GetDefaultDataDirectory());
+	FReEchoEnemyDefinition BossDefinition;
+	FString Error;
+	if (!Load.bSuccess ||
+	    !ReEchoEnemyDefinitionCompiler::Compile(*Load.Snapshot, TEXT("M_SHEEP"), BossDefinition, Error))
+	{
+		AddError(TEXT("Production boss fixture unavailable"));
+		return false;
+	}
+	GetDefault<UReEchoBossPhase3Config>()->ApplyTo(TEXT("M_SHEEP"), BossDefinition);
+	AReEchoEnemyActor* Boss = Fixture.World->SpawnActor<AReEchoEnemyActor>();
+	TestTrue(TEXT("Production boss configures"), Boss->ConfigureFromDefinition(BossDefinition, 2));
+	Boss->CompleteBornGameplayGateForTests();
+	TestFalse(TEXT("Boss excluded from repulse"), Boss->BeginBossOpeningRepulse(FVector::ZeroVector, 200.0f, 0.3f));
+	Boss->SetActorEnableCollision(false);
+	Boss->SetActorLocation(FVector(-1000.0f, 0.0f, 80.0f));
+	UReEchoEnemyRosterComponent* Roster = NewObject<UReEchoEnemyRosterComponent>(Boss);
+	Boss->SetEnemyRoster(Roster);
+	Enemy->SetEnemyRoster(Roster);
+	AReEchoPlayerPawn* Target = Fixture.World->SpawnActor<AReEchoPlayerPawn>();
+	Target->SetActorEnableCollision(false);
+	Target->SetActorLocation(FVector(0.0f, 0.0f, 80.0f));
+	FReEchoStatBlock PlayerStats;
+	PlayerStats.HpMax = 100.0f;
+	Target->Combatant->InitializeFromStats(PlayerStats, true);
+	Target->SetActorTickEnabled(false);
+	FReEchoBossIntent Slam;
+	Slam.Type = EReEchoBossIntentType::AttackWindowStarted;
+	Slam.AbilityId = TEXT("M_SHEEP_BlinkSlam");
+	Slam.AbilityKind = EReEchoBossAbilityKind::BlinkSlam;
+	Slam.AttackShape = EReEchoBossAttackShape::Circle;
+	Slam.Target = Target;
+	Slam.Attack.Source = Boss;
+	Slam.Attack.Sequence = 1;
+	Slam.bPhaseOpening = true;
+	Slam.RawDamage = 20.0f;
+	Slam.bCanDamageTarget = true;
+	Slam.LockedTargetLocation = Target->GetActorLocation();
+	Slam.RadiusCm = 180.0f;
+	Enemy->SetActorLocation(FVector(100.0f, 0.0f, 80.0f));
+	Boss->ApplyBossIntentForTests(Slam);
+	Target->AdvanceBossRepulse(0.3f);
+	TestTrue(TEXT("Frozen player can be pushed without player gameplay tick"),
+	         Target->GetActorLocation().Equals(FVector(200.0f, 0.0f, 80.0f), 0.01f));
+	TestEqual(TEXT("Opening hit never damages player even without protection flag"),
+	          Target->Combatant->CurrentHealth,
+	          100.0f);
+	Enemy->AdvanceBossOpeningRepulse(0.3f);
+	TestTrue(TEXT("Grounded opening immediately repulses nearby enemy without descent delay"),
+	         Enemy->GetActorLocation().Equals(FVector(300.0f, 0.0f, 80.0f), 0.01f));
+	Boss->AdvancePendingBossBlinkSlamForTests(1.0f);
+	Enemy->AdvanceBossOpeningRepulse(0.3f);
+	TestTrue(TEXT("Landing pulse is consumed once"),
+	         Enemy->GetActorLocation().Equals(FVector(300.0f, 0.0f, 80.0f), 0.01f));
+	Slam.bPhaseOpening = false;
+	Enemy->SetActorLocation(FVector(100.0f, 0.0f, 80.0f));
+	Boss->ApplyBossIntentForTests(Slam);
+	Boss->AdvancePendingBossBlinkSlamForTests(0.51f);
+	Enemy->AdvanceBossOpeningRepulse(0.3f);
+	TestTrue(TEXT("Normal later slam does not use opening repulse"),
+	         Enemy->GetActorLocation().Equals(FVector(100.0f, 0.0f, 80.0f), 0.01f));
+	Target->SetActorLocation(FVector(0.0f, 0.0f, 80.0f));
+	Slam.Attack.Sequence = 2;
+	Slam.AbilityId = TEXT("M_SHEEP_GroundTriple");
+	Slam.bGroundedSlam = true;
+	Boss->ApplyBossIntentForTests(Slam);
+	TestTrue(TEXT("Combat GroundTriple damages player normally"), Target->Combatant->CurrentHealth < 100.0f);
+	const float AfterCombatHitHealth = Target->Combatant->CurrentHealth;
+	Target->AdvanceBossRepulse(0.3f);
+	TestTrue(TEXT("Combat GroundTriple also repulses player"),
+	         Target->GetActorLocation().Equals(FVector(200.0f, 0.0f, 80.0f), 0.01f));
+	TestEqual(
+	    TEXT("External repulse itself never adds damage"), Target->Combatant->CurrentHealth, AfterCombatHitHealth);
+	AActor* Wall = Fixture.World->SpawnActor<AActor>();
+	UBoxComponent* WallBox = NewObject<UBoxComponent>(Wall);
+	Wall->SetRootComponent(WallBox);
+	WallBox->SetBoxExtent(FVector(10.0f, 200.0f, 200.0f));
+	WallBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	WallBox->SetCollisionObjectType(ECC_WorldStatic);
+	WallBox->SetCollisionResponseToAllChannels(ECR_Block);
+	WallBox->RegisterComponent();
+	Wall->SetActorLocation(FVector(220.0f, 0.0f, 80.0f));
+	Enemy->SetActorEnableCollision(true);
+	TestTrue(TEXT("Repulse starts near wall"), Enemy->BeginBossOpeningRepulse(FVector::ZeroVector, 200.0f, 0.3f));
+	Enemy->AdvanceBossOpeningRepulse(0.3f);
+	TestTrue(TEXT("Swept repulse stops before wall"),
+	         Enemy->GetActorLocation().X > 100.0f && Enemy->GetActorLocation().X < 220.0f);
+	Enemy->SetActorEnableCollision(false);
+	Target->SetActorEnableCollision(true);
+	Target->SetActorLocation(FVector(100.0f, 0.0f, 80.0f));
+	Target->BeginBossRepulse(FVector::ZeroVector, 200.0f, 0.3f);
+	Target->AdvanceBossRepulse(0.3f);
+	TestTrue(TEXT("Player swept repulse stops before wall"),
+	         Target->GetActorLocation().X > 100.0f && Target->GetActorLocation().X < 220.0f);
 	return true;
 }
 
@@ -1827,8 +2168,8 @@ bool FReEchoEnemyHostBossPhase3GMAnimationTest::RunTest(const FString& Parameter
 	TestNotNull(TEXT("Phase3 health contract finds the Phase2 definition"), Phase2Definition);
 	if (Phase2Definition)
 	{
-		const float ExpectedPhase3Health = Definition.MaxHealth + Phase2Definition->PhaseMaxHealth;
-		TestEqual(TEXT("Phase3 maximum health is the sum of Phase1 and Phase2"),
+		const float ExpectedPhase3Health = (Definition.MaxHealth + Phase2Definition->PhaseMaxHealth) * 5.0f;
+		TestEqual(TEXT("Phase3 maximum health is five times the sum of Phase1 and Phase2"),
 		          Sheep->GetCombatantComponent()->Stats.HpMax,
 		          ExpectedPhase3Health);
 		TestEqual(TEXT("Phase3 starts refilled to its summed maximum health"),

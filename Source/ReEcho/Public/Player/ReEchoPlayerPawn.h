@@ -74,6 +74,9 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 	virtual void Tick(float DeltaSeconds) override;
+	/** Swept, non-damaging external motion; continues while cinematic gameplay ticks are frozen. */
+	bool BeginBossRepulse(const FVector& Center, float DistanceCm, float DurationSeconds);
+	void AdvanceBossRepulse(float DeltaSeconds);
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	virtual bool IsCombatTargetAlive() const override;
 	virtual FVector GetCombatTargetLocation() const override;
@@ -106,10 +109,9 @@ public:
 
 	FString GetEquippedWeaponLabel() const;
 	float GetCurrentAttackInterval() const;
-	/** Keeps one-shot attack Flipbooks inside the authoritative high-speed attack window without slowing normal clips. */
-	static float ResolveAttackAnimationPlayRate(float ClipSeconds,
-	                                            float AuthoredPlayRate,
-	                                            float AttackWindowSeconds);
+	/** Keeps one-shot attack Flipbooks inside the authoritative high-speed attack window without slowing normal clips.
+	 */
+	static float ResolveAttackAnimationPlayRate(float ClipSeconds, float AuthoredPlayRate, float AttackWindowSeconds);
 	/** 武器是否处于临时动作锁（有序攻击步骤锁）中。held 普攻循环据此决定是否重试而非终止。 */
 	bool IsWeaponActionLocked() const;
 	/** 武器动作锁剩余秒数。 */
@@ -293,6 +295,11 @@ protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 private:
+	void TickBossRepulse();
+	FTimerHandle BossRepulseTimer;
+	FVector BossRepulseDisplacement = FVector::ZeroVector;
+	float BossRepulseDuration = 0.0f;
+	float BossRepulseElapsed = 0.0f;
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 	void ActivateSkill();

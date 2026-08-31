@@ -212,6 +212,10 @@ struct REECHOENEMIES_API FReEchoEnemyAbilityDefinition
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bMovementDuringCast = false;
 
+	/** Programmer-authored stationary slam variant; independent of the one-shot opening cinematic. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bGroundedSlam = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 MinPhaseIndex = 1;
 
@@ -264,6 +268,25 @@ struct REECHOENEMIES_API FReEchoBossPhaseDefinition
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float PhaseMaxHealth = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float PreviousPhasesHealthMultiplier = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FName OpeningAbilityId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 OpeningStrikeCount = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float OpeningRepulseDistanceCm = 0.0f;
+
+	/** Non-damaging crowd radius, independent of the player damage circle. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float OpeningRepulseRadiusCm = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float OpeningRepulseSeconds = 0.3f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bEnabled = false;
@@ -540,6 +563,12 @@ struct REECHOENEMIES_API FReEchoBossIntent
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 ComboStrikeCount = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bPhaseOpening = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bGroundedSlam = false;
 };
 
 /** Deterministic behavior output. The host applies movement and forwards attack candidates to Combat. */
@@ -764,6 +793,16 @@ struct REECHOENEMIES_API FReEchoEnemyLogicSnapshot
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 BossComboStrikeCount = 0;
+
+	/** Persistent one-shot opening command; independent of development command queues. */
+	UPROPERTY()
+	bool bBossOpeningConsumed = false;
+
+	UPROPERTY()
+	bool bBossOpeningQueued = false;
+
+	UPROPERTY()
+	bool bBossOpeningActive = false;
 
 	/** Idle-wander state. Direction is re-derived deterministically every WanderPeriodSeconds. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
