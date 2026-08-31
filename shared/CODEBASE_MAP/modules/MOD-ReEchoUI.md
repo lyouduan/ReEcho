@@ -30,12 +30,13 @@
 - 商店/背包页允许 `WBP_ReEchoRestart` 以更高 Pause 层覆盖：按 `P` 不关闭商店，不触发战后推进或回响存储门禁；关闭 Pause 后必须重新聚焦商店并继续保持世界暂停与菜单能力阻挡。
 - 结算统计文字由 `WBP_ReEchoRestart` 的 `VictoryCanvas` / `DefeatCanvas` 独立作者化：每页关卡、构筑数量、碎片、回响伤害、本体伤害、反应次数、最高单次伤害与击杀数的标签/数值，其位置、尺寸、字体、字号、颜色、对齐、换行和裁切全部以 WBP 为准。`UReEchoRestartWidget` 不再在构造时回填固定三列坐标或 18/20 字号，只更新真实数值；保留控件名与 `Is Variable` 绑定，标签文案可以直接编辑。`ReEcho.UI.RestartWidgetAuthoredStats` 对保存值和人工微调值验证首次构造、切换结果页与再次构造均不覆盖表现。
 - WBP/UMG 管理布局、尺寸、样式、动画和焦点表现。
+- 商店刷新按钮的 `ShopRefreshCountText` 使用 `BindWidgetOptional`，由 `WBP_ReEchoInventoryShopScreen` 保存示例、字体、字号、颜色、换行、裁切与对齐；其 `DesignerRefreshTextBox` 为 Canvas 子控件，可以直接拖动和改变文字区域。C++ 的兼容内容重建只在缺少此文字时运行，正常路径仅更新实时文案、按钮可用状态和既有刷新委托。`ReEcho.UI.Shop.AuthoredRefreshText` 检查保存值、任意微调值、构造前数据更新、再次构造以及免费/付费/无限/禁用状态。
 - C++ Widget 管理只读展示状态、类型化绑定、事件转发和页面生命周期。
 - `UReEchoEncounterTransitionWidget` 是默认 ZOrder 10000 的非交互视口最上层 Screen。第一关结算后通过 WmfMedia/HAP、MediaTexture 直绘播放无音轨 `Stage01To02.mov`，并在首个有效视频表面出现后独立启动 `S_Stage01To02`；GameMode使用既有局间门停止玩法并显式停止Music State，但不暂停World媒体时钟。该路径不先播放 Hap Alpha、不打开 CardChoice 或 Shop。第二关及以后在权威时间到 00 后通过动态材质从第0帧播放 `EncounterEndToCardChoiceV2.mov`（Hap Alpha、RGBA、120帧、40FPS）：0–57完成一次入场和首轮摆动，再追加两遍27–57，使钟表共来回摆动三轮；后两轮跳过重复中心帧。第一段与 `CardChoiceToShop.mov` 共用 `(0.17,0.0806)–(0.83,0.8006)` 的16:9 Fit区域，顶部对齐 `ArtClockNeedle` 的作者位置Y=87。第2–7关全部免费抽卡完成后播放第二段：立即关闭已确认的TraitChoice以露出游戏场景，再创建正常Enabled、`HitTestInvisible`、初始透明的商店；源58–78帧用0.5秒SmoothStep将商店从0渐入到1，实现游戏场景到商店的平滑过渡，不使用纯黑Backdrop。商店创建后解除其菜单Pause但保持Run阶段和能力阻挡，使媒体时钟继续推进。商店从第58帧起提供 `ArtFormalLoadoutTree` 实际几何；第68帧起媒体缩放、移动到小面具人锚点并淡出，此时商店渐入进度约50%，终点保留初始媒体57.5%尺寸。媒体完成后恢复商店 `Visible`、焦点和World Pause。失败时幂等放行；两段透明视频无音轨且不循环，`Music.Shop`连续。03→00场景重影仍由相机后处理负责。
 - Stage01To02 播放时媒体画面保持 `HitTestInvisible`，仅右上角 `StageCgSkipButton` 接收点击。按钮资格由 GameMode 根据 RunSubsystem 的账号级已观看状态注入；首次播放、失败路径和非 CG 状态均折叠。Widget 点击后立即禁用按钮并广播一次请求，不直接写存档或推进关卡。
 - Stage01To02 的独立 `S_Stage01To02` 组件使用 `Master × Music Bus × 1.5` 的有效增益，不继承 `Music.Encounter` 的 `0.5` BaseVolume，也不响应 Master/Music 静音开关。独立组件仍由 Widget 在首个有效视频帧启动，并在跳过、失败或媒体结束时精确停止。
 - Player HUD 显式接收当前玩家的 Combatant 与 CombatEvents：`OnHurt` 仅触发瞬时受击红光，生命变化仅更新可配置的低血量底色。`UReEchoPlayerScreenFeedbackWidget` 独占合成、钳制、重触发和死亡清理等表现状态；`WBP_ReEchoPlayerScreenFeedback` 的 Class Defaults 是阈值、强度、曲线指数、呼吸和材质参数的 Editor 调参表面。HUD 硬引用并构造该 WBP Class，Widget 硬引用 `/Game/ReEcho/Materials/UI/M_UI_PlayerHurtVignette`，保证 cook 收集；材质缺失时使用不影响玩法的原生左右边缘 fallback。
-- Plan93/102 战斗常驻 HUD 以两个 WBP 为视觉权威：Player HUD 用 `PlayerHealthFill` 映射真实生命比例并显示 Run 的只读 TimeShards；免费选卡暂停期的单槽刷新扣费成功后，GameMode 立即更新该 HUD 投影，不依赖暂停中不运行的普通 Tick；Encounter HUD 显示 `第 N 关`、零补齐 `MM:SS`，并把现有真实 `UReEchoMinimapCanvasWidget` 包进交付回响框。倒计时不保留 `ArtTimeReadout` 黑色半透明底块；普通关 `ArtClockNeedle` 的 WBP Pivot 位于源图顶部轴心，C++ 按 Encounter Director 剩余/总时长把它从左经下半圆逆时针转到右。Boss 关保留 `ArtClockFrame` 钟背板，只隐藏倒计时文字和指针；同一中心区域的 `BossHealthPanel` 复用玩家血条底板纹理并使用紫色 Tint，暗紫 Fill 位于不透明底板内部上层，只读 EnemyRoster 中存活 Boss Combatant 的当前/最大生命并从左向右缩放；关卡文字与小地图继续显示。Minimap Canvas 底板透明且不绘制内层竞技场边框，保留轨迹，并用 Player/Echo Presentation Profile 的对应头像绘制实时位置；缺图时才降级为旧色点。参考图底部技能栏已被产品废弃，不进入 WBP 或运行时纹理；Widget 不写 Run、不复制遭遇时钟或 Boss 生命，也不伪造技能状态。
+- Plan93/102/158 战斗常驻 HUD 以两个 WBP 为视觉权威：Player HUD 用 `PlayerHealthFill` 映射真实生命比例并显示 Run 的只读 TimeShards；免费选卡暂停期扣费成功后由 GameMode 立即刷新投影。Encounter HUD 显示 `第 N 关`、`MM:SS` 与真实小地图；普通关指针按 Encounter Director 剩余/总时长从左经下半圆逆时针转到右，不显示倒计时黑底块。Boss 关保留 `ArtClockFrame` 与 `ArtClockNeedle`，只隐藏倒计时文字；`BossHealthArc` 是专用 `UReEchoBossHealthArcWidget`，通过硬引用 UI 材质 `M_UI_BossHealthArc` 将原钟面的下半刻度环显示为醒目紫红剩余段及近黑灰空血段，`Tick Contrast` 默认 0.25，弱化刻度以凸显连续填充。独立作者化 `BossHealthPercentText` 在原倒计时区域显示整数百分比，运行时不改其字体、颜色或几何；真实空/满血才显示 0%/100%，中间限制为 1%–99%。弧形与指针消费同一个当前阶段生命比例，满/半/空分别为指针 `90/0/-90` 度；阶段回血恢复比例，不累计各阶段总血量。正式 WBP 已删除旧横条三节点。`Boss Health Preview` 提供设计期模式和血量样例，弧形颜色/半径/几何由 WBP 拥有，临时 MID/Slate Brush 不替换序列化作者资产；原生无 WBP 兜底仍保留最小横条。Minimap Canvas 保持透明且无内层竞技场边框，以 Player/Echo Presentation Profile 头像绘制实时位置，缺图才回退色点；废弃底部技能栏不回归。所有 Widget 仅消费只读状态，不写 Run、时钟或生命。调参见 [Boss 弧形血条调整指南](../../../Design/UI/ReEcho_Boss弧形血条调整指南.md)。
 - Plan118 将 Minimap Canvas 的 Echo 轨迹从 2px 纯色折线改为沿同一投影路径确定性盖印经典墨水笔尖。`UReEchoMinimapCanvasWidget` 硬引用 UI 材质以进入 Cook；笔尖尺寸、间距、角度/透明度抖动、Grain 强度和固定六项 `Ink Trail Colors` 调色板均在该控件实例的 `Minimap | Ink Trail` 分类调整。控件按 Echo 顺序为每个调色板项维护独立动态材质实例，把颜色写入 `TrailColor` 向量参数；Slate Tint 仅乘单次盖印 Alpha，因此不依赖 UI Material 的 Vertex Color RGB。缺项回退视图颜色且不染色头像。盖印跨折线段保持间距，并受单 Echo 最大数量约束；材质缺失时才回退旧折线，不改变录制采样、路径数据、头像或坐标投影。
 - 世界空间伤害跳字由 `AReEchoDamageNumberActor` 硬引用 `/Game/ReEcho/Fonts/DamageNumbers/F_DamageNumber_MFYuYue_Font`，保证 Cook 收集；对应 OTF 与授权说明归档在 `Content/SourceArt/UI/CombatHud/DamageNumbers/`，只允许用于非商用伤害数字，不得当作全局 UI 字体复用。Enemy Presentation 只读 `FReEchoDamageEvent::ReactionBehaviorId` 选择反应色：Vaporize `#A5CBF3`、Conduct `#EBC02C`、Burn `#E86A12`、Growth `#92C039`、Enhance `#F1B84C`；无反应标识时回退到既有元素色/物理白色，不重新推导反应。跳字数值读取同一事件中生命钳制前、已经过伤害规则修正的 `RawDamage`，而不是实际扣血 `AppliedDamage`；因此低血击杀仍显示本次原本应造成的完整伤害，生命和死亡结算不变。暴击只放大数字本体，不创建下划线或其他附属字形；视觉倍率由 `/Game/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber` 的 `Damage Number|Critical > Critical Size Scale` 独立配置，不读取玩法 `CriticalMultiplier`。该蓝图的 `Damage Number|Animation` Class Defaults 继续负责持续时间、上漂速度和起止缩放，缺失时才回退原生 Actor 默认值。跳字生命周期内保持不透明，只通过缩放表现变化，到期直接销毁。Actor 继续使用专用 `M_DamageNumberTextOpacity` 保留 UE 默认文字材质的距离场字形重建；`scripts/ue/author_damage_number_material.py` 可幂等重建该材质并以真实 SM5 编译错误为失败，`scripts/ue/author_damage_number_blueprint.py` 负责创建并验证调参蓝图。该动态加载蓝图目录必须由 Packaging AlwaysCook 收集。
 - 世界空间元素反应字由 `AReEchoElementReactionPopupActor` 消费既有 `FReEchoElementReactionResolvedEvent`：Burn/Vaporize/Growth/Conduct/Enhance 分别映射灼烧/蒸发/生长/导电/强化透明图，只在权威 `PrimaryTarget` 上方生成一次，不按 Growth 影响列表或 Conduct 连锁节点重复。`BP_ReEchoElementReactionPopup` 的 `Element Reaction Popup|Animation/Layout` Class Defaults 调整持续时间、世界尺寸、上浮高度、渐隐曲线和缩放；独立半透明材质动态接收 `ReactionTexture` 与 `Opacity`。纹理、材质或蓝图缺失只跳过该次表现或回退原生 Actor，不改变元素反应结算。
@@ -58,6 +59,14 @@
 
 完整页面清单、WBP/C++ 分工、绑定控件名称、动态条目规则和人工验收要求，统一以 [ReEcho UI 修改指导](../../../Design/UI/ReEcho_UI修改指导.md) 为准；本文件不复制第二份控件契约。
 
+### 三选一作者表现
+
+三选一作者修订：`UReEchoTraitCardChoiceWidget` 首次写入前按控件实例捕获 `TitleText`、三个 `ShopCardRefreshText` 的作者模板；普通整数样例或显式 `{Count}/{Tier}/{Remaining}/{Cost}` 接收真实数据，其余文案/换行保持。标题不再移动，刷新按钮样式仅在新建原生 fallback 时设置。NativeConstruct、报价刷新和 Slate 重建都不能反向捕获已经填过的数字作为新模板。玩法/随机数/扣费/逐槽揭示不变；回归 `ReEcho.UI.TraitChoice.AuthoredPresentation` 覆盖作者值、动态文字、双选、重建和禁用状态。
+
+### Plan158 血条表面
+
+Plan158 Boss 表面补充：弧形颜色/透明度以 WBP 中用户当前微调值为准，不要求沿用初版紫红色。`BossHealthArc → Surface` 的 `Vein Strength/Width/Spacing`、`Relief Strength` 直接传入 MID；分叉血管仅是静态平面颜色纹理，整体圆润截面法线与固定左上高光/背光模拟**整条血条**凸起，两者解耦。只改剩余段 RGB，保留 Alpha、空槽和血量边界。关闭血管仍有整体凸起，双强度归零恢复平面。无新增贴图/几何/战斗状态，GPU 回归检查纹理不影响法线、参数生效、逐像素 Alpha 一致及扣血不滑纹理。
+
 ### Plan157 背板和选择页按钮状态
 
 - 商店主说明、实际效果和属性 Tooltip 的外 Border 使用开场 `T_UI_Loadout_DescriptionPanel` 同族九宫格，内 Border 使用真实白色纹理着深色；生成器/资产审计验证真实 Brush Resource，不能仅验证颜色或控件存在。
@@ -66,6 +75,15 @@
 - `ReEchoLoadoutSelectionWidget::RefreshActionButtons` 统一运行时与 Designer 的按钮状态：确认和返回以及独立标签始终可见，确认仅在当前阶段有选择且尚未提交时启用；返回在未最终提交前保持启用。确认标签跟随确认禁用，返回标签仅在 Hover 时启用其正常亮态、离开灰显；这不修改字体、颜色、几何或游戏候选。
 - `WBP_ReEchoLoadoutSelection` 的 Button Style 持有明暗：确认 Disabled 暗，返回 Normal/Disabled 暗、Hovered/Pressed 亮；C++ 不改写 Style。原有角色页回主菜单、武器页回角色选择、防重复提交和点击选中契约不变。
 - 验证入口为 `ReEcho.UI.Shop.TooltipBlueprints`（真实背板引用、数据及样式保留）、`ReEcho.UI.LoadoutSelection.Flow` / `.Assets`（常驻显示、禁用与 Hover 灰显、WBP 明暗状态）。
+
+## 商店最终余额订阅（Plan159）
+
+- Run 仍独占现金与债务。运行时 GameMode 使用 `RefreshShopFromRun` 初始化/刷新商店商品、装备与规则投影；该入口首次绑定 `OnTimeShardBalanceChanged` 并读取余额初值，重复调用复用同一个 DelegateHandle，不重新写入现金缓存，也不重置已选择的卡牌页。
+- 余额事件按完整外层事务提交后发布的 `Cash/Debt` 更新缓存。`RefreshCurrencyText` 是余额文字唯一写入点；保持 `TimeShards - TimeShardDebt` 文案，只在内容不同时 SetText，不改 WBP 字体、颜色、对齐或几何。
+- `RefreshPurchaseAvailability` / `RefreshShopControlState` 从 Run 最新只读投影更新既有购买与刷新按钮。该局部路径不调用整页 `Refresh`、不重建控件/Tooltip、不重抽报价、不关闭武器/符文背包、不切卡牌页。现金与债务改变但净额相同仍需要同步资格。
+- 商店上方打开已付款选卡层时保留订阅，所以付款、逐槽付费刷新和还债都能立即反映到底层商店。关闭选卡层不靠补刷新余额；商店经 `RemoveFromParent` 关闭时立即解绑（即使 Slate 仍持有引用），`NativeDestruct` 再作幂等兜底，重新打开读取最新初值并只订阅一次。旧 `ShowInventory` / `ShowShop` 数值快照入口只保留独立初始化兼容，不作为 GameMode 的商店余额推送路径。
+- GM 加/设碎片改走 Run 窄命令，不再触发商店整页刷新。购买、换装、主刷新、授卡后的内容更新仍保留；卡包付款后也更新待选状态（包括零价无余额事件的情况），不能因统一余额事件而删掉非余额投影。
+- 验证：`ReEcho.Shop.BalanceTransactions`、`ReEcho.Shop.BalanceOfferCommands` 与 `ReEcho.UI.Shop.BalanceSubscription`，源码为 `Source/ReEcho/Private/Tests/ReEchoShopBalanceTests.cpp`；同时回归既有 `ReEcho.Shop` / `ReEcho.UI.Shop`、Save、Trait。人工检查已付款选卡返回、第二页和弹窗不被纯余额更新干扰。
 
 ## 依赖方向
 

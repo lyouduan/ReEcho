@@ -9,6 +9,27 @@
 class UReEchoRunSaveGame;
 class UReEchoPlayerProgressSaveGame;
 
+/** Read-only committed currency state. Cash and debt both affect shop eligibility. */
+struct REECHO_API FReEchoTimeShardBalance
+{
+	int32 Cash = 0;
+	int32 Debt = 0;
+
+	int32 GetDisplayedBalance() const
+	{
+		return Cash - Debt;
+	}
+
+	bool operator==(const FReEchoTimeShardBalance& Other) const
+	{
+		return Cash == Other.Cash && Debt == Other.Debt;
+	}
+};
+
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoTimeShardBalanceChanged,
+                                     const FReEchoTimeShardBalance&,
+                                     const FReEchoTimeShardBalance&);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
 
@@ -73,6 +94,13 @@ public:
 
 	/** Read-only post-commit notification. Subscribers may project the build but cannot mutate the transaction. */
 	FReEchoCardGrantCommitted OnCardGrantCommitted;
+
+	/** Non-combat economy commands broadcast once after the complete outer transaction, never mid-grant. */
+	FReEchoTimeShardBalanceChanged OnTimeShardBalanceChanged;
+	FReEchoTimeShardBalance GetTimeShardBalance() const;
+	/** GM setters preserve the existing cash-only clamp; unlike direct assignment they notify shop observers. */
+	void DebugSetTimeShards(int64 Amount);
+	void DebugAddTimeShards(int32 Amount);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EReEchoRunPhase Phase = EReEchoRunPhase::CharacterSelect;
@@ -323,6 +351,10 @@ public:
 	bool RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame);
 
 private:
+	class FScopedTimeShardBalanceChange;
+	int32 TimeShardBalanceChangeDepth = 0;
+	FReEchoTimeShardBalance TimeShardBalanceBeforeChange;
+
 	void LoadPlayerProgress();
 	FString GetSaveSlotName(int32 SlotIndex) const;
 	FString GetSaveSlotPreviewPath(int32 SlotIndex) const;

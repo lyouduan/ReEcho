@@ -9,6 +9,7 @@ class SWidget;
 class UImage;
 class UTextBlock;
 class UWidget;
+class UReEchoBossHealthArcWidget;
 
 /** 顶部中央战斗状态：普通关显示倒计时；Boss 关切换为只读 Boss 生命条。 */
 UCLASS()
@@ -28,9 +29,21 @@ public:
 
 	static FText FormatEncounterLabel(int32 EncounterIndex);
 	static FText FormatCountdown(float RemainingSeconds);
+	static FText FormatBossHealthPercent(float HealthRatio);
 	/** Map authoritative countdown progress from left through the lower semicircle to the right. */
 	static float CalculateCountdownNeedleAngle(float RemainingSeconds, float DurationSeconds);
 	static float CalculateBossHealthRatio(float CurrentHealth, float MaximumHealth);
+	static float CalculateBossHealthNeedleAngle(float HealthRatio);
+
+	/** Designer-only preview; gameplay always uses SetEncounterStatus. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss Health Preview")
+	bool bPreviewBossEncounter = false;
+
+	UPROPERTY(EditAnywhere,
+	          BlueprintReadWrite,
+	          Category = "Boss Health Preview",
+	          meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float PreviewBossHealthRatio = 0.65f;
 
 	/** 由 GameMode::Tick 每帧调用，转发小地图视图给 WBP 中放入的 ReEchoMinimapCanvasWidget。 */
 	void SetMinimapView(const FReEchoMinimapView& View);
@@ -38,6 +51,7 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
+	virtual void NativePreConstruct() override;
 
 private:
 	void BuildWidgetTree();
@@ -50,6 +64,9 @@ private:
 	TObjectPtr<UTextBlock> CountdownText;
 
 	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> BossHealthPercentText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UImage> ArtClockNeedle;
 
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -60,6 +77,9 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> BossHealthFill;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoBossHealthArcWidget> BossHealthArc;
 
 	/** WBP 中放入的小地图画布控件（按类型查找，命名不限）。 */
 	TObjectPtr<UReEchoMinimapCanvasWidget> MinimapCanvas = nullptr;

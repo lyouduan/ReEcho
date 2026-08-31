@@ -79,8 +79,10 @@ private:
 	void BuildCardEntries();
 	void RefreshOffers();
 	void RefreshSelectionVisuals();
-	/** Keeps the pick hint sitting just above the card frames instead of over the page chrome. */
-	void ApplyTitleLayout();
+	/** Never repositions authored titles or their parent containers. */
+	void ApplyFallbackTitleLayout();
+	/** Capture once per widget before runtime values replace Designer sample numbers. */
+	FText GetAuthoredTextTemplate(UTextBlock* Text, const TArray<FString>& NumberArguments);
 
 	/** UI art contract for trait cards (Plan 69). Mirrors the weapon-texture resolution convention:
 	    resolve a per-card texture path from the CardId, falling back to a generic icon when absent. */
@@ -195,4 +197,6 @@ private:
 	int32 RevealingCardIndex = INDEX_NONE;
 	bool bRevealComplete = false;
 	bool bShopMode = false;
+	bool bNativeFallbackLayout = false;
+	TMap<TWeakObjectPtr<UTextBlock>, FText> AuthoredTextTemplates;
 };

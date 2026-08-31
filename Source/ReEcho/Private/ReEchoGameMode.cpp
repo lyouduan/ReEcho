@@ -905,14 +905,8 @@ void AReEchoGameMode::GMAddShards(const int32 Amount)
 		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
 		return;
 	}
-	const int64 UpdatedShards = static_cast<int64>(RunSubsystem->TimeShards) + static_cast<int64>(Amount);
-	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(UpdatedShards, 0, MAX_int32));
+	RunSubsystem->DebugAddTimeShards(Amount);
 	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
-	// #8-B: 商店打开时，GM 改动碎片后即时刷新持有碎片显示。
-	if (InventoryShopWidget)
-	{
-		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
-	}
 }
 
 void AReEchoGameMode::GMSetShards(const int32 Amount)
@@ -927,13 +921,8 @@ void AReEchoGameMode::GMSetShards(const int32 Amount)
 		PrintGMResult(TEXT("Run subsystem is unavailable."), false);
 		return;
 	}
-	RunSubsystem->TimeShards = static_cast<int32>(FMath::Clamp<int64>(static_cast<int64>(Amount), 0, MAX_int32));
+	RunSubsystem->DebugSetTimeShards(Amount);
 	PrintGMResult(FString::Printf(TEXT("TimeShards=%d"), RunSubsystem->TimeShards));
-	// #8-B: 商店打开时，GM 改动碎片后即时刷新持有碎片显示。
-	if (InventoryShopWidget)
-	{
-		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
-	}
 }
 
 void AReEchoGameMode::GMWeather(const FString& Scene)
@@ -4572,6 +4561,8 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 		}
 		PostUiEvent(FReEchoAudioEvents::UiPurchase);
 		RunSubsystem->SaveRun();
+		// Payment changes the pack to "continue choosing", even when its price is zero (no balance event).
+		RefreshShopPresentation(RunSubsystem, InventoryShopWidget->GetMode());
 		ShopView = RunSubsystem->GetWeaponPartShopView();
 		Pack = ShopView.CardPackOffers.FindByPredicate(
 		    [Tier](const FReEchoShopCardPackOffer& Candidate)
@@ -4829,32 +4820,7 @@ void AReEchoGameMode::RefreshShopPresentation(UReEchoRunSubsystem* RunSubsystem,
 		return;
 	}
 
-	const FReEchoCardRuleSnapshot Rules = RunSubsystem->GetCardRules();
-	const FReEchoCardRuntimeState& Runtime = RunSubsystem->CurrentBuild.CardState.Runtime;
-	InventoryShopWidget->SetWeaponPartShopView(RunSubsystem->GetWeaponPartShopView(),
-	                                           RunSubsystem->CurrentBuild.CharacterId);
-	if (Mode == EReEchoInventoryShopMode::PostTraitIntermission)
-	{
-		InventoryShopWidget->ShowPostTraitIntermission(RunSubsystem->TimeShards,
-		                                               RunSubsystem->InventoryItems,
-		                                               RunSubsystem->GetEchoStorageSummary(),
-		                                               Rules.ShopDiscount,
-		                                               Runtime.FreeShopRefreshes,
-		                                               !Rules.bDisableShopRefresh,
-		                                               !Rules.bDisableExtraCardPurchase,
-		                                               Runtime.ShopRefreshSequence);
-	}
-	else
-	{
-		InventoryShopWidget->ShowShop(RunSubsystem->TimeShards,
-		                              RunSubsystem->InventoryItems,
-		                              Rules.ShopDiscount,
-		                              Runtime.FreeShopRefreshes,
-		                              !Rules.bDisableShopRefresh,
-		                              !Rules.bDisableExtraCardPurchase,
-		                              Runtime.ShopRefreshSequence,
-		                              Runtime.bEasterUnlimitedRefreshUnlocked);
-	}
+	InventoryShopWidget->RefreshShopFromRun(RunSubsystem, Mode);
 	// #8-A: 商店每次刷新(打开/购买/刷新)都重设主角属性面板，并读取 CurrentBuild.Stats
 	// 以反映已购属性卡，而非上一场的 Combatant->Stats。
 	InventoryShopWidget->SetPlayerStats(RunSubsystem->CurrentBuild.Stats);

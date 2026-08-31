@@ -1548,6 +1548,56 @@ bool ReEchoRunData::TryApplyCardEffectsToBuild(const FReEchoCsvCardRow& Card,
 	    OutBuild);
 }
 
+/** Nested commands coalesce notifications; callbacks only see the fully committed build and balance. */
+class UReEchoRunSubsystem::FScopedTimeShardBalanceChange
+{
+public:
+	explicit FScopedTimeShardBalanceChange(UReEchoRunSubsystem& InRun, const bool bInEnabled = true)
+	    : Run(InRun), bEnabled(bInEnabled)
+	{
+		if (bEnabled && Run.TimeShardBalanceChangeDepth++ == 0)
+		{
+			Run.TimeShardBalanceBeforeChange = Run.GetTimeShardBalance();
+		}
+	}
+
+	~FScopedTimeShardBalanceChange()
+	{
+		if (bEnabled && --Run.TimeShardBalanceChangeDepth == 0)
+		{
+			const FReEchoTimeShardBalance Before = Run.TimeShardBalanceBeforeChange;
+			const FReEchoTimeShardBalance After = Run.GetTimeShardBalance();
+			if (!(Before == After))
+			{
+				Run.OnTimeShardBalanceChanged.Broadcast(Before, After);
+			}
+		}
+	}
+
+	FScopedTimeShardBalanceChange(const FScopedTimeShardBalanceChange&) = delete;
+	FScopedTimeShardBalanceChange& operator=(const FScopedTimeShardBalanceChange&) = delete;
+
+private:
+	UReEchoRunSubsystem& Run;
+	bool bEnabled;
+};
+
+FReEchoTimeShardBalance UReEchoRunSubsystem::GetTimeShardBalance() const
+{
+	return {TimeShards, FMath::Max(0, CurrentBuild.CardState.Runtime.TimeShardDebt)};
+}
+
+void UReEchoRunSubsystem::DebugSetTimeShards(const int64 Amount)
+{
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	TimeShards = static_cast<int32>(FMath::Clamp<int64>(Amount, 0, MAX_int32));
+}
+
+void UReEchoRunSubsystem::DebugAddTimeShards(const int32 Amount)
+{
+	DebugSetTimeShards(static_cast<int64>(TimeShards) + Amount);
+}
+
 void UReEchoRunSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -1597,6 +1647,7 @@ void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
 
 void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	EncounterIndex = 0;
 	TimeShards = 0;
 	RunSeed = MakeNewRunSeed();
@@ -2741,6 +2792,7 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
                                             const bool bBossKilled,
                                             const float PlayerCurrentHealth)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	if (Phase == EReEchoRunPhase::Planning || Phase == EReEchoRunPhase::CardChoice || Phase == EReEchoRunPhase::Shop ||
 	    Phase == EReEchoRunPhase::Summary || Phase == EReEchoRunPhase::Failed)
 	{
@@ -3027,6 +3079,7 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 
 bool UReEchoRunSubsystem::TryRefreshTraitCardSlot(const int32 SlotIndex, FString& OutError)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvShopRefreshRuleRow* RefreshRule =
 	    Snapshot.IsValid() ? Snapshot->ShopRefreshRules.Find(TEXT("Default")) : nullptr;
@@ -3098,6 +3151,7 @@ bool UReEchoRunSubsystem::TryRefreshTraitCardSlot(const int32 SlotIndex, FString
 
 bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	// A cadence pack must be resolved as one exact multi-card transaction; a single-card callback may not
 	// silently close an outstanding two-card choice.
 	if (Phase != EReEchoRunPhase::CardChoice || PendingTraitCardPicksRemaining != 1 ||
@@ -3187,6 +3241,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 
 bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	// Cadence abilities (the Sage) can let a pack hand out two cards. Both are granted inside one
 	// authoritative mutation so the pack closes once, the phase returns to planning once, and the run can
 	// never be stranded in the card-choice phase without a screen.
@@ -3292,6 +3347,7 @@ void UReEchoRunSubsystem::ResetPendingTraitCardChoice()
 
 bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	UE_LOG(LogReEcho,
 	       Warning,
 	       TEXT("[DebugGrantCard] enter: CardId=%s Phase=%d EncounterIndex=%d TimeShards=%d CurrentCards=%d"),
@@ -3830,6 +3886,7 @@ void UReEchoRunSubsystem::ReevaluateCoreCollectionCard()
 
 bool UReEchoRunSubsystem::TryRefreshWeaponRuneShop(FString& OutError)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvShopRefreshRuleRow* RefreshRule =
 	    Snapshot.IsValid() ? Snapshot->ShopRefreshRules.Find(TEXT("Default")) : nullptr;
@@ -3881,6 +3938,7 @@ bool UReEchoRunSubsystem::TryRefreshWeaponRuneShop(FString& OutError)
 
 bool UReEchoRunSubsystem::TryRefreshShopCardSlot(const int32 Tier, const int32 SlotIndex, FString& OutError)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoCsvShopRefreshRuleRow* RefreshRule =
 	    Snapshot.IsValid() ? Snapshot->ShopRefreshRules.Find(TEXT("Default")) : nullptr;
@@ -3973,6 +4031,7 @@ bool UReEchoRunSubsystem::CanPurchaseExtraShopCard() const
 
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(const int32 Tier)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
 	const FReEchoShopCardPackOffer* Offer = ShopView.CardPackOffers.FindByPredicate(
 	    [Tier](const FReEchoShopCardPackOffer& Candidate)
@@ -4078,6 +4137,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const TArray<FName>& ItemIds)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	// Cadence abilities (the Sage) can let a paid pack hand out two cards. Both are granted inside one
 	// authoritative mutation so the pack closes once, the cadence counter advances once, and the run can
 	// never be left in a pending-choice state with no screen to interact with.
@@ -4283,6 +4343,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FName ItemId)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	LogShopPurchaseAuditState(TransactionId, ItemId, TEXT("BEFORE"), CaptureShopPurchaseAuditState(*this, Snapshot));
@@ -4453,6 +4514,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const FName ItemId)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoShopPurchaseAuditState BeforeState = CaptureShopPurchaseAuditState(*this, Snapshot);
@@ -4788,6 +4850,8 @@ bool UReEchoRunSubsystem::PurchaseShopItem(const FName ItemId)
 
 bool UReEchoRunSubsystem::GrantTimeShards(const int32 Amount)
 {
+	// Combat pickups keep their existing HUD path; settlement wraps this helper in its outer transaction.
+	const FScopedTimeShardBalanceChange BalanceChange(*this, Phase != EReEchoRunPhase::Encounter);
 	if (Amount <= 0)
 	{
 		return false;
@@ -5393,6 +5457,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 
 bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame)
 {
+	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	if (!IsValidResumableSave(SaveGame))
 	{
 		return false;

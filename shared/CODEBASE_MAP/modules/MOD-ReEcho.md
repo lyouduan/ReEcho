@@ -119,7 +119,7 @@ Boss 变身演出由 `ReEchoBossTransformation.cpp` 中的 GameMode 方法所有
 - 商店说明与已生效卡牌结果由 `ReEchoShopTooltipWidget` 消费原 `FReEchoShopOffer` 文本，属性列表由商店将 CSV 名称/顺序和 `FReEchoStatBlock` 格式化成 `FReEchoAttributeRowView` 交给 `ReEchoAttributeTooltipWidget` / `ReEchoAttributeRowWidget`；这三个类型的 WBP 是字体、几何及示例的唯一权威，不新增玩法状态或模块依赖。
 - 当前玩家 Combat 最终受伤与生命变化事件到 Player HUD 全屏反馈的只读装配；反馈失败不改变战斗或流程。
 - 开场选择页确认与返回是常驻作者化控件；Widget 只管理可用性和独立文字的灰显，未选中时不能确认，返回的空闲/悬停 Brush 明暗由 WBP 持有，不改变两阶段选择、返回或 Run 提交权威。商店独立 Tooltip 背板必须拥有真实纹理 Brush，避免仅设置颜色的空 Image Brush。
-- 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板，由血条替换倒计时文字和指针。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。
+- 战斗常驻 HUD 的只读表现投影：Player Combatant 提供玩家生命，Run 提供 TimeShards，Encounter Director 提供剩余/总时长，EnemyRoster 中存活 Boss Actor 的 Combatant 提供 Boss 当前/最大生命，Player/Echo Presentation Profile 提供小地图头像；GameMode 只转发这些状态、进度事实及小地图视图，不复制或回写权威。普通关指针按剩余时间从左经下半圆逆时针转到右；Boss 关保留钟背板与指针，由下半环血条及中央百分比替换倒计时文字。小地图 Slate 层把投影后的 Echo 折线确定性重采样为有界的经典墨水笔盖印，材质、Grain 和作者参数只影响表现，不改变 Recording 路径或 Echo 回放。
 - 发往 `MOD-ReEchoAudio` 的语义音频请求。
 - Development 编辑器启动时由 `FReEchoModule` 注册第二个只读日志输出设备，把普通 `UE_LOG` 同步写入 `Saved/Logs/ReEcho-session-<本地开始时间>-pid<进程号>.log`；`ReEcho.log` 仍是当前会话入口，独立会话文件不覆盖、不参与玩法状态，也不进入 Shipping。
 - 构筑路径诊断由主模块 `Diagnostics/ReEchoBuildTrace.*` 集中拥有。`UReEchoRunSubsystem` 只在开局、读档、遭遇开始以及卡牌、武器、符文或商店事务已经权威提交后输出 `[BuildSnapshotTrace]`，内容含角色、武器、符文槽、卡牌叠层、有效属性、关键卡牌运行态、规则、数据 revision 和确定性指纹；失败事务不输出提交后快照。`AReEchoWeaponActor` 在成功 Confirm 的统一提交出口输出轻量 `[BuildCommitTrace]`，以 `source + weapon + sequence` 关联 Resolver 日志并携带同一构筑指纹，不在 Projectile/Resolver 各层重复完整构筑。该诊断只读、不消耗随机数、不写 SaveGame，Shipping 不输出；指纹不得用作玩法判断、存档身份或去重键。
@@ -319,6 +319,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 首读：`ReEchoRunSubsystem.*`、`ReEchoRunSaveGame.h`、`ReEchoShopCatalog.h`。
 - 权威：Run phase/index、BuildSnapshot 提交、普通 Inventory、武器符文 OwnedPartIds、武器背包 OwnedWeaponIds、Time Shard/卡牌债务事务、Pending/Latest/Previous Echo、单条时间锚点记录与 `CardState.Runtime.AnchorRecordingId`、稳定回放 ID、统一 RunSeed、当前活动存档槽和 SaveVersion 26；BuildSnapshot 内的 CardState 语义由 Cards 定义。不存在运行时回响存储容量或可购买的扩容/“指定回放解锁”商品；旧 SaveGame 的 `StoredEchoes` 恢复时仅折叠到当前锚点，`StorageCapacity` / `SelectedReplayIds` / `SpecificReplayLimit` 只为反序列化兼容，新存档写零/空。三槽运行存档摘要只暴露槽号、占用状态、关卡、卡牌数量、实际保存时间和预览路径，不向 UI 暴露可写 SaveGame。
 - 输入：Start/CompleteEncounter、购买、特质选择、Echo 命令、保存/继续。
+- 非战斗经济通知：`GetTimeShardBalance` 返回现金/非负债务快照；`OnTimeShardBalanceChanged(Before, After)` 在外层 Run 事务完成后比较两字段并最多广播一次，嵌套扣费、卡牌收益、还债合并，不发布中间态或无变化事件。边界覆盖开局/读档、结算、正常/GM授卡、武器/符文与卡组付款/领取、两类逐槽刷新、主商店刷新和非战斗 `GrantTimeShards`。战斗拾取与战斗卡牌结算继续使用既有 HUD 路径，不在此改造。GM现金修改使用 `DebugAddTimeShards` / `DebugSetTimeShards`，保持原非负/上限钳制；UI不能反向修改事务。`ReEchoShopBalanceTests.cpp` 验证原子通知、债务/同净值恢复和商店订阅。
 - 输出：只读摘要、确定性 offer、保存结果和下一阶段。`GetOwnedBuildCardView()` 从 `CardState.OwnedCardIds` 与卡牌目录生成保持获得顺序的已拥有卡牌只读投影，并与商店复用同一 `FReEchoShopOffer` 图标路径和通用卡图回退契约；失败结算只在该投影上按 `Tier` 选取最多五张，不反向修改构筑。
 - 三槽存档：新游戏先选择第一个空槽；若从主菜单的“新游戏”进入且三槽全满，则只把最旧槽选为待覆盖活动槽，不提前删除存档或预览。角色页返回主界面、武器页返回角色页均不得产生持久化副作用；只有最终角色/武器组合确认后的首次 `SaveRun` 才覆盖活动槽，此后所有既有 `SaveRun` 调用继续写回该槽。点击占用槽立即把它设为活动槽并沿用既有读档流程。预览 PNG 位于 `Saved/SaveScreenshots/ReEchoRunSlotN.png`，由 GameMode 在没有存档回溯遮罩的稳定游戏画面下一帧捕获真实视口并交给 Run 写入；截图缺失或损坏只影响预览，不阻断摘要或读档。存档回溯列表在三槽全满时不伪造空槽新建入口。
 - 卡牌授予成功并完整提交 `CurrentBuild` 后，Run 通过 `OnCardGrantCommitted` 发布只读 StatBlock 与类型化生命调整；
@@ -392,6 +393,8 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ### `AREA-UI`：`UI`屏幕与交互
 
+- 三选一 `ReEchoTraitCardChoiceWidget` 的标题/刷新文案模板、位置与按钮样式由 WBP 拥有；每个文字实例首次更新前缓存模板，普通样例数字或显式命名占位符只接收实时数量/费用，保留换行与静态文案。标题定位和刷新按钮素材注入只适用于原生 fallback，不能覆盖正式作者控件。`ReEchoTraitChoiceAuthoringTests.cpp` 覆盖构造前数据注入、字体/位置/四状态 Brush、重复重建、双选和真实启用状态；不改变 Run 交易/随机数/揭示契约。
+
 **设计意图：** 通过稳定屏幕 ID、中央 Widget 注册、统一焦点/输入/暂停策略管理开始、装载、HUD、特质、商店、Echo 管理和暂停等界面。局内不再注册或保留独立的 Tab 属性屏幕。
 
 - 代码：`Source/ReEcho/Public/UI/`、`Source/ReEcho/Private/UI/`。
@@ -399,12 +402,15 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：活跃屏幕实例、Viewport 层、焦点、输入模式和屏幕暂停策略。
 - 输入：玩法只读摘要、用户选择和稳定 ID。
 - 输出：类型化命令，不直接写 Run/Combat/Weapon 内部状态。
+- 商店余额：`RefreshShopFromRun` 首次读取初值并幂等订阅 Run 最终余额事件；`RemoveFromParent` 立即解绑、`NativeDestruct` 幂等兜底，选卡覆盖层不解绑。事件仅更新现金/债务缓存、唯一余额文字出口与已有购买/刷新按钮资格，不重建控件、Tooltip、报价或分页，不覆盖 WBP 作者样式。GameMode 保留商品/装备/卡包待选状态的必要刷新，删除 GM纯余额操作的整页刷新；详见 `MOD-ReEchoUI` 的 Plan159 契约。
+- 商店刷新文字：`WBP_ReEchoInventoryShopScreen` 持有 `ShopRefreshCountText` 与可拖动的 `DesignerRefreshTextBox`；`ReEchoInventoryShopWidget` 只投影原有次数/费用文案、按钮资格和点击请求。完整作者化按钮不进入 legacy `SetContent` 或字体/几何重建，缺少作者化文字的旧资产与原生路径仍保留兜底。
 - 结算统计：`UReEchoRestartWidget` 只向 `VictoryCanvas` / `DefeatCanvas` 的八组统计数值写入现有只读快照；全部标签与数值的几何、字体、颜色、对齐、换行和裁切由 `WBP_ReEchoRestart` 保存，不在构造或结果页切换时回填程序布局。统计采集、重开和主菜单请求保持原契约。
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
 - 终局重开：死亡/胜利结算界面只暂停当前 World；玩家确认「重新开始」后必须通过 `OpenLevel` 完整替换 World，不能依赖逐类清理瞬态 Actor。GameInstance 生命周期的 UI Flow 只保存并一次性消费旅行后的 Loadout 目标，使新 `StartPlay()` 跳过主菜单；普通启动和退出到主菜单不设置该目标。
 - 商店/背包页保留全屏背景，并把固定 `1920×1080` 作者坐标的交互内容放入统一等比缩放设计面；WBP 控件和运行时弹层必须共享同一缩放坐标系，避免低分辨率裁切或点击区域错位。武器背包和符文背包共用该设计面的根级高层浮层，不能继续嵌在装配室局部 Canvas 下被兄弟表现层遮挡。右侧卡牌装配树固定为两页、每页 12 张：翻页只切换 Run 已拥有卡牌只读投影的数组窗口，并复用同一组 WBP 槽位几何，不能复制卡牌状态或创建第二套槽位布局。
 - 商店/背包页按 `P` 时由更高 Pause 层覆盖，商店保持打开；恢复后重新聚焦商店并保持暂停，不得复用商店关闭路径或触发战后推进。
 - 战斗世界空间元素反应字由主模块 Enemy Presentation 订阅 Combat 的权威反应完成事件后生成；五类透明图及渐隐材质属于 UI 表现资产，`BP_ReEchoElementReactionPopup` 是尺寸、上浮、渐隐与缩放的调参入口，缺失时不得阻断玩法。
+- Plan158 顶部 Boss 血量使用 `ReEchoEncounterHudWidget` + `ReEchoBossHealthArcWidget` 的下半钟面弧形投影；GameMode 的首个存活 Boss 当前/最大生命契约不变，指针、弧形与独立作者化 `BossHealthPercentText` 共用比例。剩余段/空槽配色以当前 WBP 为准，可调弱刻度强调血量长度；百分比运行时只更新内容/显隐。WBP 保存字体、形状/颜色、刻度强度与设计预览参数。`Surface` 将平面血管纹理（强度/粗细/间距）与整条血条的圆润截面光照（`Relief Strength`）解耦：血管不改变法线，关闭血管仍有整体高光/背光立体感。原 UI 材质程序化绘制，不引入贴图或几何；只影响剩余段 RGB、保留 Alpha，静态参考坐标不会随扣血滑动，双强度归零可还原平面。临时材质只负责显示，不新增战斗状态或模块依赖。
 - 人工验收：布局、可读性、焦点、点击区域和视觉效果由用户验收，Executor 不做高 token 视觉遍历。
 
 ### `AREA-Tests`：`Tests`验证边界
@@ -416,6 +422,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 构建：`scripts/ue/Build-Editor.cmd -Configuration Development`。
 - 自动化：`scripts/ue/Run-Automation.cmd -Filter <focused>`。
 - 静态：`python scripts/validate_project.py`、`git diff --check`、预构建包检查。
+- Plan159 回归消费现行效果/价格配置与分级符文 ID，并区分“已购符文槽为空”和“未购报价保持稳定”；多份卡组逐次支付/领取直至耗尽。v22 迁移测试按用户确认的当前角色表差值验证，保留历史输入和二次读档幂等性；不代表跨历史平衡版本的构筑保真承诺。
 - 边界：自动化不能替代用户对手感、视觉、音频可听性和可用性的判断。
 
 ## 常见任务阅读路线
