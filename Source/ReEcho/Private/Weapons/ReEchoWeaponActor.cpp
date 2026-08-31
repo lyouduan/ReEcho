@@ -1279,11 +1279,13 @@ void AReEchoWeaponActor::ProcessResolvedHit(const TSharedPtr<FReEchoWeaponRuneAt
 		}
 		else if (Result.bKilled && Effect.BehaviorId == TEXT("Part.MoveSpeedOnKill") && SourceCombatant)
 		{
-			const int32 MaxStacks = Effect.ParamName == TEXT("MaxStacks")
-			                            ? ReEchoWeaponVisual::ResolveConfiguredMaxStacks(Effect.ParamValue)
-			                            : TNumericLimits<int32>::Max();
-			SourceCombatant->AddTransientStatModifier(
-			    Effect.PartId, 0.0f, Effect.Value, Effect.DurationSeconds, MaxStacks);
+			// One non-refreshing window per combatant, shared by all tiers/attack contexts of this behavior.
+			// Combat owns expiry (including pause handling); repeated kills must not replace the active layer.
+			if (SourceCombatant->GetTransientStatStackCount(Effect.BehaviorId) == 0)
+			{
+				SourceCombatant->AddTransientStatModifier(
+				    Effect.BehaviorId, 0.0f, Effect.Value, Effect.DurationSeconds, 1);
+			}
 		}
 	}
 }
@@ -1777,8 +1779,7 @@ void AReEchoWeaponActor::SpawnSplitProjectiles(const TSharedPtr<FReEchoWeaponRun
 #if !UE_BUILD_SHIPPING
 		if (IsValid(Projectile))
 		{
-			Projectile->ConfigureSplitDiagnostics(
-			    Snapshot.ProjectileId.Value, Index, Result.Target, Candidates[Index]);
+			Projectile->ConfigureSplitDiagnostics(Snapshot.ProjectileId.Value, Index, Result.Target, Candidates[Index]);
 		}
 #endif
 	}

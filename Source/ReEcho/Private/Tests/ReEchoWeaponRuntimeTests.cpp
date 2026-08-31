@@ -2,6 +2,8 @@
 
 #include "Weapons/ReEchoWeaponRuntime.h"
 
+#include "AbilitySystem/ReEchoCombatAttributeSet.h"
+#include "AbilitySystemComponent.h"
 #include "Combat/ReEchoCombatantComponent.h"
 #include "Combat/ReEchoCombatContracts.h"
 #include "Components/SceneComponent.h"
@@ -1210,14 +1212,109 @@ bool FReEchoWeaponRuneDynamicHitHandlersTest::RunTest(const FString& Parameters)
 	    KillShardWeapon->BuildRuneAttackContextForTests(MakeCommit(10), SourceCombatant), KillHit);
 	TestEqual(TEXT("Echo kill handler cannot duplicate economy"), CountShardPickups(), 2);
 
-	AReEchoWeaponActor* KillMoveWeapon = SpawnRuneWeapon(TEXT("W_J_08"), TEXT("P_BOW_KILLHASTE_BOWSTRING"));
+	AReEchoWeaponActor* KillMoveWeapon = SpawnRuneWeapon(TEXT("W_J_08"), TEXT("P_BOW_KILLHASTE_BOWSTRING_I"));
 	auto KillMoveContext = KillMoveWeapon->BuildRuneAttackContextForTests(MakeCommit(11), SourceCombatant);
 	KillHit.DamageSource = EReEchoDamageSource::Player;
 	KillMoveWeapon->ProcessRuneHitForTests(KillMoveContext, KillHit);
 	KillMoveWeapon->ProcessRuneHitForTests(KillMoveContext, KillHit);
-	TestEqual(TEXT("Kill move-speed handler remains stackable with independent five-second layers"),
-	          SourceCombatant->GetTransientStatStackCount(TEXT("P_BOW_KILLHASTE_BOWSTRING")),
-	          2);
+	TestEqual(TEXT("Repeated kills retain only one non-refreshing movement-speed layer"),
+	          SourceCombatant->GetTransientStatStackCount(TEXT("Part.MoveSpeedOnKill")),
+	          1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoWeaponKillHasteGateTest,
+                                 "ReEcho.Weapons.Runes.KillHasteNonRefreshingWindow",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoWeaponKillHasteGateTest::RunTest(const FString& Parameters)
+{
+	FReEchoCsvDataRegistry::LoadAndPublishDefault();
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
+	if (!TestTrue(TEXT("Production snapshot is available"), Snapshot.IsValid()))
+	{
+		return false;
+	}
+	FReEchoWeaponWorldFixture Fixture;
+	AReEchoEnemyActor* Target = Fixture.SpawnEnemy(FVector(10000.0f, 0.0f, 0.0f), 901);
+	const FName WindowId = TEXT("Part.MoveSpeedOnKill");
+	const TArray<TPair<FName, float>> Tiers = {{TEXT("P_BOW_KILLHASTE_BOWSTRING_I"), 0.3f},
+	                                           {TEXT("P_BOW_KILLHASTE_BOWSTRING_II"), 0.4f},
+	                                           {TEXT("P_BOW_KILLHASTE_BOWSTRING_III"), 0.5f}};
+	for (const bool bUseGas : {false, true})
+	{
+		for (const TPair<FName, float>& Tier : Tiers)
+		{
+			UReEchoCombatantComponent* Combatant = nullptr;
+			AActor* Owner = Fixture.SpawnWeaponOwner(FVector::ZeroVector, Combatant);
+			if (bUseGas)
+			{
+				UAbilitySystemComponent* AbilitySystem = NewObject<UAbilitySystemComponent>(Owner);
+				Owner->AddInstanceComponent(AbilitySystem);
+				AbilitySystem->RegisterComponent();
+				AbilitySystem->AddAttributeSetSubobject(NewObject<UReEchoCombatAttributeSet>(Owner));
+				AbilitySystem->InitAbilityActorInfo(Owner, Owner);
+				Combatant->BindToAbilitySystem(AbilitySystem);
+			}
+			FReEchoBuildSnapshot Build = MakeBuild(*Snapshot, TEXT("W_J_08"));
+			FReEchoStatBlock BaseStats;
+			BaseStats.MovementSpeed = 1.0f;
+			SetBuildStats(Build, BaseStats);
+			FReEchoBuildSnapshot Equipped;
+			FString Error;
+			if (!TestTrue(*Tier.Key.ToString(),
+			              ReEchoWeaponRuntime::TryEquipParts(*Snapshot, Build, {Tier.Key}, Equipped, Error)))
+			{
+				AddError(Error);
+				return false;
+			}
+			Combatant->InitializeFromStats(Equipped.Stats, true);
+			AReEchoWeaponActor* Weapon = Fixture.World->SpawnActor<AReEchoWeaponActor>();
+			Weapon->SetOwner(Owner);
+			Weapon->InitializeWeapon(&Equipped, Snapshot);
+			FReEchoWeaponAttackCommit Commit;
+			Commit.Attack.Source = Owner;
+			Commit.Attack.Sequence = 1;
+			const auto Context = Weapon->BuildRuneAttackContextForTests(Commit, Combatant);
+			FReEchoHitResolved Hit;
+			Hit.Target = Target;
+			Hit.AppliedDamage = 1.0f;
+			Weapon->ProcessRuneHitForTests(Context, Hit);
+			TestEqual(
+			    TEXT("A nonlethal hit does not open the window"), Combatant->GetTransientStatStackCount(WindowId), 0);
+			Hit.bKilled = true;
+			const double StartTime = Fixture.World->GetTimeSeconds();
+			Weapon->ProcessRuneHitForTests(Context, Hit);
+			Weapon->ProcessRuneHitForTests(Context, Hit);
+			TestEqual(
+			    TEXT("Simultaneous kills grant only one layer"), Combatant->GetTransientStatStackCount(WindowId), 1);
+			TestTrue(TEXT("The production tier grants its authored movement bonus once"),
+			         FMath::IsNearlyEqual(Combatant->Stats.MovementSpeed, 1.0f + Tier.Value));
+			Fixture.World->TimeSeconds = StartTime + 4.9;
+			Combatant->AdvanceTimedRuneEffectsForTests(Fixture.World->GetTimeSeconds());
+			++Commit.Attack.Sequence;
+			const auto LaterContext = Weapon->BuildRuneAttackContextForTests(Commit, Combatant);
+			Weapon->ProcessRuneHitForTests(LaterContext, Hit);
+			TestEqual(TEXT("A different attack inside five seconds cannot add a layer"),
+			          Combatant->GetTransientStatStackCount(WindowId),
+			          1);
+			Fixture.World->TimeSeconds = StartTime + 5.0;
+			Combatant->AdvanceTimedRuneEffectsForTests(Fixture.World->GetTimeSeconds());
+			TestEqual(TEXT("The late kill did not refresh the original five-second expiry"),
+			          Combatant->GetTransientStatStackCount(WindowId),
+			          0);
+			TestTrue(TEXT("Expiry restores movement speed"),
+			         FMath::IsNearlyEqual(Combatant->Stats.MovementSpeed, 1.0f));
+			Weapon->ProcessRuneHitForTests(LaterContext, Hit);
+			TestEqual(TEXT("The next kill after expiry starts a new window"),
+			          Combatant->GetTransientStatStackCount(WindowId),
+			          1);
+			Fixture.World->TimeSeconds = StartTime + 10.0;
+			Combatant->AdvanceTimedRuneEffectsForTests(Fixture.World->GetTimeSeconds());
+			TestTrue(TEXT("The second window also expires without residual speed"),
+			         FMath::IsNearlyEqual(Combatant->Stats.MovementSpeed, 1.0f));
+		}
+	}
 	return true;
 }
 

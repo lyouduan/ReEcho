@@ -253,6 +253,11 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 
 ### `AREA-Weapons`：`Weapons`武器执行
 
+`Part.MoveSpeedOnKill` 的击杀移速弓弦为不可重入增益：在同一 Combatant 上以 BehaviorId 共用一个临时层，
+I/II/III 和不同攻击上下文不能并行叠加或刷新。层存在时忽略后续击杀，原层到期后下一次击杀才能再次触发。
+数值与窗口时长仍来自 `Effect.Value` / `Effect.DurationSeconds`（生产配置为 5 秒）；Combat 继续拥有到期和暂停处理，
+WeaponActor 不复制第二套冷却计时。其他可叠层符文维持原规则。
+
 **设计意图：** 武器规则和逻辑载体已迁入 `MOD-ReEchoWeapons`；主模块保留 CSV→Definition 编译、世界宿主和武器可见表现。
 
 - 逻辑代码与完整意图：[`MOD-ReEchoWeapons.md`](MOD-ReEchoWeapons.md)。
