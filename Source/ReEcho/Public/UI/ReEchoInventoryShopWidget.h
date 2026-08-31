@@ -306,9 +306,8 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshText;
 
-	// Runtime overlay text drawn on top of the cleaned refresh-button texture
-	// (the baked-in "刷新" label was removed from the source PNG).
-	UPROPERTY(Transient)
+	/** Designer-owned refresh label; runtime updates its content, never its presentation. */
+	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> ShopRefreshCountText;
 
 	UPROPERTY(meta = (BindWidgetOptional))

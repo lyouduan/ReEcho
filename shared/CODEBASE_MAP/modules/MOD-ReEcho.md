@@ -398,6 +398,7 @@ Development 控制台命令统一由 `AReEchoGameMode` 的 `UFUNCTION(Exec)` 提
 - 权威：活跃屏幕实例、Viewport 层、焦点、输入模式和屏幕暂停策略。
 - 输入：玩法只读摘要、用户选择和稳定 ID。
 - 输出：类型化命令，不直接写 Run/Combat/Weapon 内部状态。
+- 商店刷新文字：`WBP_ReEchoInventoryShopScreen` 持有 `ShopRefreshCountText` 与可拖动的 `DesignerRefreshTextBox`；`ReEchoInventoryShopWidget` 只投影原有次数/费用文案、按钮资格和点击请求。完整作者化按钮不进入 legacy `SetContent` 或字体/几何重建，缺少作者化文字的旧资产与原生路径仍保留兜底。
 - 结算统计：`UReEchoRestartWidget` 只向 `VictoryCanvas` / `DefeatCanvas` 的八组统计数值写入现有只读快照；全部标签与数值的几何、字体、颜色、对齐、换行和裁切由 `WBP_ReEchoRestart` 保存，不在构造或结果页切换时回填程序布局。统计采集、重开和主菜单请求保持原契约。
 - 扩展：新增屏幕先注册 `EReEchoUIScreen` 与生命周期策略；GameMode 不直接管理 Widget Viewport。
 - 终局重开：死亡/胜利结算界面只暂停当前 World；玩家确认「重新开始」后必须通过 `OpenLevel` 完整替换 World，不能依赖逐类清理瞬态 Actor。GameInstance 生命周期的 UI Flow 只保存并一次性消费旅行后的 Loadout 目标，使新 `StartPlay()` 跳过主菜单；普通启动和退出到主菜单不设置该目标。
