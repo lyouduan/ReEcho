@@ -28,3 +28,4 @@
 - 纠正后的 Development 构建通过并刷新 7 模块精选 Editor 包，源码指纹 `e1b395ae5d38`；`ReEcho.UI.SettingsInteraction` 1/1 通过；`validate_project.py`、预构建检查、LFS hydration 与 `git diff --check` 通过。
 - `ReEcho.Difficulty` 中 `PackagesAndCache` 通过；既存 `RunLockAndSaveMigration` 因测试在 Package Outer 下直接 `NewObject<UReEchoRunSubsystem>` 触发 UE 5.8 `ClassWithin=GameInstance` ensure 而失败。该测试及 Run/Save 源码均未被本任务修改，不将其记为本交付通过，也不扩大本 UI 任务修复范围。
 - 用户已在蓝图中完成最终微调并确认发布；保留该 `WBP_ReEchoSettings` 作者结果，不再运行作者脚本覆盖。发布前仅执行只读蓝图审计、最终组合构建及仓库门禁，并按主分支发布锁规则合入 `main`。
+- 发布锁内最终 `Development -FullRebuild` 通过，预构建源码指纹更新为 `2a2764745fec`；用户微调后的蓝图只读审计通过，`ReEcho.UI.SettingsInteraction` 1/1 通过，项目静态校验、预构建校验、LFS hydration/fsck 与 `git diff --check` 均通过。
