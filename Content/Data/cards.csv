@@ -83,7 +83,7 @@ G_4_4,G_4_4,0,呕人？哕人？,"用更高的效率把所有的时间碎片转�
 G_4_5,G_4_5,0,帅气T傥,"身边的敌人都被你迷倒了！
 
 ——特别鸣谢 程序 T爷",EasterEgg|Control,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_6,G_4_6,0,"""野狗""的荣耀","""野狗不需要墓碑""，你快来飞升成神了。下一关，1滴血换10张1级卡牌
+G_4_6,G_4_6,0,"""野狗""的荣耀","下一关卡结束后，你获得X张随机1级卡牌。X=你下一关卡受到的伤害
 ——特别鸣谢 程序 Jo爷",EasterEgg|Cards,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_7,G_4_7,0,绝不迟到之人！,"神秘人往你的物理伤害后面加随机个0
 

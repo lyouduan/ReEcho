@@ -111,10 +111,9 @@ bool FReEchoEgaoBonusGrantTest::RunTest(const FString&)
 	TestTrue(TEXT("The chosen card is granted"), Grant.bSucceeded);
 	TestTrue(TEXT("The chosen card is owned"), Grant.CardState.OwnedCardIds.Contains(Chosen.Id));
 	TestTrue(TEXT("The bonus 样样都通 is granted"), Grant.CardState.OwnedCardIds.Contains(TEXT("G_3_23")));
-	// Egao bonus copies are ownership-only; G_3_23's GrantAllTier1 effect only fires when G_3_23 itself
-	// is directly selected, not when it is awarded as the global bonus.
-	TestFalse(TEXT("The bonus card does not fire its own tier-one grant effect"),
-	          Grant.CardState.OwnedCardIds.Contains(TierOne.Id));
+	// Every system-given G_3_23 is a real grant and must resolve its GrantAllTier1 effect.
+	TestTrue(TEXT("The system bonus card also grants tier-one cards"),
+	         ReEchoCardRuntime::CountOwned(Grant.CardState, TierOne.Id) >= 1);
 	TestTrue(TEXT("The bonus card stacks at least one copy"),
 	         ReEchoCardRuntime::CountOwned(Grant.CardState, TEXT("G_3_23")) >= 1);
 	return true;
@@ -1316,9 +1315,11 @@ bool FReEchoEasterDamageCardRewardTest::RunTest(const FString&)
 	TestTrue(TEXT("Ending the encounter records a card reward"), Reward != nullptr);
 	TestTrue(TEXT("The reward grants at least one card"), Reward && Reward->RelatedCardIds.Num() >= 1);
 	TestFalse(TEXT("The Easter card never grants itself"), Reward && Reward->RelatedCardIds.Contains(Easter.Id));
-	// Tier-2 normals are never eligible and the already-owned tier-1 card is skipped.
-	TestFalse(TEXT("Only unowned tier-1 cards are granted"),
-	          Reward && (Reward->RelatedCardIds.Contains(Cards[3].Id) || Reward->RelatedCardIds.Contains(Cards[1].Id)));
+	// The new contract allows any enabled tier-1 card, including an already-owned stackable card;
+	// tier-2 cards and the Easter card itself remain impossible because the pool is tier-one only.
+	TestFalse(TEXT("Tier-2 normals are never granted"), Reward && Reward->RelatedCardIds.Contains(Cards[3].Id));
+	TestFalse(TEXT("The Easter card never appears in its own reward"), Reward && Reward->RelatedCardIds.Contains(Easter.Id));
+	TestEqual(TEXT("The one-shot payout is marked complete"), Settled.CardState.Runtime.bEasterDamageCardsGranted, true);
 	TestEqual(TEXT("The recorded damage is cleared after settling"), Settled.CardState.Runtime.EasterDamageTaken, 0.0f);
 	return true;
 }

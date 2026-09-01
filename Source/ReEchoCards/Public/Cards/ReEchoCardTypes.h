@@ -309,6 +309,8 @@ struct REECHOCARDS_API FReEchoCardGrantInput
 	int32 EncounterIndex = 0;
 	int32 RandomSeed = 0;
 	bool bRecordOwnership = true;
+	/** Bypass offer ownership/conflict checks for authoritative reward grants. */
+	bool bForceGrant = false;
 	/** True only when this card is directly selected from a free or paid card pack. */
 	bool bFromCardPackSelection = false;
 	/**

@@ -558,6 +558,10 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		if (bRecordOwnership)
 		{
 			Result.CardState.OwnedCardIds.Add(RequestedCardId);
+			if (RequestedCardId == TEXT("G_4_6"))
+			{
+				Result.CardState.Runtime.bEasterDamageCardsGranted = false;
+			}
 		}
 		Result.GrantedCardIds.Add(RequestedCardId);
 		TOptional<FRandomStream> EasterGrantRandom;
@@ -784,7 +788,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				FRandomStream Random(HashCombine(GetTypeHash(Input.RandomSeed),
 				                                     GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
 				TArray<FName> NewOwned;
-				int32 ReshuffledCount = 0;
+				int32 Tier1Count = 0;
 				for (const FName OwnedId : Result.CardState.OwnedCardIds)
 				{
 					const FReEchoCardDefinition* Owned = Catalog.Find(OwnedId);
@@ -793,21 +797,28 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 						NewOwned.Add(OwnedId);
 						continue;
 					}
+					++Tier1Count;
 					if (!ApplyTierOneGrantEffects(*Owned, true))
 					{
 						return false;
 					}
+				}
+				if (Tier1Count > 0)
+				{
+					// Sauce Party chooses one tier-1 card once, then rebuilds exactly the old total count.
 					const FReEchoCardDefinition& Replacement = Tier1Cards[Random.RandRange(0, Tier1Cards.Num() - 1)];
-					NewOwned.Add(Replacement.Id);
-					if (!ApplyTierOneGrantEffects(Replacement, false))
+					for (int32 Index = 0; Index < Tier1Count; ++Index)
 					{
-						return false;
+						NewOwned.Add(Replacement.Id);
+						if (!ApplyTierOneGrantEffects(Replacement, false))
+						{
+							return false;
+						}
 					}
-					++ReshuffledCount;
 				}
 				Result.CardState.OwnedCardIds = MoveTemp(NewOwned);
 				Outcome.DetailTargets = {TEXT("ReshuffledCount")};
-				Outcome.DetailValues = {static_cast<float>(ReshuffledCount)};
+				Outcome.DetailValues = {static_cast<float>(Tier1Count)};
 				Outcome.ResolutionCount = 1;
 			}
 		}
@@ -1015,7 +1026,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return true;
 	};
 
-	if (!GrantSingle(CardId, Input.bRecordOwnership, false, true))
+	if (!GrantSingle(CardId, Input.bRecordOwnership, Input.bForceGrant, true))
 	{
 		const FString Error = Result.Error;
 		Result = {};
@@ -1026,8 +1037,9 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return Result;
 	}
 
-	// Egao Party: a direct acquisition also hands out 1-5 extra copies of 样样都通. These bonus
-	// copies are ownership-only: they must not execute G_3_23's GrantAllTier1 OnGrant effect.
+	// Egao Party: a direct acquisition also hands out 1-5 copies of 样样都通. Each system-given copy
+	// is a real grant, so its GrantAllTier1 effect resolves; nested tier-one grants cannot recurse because
+	// this outer bonus block is only reached once after the top-level transaction.
 	{
 		const FReEchoCardDefinition* BonusCard = Catalog.Find(TEXT("G_3_23"));
 		const FReEchoCardDefinition* GrantedCard = Catalog.Find(CardId);
@@ -1040,8 +1052,16 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			const int32 BonusCount = BonusRandom.RandRange(1, 5);
 			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
 			{
-				Result.CardState.OwnedCardIds.Add(BonusCard->Id);
-				Result.GrantedCardIds.Add(BonusCard->Id);
+				if (!GrantSingle(BonusCard->Id, true, true, false))
+				{
+					const FString Error = Result.Error;
+					Result = {};
+					Result.Stats = Input.Stats;
+					Result.CardState = Input.CardState;
+					Result.TimeShards = Input.TimeShards;
+					Result.Error = Error;
+					return Result;
+				}
 			}
 		}
 	}
@@ -1882,46 +1902,32 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 	{
 		Result.CardState.Runtime.EasterEchoContactScale *= 2.0f;
 	}
-	// G_4_6 converts the damage taken during this encounter into one tier-1 card per point of damage.
-	// The damage was recorded throughout the encounter; settling here makes it a per-encounter payout.
-	if (HasCard(Result.CardState, TEXT("G_4_6")) && Result.CardState.Runtime.EasterDamageTaken > 0.0f)
+	// G_4_6 pays once at the end of the next completed encounter after acquisition:
+	// one random tier-1 card per point of damage taken during that encounter.
+	if (HasCard(Result.CardState, TEXT("G_4_6")) && !Result.CardState.Runtime.bEasterDamageCardsGranted)
 	{
-		// G_4_6 (野狗的荣耀): X damage this encounter grants X * multiplier tier-1 cards next settlement.
-		float DamageMultiplier = 10.0f;
-		if (const FReEchoCardDefinition* Card6 = Catalog.Find(TEXT("G_4_6")))
-		{
-			for (const FReEchoCardEffectDefinition& E : Card6->Effects)
-			{
-				if (E.BehaviorId == TEXT("Card.EasterDamageCards"))
-				{
-					DamageMultiplier = FMath::Max(1.0f, E.ParamValue);
-					break;
-				}
-			}
-		}
-		const int32 Requested = FMath::RoundToInt(Result.CardState.Runtime.EasterDamageTaken * DamageMultiplier);
+		Result.CardState.Runtime.bEasterDamageCardsGranted = true;
+		const int32 StackCount = FMath::Max(1, CountOwned(Result.CardState, TEXT("G_4_6")));
+		const int32 Requested = FMath::Max(
+		    0, FMath::RoundToInt(Result.CardState.Runtime.EasterDamageTaken * StackCount));
 		Result.CardState.Runtime.EasterDamageTaken = 0.0f;
-		TArray<FReEchoCardDefinition> Pool =
-		    BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), INDEX_NONE, EncounterIndex);
-		Pool.RemoveAll(
-		    [&](const FReEchoCardDefinition& Candidate)
-		    {
-			    return Candidate.Tier != 1 || HasCard(Result.CardState, Candidate.Id);
-		    });
+		TArray<FReEchoCardDefinition> Pool = Catalog.GetAll(1);
+		Pool.RemoveAll([&](const FReEchoCardDefinition& Candidate) { return !Candidate.bEnabled; });
 		FRandomStream Random(
 		    HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
-		FReEchoCardOutcomeState& Outcome =
-		    FindOrAddOutcome(Result.CardState.Runtime, TEXT("G_4_6"), EReEchoCardOutcomeKind::GrantedCards);
+		TArray<FName> GrantedRewardIds;
 		for (int32 Index = 0; Index < Requested && !Pool.IsEmpty(); ++Index)
 		{
-			const int32 Pick = Random.RandRange(0, Pool.Num() - 1);
+			const FReEchoCardDefinition& RewardCard = Pool[Random.RandRange(0, Pool.Num() - 1)];
 			FReEchoCardGrantInput Input;
 			Input.Stats = Result.Stats;
 			Input.CardState = Result.CardState;
 			Input.TimeShards = TimeShards;
 			Input.EncounterIndex = EncounterIndex;
 			Input.RandomSeed = HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Index));
-			const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, Pool[Pick].Id, Input);
+			Input.bForceGrant = true;
+			Input.bSuppressEgaoBonusGrant = true;
+			const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, RewardCard.Id, Input);
 			if (!Grant.bSucceeded)
 			{
 				break;
@@ -1929,13 +1935,11 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			Result.Stats = Grant.Stats;
 			Result.CardState = Grant.CardState;
 			RequestHealthAdjustment(Result.HealthAdjustment, Grant.HealthAdjustment);
-			Outcome.RelatedCardIds.Append(Grant.GrantedCardIds);
-			// Unique tier-1 cards are exhausted once owned; stackable ones stay available for re-rolls.
-			if (Pool[Pick].StackPolicy == TEXT("Unique"))
-			{
-				Pool.RemoveAtSwap(Pick);
-			}
+			GrantedRewardIds.Append(Grant.GrantedCardIds);
 		}
+		FReEchoCardOutcomeState& Outcome =
+		    FindOrAddOutcome(Result.CardState.Runtime, TEXT("G_4_6"), EReEchoCardOutcomeKind::GrantedCards);
+		Outcome.RelatedCardIds.Append(GrantedRewardIds);
 		Outcome.ResolutionCount = Outcome.RelatedCardIds.Num();
 	}
 	ForEachOwnedEffect(

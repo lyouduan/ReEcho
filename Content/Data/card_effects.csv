@@ -91,7 +91,7 @@ G_4_4_REACTION,G_4_4,7,OnGrant,CardBehavior,ReactionEfficiency,Add,0.05,Card.Eas
 G_4_5_STUN,G_4_5,1,OnEncounterTick,CardBehavior,Stun,Override,1,Card.EasterRandomStun,PulseInterval,0.5
 G_4_5_RADIUS,G_4_5,2,OnEncounterTick,CardBehavior,Damage,Override,500,Card.EasterRandomStun,RadiusCm,500
 G_4_5_COUNT,G_4_5,3,OnEncounterTick,CardBehavior,Stun,Override,5,Card.EasterRandomStun,TargetCount,5
-G_4_6_REWARD,G_4_6,1,OnEncounterEnd,CardBehavior,MinimumGuaranteedTier,Override,1,Card.EasterDamageCards,GrantTier,10
+G_4_6_REWARD,G_4_6,1,OnEncounterEnd,CardBehavior,MinimumGuaranteedTier,Override,1,Card.EasterDamageCards,DamageToCards,1
 G_4_7_ZERO,G_4_7,1,BeforeOutgoingHit,CardBehavior,Damage,Override,0,Card.EasterPhysicalLottery,Probability,0.582
 G_4_7_TEN,G_4_7,2,BeforeOutgoingHit,CardBehavior,Damage,Override,10,Card.EasterPhysicalLottery,Probability,0.01
 G_4_7_HUNDRED,G_4_7,3,BeforeOutgoingHit,CardBehavior,Damage,Override,100,Card.EasterPhysicalLottery,Probability,0.01
