@@ -126,6 +126,22 @@ bool FReEchoShopLogicBlocksTest::RunTest(const FString& Parameters)
 
 	Widget->SetWeaponPartShopView(View);
 	Widget->ShowShop(100, {});
+	UTexture2D* ExpectedPopulatedPackIcon =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	                                "T_UI_Shop110_CardPackOfferIcon.T_UI_Shop110_CardPackOfferIcon"));
+	UTexture2D* ExpectedLockedPackIcon =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	                                "T_UI_Shop110_EmptyCardSlotIcon.T_UI_Shop110_EmptyCardSlotIcon"));
+	UImage* AvailablePackIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferIcon0")));
+	UImage* NotOfferedPackIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferIcon1")));
+	TestTrue(TEXT("Available card pack uses the populated card-stack icon"),
+	         AvailablePackIcon && ExpectedPopulatedPackIcon &&
+	             AvailablePackIcon->GetBrush().GetResourceObject() == ExpectedPopulatedPackIcon);
+	TestTrue(TEXT("Not-offered card pack keeps the lock icon"),
+	         NotOfferedPackIcon && ExpectedLockedPackIcon &&
+	             NotOfferedPackIcon->GetBrush().GetResourceObject() == ExpectedLockedPackIcon);
 	const UTextBlock* RefreshLimitText = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("TargetRefreshLimitText")));
 	TestTrue(TEXT("Main shop shows the weapon/rune refresh budget and configured cost"),
 	         RefreshLimitText && RefreshLimitText->GetText().ToString().Contains(TEXT("2")) &&
@@ -786,6 +802,14 @@ bool FReEchoAuthoredShopLayoutHostTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Weapon-part offer surface shows only the rune name; its tooltip owns the effect"),
 	         OfferPartName && OfferPartName->GetText().EqualTo(WeaponPart.DisplayName));
 	UTextBlock* PackTierLabel = Cast<UTextBlock>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferDescription0")));
+	UImage* PackOfferIcon = Cast<UImage>(Widget->GetWidgetFromName(TEXT("DesignerPackOfferIcon0")));
+	UTexture2D* ExpectedPackOfferIcon =
+	    LoadObject<UTexture2D>(nullptr,
+	                           TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	                                "T_UI_Shop110_CardPackOfferIcon.T_UI_Shop110_CardPackOfferIcon"));
+	TestTrue(TEXT("A populated card-pack offer uses the reviewed card-stack icon instead of the lock icon"),
+	         PackOfferIcon && ExpectedPackOfferIcon &&
+	             PackOfferIcon->GetBrush().GetResourceObject() == ExpectedPackOfferIcon);
 	TestEqual(TEXT("Card-pack offer surface shows only its tier label"),
 	          PackTierLabel ? PackTierLabel->GetText().ToString() : FString(),
 	          FString(TEXT("一级卡组")));

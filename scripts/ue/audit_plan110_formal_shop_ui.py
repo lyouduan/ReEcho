@@ -201,6 +201,7 @@ required_textures = (
     "WeaponLoadoutSlot",
     "LoadoutCardSlot",
     "EmptyCardSlotIcon",
+    "CardPackOfferIcon",
     "AssemblyPanel",
     "LoadoutTreePanel",
     "SaveAndLeave",
@@ -214,6 +215,9 @@ for texture_name in required_textures:
         f"Shop texture is not in the UI texture group: {asset_path}",
     )
 
+card_pack_offer_icon = unreal.load_asset(
+    f"{runtime_texture_root}/T_UI_Shop110_CardPackOfferIcon"
+)
 empty_icon = unreal.load_asset(
     f"{runtime_texture_root}/T_UI_Shop110_EmptyCardSlotIcon"
 )
@@ -239,8 +243,8 @@ for index in range(3):
     pack_art = widget_map[f"DesignerPackOfferIcon{index}"]
     require(
         pack_art.get_editor_property("brush").get_editor_property("resource_object")
-        == empty_icon,
-        f"Card-pack offer {index} does not preview the reviewed lock icon",
+        == (card_pack_offer_icon if index == 0 else empty_icon),
+        f"Card-pack offer {index} does not preserve the mixed populated/locked preview",
     )
 
 for forbidden_reference in (

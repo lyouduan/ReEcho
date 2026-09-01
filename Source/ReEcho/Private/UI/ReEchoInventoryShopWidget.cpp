@@ -377,6 +377,10 @@ UReEchoInventoryShopWidget::UReEchoInventoryShopWidget(const FObjectInitializer&
 	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
 	         "T_UI_Shop110_EmptyCardSlotIcon.T_UI_Shop110_EmptyCardSlotIcon"));
 	ShopEmptyCardSlotIconTexture = EmptyCardSlotIconFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CardPackOfferIconFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InventoryShop/Plan110/"
+	         "T_UI_Shop110_CardPackOfferIcon.T_UI_Shop110_CardPackOfferIcon"));
+	ShopCardPackOfferIconTexture = CardPackOfferIconFinder.Object;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> ShopTitleFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/InventoryShop/T_UI_Shop_Title.T_UI_Shop_Title"));
 	ShopTitleTexture = ShopTitleFinder.Object;
@@ -2195,7 +2199,8 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards(const bool bAvailabil
 		const bool bCanPurchase = Pack.bCanPurchase && bCurrentExtraCardPurchaseAllowed;
 		if (!bAvailabilityOnly && DesignerPackOfferIcons.IsValidIndex(Index) && DesignerPackOfferIcons[Index])
 		{
-			DesignerPackOfferIcons[Index]->SetBrushFromTexture(ShopEmptyCardSlotIconTexture.Get(), false);
+			DesignerPackOfferIcons[Index]->SetBrushFromTexture(
+			    Pack.CanOpenChoices() ? ShopCardPackOfferIconTexture.Get() : ShopEmptyCardSlotIconTexture.Get(), false);
 			DesignerPackOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 			DesignerPackOfferIcons[Index]->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}

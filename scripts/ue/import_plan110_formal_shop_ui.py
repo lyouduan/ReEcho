@@ -33,6 +33,7 @@ TEXTURES = {
     "MovementSpeed.png": "T_UI_Shop110_MovementSpeed",
     "LoadoutCardSlot.png": "T_UI_Shop110_LoadoutCardSlot",
     "EmptyCardSlotIcon.png": "T_UI_Shop110_EmptyCardSlotIcon",
+    "CardPackOfferIcon.png": "T_UI_Shop110_CardPackOfferIcon",
     "LoadoutTreePanel.png": "T_UI_Shop110_LoadoutTreePanel",
     "ReactionEfficiency.png": "T_UI_Shop110_ReactionEfficiency",
     "ElementalAttack.png": "T_UI_Shop110_ElementalAttack",

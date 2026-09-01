@@ -261,9 +261,12 @@ private:
 	TObjectPtr<UTexture2D> ShopRefreshTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopCardSlotTexture;
-	/** Reviewed placeholder art used by the three card-pack offers. */
+	/** Reviewed lock/empty-state art retained separately from valid card-pack offers. */
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopEmptyCardSlotIconTexture;
+	/** Reviewed card-stack art used when a card-pack offer is actually populated. */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> ShopCardPackOfferIconTexture;
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ShopTitleTexture;
 	UPROPERTY()
