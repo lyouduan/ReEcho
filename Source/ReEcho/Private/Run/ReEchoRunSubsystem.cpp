@@ -911,6 +911,7 @@ struct FReEchoEchoStorageRestoreState
 	FReEchoRecording LatestCompletedRecording;
 	bool bHasPreviousCompletedRecording = false;
 	FReEchoRecording PreviousCompletedRecording;
+	TArray<FReEchoRecording> CompletedReplayHistory;
 	bool bHasTimeAnchorRecording = false;
 	FReEchoRecording TimeAnchorRecording;
 };
@@ -1260,6 +1261,13 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 void MigrateV4EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorageRestoreState& OutState)
 {
 	OutState = FReEchoEchoStorageRestoreState{};
+	for (const FReEchoRecording& Recording : SaveGame.RecordingHistory)
+	{
+		if (Recording.Id.IsValid() && OutState.CompletedReplayHistory.Num() < 7)
+		{
+			OutState.CompletedReplayHistory.Add(Recording);
+		}
+	}
 	if (SaveGame.RecordingHistory.Num() > 0 && SaveGame.RecordingHistory[0].Id.IsValid())
 	{
 		OutState.LatestCompletedRecording = SaveGame.RecordingHistory[0];
@@ -1291,6 +1299,13 @@ void MigrateV4EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorage
 void ReadV5EchoStorage(const UReEchoRunSaveGame& SaveGame, FReEchoEchoStorageRestoreState& OutState)
 {
 	OutState = FReEchoEchoStorageRestoreState{};
+	for (const FReEchoRecording& Recording : SaveGame.RecordingHistory)
+	{
+		if (Recording.Id.IsValid() && OutState.CompletedReplayHistory.Num() < 7)
+		{
+			OutState.CompletedReplayHistory.Add(Recording);
+		}
+	}
 	if (SaveGame.bHasPendingRecording && SaveGame.PendingRecording.Id.IsValid())
 	{
 		OutState.PendingRecording = SaveGame.PendingRecording;
@@ -5150,6 +5165,7 @@ void UReEchoRunSubsystem::ResetEchoStorage()
 	LatestCompletedRecording = {};
 	bHasPreviousCompletedRecording = false;
 	PreviousCompletedRecording = {};
+	CompletedReplayHistory.Reset();
 	ClearTimeAnchorRecording();
 }
 
@@ -5169,6 +5185,16 @@ EReEchoEchoStorageResult UReEchoRunSubsystem::StagePendingRecording(const FReEch
 	}
 	PendingRecording = Recording;
 	bHasPendingRecording = true;
+	CompletedReplayHistory.RemoveAll(
+	    [&Recording](const FReEchoRecording& Existing)
+	    {
+		    return Existing.Id == Recording.Id;
+	    });
+	CompletedReplayHistory.Insert(Recording, 0);
+	while (CompletedReplayHistory.Num() > 7)
+	{
+		CompletedReplayHistory.Pop();
+	}
 	if (bHasLatestCompletedRecording && LatestCompletedRecording.Id != Recording.Id)
 	{
 		PreviousCompletedRecording = LatestCompletedRecording;
@@ -5274,7 +5300,18 @@ TArray<FReEchoRecording> UReEchoRunSubsystem::ResolveReplayRecordings(const int3
 
 	// Without a valid G_3_02 anchor, replay the rolling previous encounters automatically.
 	const int32 DefaultCount = FMath::Min(Count, Rules.MaximumEchoes);
-	if (DefaultCount > 0 && bHasLatestCompletedRecording)
+	for (const FReEchoRecording& Recording : CompletedReplayHistory)
+	{
+		if (Result.Num() >= DefaultCount)
+		{
+			break;
+		}
+		if (Recording.Id.IsValid())
+		{
+			Result.Add(Recording);
+		}
+	}
+	if (Result.IsEmpty() && DefaultCount > 0 && bHasLatestCompletedRecording)
 	{
 		Result.Add(LatestCompletedRecording);
 	}
@@ -5536,7 +5573,8 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	SaveGame->WeaponRuneRefreshEncounterIndex = WeaponRuneRefreshEncounterIndex;
 	SaveGame->WeaponRuneRefreshesUsed = WeaponRuneRefreshesUsed;
 	SaveGame->bAutomaticAttackMode = bAutomaticAttackMode;
-	// v5+ writes only the new echo storage state; RecordingHistory and AnchorId stay empty on purpose.
+	// Keep the rolling replay history so repeatable echo-count cards survive save/load.
+	SaveGame->RecordingHistory = CompletedReplayHistory;
 	SaveGame->bHasPendingRecording = bHasPendingRecording;
 	if (bHasPendingRecording)
 	{
@@ -5767,6 +5805,18 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 	PreviousCompletedRecording = RestoredStorage.bHasPreviousCompletedRecording
 	                                 ? RestoredStorage.PreviousCompletedRecording
 	                                 : FReEchoRecording{};
+	CompletedReplayHistory = RestoredStorage.CompletedReplayHistory;
+	if (CompletedReplayHistory.IsEmpty())
+	{
+		if (bHasLatestCompletedRecording)
+		{
+			CompletedReplayHistory.Add(LatestCompletedRecording);
+		}
+		if (bHasPreviousCompletedRecording)
+		{
+			CompletedReplayHistory.Add(PreviousCompletedRecording);
+		}
+	}
 	bHasTimeAnchorRecording =
 	    RestoredStorage.bHasTimeAnchorRecording && CurrentBuild.CardState.Runtime.bHasAnchorRecording &&
 	    RestoredStorage.TimeAnchorRecording.Id == CurrentBuild.CardState.Runtime.AnchorRecordingId;

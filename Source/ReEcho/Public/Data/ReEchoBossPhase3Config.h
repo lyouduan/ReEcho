@@ -99,7 +99,7 @@ public:
 	float TriggerSeconds = 15.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1.0"))
-	float PhaseMaxHealth = 500.0f;
+	float PhaseMaxHealth = 4000000.0f;
 
 	/**
 	 * Egao Party: phase three resolves to (phase1 + phase2) * this multiplier, so 4/3 lands the

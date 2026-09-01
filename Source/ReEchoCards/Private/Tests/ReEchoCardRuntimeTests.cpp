@@ -116,6 +116,18 @@ bool FReEchoEgaoBonusGrantTest::RunTest(const FString&)
 	         ReEchoCardRuntime::CountOwned(Grant.CardState, TierOne.Id) >= 1);
 	TestTrue(TEXT("The bonus card stacks at least one copy"),
 	         ReEchoCardRuntime::CountOwned(Grant.CardState, TEXT("G_3_23")) >= 1);
+	const int32 PreviousBonusCount = ReEchoCardRuntime::CountOwned(Grant.CardState, TEXT("G_3_23"));
+	const int32 PreviousTierOneCount = ReEchoCardRuntime::CountOwned(Grant.CardState, TierOne.Id);
+	FReEchoCardGrantInput LaterInput;
+	LaterInput.CardState = Grant.CardState;
+	LaterInput.Stats = Grant.Stats;
+	LaterInput.RandomSeed = 20260902;
+	const FReEchoCardGrantResult LaterGrant = ReEchoCardRuntime::TryGrantCard(Catalog, TierOne.Id, LaterInput);
+	TestTrue(TEXT("A later card-pack grant succeeds"), LaterGrant.bSucceeded);
+	TestTrue(TEXT("A later grant adds another system bonus"),
+	         ReEchoCardRuntime::CountOwned(LaterGrant.CardState, TEXT("G_3_23")) > PreviousBonusCount);
+	TestTrue(TEXT("A later system bonus resolves its tier-one grant"),
+	         ReEchoCardRuntime::CountOwned(LaterGrant.CardState, TierOne.Id) > PreviousTierOneCount);
 	return true;
 }
 

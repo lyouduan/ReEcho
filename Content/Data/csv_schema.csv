@@ -288,7 +288,7 @@ SchemaVersion,TableId,ColumnName,Type,Required,Min,Max,ReferencesTable,AllowedVa
 1,BossPhases,AttackSpeedMultiplier,Float,true,0,100,,,Temporary attack speed multiplier.
 1,BossPhases,MovementSpeedMultiplier,Float,true,0,100,,,Temporary movement speed multiplier.
 1,BossPhases,RefillHealthPolicy,StableId,true,,,,None,Typed health refill policy.
-1,BossPhases,PhaseMaxHealth,Float,true,0,1000000,,,Authoritative per-phase maximum health; applied when the phase advances (no refill).
+1,BossPhases,PhaseMaxHealth,Float,true,0,10000000,,,Authoritative per-phase maximum health; applied when the phase advances (no refill).
 1,BossPhases,Enabled,Bool,true,,,,true|false,Lowercase boolean value.
 1,BossPhases,SourceSheet,Text,true,,,,,Workbook source sheet.
 1,BossPhases,SourceRow,Int,true,0,1000000,,,Workbook source row.

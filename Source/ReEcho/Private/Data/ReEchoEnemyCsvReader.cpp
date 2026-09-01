@@ -561,7 +561,7 @@ bool ReadBossPhases(const FString& DataDirectory,
 		ReEchoCsv::RequireFloat(
 		    Table, CsvRow, TEXT("MovementSpeedMultiplier"), 0.0f, 100.0f, Row.MovementSpeedMultiplier, Issues);
 		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("RefillHealthPolicy"), Row.RefillHealthPolicy, Issues);
-		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("PhaseMaxHealth"), 0.0f, 1000000.0f, Row.PhaseMaxHealth, Issues);
+		ReEchoCsv::RequireFloat(Table, CsvRow, TEXT("PhaseMaxHealth"), 0.0f, 10000000.0f, Row.PhaseMaxHealth, Issues);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Enabled"), Row.bEnabled, Issues);
 		ReEchoCsv::RequireCell(Table, CsvRow, TEXT("SourceSheet"), Row.SourceSheet, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("SourceRow"), Row.SourceRow, Issues);

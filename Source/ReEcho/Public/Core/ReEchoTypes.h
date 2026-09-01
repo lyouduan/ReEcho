@@ -388,7 +388,7 @@ namespace ReEchoTimeAnchor
 {
 constexpr const TCHAR* CardId = TEXT("G_3_02");
 /** Upper bound accepted by the replay resolver; actual count is further limited by card rules. */
-constexpr int32 MaximumResolvedEchoes = 3;
+constexpr int32 MaximumResolvedEchoes = 7;
 } // namespace ReEchoTimeAnchor
 
 /** Explicit outcome of every echo storage command; commands never partially mutate on failure. */

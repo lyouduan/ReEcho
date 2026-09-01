@@ -411,6 +411,10 @@ private:
 	UPROPERTY()
 	FReEchoRecording PreviousCompletedRecording;
 
+	/** Up to seven rolling previous-player recordings used by the repeatable echo-count Easter card. */
+	UPROPERTY()
+	TArray<FReEchoRecording> CompletedReplayHistory;
+
 	/** G_3_02's only persistent recording. The card runtime stores the matching stable id. */
 	UPROPERTY()
 	bool bHasTimeAnchorRecording = false;

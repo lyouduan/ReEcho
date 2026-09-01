@@ -724,8 +724,9 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		}
 		else if (Effect.BehaviorId == TEXT("Card.EasterAscendInit"))
 		{
-			// G_4_13 (飞升的策划们): immediately set current health to the authored value (1).
-			Result.Stats.HpPoint = Effect.Value;
+			// G_4_13: acquisition resets both maximum and current health to one.
+			Result.Stats.HpMax = 1.0f;
+			Result.Stats.HpPoint = 1.0f;
 			RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 			FReEchoCardOutcomeState& Outcome =
 			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
@@ -1017,10 +1018,11 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		}
 		// G_4_13 (飞升的策划们): only a card selected from a card pack resets current health to 1.
 		// Nested rewards (including G_4_11's five cards and G_3_23's tier-one cards) do not qualify.
-		if (bApplyCardPackPostEffect && Input.bFromCardPackSelection && HasCard(Result.CardState, TEXT("G_4_13")) &&
-		    Result.Stats.HpMax > 0.0f)
+		if (bApplyCardPackPostEffect && Input.bFromCardPackSelection && RequestedCardId != TEXT("G_4_13") &&
+		    HasCard(Result.CardState, TEXT("G_4_13")) && Result.Stats.HpMax > 0.0f)
 		{
-			Result.Stats.HpPoint = 1.0f;
+			Result.Stats.HpMax = FMath::Max(1.0f, Result.Stats.HpMax * 2.0f);
+			Result.Stats.HpPoint = FMath::Clamp(Result.Stats.HpPoint * 2.0f, 0.0f, Result.Stats.HpMax);
 			RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 		}
 		return true;
