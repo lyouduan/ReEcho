@@ -102,3 +102,5 @@ G_4_8_LESS,G_4_8,2,OnEncounterEnd,CardBehavior,TimeShards,Multiply,0.05,Card.Eas
 G_4_9_HP,G_4_9,1,OnEncounterEnd,CardBehavior,HpMaxAndPoint,Add,1,Card.EasterAttendance,Max,20
 G_4_9_ELEMENTAL,G_4_9,2,OnEncounterEnd,CardBehavior,ElementalAttack,Add,1,Card.EasterAttendance,Max,20
 G_4_9_PHYSICAL,G_4_9,3,OnEncounterEnd,CardBehavior,PhysicalAttack,Add,1,Card.EasterAttendance,Max,20
+G_4_10_PLAYER_ATTACK,G_4_10,1,OnGrant,CardBehavior,PhysicalAndElementalAttack,Add,5,Card.ExpectedOutcome,None,0
+G_4_10_ENEMY_ATTACK,G_4_10,2,OnCompileRules,CardBehavior,EnemyAttackFlatBonus,Add,5,Card.ExpectedOutcome,None,0

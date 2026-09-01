@@ -286,6 +286,8 @@ struct REECHOCARDS_API FReEchoCardRuleSnapshot
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EasterRandomStunInterval = 0.5f;
 	/** How many nearby enemies each stun pulse hits. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) int32 EasterRandomStunTargetCount = 1;
+	/** Flat source-side damage added to direct attacks whose source is an enemy combatant. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) float EnemyAttackFlatBonus = 0.0f;
 };
 
 USTRUCT()

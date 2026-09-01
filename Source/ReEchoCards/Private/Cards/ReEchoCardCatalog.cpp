@@ -89,6 +89,7 @@ const TSet<FName>& SupportedBehaviors()
 	                                   TEXT("Card.EasterPhysicalLottery"),
 	                                   TEXT("Card.EasterShardComparison"),
 	                                   TEXT("Card.EasterAttendance"),
+	                                   TEXT("Card.ExpectedOutcome"),
                                    TEXT("Card.KillThresholdStatBoost"),
                                    TEXT("Card.KillThresholdImmunity"),
                                    TEXT("Card.EndKillShards"),

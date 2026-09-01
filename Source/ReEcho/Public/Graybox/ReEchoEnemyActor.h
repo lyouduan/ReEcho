@@ -176,6 +176,7 @@ public:
 		return EReEchoDamageSource::Enemy;
 	}
 
+	virtual void ModifyOutgoingHit(FReEchoHitIntent& Intent) const override;
 	virtual float ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const override;
 
 	virtual bool

@@ -208,6 +208,10 @@ FString GetOutcomeTargetLabel(const FName Target)
 	{
 		return TEXT("元素攻击力");
 	}
+	if (Target == TEXT("EnemyAttack"))
+	{
+		return TEXT("所有怪物攻击");
+	}
 	if (Target == TEXT("HpMax"))
 	{
 		return TEXT("生命上限");

@@ -1107,6 +1107,56 @@ bool FReEchoEasterCardRuntimeTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoExpectedOutcomeEasterCardTest,
+                                 "ReEcho.Cards.Easter.ExpectedOutcomeAppliesLiteralAndActualAttackBonuses",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoExpectedOutcomeEasterCardTest::RunTest(const FString&)
+{
+	FReEchoCardDefinition Expected = MakeCard(TEXT("G_4_10"),
+	                                          0,
+	                                          TEXT("Card.ExpectedOutcome"),
+	                                          TEXT("OnGrant"),
+	                                          TEXT("PhysicalAndElementalAttack"),
+	                                          5.0f,
+	                                          NAME_None,
+	                                          0.0f,
+	                                          true);
+	Expected.OfferGroup = TEXT("EasterEgg");
+	FReEchoCardEffectDefinition EnemyAttack = Expected.Effects[0];
+	EnemyAttack.Id = TEXT("G_4_10_ENEMY_ATTACK");
+	EnemyAttack.Order = 2;
+	EnemyAttack.Trigger = TEXT("OnCompileRules");
+	EnemyAttack.Target = TEXT("EnemyAttackFlatBonus");
+	Expected.Effects.Add(EnemyAttack);
+	const FReEchoCardCatalog Catalog = BuildCatalog({Expected});
+
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.Stats.PhysicalAttack = 4.0f;
+	Input.Stats.ElementalAttack = 7.0f;
+	const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, Expected.Id, Input);
+
+	TestTrue(TEXT("The expected-outcome Easter card grants atomically"), Grant.bSucceeded);
+	TestEqual(TEXT("The literal card effect permanently adds five physical attack"), Grant.Stats.PhysicalAttack, 9.0f);
+	TestEqual(TEXT("The literal card effect also adds five elemental attack"), Grant.Stats.ElementalAttack, 12.0f);
+	TestEqual(TEXT("The hidden interpretation adds five to every enemy direct attack"),
+	          ReEchoCardRuntime::CompileRules(Catalog, Grant.CardState).EnemyAttackFlatBonus,
+	          5.0f);
+	TestFalse(TEXT("The owned unique Easter card is removed from future offers"),
+	          ReEchoCardRuntime::CanOffer(Catalog, Grant.CardState, Expected));
+
+	const FReEchoCardOutcomeState* Outcome = Grant.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
+	    [](const FReEchoCardOutcomeState& Candidate)
+	    {
+		    return Candidate.CardId == TEXT("G_4_10") && Candidate.Kind == EReEchoCardOutcomeKind::RandomDetails;
+	    });
+	TestTrue(TEXT("The tooltip records the complete actual interpretation"), Outcome != nullptr);
+	TestEqual(
+	    TEXT("The tooltip exposes all three affected attack domains"), Outcome ? Outcome->DetailTargets.Num() : 0, 3);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEasterDamageCardRewardTest,
                                  "ReEcho.Cards.Easter.DamageThresholdGrantsOnlyNormalUnownedCards",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

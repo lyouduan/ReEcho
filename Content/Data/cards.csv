@@ -95,3 +95,7 @@ G_4_8,G_4_8,0,【粥粥】之力,"经济系统被赋予“ELO”机制
 G_4_9,G_4_9,0,按时上课！,"每一关卡结束后，随机获得巨额生命值/元攻/物攻
 
 ——特别鸣谢 美术 雯雯",EasterEgg|Growth,None,EasterEgg,true,true,Unique,None,Approved,
+G_4_10,G_4_10,0,符合预期,"选择后，攻击力永久增加5。
+
+策划：为什么表现是这样的？
+程序：单子上是这么写的，符合预期",EasterEgg|Attack,None,EasterEgg,true,true,Unique,None,Approved,

@@ -80,6 +80,7 @@ bool IsAllowedCardEffectTarget(const FName Target)
 	    TEXT("ShopCredit"),
 	    TEXT("ConnectionLine"),
 	    TEXT("WeaponHistory"),
+	    TEXT("EnemyAttackFlatBonus"),
 	};
 	return AllowedTargets.Contains(Target);
 }

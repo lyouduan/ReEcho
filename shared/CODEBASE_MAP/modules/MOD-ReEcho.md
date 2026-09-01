@@ -150,6 +150,7 @@ MOD-ReEcho ──→ MOD-ReEchoAudio
 - Run 为免费卡组、商店卡组初始三槽及逐槽刷新调用同一个 Cards 逐槽选择契约，固定传入 `1%`，并保存候选、展示历史、刷新次数及真实时间初始化的 `RunSeed`；重复打开页面和读档不重摇。
 - SaveVersion 25 保存彩蛋卡的阈值、脉冲、毛收入、下关倍率和实际结果；迁移旧存档时使用中性默认值，当前页与拥有卡校验同时接受合法 `Trait` 和 `EasterEgg`。
 - GameMode 只把世界事实接到类型化规则：Echo 新接触去重、4m 敌人候选和 0.5 秒眩晕目标。Run 的 `BuildCardEffectRandomSeed` 为这些世界适配及每击伤害彩票提供基于本局根种子的稳定随机上下文。
+- 敌人直攻统一在 `AReEchoEnemyActor::ModifyOutgoingHit` 的来源侧命中修正边界消费 `EnemyAttackFlatBonus`；只处理 `DamageSource=Enemy`，环境、路径、反应与其他非敌人伤害不附加该值。
 - 正向时间碎片仍只经 `GrantTimeShards` 入账并在遭遇期记录毛收入；`G_4_1` 的关末余额投影避免再次套用 `G_4_8` 收入倍率，但仍优先偿还诅咒银行债务。
 
 ### 音频语义装配

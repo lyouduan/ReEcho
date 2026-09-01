@@ -27,9 +27,9 @@ def load_active_cards():
         for row in rows
         if is_true(row["Enabled"]) and is_true(row["Offerable"])
     ]
-    if len(active_cards) != 73:
+    if len(active_cards) != 74:
         raise RuntimeError(
-            f"Active card set drifted: expected 73 after Plan152 Easter cards, got {len(active_cards)}"
+            f"Active card set drifted: expected 74 after the current Easter-card set, got {len(active_cards)}"
         )
     if len({row["Id"] for row in active_cards}) != len(active_cards):
         raise RuntimeError("Active card ids are not unique")

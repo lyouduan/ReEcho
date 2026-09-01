@@ -824,6 +824,20 @@ float AReEchoEnemyActor::ReceiveElementalDamage(const float Damage,
 	return ReEchoElementReaction::ApplyHitToWorld(*this, Element, Damage, Context).ImmediateDamageApplied;
 }
 
+void AReEchoEnemyActor::ModifyOutgoingHit(FReEchoHitIntent& Intent) const
+{
+	if (Intent.DamageSource != EReEchoDamageSource::Enemy)
+	{
+		return;
+	}
+	const UReEchoRunSubsystem* Run =
+	    GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
+	if (Run)
+	{
+		Intent.RawDamage = FMath::Max(0.0f, Intent.RawDamage + Run->GetCardRules().EnemyAttackFlatBonus);
+	}
+}
+
 float AReEchoEnemyActor::ModifyIncomingRawDamage(const FReEchoHitIntent& Intent) const
 {
 	if (bBornGameplayGateActive)

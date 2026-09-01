@@ -291,6 +291,10 @@ void ApplyRuleEffect(FReEchoCardRuleSnapshot& Rules, const FReEchoCardEffectDefi
 			    FMath::Max(Rules.EasterRandomStunTargetCount, FMath::RoundToInt(Effect.Value));
 		}
 	}
+	else if (Effect.BehaviorId == TEXT("Card.ExpectedOutcome") && Effect.Target == TEXT("EnemyAttackFlatBonus"))
+	{
+		Rules.EnemyAttackFlatBonus += StackedValue;
+	}
 }
 
 void ForEachOwnedEffect(
@@ -559,6 +563,17 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 						}
 					}
 				}
+			}
+			else if (Effect.BehaviorId == TEXT("Card.ExpectedOutcome") &&
+			         Effect.Target == TEXT("PhysicalAndElementalAttack"))
+			{
+				Result.Stats.PhysicalAttack = FMath::Max(0.0f, Result.Stats.PhysicalAttack + Effect.Value);
+				Result.Stats.ElementalAttack = FMath::Max(0.0f, Result.Stats.ElementalAttack + Effect.Value);
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
+				Outcome.DetailTargets = {TEXT("PhysicalAttack"), TEXT("ElementalAttack"), TEXT("EnemyAttack")};
+				Outcome.DetailValues = {Effect.Value, Effect.Value, Effect.Value};
+				Outcome.ResolutionCount = 1;
 			}
 			else if (Effect.BehaviorId == TEXT("Card.EasterShardSacrifice") && Effect.Order == 1)
 			{
