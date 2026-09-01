@@ -276,7 +276,11 @@ FString GetOutcomeTargetLabel(const FName Target)
 	{
 		return TEXT("本关玩家伤害增幅");
 	}
-	return Target.ToString();
+	if (Target == TEXT("CritNegateAmplification"))
+	{
+		return TEXT("暴击时失去全部伤害增幅");
+	}
+	return TEXT("未命名效果");
 }
 
 FText BuildCardOutcomeText(const FReEchoCardDefinition& Card,
@@ -394,6 +398,11 @@ FText BuildCardOutcomeText(const FReEchoCardDefinition& Card,
 				{
 					const FName Target = Outcome.DetailTargets[DetailIndex];
 					const float Value = Outcome.DetailValues[DetailIndex];
+					if (Target == TEXT("CritNegateAmplification"))
+					{
+						Lines.Add(GetOutcomeTargetLabel(Target));
+						continue;
+					}
 					const FString DisplayValue =
 					    Target == TEXT("TimeShardMultiplier") || Target == TEXT("NextShardIncomeMultiplier")
 					        ? FString::Printf(TEXT("×%.2f"), Value)
