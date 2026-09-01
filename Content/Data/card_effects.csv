@@ -1,5 +1,5 @@
 Id,CardId,Order,Trigger,EffectKind,Target,ValueOp,Value,BehaviorId,ParamName,ParamValue
-G_1_01_MOVE,G_1_01,1,OnGrant,StatModifier,MovementSpeed,Add,0.06,Card.StatModifier,None,0
+G_1_01_MOVE,G_1_01,1,OnGrant,StatModifier,MovementSpeed,Add,0.01,Card.StatModifier,None,0
 G_1_02_MAX,G_1_02,1,OnGrant,StatModifier,HpMax,Add,8,Card.StatModifier,None,0
 G_1_02_HEAL,G_1_02,2,OnGrant,InstantRecovery,HpPoint,Add,8,Card.InstantRecovery,None,0
 G_1_03_PATK,G_1_03,1,OnGrant,StatModifier,PhysicalAttack,Add,2,Card.StatModifier,None,0

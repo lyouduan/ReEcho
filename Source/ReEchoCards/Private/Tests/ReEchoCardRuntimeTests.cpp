@@ -111,9 +111,10 @@ bool FReEchoEgaoBonusGrantTest::RunTest(const FString&)
 	TestTrue(TEXT("The chosen card is granted"), Grant.bSucceeded);
 	TestTrue(TEXT("The chosen card is owned"), Grant.CardState.OwnedCardIds.Contains(Chosen.Id));
 	TestTrue(TEXT("The bonus 样样都通 is granted"), Grant.CardState.OwnedCardIds.Contains(TEXT("G_3_23")));
-	// The bonus must actually take effect, not just sit in the owned list.
-	TestTrue(TEXT("The bonus card's effect fires and delivers the tier-one card"),
-	         Grant.CardState.OwnedCardIds.Contains(TierOne.Id));
+	// Egao bonus copies are ownership-only; G_3_23's GrantAllTier1 effect only fires when G_3_23 itself
+	// is directly selected, not when it is awarded as the global bonus.
+	TestFalse(TEXT("The bonus card does not fire its own tier-one grant effect"),
+	          Grant.CardState.OwnedCardIds.Contains(TierOne.Id));
 	TestTrue(TEXT("The bonus card stacks at least one copy"),
 	         ReEchoCardRuntime::CountOwned(Grant.CardState, TEXT("G_3_23")) >= 1);
 	return true;

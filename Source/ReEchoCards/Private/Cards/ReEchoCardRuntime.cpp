@@ -539,8 +539,11 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 	}
 
 	TSet<FName> GrantedThisTransaction;
-	TFunction<bool(FName, bool, bool)> GrantSingle;
-	GrantSingle = [&](const FName RequestedCardId, const bool bRecordOwnership, const bool bForce)
+	TFunction<bool(FName, bool, bool, bool)> GrantSingle;
+	GrantSingle = [&](const FName RequestedCardId,
+	                  const bool bRecordOwnership,
+	                  const bool bForce,
+	                  const bool bApplyCardPackPostEffect)
 	{
 		const FReEchoCardDefinition* Card = Catalog.Find(RequestedCardId);
 		const bool bAlreadyGranted = GrantedThisTransaction.Contains(RequestedCardId);
@@ -738,8 +741,9 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			{
 				auto ApplyTierOneGrantEffects = [&](const FReEchoCardDefinition& TierOneCard, const bool bRemove)
 				{
-					for (const FReEchoCardEffectDefinition& TierOneEffect : TierOneCard.Effects)
+					for (int32 EffectIndex = TierOneCard.Effects.Num() - 1; EffectIndex >= 0; --EffectIndex)
 					{
+						const FReEchoCardEffectDefinition& TierOneEffect = TierOneCard.Effects[EffectIndex];
 						if ((TierOneEffect.Trigger != TEXT("OnGrant") && TierOneEffect.Trigger != TEXT("OnApply")) ||
 						    (TierOneEffect.BehaviorId != TEXT("Card.StatModifier") &&
 						     TierOneEffect.BehaviorId != TEXT("Card.InstantRecovery")))
@@ -967,7 +971,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					FRandomStream Random(HashCombine(GetTypeHash(Input.RandomSeed),
 					                                 GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
 					const FName GrantedCardId = Pool[Random.RandRange(0, Pool.Num() - 1)].Id;
-					if (!GrantSingle(GrantedCardId, true, false))
+					if (!GrantSingle(GrantedCardId, true, false, false))
 					{
 						return false;
 					}
@@ -989,7 +993,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 						continue;
 					}
 					// bForce=true：绕过 CanOffer 的上架/冲突/遭遇限制，强制入袋。
-					if (!GrantSingle(Tier1Card.Id, true, true))
+					if (!GrantSingle(Tier1Card.Id, true, true, false))
 					{
 						return false;
 					}
@@ -1002,7 +1006,8 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		}
 		// G_4_13 (飞升的策划们): only a card selected from a card pack resets current health to 1.
 		// Nested rewards (including G_4_11's five cards and G_3_23's tier-one cards) do not qualify.
-		if (Input.bFromCardPackSelection && HasCard(Result.CardState, TEXT("G_4_13")) && Result.Stats.HpMax > 0.0f)
+		if (bApplyCardPackPostEffect && Input.bFromCardPackSelection && HasCard(Result.CardState, TEXT("G_4_13")) &&
+		    Result.Stats.HpMax > 0.0f)
 		{
 			Result.Stats.HpPoint = 1.0f;
 			RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
@@ -1010,7 +1015,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return true;
 	};
 
-	if (!GrantSingle(CardId, Input.bRecordOwnership, false))
+	if (!GrantSingle(CardId, Input.bRecordOwnership, false, true))
 	{
 		const FString Error = Result.Error;
 		Result = {};
@@ -1021,8 +1026,8 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return Result;
 	}
 
-	// Egao Party: a direct acquisition also hands out 1-5 extra copies of 样样都通. Cards that already
-	// grant additional cards (such as G_3_23 and G_4_11) are excluded so this rule cannot recurse.
+	// Egao Party: a direct acquisition also hands out 1-5 extra copies of 样样都通. These bonus
+	// copies are ownership-only: they must not execute G_3_23's GrantAllTier1 OnGrant effect.
 	{
 		const FReEchoCardDefinition* BonusCard = Catalog.Find(TEXT("G_3_23"));
 		const FReEchoCardDefinition* GrantedCard = Catalog.Find(CardId);
@@ -1035,11 +1040,8 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			const int32 BonusCount = BonusRandom.RandRange(1, 5);
 			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
 			{
-				if (!GrantSingle(BonusCard->Id, true, true))
-				{
-					Result.Error = TEXT("Egao bonus 样样都通 grant failed");
-					return Result;
-				}
+				Result.CardState.OwnedCardIds.Add(BonusCard->Id);
+				Result.GrantedCardIds.Add(BonusCard->Id);
 			}
 		}
 	}

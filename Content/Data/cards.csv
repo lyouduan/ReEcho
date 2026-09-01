@@ -1,5 +1,5 @@
 Id,SourceWorkbookId,Tier,DisplayName,Description,Tags,PromotionRoleId,OfferGroup,Enabled,Offerable,StackPolicy,ConflictPolicy,ReviewStatus,DisabledReason
-G_1_01,G_1_01,1,速度强化,移动速度+6%,Base,Sage,Trait,true,true,Stackable,None,Approved,
+G_1_01,G_1_01,1,速度强化,移动速度+1%,Base,Sage,Trait,true,true,Stackable,None,Approved,
 G_1_02,G_1_02,1,生命强化,生命值与生命上限+8,Base,Brave,Trait,true,true,Stackable,None,Approved,
 G_1_03,G_1_03,1,物理强化,物理攻击力+2,Base,Hunter,Trait,true,true,Stackable,None,Approved,
 G_1_04,G_1_04,1,元素强化,元素攻击力+2,Base,Poet,Trait,true,true,Stackable,None,Approved,
