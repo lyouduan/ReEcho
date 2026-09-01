@@ -56,8 +56,14 @@ UReEchoSettingsWidget::UReEchoSettingsWidget(const FObjectInitializer& ObjectIni
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/Settings/T_UI_Settings_TabLight"));
 	static ConstructorHelpers::FObjectFinder<UTexture2D> DarkTabFinder(
 	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/Settings/T_UI_Settings_TabDark"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DifficultyLightFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/T_UI_Pause_ButtonLight"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> DifficultyDarkFinder(
+	    TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/T_UI_Pause_ButtonDark"));
 	SettingsTabLightTexture = LightTabFinder.Object;
 	SettingsTabDarkTexture = DarkTabFinder.Object;
+	DifficultyButtonLightTexture = DifficultyLightFinder.Object;
+	DifficultyButtonDarkTexture = DifficultyDarkFinder.Object;
 }
 
 TConstArrayView<EReEchoAudioBus> UReEchoSettingsWidget::GetCompactEffectsBuses()
@@ -94,10 +100,10 @@ void UReEchoSettingsWidget::NativeConstruct()
 	InitialDisplayGamma = GEngine ? GEngine->DisplayGamma : 2.2f;
 	PendingBrightness = FMath::Clamp(InitialDisplayGamma - 1.55f, 0.0f, 1.0f);
 	BuildInteractiveSettingsControls();
-	BuildDifficultyPanel();
+	BindDifficultyControls();
 	bAudioSettingsApplied = false;
 	bGraphicsSettingsApplied = false;
-	CategoryButtons = {GraphicsSettingsButton, AudioSettingsButton, ControlsSettingsButton};
+	CategoryButtons = {GraphicsSettingsButton, AudioSettingsButton, ControlsSettingsButton, DifficultySettingsButton};
 	CategoryButtons.Remove(nullptr);
 	for (int32 CategoryIndex = 0; CategoryIndex < CategoryButtons.Num(); ++CategoryIndex)
 	{
@@ -685,57 +691,19 @@ void UReEchoSettingsWidget::UpdateVolumeVisual(UImage* FillImage, UTextBlock* Pe
 	}
 }
 
-void UReEchoSettingsWidget::BuildDifficultyPanel()
+void UReEchoSettingsWidget::BindDifficultyControls()
 {
-	if (DifficultyPanel || !WidgetTree)
+	const TArray<TPair<UReEchoIndexedButton*, EReEchoRunDifficulty>> DifficultyButtons = {
+	    {DifficultyPartyButton, EReEchoRunDifficulty::Party},
+	    {DifficultyStandardButton, EReEchoRunDifficulty::Standard},
+	    {DifficultyNightmareButton, EReEchoRunDifficulty::Nightmare}};
+	for (const TPair<UReEchoIndexedButton*, EReEchoRunDifficulty>& Entry : DifficultyButtons)
 	{
-		return;
-	}
-
-	DifficultyPanel =
-	    WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("DifficultySettingsPanel"));
-	DifficultyLabel =
-	    WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("DifficultySettingsLabel"));
-	DifficultyLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-	FSlateFontInfo LabelFont = DifficultyLabel->GetFont();
-	LabelFont.Size = 24;
-	DifficultyLabel->SetFont(LabelFont);
-	UVerticalBoxSlot* LabelSlot = DifficultyPanel->AddChildToVerticalBox(DifficultyLabel);
-	LabelSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
-
-	DifficultyComboBox =
-	    WidgetTree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("DifficultyComboBox"));
-	DifficultyComboBox->AddOption(TEXT("派对"));
-	DifficultyComboBox->AddOption(TEXT("常规"));
-	DifficultyComboBox->AddOption(TEXT("噩梦"));
-	DifficultyComboBox->SetContentPadding(FMargin(18.0f, 10.0f));
-	DifficultyComboBox->SetMaxListHeight(260.0f);
-	DifficultyComboBox->OnGenerateWidgetEvent.BindDynamic(this, &UReEchoSettingsWidget::GenerateComboBoxItem);
-	DifficultyComboBox->OnSelectionChanged.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDifficultyChanged);
-	DifficultyPanel->AddChildToVerticalBox(DifficultyComboBox);
-
-	UPanelWidget* AuthoredParent = Cast<UPanelWidget>(ControlsPanel);
-	if (AuthoredParent)
-	{
-		UPanelSlot* DifficultySlot = AuthoredParent->AddChild(DifficultyPanel);
-		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(DifficultySlot))
+		if (Entry.Key)
 		{
-			CanvasSlot->SetPosition(FVector2D(120.0f, 80.0f));
-			CanvasSlot->SetSize(FVector2D(760.0f, 150.0f));
-			CanvasSlot->SetZOrder(20);
+			Entry.Key->SetEntryIndex(static_cast<int32>(Entry.Value));
+			Entry.Key->OnIndexedClicked.AddUniqueDynamic(this, &UReEchoSettingsWidget::HandleDifficultyClicked);
 		}
-	}
-	else if (DetailContent)
-	{
-		UVerticalBoxSlot* DifficultySlot = DetailContent->AddChildToVerticalBox(DifficultyPanel);
-		DifficultySlot->SetPadding(FMargin(0.0f, 16.0f, 0.0f, 24.0f));
-	}
-	else
-	{
-		DifficultyPanel = nullptr;
-		DifficultyComboBox = nullptr;
-		DifficultyLabel = nullptr;
-		return;
 	}
 
 	if (UReEchoRunSubsystem* RunSubsystem = GetRunSubsystem())
@@ -747,20 +715,27 @@ void UReEchoSettingsWidget::BuildDifficultyPanel()
 
 void UReEchoSettingsWidget::RefreshDifficultyControls()
 {
-	if (!DifficultyPanel || !DifficultyComboBox)
-	{
-		return;
-	}
 	UReEchoRunSubsystem* RunSubsystem = GetRunSubsystem();
 	const bool bEditable = RunSubsystem && RunSubsystem->CanEditDifficultyPreference();
 	const EReEchoRunDifficulty DisplayDifficulty =
 	    bEditable || !RunSubsystem ? PendingDifficulty : RunSubsystem->GetRunDifficulty();
-	DifficultyComboBox->SetIsEnabled(bEditable);
-	DifficultyComboBox->SetSelectedIndex(static_cast<int32>(DisplayDifficulty));
-	if (DifficultyLabel)
+	const TArray<TPair<UReEchoIndexedButton*, UImage*>> DifficultyButtons = {
+	    {DifficultyPartyButton, DifficultyPartyArt},
+	    {DifficultyStandardButton, DifficultyStandardArt},
+	    {DifficultyNightmareButton, DifficultyNightmareArt}};
+	for (int32 DifficultyIndex = 0; DifficultyIndex < DifficultyButtons.Num(); ++DifficultyIndex)
 	{
-		const TCHAR* Label = bEditable ? TEXT("新游戏难度（开局后整局锁定）") : TEXT("本局难度（已锁定）");
-		DifficultyLabel->SetText(FText::FromString(Label));
+		if (DifficultyButtons[DifficultyIndex].Key)
+		{
+			DifficultyButtons[DifficultyIndex].Key->SetIsEnabled(bEditable);
+		}
+		if (DifficultyButtons[DifficultyIndex].Value)
+		{
+			DifficultyButtons[DifficultyIndex].Value->SetBrushFromTexture(
+			    DifficultyIndex == static_cast<int32>(DisplayDifficulty) ? DifficultyButtonLightTexture
+			                                                             : DifficultyButtonDarkTexture,
+			    true);
+		}
 	}
 }
 
@@ -798,8 +773,11 @@ void UReEchoSettingsWidget::RefreshCategory()
 	}
 	if (DifficultyPanel)
 	{
-		DifficultyPanel->SetVisibility(SelectedCategory == 2 ? ESlateVisibility::SelfHitTestInvisible
+		DifficultyPanel->SetVisibility(SelectedCategory == 3 ? ESlateVisibility::SelfHitTestInvisible
 		                                                     : ESlateVisibility::Collapsed);
+	}
+	if (SelectedCategory == 3)
+	{
 		RefreshDifficultyControls();
 	}
 
@@ -823,8 +801,9 @@ void UReEchoSettingsWidget::RefreshCategory()
 		                                             : TEXT("分辨率、显示模式、画质等具体选项暂未接入");
 		if (DetailText)
 		{
-			const bool bHasDesignedPanel =
-			    SelectedCategory == 2 ? ControlsPanel != nullptr || DifficultyPanel != nullptr : GraphicsPanel != nullptr;
+			const bool bHasDesignedPanel = (SelectedCategory == 0 && GraphicsPanel != nullptr) ||
+			                               (SelectedCategory == 2 && ControlsPanel != nullptr) ||
+			                               (SelectedCategory == 3 && DifficultyPanel != nullptr);
 			DetailText->SetVisibility(bHasDesignedPanel ? ESlateVisibility::Collapsed
 			                                            : ESlateVisibility::SelfHitTestInvisible);
 			DetailText->SetText(FText::FromString(Detail));
@@ -883,9 +862,9 @@ void UReEchoSettingsWidget::HandleRestoreDefaultsClicked()
 
 void UReEchoSettingsWidget::HandleApplyAndReturnClicked()
 {
-	if (UReEchoRunSubsystem* RunSubsystem = GetRunSubsystem();
-	    RunSubsystem && RunSubsystem->CanEditDifficultyPreference() &&
-	    !RunSubsystem->SetPreferredDifficulty(PendingDifficulty))
+	if (UReEchoRunSubsystem* RunSubsystem = GetRunSubsystem(); RunSubsystem &&
+	                                                           RunSubsystem->CanEditDifficultyPreference() &&
+	                                                           !RunSubsystem->SetPreferredDifficulty(PendingDifficulty))
 	{
 		PostUiEvent(FReEchoAudioEvents::UiError);
 		return;
@@ -919,24 +898,20 @@ UReEchoRunSubsystem* UReEchoSettingsWidget::GetRunSubsystem() const
 	return GameInstance ? GameInstance->GetSubsystem<UReEchoRunSubsystem>() : nullptr;
 }
 
-void UReEchoSettingsWidget::HandleDifficultyChanged(FString SelectedItem, const ESelectInfo::Type SelectionType)
+void UReEchoSettingsWidget::HandleDifficultyClicked(const int32 DifficultyIndex)
 {
-	if (SelectionType == ESelectInfo::Direct)
+	if (UReEchoRunSubsystem* RunSubsystem = GetRunSubsystem();
+	    RunSubsystem && !RunSubsystem->CanEditDifficultyPreference())
 	{
 		return;
 	}
-	if (SelectedItem == TEXT("派对"))
+	if (DifficultyIndex < static_cast<int32>(EReEchoRunDifficulty::Party) ||
+	    DifficultyIndex > static_cast<int32>(EReEchoRunDifficulty::Nightmare))
 	{
-		PendingDifficulty = EReEchoRunDifficulty::Party;
+		return;
 	}
-	else if (SelectedItem == TEXT("噩梦"))
-	{
-		PendingDifficulty = EReEchoRunDifficulty::Nightmare;
-	}
-	else
-	{
-		PendingDifficulty = EReEchoRunDifficulty::Standard;
-	}
+	PendingDifficulty = static_cast<EReEchoRunDifficulty>(DifficultyIndex);
+	RefreshDifficultyControls();
 }
 
 void UReEchoSettingsWidget::BuildAudioPanel()
