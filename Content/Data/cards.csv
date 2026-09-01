@@ -80,18 +80,19 @@ G_4_3,G_4_3,0,恋爱小脑,"回响触碰到敌人，造成1000物理伤害；如
 G_4_4,G_4_4,0,呕人？哕人？,"用更高的效率把所有的时间碎片转化为随机属性。你觉得这个怎么样？
 
 ——策划 呕乐兮 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_5,G_4_5,0,帅气T傥,"身边的敌人都被你迷倒了！
+G_4_5,G_4_5,0,帅气T傥,"身边的所有敌人都被你彻彻底底迷晕了，迷倒了！
 
 ——特别鸣谢 程序 T爷",EasterEgg|Control,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_6,G_4_6,0,"""野狗""的荣耀","下一关卡结束后，你获得X张随机1级卡牌。X=你下一关卡受到的伤害
+G_4_6,G_4_6,0,"""野狗""的荣耀","“野狗不需要墓碑”，你快要飞升成神了。下一关，1滴血换10张1级卡牌
+
 ——特别鸣谢 程序 Jo爷",EasterEgg|Cards,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_7,G_4_7,0,绝不迟到之人！,"神秘人往你的物理伤害后面加随机个0
+G_4_7,G_4_7,0,绝不迟到之人！,"往你的物理伤害后面加随机个、很多个、真的很多0！
 
 ——特别鸣谢 美术 00",EasterEgg|Damage|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_8,G_4_8,0,【粥粥】之力,"经济系统被赋予""ELO""机制
+G_4_8,G_4_8,0,【粥粥】之力,"经济系统被赋予被彻底魔改的“ELO”机制
 
 ——特别鸣谢 美术 子涵",EasterEgg|Economy,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_9,G_4_9,0,按时上课！,"每一关卡结束后，随机获得巨额生命值/元攻/物攻
+G_4_9,G_4_9,0,按时上课！,"每一关卡结束后，随机获得巨额生命值/元攻/物攻（真的是巨额！）
 
 ——特别鸣谢 美术 雯雯",EasterEgg|Growth,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_10,G_4_10,0,符合预期,"选择后，攻击力永久增加5。

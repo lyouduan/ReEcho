@@ -309,6 +309,10 @@ FText BuildCardOutcomeText(const FReEchoCardDefinition& Card,
                            const FReEchoCardBuildState& State,
                            const FReEchoCardCatalog& Catalog)
 {
+	if (Card.Id == TEXT("G_3_23"))
+	{
+		return FText::GetEmpty();
+	}
 	TArray<FString> Lines;
 	for (const FReEchoCardOutcomeState& Outcome : State.Runtime.ResolvedOutcomes)
 	{

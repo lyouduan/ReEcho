@@ -694,8 +694,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			    });
 			FRandomStream Random(
 			    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
-			FReEchoCardOutcomeState& Outcome =
-			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
+			TArray<FName> GrantedRewardIds;
 			for (int32 Index = 0; Index < GrantCount && !Pool.IsEmpty(); ++Index)
 			{
 				const int32 Pick = Random.RandRange(0, Pool.Num() - 1);
@@ -714,12 +713,15 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				Result.Stats = Grant.Stats;
 				Result.CardState = Grant.CardState;
 				Result.TimeShards = Grant.TimeShards;
-				Outcome.RelatedCardIds.Append(Grant.GrantedCardIds);
+				GrantedRewardIds.Append(Grant.GrantedCardIds);
 				if (Pool[Pick].StackPolicy == TEXT("Unique"))
 				{
 					Pool.RemoveAtSwap(Pick);
 				}
 			}
+			FReEchoCardOutcomeState& Outcome =
+			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
+			Outcome.RelatedCardIds.Append(GrantedRewardIds);
 			Outcome.ResolutionCount = Outcome.RelatedCardIds.Num();
 		}
 		else if (Effect.BehaviorId == TEXT("Card.EasterAscendInit"))
@@ -1039,7 +1041,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return Result;
 	}
 
-	// Egao Party: a direct acquisition also hands out 1-5 copies of 样样都通. Each system-given copy
+	// Egao Party: a direct acquisition also hands out 1-3 copies of 样样都通. Each system-given copy
 	// is a real grant, so its GrantAllTier1 effect resolves; nested tier-one grants cannot recurse because
 	// this outer bonus block is only reached once after the top-level transaction.
 	{
@@ -1051,7 +1053,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			const uint32 BonusSeed =
 			    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(BonusCard->Id));
 			FRandomStream BonusRandom(static_cast<int32>(BonusSeed));
-			const int32 BonusCount = BonusRandom.RandRange(1, 5);
+			const int32 BonusCount = BonusRandom.RandRange(1, 3);
 			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
 			{
 				if (!GrantSingle(BonusCard->Id, true, true, false))
