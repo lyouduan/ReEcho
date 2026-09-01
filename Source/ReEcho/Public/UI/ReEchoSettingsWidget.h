@@ -52,7 +52,7 @@ private:
 	void BindAudioControls();
 	void RefreshAudioControls();
 	void BuildInteractiveSettingsControls();
-	void BuildDifficultyPanel();
+	void BindDifficultyControls();
 	void RefreshDifficultyControls();
 	void RefreshGraphicsControls();
 	bool UsesCompactAudioLayout() const;
@@ -109,7 +109,7 @@ private:
 	UFUNCTION()
 	void HandleAudioOutputChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 	UFUNCTION()
-	void HandleDifficultyChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	void HandleDifficultyClicked(int32 DifficultyIndex);
 	UFUNCTION()
 	void HandleBrightnessChanged(float Value);
 	UFUNCTION()
@@ -131,6 +131,9 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UReEchoIndexedButton> ControlsSettingsButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> DifficultySettingsButton;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> RestoreDefaultsButton;
@@ -159,6 +162,27 @@ private:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> ControlsPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> DifficultyPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> DifficultyPartyButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> DifficultyStandardButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UReEchoIndexedButton> DifficultyNightmareButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> DifficultyPartyArt;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> DifficultyStandardArt;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> DifficultyNightmareArt;
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> DetailContent;
 
@@ -183,9 +207,13 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsQualityComboBox;
 	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsVSyncComboBox;
 	UPROPERTY(Transient) TObjectPtr<UComboBoxString> AudioOutputComboBox;
-	UPROPERTY(Transient) TObjectPtr<UComboBoxString> DifficultyComboBox;
-	UPROPERTY(Transient) TObjectPtr<UVerticalBox> DifficultyPanel;
-	UPROPERTY(Transient) TObjectPtr<UTextBlock> DifficultyLabel;
+
+	/** Runtime selection changes only the brush resource; geometry stays authored in WBP. */
+	UPROPERTY()
+	TObjectPtr<UTexture2D> DifficultyButtonLightTexture;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> DifficultyButtonDarkTexture;
 
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MasterMuteCheckBox;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MusicMuteCheckBox;

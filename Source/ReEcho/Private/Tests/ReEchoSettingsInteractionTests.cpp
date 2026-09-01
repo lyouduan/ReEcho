@@ -47,6 +47,8 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 	    Cast<UReEchoIndexedButton>(SettingsWidget->GetWidgetFromName(TEXT("AudioSettingsButton")));
 	UReEchoIndexedButton* ControlsTab =
 	    Cast<UReEchoIndexedButton>(SettingsWidget->GetWidgetFromName(TEXT("ControlsSettingsButton")));
+	UReEchoIndexedButton* DifficultyTab =
+	    Cast<UReEchoIndexedButton>(SettingsWidget->GetWidgetFromName(TEXT("DifficultySettingsButton")));
 	UTexture2D* LightTabTexture = LoadObject<UTexture2D>(
 	    nullptr, TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/Settings/T_UI_Settings_TabLight"));
 	UTexture2D* DarkTabTexture = LoadObject<UTexture2D>(
@@ -60,12 +62,13 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Graphics tab exists"), GraphicsTab);
 	TestNotNull(TEXT("Audio tab exists"), AudioTab);
 	TestNotNull(TEXT("Controls tab exists"), ControlsTab);
+	TestNotNull(TEXT("Difficulty tab exists"), DifficultyTab);
 	TestNotNull(TEXT("Light Settings tab art loads"), LightTabTexture);
 	TestNotNull(TEXT("Dark Settings tab art loads"), DarkTabTexture);
 	TestNotNull(TEXT("Settings slider thumb art loads"), SliderThumbTexture);
 	TestNotNull(TEXT("Light Settings action-button art loads"), LightActionTexture);
 	TestNotNull(TEXT("Dark Settings action-button art loads"), DarkActionTexture);
-	if (GraphicsTab && AudioTab && ControlsTab && LightTabTexture && DarkTabTexture)
+	if (GraphicsTab && AudioTab && ControlsTab && DifficultyTab && LightTabTexture && DarkTabTexture)
 	{
 		TestEqual(TEXT("Current graphics page uses light tab art"),
 		          GraphicsTab->GetStyle().Normal.GetResourceObject(),
@@ -76,6 +79,9 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Inactive controls page uses dark tab art"),
 		          ControlsTab->GetStyle().Normal.GetResourceObject(),
 		          static_cast<UObject*>(DarkTabTexture));
+		TestEqual(TEXT("Inactive difficulty page uses dark tab art"),
+		          DifficultyTab->GetStyle().Normal.GetResourceObject(),
+		          static_cast<UObject*>(DarkTabTexture));
 
 		AudioTab->OnIndexedClicked.Broadcast(1);
 		TestEqual(TEXT("Inactive graphics page switches to dark tab art"),
@@ -84,7 +90,74 @@ bool FReEchoSettingsInteractionTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Current audio page switches to light tab art"),
 		          AudioTab->GetStyle().Normal.GetResourceObject(),
 		          static_cast<UObject*>(LightTabTexture));
+
+		DifficultyTab->OnIndexedClicked.Broadcast(3);
+		TestEqual(TEXT("Inactive audio page returns to dark tab art"),
+		          AudioTab->GetStyle().Normal.GetResourceObject(),
+		          static_cast<UObject*>(DarkTabTexture));
+		TestEqual(TEXT("Current difficulty page switches to light tab art"),
+		          DifficultyTab->GetStyle().Normal.GetResourceObject(),
+		          static_cast<UObject*>(LightTabTexture));
 	}
+	UCanvasPanel* ControlsPanel = Cast<UCanvasPanel>(SettingsWidget->GetWidgetFromName(TEXT("ControlsPanel")));
+	UCanvasPanel* DifficultyPanel = Cast<UCanvasPanel>(SettingsWidget->GetWidgetFromName(TEXT("DifficultyPanel")));
+	UTextBlock* DifficultyTabText = Cast<UTextBlock>(SettingsWidget->GetWidgetFromName(TEXT("DifficultyTabText")));
+	UTexture2D* DifficultyLightTexture = LoadObject<UTexture2D>(
+	    nullptr, TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/T_UI_Pause_ButtonLight"));
+	UTexture2D* DifficultyDarkTexture = LoadObject<UTexture2D>(
+	    nullptr, TEXT("/Game/ReEcho/Textures/UI/InteractionPlaceholder/PauseAndCombat/T_UI_Pause_ButtonDark"));
+	TestNotNull(TEXT("Controls page keeps its authored Canvas"), ControlsPanel);
+	TestNotNull(TEXT("Difficulty page keeps its independent authored Canvas"), DifficultyPanel);
+	TestNotNull(TEXT("Difficulty top-tab label is authored in the Blueprint"), DifficultyTabText);
+	TestEqual(TEXT("Difficulty top-tab label keeps the WYSIWYG default text"),
+	          DifficultyTabText ? DifficultyTabText->GetText().ToString() : FString(),
+	          FString(TEXT("难度")));
+	TestTrue(TEXT("Difficulty page can be freely adjusted in SettingsLayoutCanvas"),
+	         DifficultyPanel && DifficultyPanel->GetParent() &&
+	             DifficultyPanel->GetParent()->GetFName() == FName(TEXT("SettingsLayoutCanvas")) &&
+	             Cast<UCanvasPanelSlot>(DifficultyPanel->Slot) != nullptr);
+	TestNull(TEXT("Difficulty is no longer an inline label in the key-binding page"),
+	         SettingsWidget->GetWidgetFromName(TEXT("DifficultyLabel")));
+	TestNotNull(TEXT("Difficulty light pause-button art loads"), DifficultyLightTexture);
+	TestNotNull(TEXT("Difficulty dark pause-button art loads"), DifficultyDarkTexture);
+
+	const TArray<FName> DifficultyRootNames = {
+	    TEXT("DifficultyPartyRoot"), TEXT("DifficultyStandardRoot"), TEXT("DifficultyNightmareRoot")};
+	const TArray<FName> DifficultyButtonNames = {
+	    TEXT("DifficultyPartyButton"), TEXT("DifficultyStandardButton"), TEXT("DifficultyNightmareButton")};
+	const TArray<FName> DifficultyArtNames = {
+	    TEXT("DifficultyPartyArt"), TEXT("DifficultyStandardArt"), TEXT("DifficultyNightmareArt")};
+	const TArray<FName> DifficultyTextNames = {
+	    TEXT("DifficultyPartyText"), TEXT("DifficultyStandardText"), TEXT("DifficultyNightmareText")};
+	const TArray<FString> DifficultyTexts = {TEXT("派对"), TEXT("常规"), TEXT("噩梦")};
+	for (int32 DifficultyIndex = 0; DifficultyIndex < DifficultyRootNames.Num(); ++DifficultyIndex)
+	{
+		UOverlay* Root = Cast<UOverlay>(SettingsWidget->GetWidgetFromName(DifficultyRootNames[DifficultyIndex]));
+		UReEchoIndexedButton* Button =
+		    Cast<UReEchoIndexedButton>(SettingsWidget->GetWidgetFromName(DifficultyButtonNames[DifficultyIndex]));
+		UImage* Art = Cast<UImage>(SettingsWidget->GetWidgetFromName(DifficultyArtNames[DifficultyIndex]));
+		UTextBlock* Text = Cast<UTextBlock>(SettingsWidget->GetWidgetFromName(DifficultyTextNames[DifficultyIndex]));
+		TestNotNull(*FString::Printf(TEXT("Difficulty root %d is authored"), DifficultyIndex), Root);
+		TestTrue(*FString::Printf(TEXT("Difficulty root %d remains a freely adjustable Canvas child"), DifficultyIndex),
+		         Root && Root->GetParent() == DifficultyPanel && Cast<UCanvasPanelSlot>(Root->Slot) != nullptr);
+		TestNotNull(*FString::Printf(TEXT("Difficulty button %d is authored"), DifficultyIndex), Button);
+		TestNotNull(*FString::Printf(TEXT("Difficulty art %d is authored"), DifficultyIndex), Art);
+		TestEqual(*FString::Printf(TEXT("Difficulty label %d keeps its authored text"), DifficultyIndex),
+		          Text ? Text->GetText().ToString() : FString(),
+		          DifficultyTexts[DifficultyIndex]);
+		TestEqual(*FString::Printf(TEXT("Difficulty art %d cannot intercept input"), DifficultyIndex),
+		          Art ? Art->GetVisibility() : ESlateVisibility::Visible,
+		          ESlateVisibility::HitTestInvisible);
+		TestEqual(*FString::Printf(TEXT("Standard is the WYSIWYG selected example for difficulty %d"), DifficultyIndex),
+		          Art ? Art->GetBrush().GetResourceObject() : nullptr,
+		          static_cast<UObject*>(DifficultyIndex == static_cast<int32>(EReEchoRunDifficulty::Standard)
+		                                    ? DifficultyLightTexture
+		                                    : DifficultyDarkTexture));
+	}
+	TestNull(TEXT("Legacy runtime difficulty ComboBox was removed"),
+	         SettingsWidget->GetWidgetFromName(TEXT("DifficultyComboBox")));
+	TestNull(TEXT("Legacy runtime difficulty panel was removed"),
+	         SettingsWidget->GetWidgetFromName(TEXT("DifficultySettingsPanel")));
 	TestEqual(TEXT("Designed settings keeps its authored root"),
 	          SettingsWidget->WidgetTree->RootWidget->GetFName(),
 	          FName(TEXT("CanvasPanel_0")));
