@@ -94,7 +94,15 @@ const TSet<FName>& SupportedBehaviors()
                                    TEXT("Card.KillThresholdImmunity"),
                                    TEXT("Card.EndKillShards"),
                                    TEXT("Card.CollectCoresGrantTiered"),
-                                   TEXT("Card.GrantAllTier1")};
+                                   TEXT("Card.GrantAllTier1"),
+                                   TEXT("Card.EasterShardThresholdGrantAllTier1"),
+                                   TEXT("Card.EasterGrantRandomCards"),
+                                   TEXT("Card.EasterStageBuff"),
+                                   TEXT("Card.EasterAscendInit"),
+                                   TEXT("Card.EasterExtraEchoes"),
+                                   TEXT("Card.EasterReshuffleTier1"),
+                                   TEXT("Card.EasterResetToBase"),
+                                   TEXT("Card.EasterGrow30")};
 
 	return Values;
 }

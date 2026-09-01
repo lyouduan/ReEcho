@@ -26,8 +26,8 @@ namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
 constexpr const TCHAR* EasterEggOfferGroup = TEXT("EasterEgg");
-/** Egao Party: easter-egg cards are the point of this mode, so they appear ten times as often. */
-constexpr float EasterEggOfferChance = 0.10f;
+/** Egao Party: each generated card slot has a 25% independent Easter-card roll. */
+constexpr float EasterEggOfferChance = 0.25f;
 
 
 const FName AnyWeaponTypeId = TEXT("Any");
@@ -2835,6 +2835,16 @@ void UReEchoRunSubsystem::BeginEncounter()
 {
 	++EncounterIndex;
 	CurrentBuild.CardState = ReEchoCardRuntime::BeginEncounter(CurrentBuild.CardState, EncounterIndex);
+	// Egao Party: apply per-encounter-start card effects (e.g. G_4_12 水果派对 stage attack boon).
+	const TSharedPtr<const FReEchoCsvDataSnapshot> StartCardSnapshot = GetRunDataSnapshot();
+	if (StartCardSnapshot.IsValid() && StartCardSnapshot->CardCatalog.IsValid())
+	{
+		const FReEchoCardEventResult StartEvent = ReEchoCardRuntime::ApplyEncounterStart(
+			*StartCardSnapshot->CardCatalog, CurrentBuild.CardState, CurrentBuild.Stats, EncounterIndex);
+		CurrentBuild.CardState = StartEvent.CardState;
+		CurrentBuild.Stats = StartEvent.Stats;
+		CommitCardHealthAdjustment(CurrentBuild.Stats, StartEvent.HealthAdjustment);
+	}
 	bPendingCardEchoRemoval = false;
 	SetPhase(EReEchoRunPhase::Encounter);
 	ReEchoBuildTrace::LogSnapshot(TEXT("EncounterStarted"), EncounterIndex, Phase, CurrentBuild);
@@ -3235,6 +3245,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        Input.CardState = BaseBuild.CardState;
 		        Input.TimeShards = PendingTimeShards;
 		        Input.EncounterIndex = EncounterIndex;
+		        Input.bFromCardPackSelection = true;
 		        Input.RandomSeed =
 		            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
 		        const FReEchoCardGrantResult Grant =
@@ -3343,6 +3354,7 @@ bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 			        Input.CardState = BaseBuild.CardState;
 			        Input.TimeShards = PendingTimeShards;
 			        Input.EncounterIndex = EncounterIndex;
+			        Input.bFromCardPackSelection = true;
 			        Input.RandomSeed =
 			            BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, BaseBuild.CardState.OwnedCardIds);
 			        const FReEchoCardGrantResult Grant =
@@ -4357,6 +4369,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 			        Input.CardState = Build.CardState;
 			        Input.TimeShards = PendingTimeShards;
 			        Input.EncounterIndex = EncounterIndex;
+			        Input.bFromCardPackSelection = true;
 			        Input.RandomSeed =
 			            BuildShopOfferSeed(RunSeed, Choice.CardId, EncounterIndex, Choice.SlotRefreshSequence);
 			        const FReEchoCardGrantResult Grant =
@@ -4526,6 +4539,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 		        Input.CardState = Build.CardState;
 		        Input.TimeShards = PendingTimeShards;
 		        Input.EncounterIndex = EncounterIndex;
+		        Input.bFromCardPackSelection = true;
 		        Input.RandomSeed =
 		            BuildShopOfferSeed(RunSeed, Choice.CardId, EncounterIndex, Choice.SlotRefreshSequence);
 		        const FReEchoCardGrantResult Grant =

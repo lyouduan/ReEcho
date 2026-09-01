@@ -202,10 +202,17 @@ struct REECHOCARDS_API FReEchoCardRuntimeState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EncounterShardIncomeMultiplier = 1.0f;
 	/** G_4_1: set once shards ever reached the free-refresh threshold; the unlock then persists. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterUnlimitedRefreshUnlocked = false;
+	/** G_4_1: set once the shard-balance boon (100 copies of 样样都通) has been handed out. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterShardBoonGranted = false;
 	/** G_4_3: Echo contact damage/healing doubling, applied once per completed encounter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) float EasterEchoContactScale = 1.0f;
 	/** G_4_2: rolled downside - every critical hit loses all damage amplification. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterCritNegatesAmplification = false;
+	/** G_4_16: base stats captured when 有人自告奋勇 is granted; every encounter then grows them by 30%. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FReEchoStatBlock EasterBaseStatsSnapshot;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EasterResetGrowthCount = 0;
+	/** G_4_12: the 水果派对 attack boon fires once, the first time the run reaches the configured stage. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEasterStageAttackBuffClaimed = false;
 	/** SaveVersion <= 16 compatibility only. Weapon/rune and card refreshes no longer share this sequence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ShopRefreshSequence = 0;
 	/** Stable build-card pack page for the current encounter. */
@@ -302,10 +309,11 @@ struct REECHOCARDS_API FReEchoCardGrantInput
 	int32 EncounterIndex = 0;
 	int32 RandomSeed = 0;
 	bool bRecordOwnership = true;
+	/** True only when this card is directly selected from a free or paid card pack. */
+	bool bFromCardPackSelection = false;
 	/**
-	 * Egao Party: skip the bonus 样样都通 that every grant normally awards. Used by card-effect
-	 * tests that assert exact stat deltas, which the extra cards (some of them detrimental) would
-	 * otherwise make impossible to predict. Gameplay always leaves this false.
+	 * Egao Party: skip the bonus 样样都通 that every direct grant normally awards. Used by nested
+	 * card rewards and card-effect tests so those effects remain atomic and cannot recursively grow.
 	 */
 	bool bSuppressEgaoBonusGrant = false;
 };

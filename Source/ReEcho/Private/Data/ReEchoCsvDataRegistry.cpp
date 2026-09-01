@@ -778,6 +778,14 @@ void FReEchoCsvDataRegistry::RegisterBuiltInCsvBehaviors()
 	         FName(TEXT("Card.EndKillShards")),
 	         FName(TEXT("Card.CollectCoresGrantTiered")),
 	         FName(TEXT("Card.GrantAllTier1")),
+	         FName(TEXT("Card.EasterShardThresholdGrantAllTier1")),
+	         FName(TEXT("Card.EasterGrantRandomCards")),
+	         FName(TEXT("Card.EasterStageBuff")),
+	         FName(TEXT("Card.EasterAscendInit")),
+	         FName(TEXT("Card.EasterExtraEchoes")),
+	         FName(TEXT("Card.EasterReshuffleTier1")),
+	         FName(TEXT("Card.EasterResetToBase")),
+	         FName(TEXT("Card.EasterGrow30")),
 	     })
 	{
 		RegisterBehaviorId(BehaviorId);

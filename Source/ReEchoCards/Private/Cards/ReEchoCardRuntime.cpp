@@ -31,6 +31,22 @@ bool HasTag(const FReEchoCardDefinition& Card, const FName Tag)
 	return Card.Tags.Contains(Tag);
 }
 
+bool HasAdditionalCardGrantEffect(const FReEchoCardDefinition& Card)
+{
+	for (const FReEchoCardEffectDefinition& Effect : Card.Effects)
+	{
+		if (Effect.BehaviorId == TEXT("Card.GrantTier") || Effect.BehaviorId == TEXT("Card.GrantAllTier1") ||
+		    Effect.BehaviorId == TEXT("Card.CollectCoresGrantTiered") ||
+		    Effect.BehaviorId == TEXT("Card.EasterShardThresholdGrantAllTier1") ||
+		    Effect.BehaviorId == TEXT("Card.EasterDamageCards") ||
+		    Effect.BehaviorId == TEXT("Card.EasterGrantRandomCards"))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool ApplyStatEffect(FReEchoStatBlock& Stats, const FReEchoCardEffectDefinition& Effect)
 {
 	auto ApplyFloat = [&](float& Target)
@@ -319,6 +335,12 @@ void ApplyRuleEffect(FReEchoCardRuleSnapshot& Rules, const FReEchoCardEffectDefi
 	{
 		Rules.EnemyAttackFlatBonus += StackedValue;
 	}
+	else if (Effect.BehaviorId == TEXT("Card.EasterExtraEchoes"))
+	{
+		// G_4_14 (他们像山一样): each copy adds one echo, capped at the authored maximum (7).
+		Rules.MaximumEchoes = FMath::Min(FMath::Max(1, FMath::RoundToInt(Effect.ParamValue)),
+		                                 Rules.MaximumEchoes + FMath::Max(1, StackCount));
+	}
 }
 
 void ForEachOwnedEffect(
@@ -386,7 +408,8 @@ bool ReEchoCardRuntime::HasCard(const FReEchoCardBuildState& State, const FName 
 
 bool ReEchoCardRuntime::IsRepeatableCard(const FReEchoCardDefinition& Card)
 {
-	return Card.OfferGroup == TEXT("EasterEgg") || Card.Id == TEXT("G_3_23");
+	return (Card.Tier == 1 && Card.StackPolicy != TEXT("Unique")) || Card.OfferGroup == TEXT("EasterEgg") ||
+	       Card.Id == TEXT("G_3_23");
 }
 
 bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
@@ -520,9 +543,10 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 	GrantSingle = [&](const FName RequestedCardId, const bool bRecordOwnership, const bool bForce)
 	{
 		const FReEchoCardDefinition* Card = Catalog.Find(RequestedCardId);
+		const bool bAlreadyGranted = GrantedThisTransaction.Contains(RequestedCardId);
 		if (!Card || !Card->bEnabled ||
 		    (bRecordOwnership && !bForce && !CanOffer(Catalog, Result.CardState, *Card, Input.EncounterIndex)) ||
-		    GrantedThisTransaction.Contains(RequestedCardId))
+		    (bAlreadyGranted && !IsRepeatableCard(*Card)))
 		{
 			Result.Error = FString::Printf(TEXT("Card cannot be granted: %s"), *RequestedCardId.ToString());
 			return false;
@@ -649,7 +673,150 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				}
 				Outcome.ResolutionCount = RewardCount;
 			}
-			else if (Effect.BehaviorId == TEXT("Card.RandomStatTrade"))
+			else if (Effect.BehaviorId == TEXT("Card.EasterGrantRandomCards"))
+		{
+			// G_4_11 (灵感の喷涌): exactly five random cards. Its global Egao bonus is deliberately
+			// suppressed, and cards that themselves grant cards are excluded to prevent recursive chains.
+			const int32 GrantCount = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+			TArray<FReEchoCardDefinition> Pool =
+			    BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), INDEX_NONE, Input.EncounterIndex);
+			Pool.RemoveAll(
+			    [&](const FReEchoCardDefinition& Candidate)
+			    {
+				    return !Candidate.bEnabled || Candidate.Id == Card->Id || HasAdditionalCardGrantEffect(Candidate);
+			    });
+			FRandomStream Random(
+			    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+			FReEchoCardOutcomeState& Outcome =
+			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
+			for (int32 Index = 0; Index < GrantCount && !Pool.IsEmpty(); ++Index)
+			{
+				const int32 Pick = Random.RandRange(0, Pool.Num() - 1);
+				FReEchoCardGrantInput SubInput;
+				SubInput.Stats = Result.Stats;
+				SubInput.CardState = Result.CardState;
+				SubInput.TimeShards = Result.TimeShards;
+				SubInput.EncounterIndex = Input.EncounterIndex;
+				SubInput.RandomSeed = HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Index));
+				SubInput.bSuppressEgaoBonusGrant = true;
+				const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, Pool[Pick].Id, SubInput);
+				if (!Grant.bSucceeded)
+				{
+					break;
+				}
+				Result.Stats = Grant.Stats;
+				Result.CardState = Grant.CardState;
+				Result.TimeShards = Grant.TimeShards;
+				Outcome.RelatedCardIds.Append(Grant.GrantedCardIds);
+				if (Pool[Pick].StackPolicy == TEXT("Unique"))
+				{
+					Pool.RemoveAtSwap(Pick);
+				}
+			}
+			Outcome.ResolutionCount = Outcome.RelatedCardIds.Num();
+		}
+		else if (Effect.BehaviorId == TEXT("Card.EasterAscendInit"))
+		{
+			// G_4_13 (飞升的策划们): immediately set current health to the authored value (1).
+			Result.Stats.HpPoint = Effect.Value;
+			RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
+			FReEchoCardOutcomeState& Outcome =
+			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
+			Outcome.DetailTargets = {TEXT("HpPoint")};
+			Outcome.DetailValues = {Effect.Value};
+			Outcome.ResolutionCount = 1;
+		}
+		else if (Effect.BehaviorId == TEXT("Card.EasterReshuffleTier1"))
+		{
+			// G_4_15 (酱料派对): each owned tier-1 card is independently re-rolled into a normal
+			// tier-1 card. Rebuild the materialized OnGrant stats as well as the owned-card ids.
+			TArray<FReEchoCardDefinition> Tier1Cards = Catalog.GetAll(1);
+			Tier1Cards.RemoveAll([&](const FReEchoCardDefinition& Candidate) { return !Candidate.bEnabled; });
+			FReEchoCardOutcomeState& Outcome =
+			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
+			if (!Tier1Cards.IsEmpty())
+			{
+				auto ApplyTierOneGrantEffects = [&](const FReEchoCardDefinition& TierOneCard, const bool bRemove)
+				{
+					for (const FReEchoCardEffectDefinition& TierOneEffect : TierOneCard.Effects)
+					{
+						if ((TierOneEffect.Trigger != TEXT("OnGrant") && TierOneEffect.Trigger != TEXT("OnApply")) ||
+						    (TierOneEffect.BehaviorId != TEXT("Card.StatModifier") &&
+						     TierOneEffect.BehaviorId != TEXT("Card.InstantRecovery")))
+						{
+							continue;
+						}
+						FReEchoCardEffectDefinition Applied = TierOneEffect;
+						if (bRemove)
+						{
+							if (Applied.Operation == EReEchoCardValueOperation::Add)
+							{
+								Applied.Value = -Applied.Value;
+							}
+							else if (Applied.Operation == EReEchoCardValueOperation::Multiply &&
+							         !FMath::IsNearlyZero(Applied.Value))
+							{
+								Applied.Value = 1.0f / Applied.Value;
+							}
+							else
+							{
+								continue;
+							}
+						}
+						if (!ApplyStatEffect(Result.Stats, Applied))
+						{
+							Result.Error = FString::Printf(TEXT("Unsupported tier-one reshuffle target: %s"),
+							                              *Applied.Target.ToString());
+							return false;
+						}
+						if (IsCommittedHealthTarget(Applied.Target))
+						{
+							RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
+						}
+					}
+					return true;
+				};
+
+				FRandomStream Random(HashCombine(GetTypeHash(Input.RandomSeed),
+				                                     GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+				TArray<FName> NewOwned;
+				int32 ReshuffledCount = 0;
+				for (const FName OwnedId : Result.CardState.OwnedCardIds)
+				{
+					const FReEchoCardDefinition* Owned = Catalog.Find(OwnedId);
+					if (!Owned || Owned->Tier != 1 || !Owned->bEnabled)
+					{
+						NewOwned.Add(OwnedId);
+						continue;
+					}
+					if (!ApplyTierOneGrantEffects(*Owned, true))
+					{
+						return false;
+					}
+					const FReEchoCardDefinition& Replacement = Tier1Cards[Random.RandRange(0, Tier1Cards.Num() - 1)];
+					NewOwned.Add(Replacement.Id);
+					if (!ApplyTierOneGrantEffects(Replacement, false))
+					{
+						return false;
+					}
+					++ReshuffledCount;
+				}
+				Result.CardState.OwnedCardIds = MoveTemp(NewOwned);
+				Outcome.DetailTargets = {TEXT("ReshuffledCount")};
+				Outcome.DetailValues = {static_cast<float>(ReshuffledCount)};
+				Outcome.ResolutionCount = 1;
+			}
+		}
+		else if (Effect.BehaviorId == TEXT("Card.EasterResetToBase"))
+		{
+			// G_4_16 (有人自告奋勇): snapshot current stats as the base; each encounter then grows them.
+			Result.CardState.Runtime.EasterBaseStatsSnapshot = Result.Stats;
+			Result.CardState.Runtime.EasterResetGrowthCount = 0;
+			FReEchoCardOutcomeState& Outcome =
+			    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::RandomDetails);
+			Outcome.ResolutionCount = 1;
+		}
+		else if (Effect.BehaviorId == TEXT("Card.RandomStatTrade"))
 			{
 				FRandomStream Random(
 				    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
@@ -817,7 +984,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				TArray<FReEchoCardDefinition> Tier1Cards = Catalog.GetAll(FMath::RoundToInt(Effect.Value));
 				for (const FReEchoCardDefinition& Tier1Card : Tier1Cards)
 				{
-					if (GrantedThisTransaction.Contains(Tier1Card.Id))
+					if (GrantedThisTransaction.Contains(Tier1Card.Id) && !IsRepeatableCard(Tier1Card))
 					{
 						continue;
 					}
@@ -833,6 +1000,13 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				}
 			}
 		}
+		// G_4_13 (飞升的策划们): only a card selected from a card pack resets current health to 1.
+		// Nested rewards (including G_4_11's five cards and G_3_23's tier-one cards) do not qualify.
+		if (Input.bFromCardPackSelection && HasCard(Result.CardState, TEXT("G_4_13")) && Result.Stats.HpMax > 0.0f)
+		{
+			Result.Stats.HpPoint = 1.0f;
+			RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
+		}
 		return true;
 	};
 
@@ -847,38 +1021,25 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return Result;
 	}
 
-	// Egao Party: every acquisition also hands out 1-5 extra copies of 样样都通.
-	// The first copy is routed through GrantSingle so its OnGrant actually fires and delivers the
-	// tier-one cards; the remaining copies only stack. Recursion stays impossible because this
-	// block runs outside GrantSingle, so anything 样样都通 grants never re-enters the bonus.
+	// Egao Party: a direct acquisition also hands out 1-5 extra copies of 样样都通. Cards that already
+	// grant additional cards (such as G_3_23 and G_4_11) are excluded so this rule cannot recurse.
 	{
 		const FReEchoCardDefinition* BonusCard = Catalog.Find(TEXT("G_3_23"));
-		if (BonusCard && BonusCard->bEnabled && Input.bRecordOwnership && !Input.bSuppressEgaoBonusGrant)
+		const FReEchoCardDefinition* GrantedCard = Catalog.Find(CardId);
+		if (BonusCard && BonusCard->bEnabled && GrantedCard && Input.bRecordOwnership &&
+		    !Input.bSuppressEgaoBonusGrant && !HasAdditionalCardGrantEffect(*GrantedCard))
 		{
-			// Draw from a seed that depends only on the run seed and the card being granted.
-			// Deliberately not tied to owned-card count and not advancing Runtime.RandomSequence:
-			// both would perturb the shared stream and make downstream offer/refresh results
-			// drift between otherwise identical playthroughs.
 			const uint32 BonusSeed =
 			    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(BonusCard->Id));
 			FRandomStream BonusRandom(static_cast<int32>(BonusSeed));
 			const int32 BonusCount = BonusRandom.RandRange(1, 5);
 			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
 			{
-				// GrantSingle rejects ids already granted in this transaction, which is the case
-				// when the player picked 样样都通 itself. Only the first copy needs its effects.
-				if (BonusIndex == 0 && !GrantedThisTransaction.Contains(BonusCard->Id))
+				if (!GrantSingle(BonusCard->Id, true, true))
 				{
-					if (!GrantSingle(BonusCard->Id, true, false))
-					{
-						// A failed bonus must never undo the card the player actually chose.
-						Result.CardState.OwnedCardIds.Add(BonusCard->Id);
-						Result.GrantedCardIds.Add(BonusCard->Id);
-					}
-					continue;
+					Result.Error = TEXT("Egao bonus 样样都通 grant failed");
+					return Result;
 				}
-				Result.CardState.OwnedCardIds.Add(BonusCard->Id);
-				Result.GrantedCardIds.Add(BonusCard->Id);
 			}
 		}
 	}
@@ -920,6 +1081,39 @@ FReEchoCardBuildState ReEchoCardRuntime::BeginEncounter(const FReEchoCardBuildSt
 	{
 		Result.Runtime.FreeShopEncounterIndex = INDEX_NONE;
 	}
+	return Result;
+}
+
+FReEchoCardEventResult ReEchoCardRuntime::ApplyEncounterStart(const FReEchoCardCatalog& Catalog,
+                                                              const FReEchoCardBuildState& State,
+                                                              const FReEchoStatBlock& Stats,
+                                                              const int32 EncounterIndex)
+{
+	FReEchoCardEventResult Result;
+	Result.CardState = State;
+	Result.Stats = Stats;
+	ForEachOwnedEffect(
+		Catalog,
+		State,
+		TEXT("OnEncounterStart"),
+		[&](const FReEchoCardDefinition& Card, const FReEchoCardEffectDefinition& Effect, const int32 StackCount)
+		{
+			if (Effect.BehaviorId == TEXT("Card.EasterStageBuff"))
+			{
+				// G_4_12 (水果派对): "at the start of level 8" hand out the authored physical/elemental
+				// attack bonus. It is a one-shot boon, so it only fires the first time the run reaches the
+				// configured stage; for multi-copy ownership the stack count scales the single payout.
+				const int32 RequiredStage = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+				if (!Result.CardState.Runtime.bEasterStageAttackBuffClaimed && EncounterIndex >= RequiredStage)
+				{
+					Result.CardState.Runtime.bEasterStageAttackBuffClaimed = true;
+					FReEchoCardEffectDefinition Applied = Effect;
+					Applied.Value = Effect.Value * FMath::Max(1, StackCount);
+					ApplyStatEffect(Result.Stats, Applied);
+					AccumulateOutcome(Result.CardState.Runtime, Card.Id, Effect.Target, Applied.Value);
+				}
+			}
+		});
 	return Result;
 }
 
@@ -1690,7 +1884,20 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 	// The damage was recorded throughout the encounter; settling here makes it a per-encounter payout.
 	if (HasCard(Result.CardState, TEXT("G_4_6")) && Result.CardState.Runtime.EasterDamageTaken > 0.0f)
 	{
-		const int32 Requested = FMath::RoundToInt(Result.CardState.Runtime.EasterDamageTaken);
+		// G_4_6 (野狗的荣耀): X damage this encounter grants X * multiplier tier-1 cards next settlement.
+		float DamageMultiplier = 10.0f;
+		if (const FReEchoCardDefinition* Card6 = Catalog.Find(TEXT("G_4_6")))
+		{
+			for (const FReEchoCardEffectDefinition& E : Card6->Effects)
+			{
+				if (E.BehaviorId == TEXT("Card.EasterDamageCards"))
+				{
+					DamageMultiplier = FMath::Max(1.0f, E.ParamValue);
+					break;
+				}
+			}
+		}
+		const int32 Requested = FMath::RoundToInt(Result.CardState.Runtime.EasterDamageTaken * DamageMultiplier);
 		Result.CardState.Runtime.EasterDamageTaken = 0.0f;
 		TArray<FReEchoCardDefinition> Pool =
 		    BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), INDEX_NONE, EncounterIndex);
@@ -1760,16 +1967,42 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			    Outcome.DetailValues = {Multiplier, static_cast<float>(Bonus)};
 			    ++Outcome.ResolutionCount;
 		    }
-		    else if (Effect.BehaviorId == TEXT("Card.EasterShardThreshold") && Effect.Order == 1)
+		    else if (Effect.BehaviorId == TEXT("Card.EasterShardThresholdGrantAllTier1") && Effect.Order == 1)
 		    {
-			    // G_4_1: reaching the shard balance once unlocks free shop refreshes permanently, so the
-			    // unlock survives later spending. Checked after the swing so it sees the settled balance.
-			    const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
-			    if (!Result.CardState.Runtime.bEasterUnlimitedRefreshUnlocked &&
-			        Result.ProjectedTimeShards >= Threshold)
-			    {
-				    Result.CardState.Runtime.bEasterUnlimitedRefreshUnlocked = true;
-			    }
+		    	// G_4_1: once the settled shard balance crosses the threshold, hand out Copies sets of every
+		    	// enabled tier-1 card (the 样样都通 boon). One-shot; checked after the swing sees the balance.
+		    	const int32 Threshold = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
+		    	const int32 Copies = FMath::Max(1, FMath::RoundToInt(Effect.Value));
+		    	if (!Result.CardState.Runtime.bEasterShardBoonGranted && Result.ProjectedTimeShards >= Threshold)
+		    	{
+		    		Result.CardState.Runtime.bEasterShardBoonGranted = true;
+		    		TArray<FReEchoCardDefinition> Tier1Cards = Catalog.GetAll(1);
+		    		Tier1Cards.RemoveAll([&](const FReEchoCardDefinition& C) { return !C.bEnabled; });
+		    		FRandomStream Random(HashCombine(GetTypeHash(RandomSeed),
+		    		                                 GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+		    		FReEchoCardOutcomeState& Outcome =
+		    		    FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::GrantedCards);
+		    		for (int32 Copy = 0; Copy < Copies && !Tier1Cards.IsEmpty(); ++Copy)
+		    		{
+		    			for (const FReEchoCardDefinition& Tier1Card : Tier1Cards)
+		    			{
+		    				FReEchoCardGrantInput SubInput;
+		    				SubInput.Stats = Result.Stats;
+		    				SubInput.CardState = Result.CardState;
+		    				SubInput.TimeShards = TimeShards;
+		    				SubInput.EncounterIndex = EncounterIndex;
+		    				SubInput.RandomSeed = HashCombine(GetTypeHash(RandomSeed), GetTypeHash(Copy * 1009 + Outcome.RelatedCardIds.Num()));
+		    				const FReEchoCardGrantResult Grant = TryGrantCard(Catalog, Tier1Card.Id, SubInput);
+		    				if (Grant.bSucceeded)
+		    				{
+		    					Result.Stats = Grant.Stats;
+		    					Result.CardState = Grant.CardState;
+		    					Outcome.RelatedCardIds.Append(Grant.GrantedCardIds);
+		    				}
+		    			}
+		    		}
+		    		Outcome.ResolutionCount = Outcome.RelatedCardIds.Num();
+		    	}
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.EasterShardComparison") && Effect.Order == 1)
 		    {
@@ -1819,6 +2052,25 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 				    ApplyStatEffect(Result.Stats, Rolled);
 			    }
 			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, Rolled.Target, Rolled.Value);
+		    }
+		    else if (Effect.BehaviorId == TEXT("Card.EasterGrow30"))
+		    {
+			    // G_4_16 (有人自告奋勇): each encounter grows the snapshotted base stats by the factor.
+			    Result.CardState.Runtime.EasterResetGrowthCount++;
+			    const float Scale = FMath::Pow(FMath::Max(0.0f, Effect.Value), Result.CardState.Runtime.EasterResetGrowthCount);
+			    const FReEchoStatBlock& Base = Result.CardState.Runtime.EasterBaseStatsSnapshot;
+			    Result.Stats.HpMax = Base.HpMax * Scale;
+			    Result.Stats.HpPoint = Base.HpPoint * Scale;
+			    Result.Stats.PhysicalAttack = Base.PhysicalAttack * Scale;
+			    Result.Stats.ElementalAttack = Base.ElementalAttack * Scale;
+			    Result.Stats.AttackSpeed = Base.AttackSpeed * Scale;
+			    Result.Stats.MovementSpeed = Base.MovementSpeed * Scale;
+			    Result.Stats.CriticalRate = Base.CriticalRate * Scale;
+			    Result.Stats.CriticalEffect = Base.CriticalEffect * Scale;
+			    Result.Stats.EchoEfficiency = Base.EchoEfficiency * Scale;
+			    Result.Stats.ReactionEfficiency = Base.ReactionEfficiency * Scale;
+			    RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
+			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, TEXT("AllBaseStats"), Scale);
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.EndKillRefresh"))
 		    {

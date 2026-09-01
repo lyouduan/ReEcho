@@ -22,7 +22,7 @@ G_2_16,G_2_10,2,繁荣契约,你的商店获得20%折扣。你每购买1次任�
 G_2_17,G_2_11,2,静默刻度,在每一关卡的第12s和第22s时，所有怪物【眩晕】2秒,Survival,Brave,Trait,true,true,Unique,None,Approved,
 G_3_01,G_3_01,3,双重回声,你额外拥有1个回响，对应你上上局的行为,Echo|Element|OfferEncounter3|OfferEncounter4|OfferEncounter5,Poet,Trait,true,true,Unique,EchoRecordingMode,Approved,
 G_3_02,G_3_02,3,时空锚点,你可以选择一关，成为你的时间锚点。你的回响只会重复你在这一关内的行为,Echo|OfferEncounter2|OfferEncounter3,Sage,Trait,true,true,Unique,EchoRecordingMode,Approved,
-G_3_03,G_3_03,3,涅槃之身,回响不再出现。你的所有属性翻倍；你之后将不再抽到“回响”相关卡牌,Body,Brave,Trait,true,true,Unique,EchoKeystone,Approved,
+G_3_03,G_3_03,3,涅槃之身,"回响不再出现。你的所有属性翻倍；你之后将不再抽到""回响""相关卡牌",Body,Brave,Trait,true,true,Unique,EchoKeystone,Approved,
 G_3_04,G_3_04,3,殉身回响,你的回响继承你的生命值*2，但其无法攻击，且永久获得【嘲讽】状态。每当它被怪物击败，你的最大生命值和当前生命值永久+5,Body|Survival|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
 G_3_05,G_3_05,3,灵魂共振,"你的回响每击杀15名敌人，物攻&元攻永久+1
 你每击杀15名敌人，回响效能永久+2%",Echo|Body|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
@@ -61,35 +61,34 @@ G_2_30,G_2_26,2,连接，连接！,你和回响之间会生成一条链接，触
 G_3_25,G_3_20,3,我们，合体！,你和回响距离越近，造成伤害越高，最高获得100%伤害增幅,Echo|Damage,Poet,Trait,true,true,Unique,None,Approved,
 G_3_28,G_3_22,3,武器大师,你每使用过1种不同的武器，永久获得5元攻&物攻、10生命值,Weapon|Growth,Hunter,Trait,true,true,Unique,None,Approved,
 G_3_29,G_3_24,3,左右开弓,敌方单位受到伤害时，如果这个伤害和上次其受到伤害的来源不同，那么获得100%伤害增幅,Echo|Damage,Hunter,Trait,true,true,Unique,None,Approved,
-G_2_24,G_2_20,2,我来组成头部,每3秒，场上随机敌人获得【诅咒】。如果你同时拥有“我来组成身体”和“我来组成腿部”，那么转而每0.5秒触发！,Echo|Curse,Poet,Trait,true,true,Unique,None,Approved,
-G_2_25,G_2_21,2,我来组成身体,回响能够令其接触到的敌人【眩晕】2s。如果你同时拥有“我来组成头部”和“我来组成腿部”，那么回响会令其身边的敌人始终【眩晕】！,Echo|Survival,Brave,Trait,true,true,Unique,None,Approved,
-G_2_26,G_2_22,2,我来组成腿部,获得30%回响效能。如果你同时拥有“我来组成头部”和“我来组成身体”，那么转而获得100%回响效能,Echo|Growth,Poet,Trait,true,true,Unique,None,Approved,
+G_2_24,G_2_20,2,我来组成头部,"每3秒，场上随机敌人获得【诅咒】。如果你同时拥有""我来组成身体""和""我来组成腿部""，那么转而每0.5秒触发！",Echo|Curse,Poet,Trait,true,true,Unique,None,Approved,
+G_2_25,G_2_21,2,我来组成身体,"回响能够令其接触到的敌人【眩晕】2s。如果你同时拥有""我来组成头部""和""我来组成腿部""，那么回响会令其身边的敌人始终【眩晕】！",Echo|Survival,Brave,Trait,true,true,Unique,None,Approved,
+G_2_26,G_2_22,2,我来组成腿部,"获得30%回响效能。如果你同时拥有""我来组成头部""和""我来组成身体""，那么转而获得100%回响效能",Echo|Growth,Poet,Trait,true,true,Unique,None,Approved,
 G_2_31,G_2_27,2,烈火之心,你或回响施加的【灼烧】持续时间变成无限，并且还能叠加,Element|Burn,Poet,Trait,true,true,Unique,None,Approved,
-G_2_32,G_2_28,2,水火不容,每当你或回响对敌方单位造成“汽化”，令其周围的敌人附着水元素,Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
-G_2_33,G_2_29,2,雷鸣之心,每有一个敌方单位受到“导电”，你获得3%伤害增幅，直至本关卡结束,Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
+G_2_32,G_2_28,2,水火不容,"每当你或回响对敌方单位造成""汽化""，令其周围的敌人附着水元素",Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
+G_2_33,G_2_29,2,雷鸣之心,"每有一个敌方单位受到""导电""，你获得3%伤害增幅，直至本关卡结束",Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
 G_2_34,G_2_30,2,生命虹吸,你的任何生命回复效果，能溢出血量上限，直至最大生命值的30%,Survival|Healing,Brave,Trait,true,true,Unique,None,Approved,
-G_4_1,G_4_1,0,策法爆培嘉,"每关结束后，赌一把大的！攒够了家底以后，商店刷新永远为你开放！
+G_4_1,G_4_1,0,策法爆培嘉,"每关结束后，赌一把大的！攒够了家底以后，获得来自程序邱孙红的宝库。
 
 ——策划 爆培嘉 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_2,G_4_2,0,你觉得这个怎么样,"选择后，你可能拥有至高无上的暴击数值，也可能从此一蹶不振！
 
 ——策划 斑 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_3,G_4_3,0,恋爱小脑,"回响触碰到敌人，造成20物理伤害；如果是你，你回复10生命值。数值每关翻倍！
+G_4_3,G_4_3,0,恋爱小脑,"回响触碰到敌人，造成1000物理伤害；如果是你，你回复1000生命值。数值每关翻倍！
 
 ——策划 麦麦熊 敬上",EasterEgg|Echo,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_4,G_4_4,0,呕人？哕人？,"失去所有时间碎片。每失去15时间碎片，随机获得一些属性！
+G_4_4,G_4_4,0,呕人？哕人？,"用更高的效率把所有的时间碎片转化为随机属性。你觉得这个怎么样？
 
 ——策划 呕乐兮 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_5,G_4_5,0,帅气T傥,"身边的敌人都被你迷倒了！
 
 ——特别鸣谢 程序 T爷",EasterEgg|Control,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_6,G_4_6,0,“野狗”的荣耀,"你努力奔跑。下一关，1滴血换1张1级卡牌
-
+G_4_6,G_4_6,0,"""野狗""的荣耀","""野狗不需要墓碑""，你快来飞升成神了。下一关，1滴血换10张1级卡牌
 ——特别鸣谢 程序 Jo爷",EasterEgg|Cards,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_7,G_4_7,0,绝不迟到之人！,"神秘人往你的物理伤害后面加随机个0
 
 ——特别鸣谢 美术 00",EasterEgg|Damage|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
-G_4_8,G_4_8,0,【粥粥】之力,"经济系统被赋予“ELO”机制
+G_4_8,G_4_8,0,【粥粥】之力,"经济系统被赋予""ELO""机制
 
 ——特别鸣谢 美术 子涵",EasterEgg|Economy,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_9,G_4_9,0,按时上课！,"每一关卡结束后，随机获得巨额生命值/元攻/物攻
@@ -99,3 +98,21 @@ G_4_10,G_4_10,0,符合预期,"选择后，攻击力永久增加5。
 
 策划：为什么表现是这样的？
 程序：单子上是这么写的，符合预期",EasterEgg|Attack,None,EasterEgg,true,true,Stackable,None,Approved,
+G_4_11,G_4_11,0,灵感の喷涌,"设计这么多恶心卡牌，我哪来那么多灵感呢？分给你一点
+
+——来自数值策划 斑",EasterEgg|Cards,None,EasterEgg,true,true,Stackable,None,Approved,
+G_4_12,G_4_12,0,水果派对,"派对总是会开的…让我们一起搞耍起来！
+
+——特别鸣谢 FIFA足队",EasterEgg|Growth,None,EasterEgg,true,true,Stackable,None,Approved,
+G_4_13,G_4_13,0,飞升的策划们,"希望我们以后都不加班！多搞一点卡，给自己叠一些buff吧
+
+——特别鸣谢 最好的大家",EasterEgg|Growth,None,EasterEgg,true,true,Stackable,None,Approved,
+G_4_14,G_4_14,0,他们像山一样,"1个队伍、2个程序、3个美术、4个策划...7个回响、8个关卡、9个天才。大家都很棒！！
+
+——特别鸣谢 FIFA足队",EasterEgg|Echo,None,EasterEgg,true,true,Stackable,None,Approved,
+G_4_15,G_4_15,0,酱料派对,"如果你的所有1级卡是酱料……我们将它混合然后重组。来一场彻底的酱料派对！
+
+——特别鸣谢 最好的大家",EasterEgg|Cards,None,EasterEgg,true,true,Stackable,None,Approved,
+G_4_16,G_4_16,0,有人自告奋勇,"波罗蜜男孩来了。他想展示他独特的一面。热爱波罗蜜的一面。
+
+——特别鸣谢 最好的大家",EasterEgg|Growth,None,EasterEgg,true,true,Stackable,None,Approved,

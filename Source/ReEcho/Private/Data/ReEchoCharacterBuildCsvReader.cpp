@@ -81,6 +81,8 @@ bool IsAllowedCardEffectTarget(const FName Target)
 	    TEXT("ConnectionLine"),
 	    TEXT("WeaponHistory"),
 	    TEXT("EnemyAttackFlatBonus"),
+	    TEXT("RandomCards"),
+	    TEXT("Tier1Reshuffle"),
 	};
 	return AllowedTargets.Contains(Target);
 }
@@ -487,10 +489,11 @@ bool ReadCardEffectsTable(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("EffectKind"), Effect.EffectKind, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("Target"), Effect.Target, Issues);
 		ReEchoCsv::RequireValueOp(Table, Row, TEXT("ValueOp"), Effect.ValueOp, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -100000.0f, 100000.0f, Effect.Value, Issues);
+		// Easter/joke cards (e.g. G_4_7 绝不迟到之人) intentionally use absurd values up to 1,000,000.
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("Value"), -1000000.0f, 1000000.0f, Effect.Value, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("BehaviorId"), Effect.BehaviorId, Issues);
 		ReEchoCsv::RequireStableId(Table, Row, TEXT("ParamName"), Effect.ParamName, Issues);
-		ReEchoCsv::RequireFloat(Table, Row, TEXT("ParamValue"), -100000.0f, 100000.0f, Effect.ParamValue, Issues);
+		ReEchoCsv::RequireFloat(Table, Row, TEXT("ParamValue"), -1000000.0f, 1000000.0f, Effect.ParamValue, Issues);
 
 		if (SeenIds.Contains(Effect.Id))
 		{

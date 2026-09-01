@@ -36,6 +36,10 @@ REECHOCARDS_API FReEchoCardGrantResult TryGrantCard(const FReEchoCardCatalog& Ca
                                                     FName CardId,
                                                     const FReEchoCardGrantInput& Input);
 REECHOCARDS_API FReEchoCardBuildState BeginEncounter(const FReEchoCardBuildState& State, int32 EncounterIndex);
+REECHOCARDS_API FReEchoCardEventResult ApplyEncounterStart(const FReEchoCardCatalog& Catalog,
+                                                           const FReEchoCardBuildState& State,
+                                                           const FReEchoStatBlock& Stats,
+                                                           int32 EncounterIndex);
 REECHOCARDS_API FReEchoCardEncounterTickResult AdvanceEncounter(const FReEchoCardCatalog& Catalog,
                                                                 const FReEchoCardBuildState& State,
                                                                 float EncounterTimeSeconds);
