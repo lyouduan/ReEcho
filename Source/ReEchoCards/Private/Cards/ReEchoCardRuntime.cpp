@@ -854,8 +854,13 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		const FReEchoCardDefinition* BonusCard = Catalog.Find(TEXT("G_3_23"));
 		if (BonusCard && BonusCard->bEnabled && Input.bRecordOwnership)
 		{
-			FRandomStream BonusRandom(HashCombine(GetTypeHash(Input.RandomSeed),
-			                                      GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+			// Draw from a seed that depends only on the run seed and the card being granted.
+			// Deliberately not tied to owned-card count and not advancing Runtime.RandomSequence:
+			// both would perturb the shared stream and make downstream offer/refresh results
+			// drift between otherwise identical playthroughs.
+			const uint32 BonusSeed =
+			    HashCombine(GetTypeHash(Input.RandomSeed), GetTypeHash(BonusCard->Id));
+			FRandomStream BonusRandom(static_cast<int32>(BonusSeed));
 			const int32 BonusCount = BonusRandom.RandRange(1, 5);
 			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
 			{
