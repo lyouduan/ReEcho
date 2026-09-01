@@ -2,6 +2,7 @@
 
 #include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
+#include "Data/ReEchoCsvDataRegistry.h"
 #include "Run/ReEchoRunSaveGame.h"
 #include "Run/ReEchoPlayerProgressSaveGame.h"
 #include "Run/ReEchoRunSubsystem.h"
@@ -399,15 +400,16 @@ bool FReEchoV15ShopCardPageMigrationTest::RunTest(const FString& Parameters)
 	UReEchoRunSubsystem* Source = NewObject<UReEchoRunSubsystem>(SourceGameInstance);
 	Source->StartRun(TEXT("J_SPADE"), TEXT("W_J_01"));
 	Source->EncounterIndex = 4;
-	const FReEchoWeaponPartShopView CurrentPage = Source->GetWeaponPartShopView();
-	if (!TestTrue(TEXT("Migration fixture has a tier-two candidate"),
-	              CurrentPage.CardPackOffers.IsValidIndex(1) && !CurrentPage.CardPackOffers[1].Choices.IsEmpty()))
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = Source->GetRunDataSnapshot();
+	const TArray<FReEchoCardDefinition> TierTwoCards =
+	    Snapshot->CardCatalog->GetOfferable(TEXT("Trait"), 2);
+	if (!TestTrue(TEXT("Migration fixture has a tier-two catalog card"), !TierTwoCards.IsEmpty()))
 	{
 		return false;
 	}
 	UReEchoRunSaveGame* LegacySave = Source->CreateSaveSnapshot();
 	LegacySave->SaveVersion = 15;
-	LegacySave->CurrentBuild.CardState.Runtime.ShopCardOfferIds = {CurrentPage.CardPackOffers[1].Choices[0].CardId};
+	LegacySave->CurrentBuild.CardState.Runtime.ShopCardOfferIds = {TierTwoCards[0].Id};
 	LegacySave->CurrentBuild.CardState.Runtime.ShopCardPackStates.Reset();
 
 	UGameInstance* RestoredGameInstance = NewObject<UGameInstance>();
@@ -417,12 +419,8 @@ bool FReEchoV15ShopCardPageMigrationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The legacy direct-card page rebuilds as three fixed packs"),
 	          MigratedPage.CardPackOffers.Num(),
 	          ReEchoShopOfferCountPerGroup);
-	TestTrue(TEXT("The migrated tier-two pack offers a same-tier choice set"),
-	         MigratedPage.CardPackOffers[1].Choices.ContainsByPredicate(
-	             [](const FReEchoShopCardChoiceOffer& Choice)
-	             {
-		             return Choice.Tier == 2;
-	             }));
+	TestTrue(TEXT("The migrated tier-two pack is available and defers its choices until payment"),
+	         MigratedPage.CardPackOffers[1].IsAvailable() && MigratedPage.CardPackOffers[1].Choices.IsEmpty());
 	TestTrue(TEXT("The legacy one-card cache is discarded"),
 	         Restored->CurrentBuild.CardState.Runtime.ShopCardOfferIds.IsEmpty());
 	return true;
@@ -440,15 +438,20 @@ bool FReEchoV19ShopCardPackPaymentMigrationTest::RunTest(const FString& Paramete
 	Source->EncounterIndex = 4;
 	Source->TimeShards = 1000;
 	const FReEchoWeaponPartShopView Page = Source->GetWeaponPartShopView();
-	if (!TestTrue(TEXT("v19 migration fixture has a tier-two candidate"),
-	              Page.CardPackOffers.IsValidIndex(1) && !Page.CardPackOffers[1].Choices.IsEmpty()))
+	if (!TestTrue(TEXT("v19 migration fixture has an available tier-two pack"),
+	              Page.CardPackOffers.IsValidIndex(1) && Page.CardPackOffers[1].IsAvailable()))
 	{
 		return false;
 	}
-	const FName ChoiceId = Page.CardPackOffers[1].Choices[0].ItemId;
-	if (!TestTrue(TEXT("Migration fixture pays and claims its legacy pack"),
-	              Source->PurchaseShopCardPackDetailed(2).IsSuccess() &&
-	                  Source->ClaimPaidShopCardChoice(ChoiceId).IsSuccess()))
+	if (!TestTrue(TEXT("Migration fixture pays its legacy pack"),
+	              Source->PurchaseShopCardPackDetailed(2).IsSuccess()))
+	{
+		return false;
+	}
+	const FReEchoShopCardPackOffer PaidPack = Source->GetWeaponPartShopView().CardPackOffers[1];
+	if (!TestTrue(TEXT("Migration fixture payment generates a candidate"), !PaidPack.Choices.IsEmpty()) ||
+	    !TestTrue(TEXT("Migration fixture claims its legacy pack"),
+	              Source->ClaimPaidShopCardChoice(PaidPack.Choices[0].ItemId).IsSuccess()))
 	{
 		return false;
 	}

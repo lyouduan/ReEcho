@@ -115,9 +115,9 @@ struct REECHOCARDS_API FReEchoShopCardPackRuntimeState
 
 	/** Fixed tier identity. Runtime arrays use [Tier1, Tier2, Tier3]. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Tier = 0;
-	/** Stable candidates for the current encounter. Each array index is one independently refreshable visible slot. */
+	/** Candidates frozen when this pack is paid. Available unpaid packs keep this empty until purchase. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> CandidateCardIds;
-	/** Every card displayed by this tier pack, including candidates replaced by a slot refresh. */
+	/** Every card displayed after payment, including candidates replaced by a slot refresh. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> OfferHistoryCardIds;
 	/** Per-slot refresh uses. Shape always matches CandidateCardIds; each slot owns its own configured limit. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<int32> SlotRefreshUses;

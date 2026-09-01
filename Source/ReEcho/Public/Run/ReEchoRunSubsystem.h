@@ -161,14 +161,11 @@ public:
 	 * untouched (TryEquipPurchasedPart instead squeezes the oldest one, which visibly disturbs both slots).
 	 */
 	bool TryEquipPurchasedPartAt(FName PartId, int32 TargetOccurrenceIndex, FString& OutError);
-	/**
-	 * Rolls a fresh set of three cards for a tier pack. A tier configured with several purchases must behave
-	 * like several distinct packs, so each repeat purchase re-rolls instead of reusing the page's first roll.
-	 */
-	void ReRollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
-	                                  FReEchoCardBuildState& CardState,
-	                                  FReEchoShopCardPackRuntimeState& Pack,
-	                                  int32 Tier);
+	/** Rolls and freezes up to three currently eligible choices when a tier pack is paid. */
+	void RollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
+	                                FReEchoCardBuildState& CardState,
+	                                FReEchoShopCardPackRuntimeState& Pack,
+	                                int32 Tier);
 	/** Equips an already-owned weapon without shop cost or reroll; compatible runes remain equipped. */
 	bool TryEquipOwnedWeapon(FName WeaponId, FString& OutError);
 	/** Read-only owned-card presentation shared by the shop and terminal result screens. */

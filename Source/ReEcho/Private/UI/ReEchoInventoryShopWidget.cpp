@@ -1993,10 +1993,7 @@ void UReEchoInventoryShopWidget::AddTargetCardPack(UHorizontalBox* Row,
 	                                       *FString::Printf(TEXT("TargetCardPackRemaining%d"), PackIndex),
 	                                       17,
 	                                       FLinearColor(0.12f, 0.12f, 0.12f));
-	RemainingText->SetText(Pack.Status == EReEchoShopCardPackStatus::Available
-	                           ? FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackRemaining", "剩余候选 {0}"),
-	                                           FText::AsNumber(Pack.Choices.Num()))
-	                           : Pack.StatusText);
+	RemainingText->SetText(Pack.StatusText);
 	RemainingText->SetJustification(ETextJustify::Center);
 	UCanvasPanelSlot* RemainingSlot = Card->AddChildToCanvas(RemainingText);
 	RemainingSlot->SetPosition(FVector2D(14.0f, 160.0f));
@@ -2200,7 +2197,9 @@ void UReEchoInventoryShopWidget::RefreshAuthoredOfferCards(const bool bAvailabil
 		if (!bAvailabilityOnly && DesignerPackOfferIcons.IsValidIndex(Index) && DesignerPackOfferIcons[Index])
 		{
 			DesignerPackOfferIcons[Index]->SetBrushFromTexture(
-			    Pack.CanOpenChoices() ? ShopCardPackOfferIconTexture.Get() : ShopEmptyCardSlotIconTexture.Get(), false);
+			    (Pack.IsAvailable() || Pack.CanOpenChoices()) ? ShopCardPackOfferIconTexture.Get()
+			                                                   : ShopEmptyCardSlotIconTexture.Get(),
+			    false);
 			DesignerPackOfferIcons[Index]->SetColorAndOpacity(FLinearColor::White);
 			DesignerPackOfferIcons[Index]->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}

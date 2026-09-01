@@ -145,14 +145,12 @@ struct REECHO_API FReEchoShopCardPackOffer
 
 	bool IsAvailable() const
 	{
-		return Status == EReEchoShopCardPackStatus::Available && !Choices.IsEmpty();
+		return Status == EReEchoShopCardPackStatus::Available;
 	}
 
 	bool CanOpenChoices() const
 	{
-		return (Status == EReEchoShopCardPackStatus::Available ||
-		        Status == EReEchoShopCardPackStatus::PaidPendingChoice) &&
-		       !Choices.IsEmpty();
+		return Status == EReEchoShopCardPackStatus::PaidPendingChoice && !Choices.IsEmpty();
 	}
 };
 

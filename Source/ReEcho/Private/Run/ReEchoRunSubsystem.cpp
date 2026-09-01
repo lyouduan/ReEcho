@@ -2562,34 +2562,6 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 						continue;
 					}
 					Pack.RemainingPurchases = ConfiguredCardTierQuantities[Tier];
-					for (int32 CandidateIndex = 0; CandidateIndex < ReEchoShopOfferCountPerGroup; ++CandidateIndex)
-					{
-						const FName SlotSeedKey(
-						    *FString::Printf(TEXT("SHOP_CARD_TIER_%d_SLOT_%d"), Tier, CandidateIndex));
-						const FName SelectedCardId = SelectCardForOfferSlot(
-						    *Snapshot->CardCatalog,
-						    CurrentBuild.CardState,
-						    Tier,
-						    EncounterIndex,
-						    Pack.OfferHistoryCardIds,
-						    BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, RefreshSequence));
-						if (SelectedCardId.IsNone())
-						{
-							break;
-						}
-						Pack.CandidateCardIds.Add(SelectedCardId);
-						Pack.OfferHistoryCardIds.Add(SelectedCardId);
-						Pack.SlotRefreshUses.Add(0);
-					}
-					if (Pack.CandidateCardIds.IsEmpty())
-					{
-						UE_LOG(LogReEcho,
-						       Warning,
-						       TEXT("Encounter %d shop tier %d has no eligible normal or Easter card."),
-						       EncounterIndex,
-						       Tier);
-						continue;
-					}
 					const FName PriceSeedKey(*FString::Printf(TEXT("SHOP_CARD_PACK_TIER_%d"), Tier));
 					FRandomStream PriceRand(BuildShopOfferSeed(RunSeed, PriceSeedKey, EncounterIndex, RefreshSequence));
 					Pack.BasePrice =
@@ -2602,6 +2574,14 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				FReEchoShopCardPackOffer& CardPack = View.CardPackOffers[PackIndex];
 				const int32 Tier = PackIndex + 1;
 				FReEchoShopCardPackRuntimeState& Pack = CardRuntime.ShopCardPackStates[PackIndex];
+				if (!Pack.bPaymentCommitted && !Pack.bPurchased)
+				{
+					// Candidate identity belongs to the payment transaction. Clear legacy/pre-fix unpaid caches so an
+					// extra card granted elsewhere in this shop can never shrink a stale three-choice page.
+					Pack.CandidateCardIds.Reset();
+					Pack.OfferHistoryCardIds.Reset();
+					Pack.SlotRefreshUses.Reset();
+				}
 				CardPack.ItemId = MakeShopCardPackOfferId(EncounterIndex, RefreshSequence, Tier);
 				// Mirror the runtime pack's pick count into the view. The choice UI requires exactly
 				// GetPaidShopCardPackSelectableCount() picks (read from the runtime pack), while the claim
@@ -2611,12 +2591,6 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				CardPack.SelectableCardCount = FMath::Max(1, Pack.SelectableCardCount);
 				if (!ConfiguredCardTierQuantities.Contains(Tier))
 				{
-					continue;
-				}
-				if (Pack.CandidateCardIds.IsEmpty())
-				{
-					CardPack.Status = EReEchoShopCardPackStatus::SoldOut;
-					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackSoldOut", "售罄");
 					continue;
 				}
 				if (Pack.BasePrice <= 0)
@@ -2629,13 +2603,18 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				CardPack.Price = Pack.BasePrice;
 				CardPack.EffectivePrice = GetDiscountedShopPrice(CardPack.Price);
 				const bool bHasRemaining = Pack.RemainingPurchases > 0;
+				// Easter cards can replace a normal roll, but they do not keep an exhausted tier entrance purchasable.
+				const bool bHasEligibleCard =
+				    !ReEchoCardRuntime::BuildOfferPool(
+				         *Snapshot->CardCatalog, CurrentBuild.CardState, TraitOfferGroup, Tier, EncounterIndex)
+				         .IsEmpty();
 				CardPack.RemainingPurchases = Pack.RemainingPurchases;
 				CardPack.TotalPurchases = ConfiguredCardTierQuantities.Contains(Tier)
 				                              ? ConfiguredCardTierQuantities[Tier]
 				                              : (bHasRemaining ? 1 : 0);
 				CardPack.Status = Pack.bPurchased          ? EReEchoShopCardPackStatus::Purchased
 				                  : Pack.bPaymentCommitted ? EReEchoShopCardPackStatus::PaidPendingChoice
-				                  : bHasRemaining           ? EReEchoShopCardPackStatus::Available
+				                  : bHasRemaining && bHasEligibleCard ? EReEchoShopCardPackStatus::Available
 				                                           : EReEchoShopCardPackStatus::SoldOut;
 				if (Pack.bPurchased)
 				{
@@ -2645,7 +2624,7 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				{
 					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackPending", "待选卡");
 				}
-				else if (bHasRemaining)
+				else if (bHasRemaining && bHasEligibleCard)
 				{
 					const int32 TotalQty = ConfiguredCardTierQuantities.Contains(Tier)
 					                       ? ConfiguredCardTierQuantities[Tier] : 1;
@@ -2704,11 +2683,6 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					                     TimeShards >= Choice.RefreshCost;
 					}
 					CardPack.Choices.Add(MoveTemp(Choice));
-				}
-				if (!Pack.bPaymentCommitted && !Pack.bPurchased && CardPack.Choices.IsEmpty())
-				{
-					CardPack.Status = EReEchoShopCardPackStatus::SoldOut;
-					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackSoldOut", "售罄");
 				}
 				CardPack.bCanPurchase =
 				    CardPack.IsAvailable() && CanPurchaseExtraShopCard() && CanPayShopCost(CardPack.EffectivePrice);
@@ -4123,6 +4097,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 		return Finish(
 		    EReEchoShopPurchaseResult::DataUnavailable, TEXT("The runtime card data is unavailable"), EffectivePrice);
 	}
+	const int32 RequestedSelectableCardCount = FMath::Max(1, ResolvePackSelectableCardCount(Tier));
 
 	FReEchoBuildSnapshot PendingBuild;
 	FString MutationDetail = TEXT("The authoritative build rejected the card-pack payment");
@@ -4138,11 +4113,19 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 		        }
 		        FReEchoShopCardPackRuntimeState& Pack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
 		        if (Pack.Tier != Tier || Pack.bPaymentCommitted || Pack.bPurchased ||
-		            Pack.RemainingPurchases <= 0 || Pack.CandidateCardIds.IsEmpty())
+		            Pack.RemainingPurchases <= 0)
 		        {
 			        MutationDetail = TEXT("The card pack payment state changed before commit");
 			        return false;
 		        }
+		        RollShopCardPackCandidates(*Snapshot, Build.CardState, Pack, Tier);
+		        if (Pack.CandidateCardIds.IsEmpty())
+		        {
+			        MutationDetail = TEXT("No eligible card remains in the requested tier pack");
+			        return false;
+		        }
+		        Pack.SelectableCardCount = FMath::Clamp(RequestedSelectableCardCount, 1, Pack.CandidateCardIds.Num());
+		        Pack.PicksRemaining = Pack.SelectableCardCount;
 		        Pack.bPaymentCommitted = true;
 		        const FReEchoCardEventResult Event =
 		            ReEchoCardRuntime::OnPurchase(*Snapshot->CardCatalog, Build.CardState, Build.Stats);
@@ -4156,16 +4139,6 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	}
 	CurrentBuild = MoveTemp(PendingBuild);
 	CommitShopCost(EffectivePrice);
-	// Decide how many cards this pack hands out. A cadence ability (Sage) can raise it to two, which turns
-	// the usual 3-choose-1 into 3-choose-2. Resolved at payment so the choice screen can require both picks.
-	for (FReEchoShopCardPackRuntimeState& Pack : CurrentBuild.CardState.Runtime.ShopCardPackStates)
-	{
-		if (Pack.Tier == Tier && Pack.bPaymentCommitted)
-		{
-			Pack.SelectableCardCount = FMath::Max(1, ResolvePackSelectableCardCount(Tier));
-			Pack.PicksRemaining = Pack.SelectableCardCount;
-		}
-	}
 	ReEchoBuildTrace::LogSnapshot(
 	    TEXT("ShopCardPackPaid"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("tier=%d"), Tier));
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
@@ -4342,7 +4315,9 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 			        ClaimedPack.bPurchased = false;
 			        ClaimedPack.bPaymentCommitted = false;
 			        ClaimedPack.ClaimCount++;
-			        ReRollShopCardPackCandidates(*Snapshot, Build.CardState, ClaimedPack, ClaimedPack.Tier);
+			        ClaimedPack.CandidateCardIds.Reset();
+			        ClaimedPack.OfferHistoryCardIds.Reset();
+			        ClaimedPack.SlotRefreshUses.Reset();
 		        }
 		        else
 		        {
@@ -4506,10 +4481,11 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 				// Reset purchase state so this tier can be paid again.
 				ClaimedPack.bPurchased = false;
 				ClaimedPack.bPaymentCommitted = false;
-				// This repeat purchase is a separate pack, so roll its own three cards instead of
-				// re-showing the candidates generated when the page was first built.
+				// The next purchase generates its candidates against the then-current owned state.
 				ClaimedPack.ClaimCount++;
-				ReRollShopCardPackCandidates(*Snapshot, Build.CardState, ClaimedPack, ClaimedPack.Tier);
+				ClaimedPack.CandidateCardIds.Reset();
+				ClaimedPack.OfferHistoryCardIds.Reset();
+				ClaimedPack.SlotRefreshUses.Reset();
 			}
 			else
 			{
@@ -4842,14 +4818,13 @@ int32 UReEchoRunSubsystem::ResolvePackSelectableCardCount(const int32 CardPackTi
 	               *LoadedSnapshot, CurrentBuild.CharacterId, NextSelectionIndex, CardPackTier);
 }
 
-void UReEchoRunSubsystem::ReRollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
-                                                       FReEchoCardBuildState& CardState,
-                                                       FReEchoShopCardPackRuntimeState& Pack,
-                                                       const int32 Tier)
+void UReEchoRunSubsystem::RollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
+	                                                  FReEchoCardBuildState& CardState,
+	                                                  FReEchoShopCardPackRuntimeState& Pack,
+	                                                  const int32 Tier)
 {
-	// Card packs keep one stable page per encounter, but a tier configured with several purchases would
-	// otherwise hand out the same three cards every time. Reset the roll and reseed it with ClaimCount so
-	// each purchase instance is an independent pack.
+	// Candidate generation is part of payment: it observes every card granted earlier in this shop. ClaimCount
+	// keeps repeated purchases independent while the resulting page remains stable until the claim completes.
 	Pack.CandidateCardIds.Reset();
 	Pack.OfferHistoryCardIds.Reset();
 	Pack.SlotRefreshUses.Reset();
