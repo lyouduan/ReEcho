@@ -58,7 +58,7 @@
 - [x] 聚焦自动化源码覆盖三档解析、按需缓存/隔离、StartRun 锁定、开始菜单释放内存锁、偏好与 Run Save 往返、旧版本迁移和继续游戏快照一致性；本机自动化执行被 UE 5.8 非目标平台 SDK 元数据错误阻断，未虚报通过。
 - [x] `python scripts/validate_project.py`、两套 XLSX 同步/单元测试、`git diff --check`、Editor Development 构建通过并刷新精选预构建包；最终发布前仍需按规则执行 `-FullRebuild`。
 - [x] 用户明确授权发布当前 UI/运行时候选；未另行提供 PIE 过程证据，因此不把人工游玩描述为已执行测试。
-- [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
+- [x] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
 
@@ -107,6 +107,9 @@
 - `python scripts/validate_project.py` 与 `git diff --check`：通过。
 - `scripts/ue/Build-Editor.cmd -Configuration Development`：UHT/UBT 成功，精选预构建包刷新为 `source=0619587beae2`。
 - `scripts/ue/Run-Automation.cmd -Filter ReEcho.Difficulty`：测试发现前被 UE 5.8 `LinuxArm64` / `VisionOS` 缺失 SDK `MainVersion` 阻断，属于宿主平台校验问题；因此只记录自动化源码已编译，不声明运行通过。
+- 发布前取得 `main-publish-lock` 后审计并合入 `origin/main@05195466cbe471e76bc6101bc4841b3c16cd7149`。远端新增永久生命同步事件与 Plan162 在 `ReEchoRunSubsystem.cpp` 存在同文件物理重叠，但无产品逻辑冲突；组合保留远端卡牌生命同步语义，并叠加本 Plan 的难度偏好、锁定快照与存档迁移。精选 DLL/manifest 不二选一，统一由组合源码重建。
+- 最终组合候选执行 UE 5.8 Development `-FullRebuild`，96 个动作完成并刷新七模块精选包；`python scripts/ue/prebuilt_editor.py check` 通过，Build ID `55116800`、source fingerprint `2402375968d6`。
+- 最终组合候选再次通过 `sync_difficulty_xlsx_to_csv.py --check`、难度同步测试 2/2、旧 XLSX 同步测试 18/18、`validate_project.py`、`git diff --check`、LFS hydration/status/fsck。聚焦自动化仍受上述非目标平台 SDK 元数据错误阻断，不作为通过证据。
 
 ### 剩余风险
 
