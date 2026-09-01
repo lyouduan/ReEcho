@@ -820,11 +820,12 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          RunSubsystem->PurchaseShopCardPackDetailed(PurchasedCard.Tier).IsSuccess());
 	TestTrue(TEXT("A paid candidate can be claimed"),
 	         RunSubsystem->ClaimPaidShopCardChoice(PurchasedCard.ItemId).IsSuccess());
-	// Egao Party: a claim also hands out 1-5 bonus copies of 样样都通, so the owned set grows by
-	// the chosen card plus that bonus rather than by exactly one.
+	// Egao Party: a claim also hands out 1-5 copies of 样样都通, and those fire their effect and
+	// deliver every tier-one card, so the owned set grows well past one. The exact count depends on
+	// the bonus roll and is asserted by the Egao card tests; here we only require real growth.
 	const int32 OwnedAfterClaim = RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num();
-	TestTrue(TEXT("Card purchase grants the choice plus one to five bonus copies"),
-	         OwnedAfterClaim >= OwnedBefore + 2 && OwnedAfterClaim <= OwnedBefore + 6);
+	TestTrue(TEXT("Card purchase grants the choice plus the Egao bonus cards"),
+	         OwnedAfterClaim > OwnedBefore + 1);
 	TestTrue(TEXT("Granted card id is the selected choice id"),
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedCard.CardId));
 	TestEqual(TEXT("Card claim does not charge again"),
@@ -843,12 +844,20 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("A purchased pack preserves its cached candidate ids for save/load stability"),
 	         RunSubsystem->CurrentBuild.CardState.Runtime.ShopCardPackStates[PurchasedCard.Tier - 1]
 	             .CandidateCardIds.Contains(PurchasedCard.CardId));
-	TestFalse(TEXT("The newly owned tier-two/three card is no longer projected as a shop choice"),
-	          PurchasedPack.Choices.ContainsByPredicate(
-	              [&](const FReEchoShopCardChoiceOffer& Choice)
-	              {
-		              return Choice.ItemId == PurchasedCard.ItemId || Choice.CardId == PurchasedCard.CardId;
-	              }));
+	// Egao Party: easter-egg cards and 样样都通 stay projected after being owned because they are
+	// repeatable by design. This check therefore only applies to ordinary cards.
+	auto IsNonRepeatableMatch = [&](const FReEchoShopCardChoiceOffer& Choice)
+	{
+		if (Choice.ItemId != PurchasedCard.ItemId && Choice.CardId != PurchasedCard.CardId)
+		{
+			return false;
+		}
+		const FReEchoCardDefinition* Card =
+		    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() ? Snapshot->CardCatalog->Find(Choice.CardId) : nullptr;
+		return Card && !ReEchoCardRuntime::IsRepeatableCard(*Card);
+	};
+	TestFalse(TEXT("The newly owned non-repeatable tier-two/three card is no longer projected as a shop choice"),
+	          PurchasedPack.Choices.ContainsByPredicate(IsNonRepeatableMatch));
 	TestFalse(TEXT("Same card offer cannot be claimed twice on one page"),
 	          RunSubsystem->ClaimPaidShopCardChoice(PurchasedCard.ItemId).IsSuccess());
 	const int32 OtherPackIndex = PurchasedCard.Tier == 2 ? 2 : 1;
@@ -872,12 +881,8 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Weapon/rune refresh preserves the purchased card-pack state"),
 	          RefreshedPage.CardPackOffers[PurchasedCard.Tier - 1].Status,
 	          EReEchoShopCardPackStatus::Purchased);
-	TestFalse(TEXT("A non-tier-one purchased card stays excluded after refresh"),
-	          RefreshedPage.CardPackOffers[PurchasedCard.Tier - 1].Choices.ContainsByPredicate(
-	              [&](const FReEchoShopCardChoiceOffer& Choice)
-	              {
-		              return Choice.CardId == PurchasedCard.CardId;
-	              }));
+	TestFalse(TEXT("A non-tier-one purchased non-repeatable card stays excluded after refresh"),
+	          RefreshedPage.CardPackOffers[PurchasedCard.Tier - 1].Choices.ContainsByPredicate(IsNonRepeatableMatch));
 
 	UGameInstance* OwnershipChangeGameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	UReEchoRunSubsystem* OwnershipChangeRun = NewObject<UReEchoRunSubsystem>(OwnershipChangeGameInstance);

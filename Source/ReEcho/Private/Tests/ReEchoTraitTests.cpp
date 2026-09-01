@@ -478,7 +478,10 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->DebugGrantCard(TEXT("G_1_03")));
+	// Egao Party: suppress the bonus 样样都通 so this asserts the card's own authored effect in
+	// isolation. Without it the bonus delivers every tier-one card, some of which are detrimental,
+	// making the exact delta unpredictable. The bonus itself is covered by the Egao card tests.
+	TestTrue(TEXT("A CSV numeric trait can be applied"), RunSubsystem->DebugGrantCard(TEXT("G_1_03"), true));
 	TestEqual(TEXT("Physical attack add comes from card_effects.csv"),
 	          RunSubsystem->CurrentBuild.Stats.PhysicalAttack,
 	          PhysicalBefore + PhysicalEffect->Value);
@@ -495,7 +498,7 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	const float MaximumHealthBeforeStrength = RunSubsystem->CurrentBuild.Stats.HpMax;
 	const float CurrentHealthBeforeStrength = RunSubsystem->CurrentBuild.Stats.HpPoint;
 	TestTrue(TEXT("Life Strength can be granted through the authoritative Run transaction"),
-	         RunSubsystem->DebugGrantCard(TEXT("G_1_02")));
+	         RunSubsystem->DebugGrantCard(TEXT("G_1_02"), true));
 	TestEqual(TEXT("Run publishes Life Strength's typed health adjustment after commit"),
 	          CommittedHealthAdjustment,
 	          EReEchoHealthAdjustment::SetToStatPoint);
@@ -511,7 +514,7 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	                                    RunSubsystem->CurrentBuild.Stats.ElementalAttack;
 	RunSubsystem->EncounterIndex = 5;
 	TestTrue(TEXT("Blood Forging can be granted through the authoritative Run transaction"),
-	         RunSubsystem->DebugGrantCard(TEXT("G_3_14")));
+	         RunSubsystem->DebugGrantCard(TEXT("G_3_14"), true));
 	TestEqual(TEXT("Run publishes Blood Forging's typed health adjustment after commit"),
 	          CommittedHealthAdjustment,
 	          EReEchoHealthAdjustment::FillToMax);
@@ -523,7 +526,7 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 
 	RunSubsystem->EncounterIndex = 4;
 	TestTrue(TEXT("Sacrificial Echo can be granted for its authored encounter"),
-	         RunSubsystem->DebugGrantCard(TEXT("G_3_04")));
+	         RunSubsystem->DebugGrantCard(TEXT("G_3_04"), true));
 	CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
 	const float MaximumHealthBeforeEchoDefeat = RunSubsystem->CurrentBuild.Stats.HpMax;
 	const float CurrentHealthBeforeEchoDefeat = RunSubsystem->CurrentBuild.Stats.HpPoint;

@@ -3401,7 +3401,7 @@ void UReEchoRunSubsystem::ResetPendingTraitCardChoice()
 	PendingTraitCardOfferEncounterIndex = INDEX_NONE;
 }
 
-bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
+bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId, const bool bSuppressEgaoBonusGrant)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
@@ -3445,6 +3445,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 		        Input.CardState = BaseBuild.CardState;
 		        Input.TimeShards = PendingTimeShards;
 		        Input.EncounterIndex = EncounterIndex;
+		        Input.bSuppressEgaoBonusGrant = bSuppressEgaoBonusGrant;
 		        const FReEchoCardGrantResult Grant =
 		            ReEchoCardRuntime::TryGrantCard(*Snapshot->CardCatalog, CardId, Input);
 		        if (!Grant.bSucceeded)
@@ -4312,8 +4313,10 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 	for (const FReEchoShopCardChoiceOffer& Choice : Choices)
 	{
 		const FReEchoCardDefinition* ChoiceDefinition = Snapshot->CardCatalog->Find(Choice.CardId);
+		// Egao Party: repeatable cards may be claimed again even while owned.
 		if (ReEchoCardRuntime::HasCard(CurrentBuild.CardState, Choice.CardId) &&
-		    (!ChoiceDefinition || ChoiceDefinition->StackPolicy == TEXT("Unique") || ChoiceDefinition->Tier != 1))
+		    (!ChoiceDefinition || ChoiceDefinition->StackPolicy == TEXT("Unique") || ChoiceDefinition->Tier != 1) &&
+		    !(ChoiceDefinition && ReEchoCardRuntime::IsRepeatableCard(*ChoiceDefinition)))
 		{
 			return Finish(EReEchoShopPurchaseResult::AlreadyOwned,
 			              TEXT("Owned unique, tier-2, tier-3, and Easter cards cannot be claimed again"));
@@ -4487,8 +4490,10 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 		return Finish(EReEchoShopPurchaseResult::OfferNotFound, TEXT("This paid card pack requires multiple choices"));
 	}
 	const FReEchoCardDefinition* ChoiceDefinition = Snapshot->CardCatalog->Find(Choice.CardId);
+	// Egao Party: repeatable cards may be claimed again even while owned.
 	if (ReEchoCardRuntime::HasCard(CurrentBuild.CardState, Choice.CardId) &&
-	    (!ChoiceDefinition || ChoiceDefinition->StackPolicy == TEXT("Unique") || ChoiceDefinition->Tier != 1))
+	    (!ChoiceDefinition || ChoiceDefinition->StackPolicy == TEXT("Unique") || ChoiceDefinition->Tier != 1) &&
+	    !(ChoiceDefinition && ReEchoCardRuntime::IsRepeatableCard(*ChoiceDefinition)))
 	{
 		return Finish(EReEchoShopPurchaseResult::AlreadyOwned,
 		              TEXT("Owned unique, tier-2, tier-3, and Easter cards cannot be claimed again"));

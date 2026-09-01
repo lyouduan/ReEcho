@@ -302,6 +302,12 @@ struct REECHOCARDS_API FReEchoCardGrantInput
 	int32 EncounterIndex = 0;
 	int32 RandomSeed = 0;
 	bool bRecordOwnership = true;
+	/**
+	 * Egao Party: skip the bonus 样样都通 that every grant normally awards. Used by card-effect
+	 * tests that assert exact stat deltas, which the extra cards (some of them detrimental) would
+	 * otherwise make impossible to predict. Gameplay always leaves this false.
+	 */
+	bool bSuppressEgaoBonusGrant = false;
 };
 
 USTRUCT()

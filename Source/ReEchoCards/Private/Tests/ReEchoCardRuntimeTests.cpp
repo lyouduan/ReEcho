@@ -85,6 +85,40 @@ bool FReEchoOwnedCardTierOfferRulesTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoEgaoBonusGrantTest,
+                                 "ReEcho.Cards.Egao.BonusCardIsGrantedAndFiresItsEffect",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoEgaoBonusGrantTest::RunTest(const FString&)
+{
+	// A tier-one card that only 样样都通 can deliver.
+	const FReEchoCardDefinition TierOne =
+	    MakeCard(TEXT("G_1_01"), 1, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("PhysicalAttack"), 1.0f);
+	// 样样都通: on grant it hands out every enabled tier-one card.
+	const FReEchoCardDefinition AllRounder =
+	    MakeCard(TEXT("G_3_23"), 3, TEXT("Card.GrantAllTier1"), TEXT("OnGrant"), TEXT("Tier"), 1.0f);
+	// The card the player actually picked.
+	const FReEchoCardDefinition Chosen =
+	    MakeCard(TEXT("G_2_05"), 2, TEXT("Card.StatModifier"), TEXT("OnGrant"), TEXT("ElementalAttack"), 2.0f);
+
+	const FReEchoCardCatalog Catalog = BuildCatalog({TierOne, AllRounder, Chosen});
+	FReEchoCardGrantInput Input;
+	Input.CardState.DomainRevision = Catalog.GetDomainRevision();
+	Input.RandomSeed = 20260901;
+
+	const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, Chosen.Id, Input);
+
+	TestTrue(TEXT("The chosen card is granted"), Grant.bSucceeded);
+	TestTrue(TEXT("The chosen card is owned"), Grant.CardState.OwnedCardIds.Contains(Chosen.Id));
+	TestTrue(TEXT("The bonus 样样都通 is granted"), Grant.CardState.OwnedCardIds.Contains(TEXT("G_3_23")));
+	// The bonus must actually take effect, not just sit in the owned list.
+	TestTrue(TEXT("The bonus card's effect fires and delivers the tier-one card"),
+	         Grant.CardState.OwnedCardIds.Contains(TierOne.Id));
+	TestTrue(TEXT("The bonus card stacks at least one copy"),
+	         ReEchoCardRuntime::CountOwned(Grant.CardState, TEXT("G_3_23")) >= 1);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoGrantAllTierOneCardsTest,
                                  "ReEcho.Cards.Grant.GrantAllTierOneAddsEveryEnabledCard",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

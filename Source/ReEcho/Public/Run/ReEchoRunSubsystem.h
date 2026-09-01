@@ -236,7 +236,8 @@ public:
 	/** 调试用：将指定卡牌直接加入当前构筑（忽略阶段/候选限制），用于复现与验证卡牌效果（如静默刻度 G_2_17）。仅由 GM
 	 * 命令调用，Shipping 构建不暴露。 */
 	UFUNCTION(BlueprintCallable)
-	bool DebugGrantCard(FName CardId);
+	/** bSuppressEgaoBonusGrant skips the Egao Party bonus 样样都通; only card-effect tests use it. */
+	bool DebugGrantCard(FName CardId, bool bSuppressEgaoBonusGrant = false);
 
 	FReEchoCardRuleSnapshot GetCardRules() const;
 	/** Enables the hidden Phase3 final-stat multiplier once without changing canonical equipment-base stats. */

@@ -70,32 +70,32 @@ G_2_33,G_2_29,2,雷鸣之心,每有一个敌方单位受到“导电”，你获
 G_2_34,G_2_30,2,生命虹吸,你的任何生命回复效果，能溢出血量上限，直至最大生命值的30%,Survival|Healing,Brave,Trait,true,true,Unique,None,Approved,
 G_4_1,G_4_1,0,策法爆培嘉,"每关结束后，赌一把大的！攒够了家底以后，商店刷新永远为你开放！
 
-——策划 爆培嘉 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+——策划 爆培嘉 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_2,G_4_2,0,你觉得这个怎么样,"选择后，你可能拥有至高无上的暴击数值，也可能从此一蹶不振！
 
-——策划 斑 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+——策划 斑 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_3,G_4_3,0,恋爱小脑,"回响触碰到敌人，造成20物理伤害；如果是你，你回复10生命值。数值每关翻倍！
 
-——策划 麦麦熊 敬上",EasterEgg|Echo,None,EasterEgg,true,true,Unique,None,Approved,
+——策划 麦麦熊 敬上",EasterEgg|Echo,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_4,G_4_4,0,呕人？哕人？,"失去所有时间碎片。每失去15时间碎片，随机获得一些属性！
 
-——策划 呕乐兮 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+——策划 呕乐兮 敬上",EasterEgg|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_5,G_4_5,0,帅气T傥,"身边的敌人都被你迷倒了！
 
-——特别鸣谢 程序 T爷",EasterEgg|Control,None,EasterEgg,true,true,Unique,None,Approved,
+——特别鸣谢 程序 T爷",EasterEgg|Control,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_6,G_4_6,0,“野狗”的荣耀,"你努力奔跑。下一关，1滴血换1张1级卡牌
 
-——特别鸣谢 程序 Jo爷",EasterEgg|Cards,None,EasterEgg,true,true,Unique,None,Approved,
+——特别鸣谢 程序 Jo爷",EasterEgg|Cards,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_7,G_4_7,0,绝不迟到之人！,"神秘人往你的物理伤害后面加随机个0
 
-——特别鸣谢 美术 00",EasterEgg|Damage|Gamble,None,EasterEgg,true,true,Unique,None,Approved,
+——特别鸣谢 美术 00",EasterEgg|Damage|Gamble,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_8,G_4_8,0,【粥粥】之力,"经济系统被赋予“ELO”机制
 
-——特别鸣谢 美术 子涵",EasterEgg|Economy,None,EasterEgg,true,true,Unique,None,Approved,
+——特别鸣谢 美术 子涵",EasterEgg|Economy,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_9,G_4_9,0,按时上课！,"每一关卡结束后，随机获得巨额生命值/元攻/物攻
 
-——特别鸣谢 美术 雯雯",EasterEgg|Growth,None,EasterEgg,true,true,Unique,None,Approved,
+——特别鸣谢 美术 雯雯",EasterEgg|Growth,None,EasterEgg,true,true,Stackable,None,Approved,
 G_4_10,G_4_10,0,符合预期,"选择后，攻击力永久增加5。
 
 策划：为什么表现是这样的？
-程序：单子上是这么写的，符合预期",EasterEgg|Attack,None,EasterEgg,true,true,Unique,None,Approved,
+程序：单子上是这么写的，符合预期",EasterEgg|Attack,None,EasterEgg,true,true,Stackable,None,Approved,

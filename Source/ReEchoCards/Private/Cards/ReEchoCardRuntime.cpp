@@ -847,12 +847,13 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		return Result;
 	}
 
-	// Egao Party: every acquisition also hands out 1-5 extra copies of 样样都通. The bonus copies are
-	// added straight to the owned set instead of going through GrantSingle, so they apply no card
-	// effects and cannot re-trigger this bonus (which would otherwise recurse forever).
+	// Egao Party: every acquisition also hands out 1-5 extra copies of 样样都通.
+	// The first copy is routed through GrantSingle so its OnGrant actually fires and delivers the
+	// tier-one cards; the remaining copies only stack. Recursion stays impossible because this
+	// block runs outside GrantSingle, so anything 样样都通 grants never re-enters the bonus.
 	{
 		const FReEchoCardDefinition* BonusCard = Catalog.Find(TEXT("G_3_23"));
-		if (BonusCard && BonusCard->bEnabled && Input.bRecordOwnership)
+		if (BonusCard && BonusCard->bEnabled && Input.bRecordOwnership && !Input.bSuppressEgaoBonusGrant)
 		{
 			// Draw from a seed that depends only on the run seed and the card being granted.
 			// Deliberately not tied to owned-card count and not advancing Runtime.RandomSequence:
@@ -864,6 +865,18 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 			const int32 BonusCount = BonusRandom.RandRange(1, 5);
 			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
 			{
+				// GrantSingle rejects ids already granted in this transaction, which is the case
+				// when the player picked 样样都通 itself. Only the first copy needs its effects.
+				if (BonusIndex == 0 && !GrantedThisTransaction.Contains(BonusCard->Id))
+				{
+					if (!GrantSingle(BonusCard->Id, true, false))
+					{
+						// A failed bonus must never undo the card the player actually chose.
+						Result.CardState.OwnedCardIds.Add(BonusCard->Id);
+						Result.GrantedCardIds.Add(BonusCard->Id);
+					}
+					continue;
+				}
 				Result.CardState.OwnedCardIds.Add(BonusCard->Id);
 				Result.GrantedCardIds.Add(BonusCard->Id);
 			}
