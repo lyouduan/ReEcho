@@ -558,6 +558,12 @@ struct REECHO_API FReEchoCsvSpawnPolicyRow
 	FName PlayerPredictionPolicy;
 	FName MultiEchoPolicy;
 	int32 MaxCandidateAttempts = 0;
+	/**
+	 * Egao Party: when true, spawns are scattered uniformly across the whole arena bounds and the
+	 * echo anchor is ignored entirely. Anchor-ring placement cannot hold hundreds of concurrent
+	 * enemies because spacing and minimum-distance rejections exhaust every candidate attempt.
+	 */
+	bool bFullMapRandom = false;
 	bool bEnabled = false;
 	FString SourceSheet;
 	int32 SourceRow = 0;

@@ -200,23 +200,23 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	         FReEchoSpawnResolver::Resolve(*Profile, *Policy, Request, Second, SecondError));
 	TestEqual(TEXT("Stable seed produces the same location"), First.Location, Second.Location);
 	TestEqual(TEXT("Resolved location preserves the requested final actor center height"), First.Location.Z, 215.0);
-	TestTrue(TEXT("Ratio one chooses the available echo anchor"), First.bUsedEchoAnchor);
-	TestTrue(TEXT("Player exclusion distance is honored"),
+	TestFalse(TEXT("Echo anchor concept is dropped under full-map random placement"), First.bUsedEchoAnchor);
+	TestTrue(TEXT("Player exclusion distance is still honored"),
 	         FVector::Dist2D(First.Location, Request.PlayerAnchor) >= Policy->MinPlayerDistanceCm);
-	TestTrue(TEXT("Echo exclusion distance is honored"),
-	         FVector::Dist2D(First.Location, Request.EchoAnchor) >= Policy->MinEchoDistanceCm);
-	TestTrue(TEXT("Resolved location stays inside translated wall-derived world bounds"),
+	TestTrue(TEXT("Resolved location stays inside arena bounds"),
 	         Request.SpawnWorldBounds.IsInside(FVector2D(First.Location.X, First.Location.Y)));
 
-	FReEchoSpawnResolveRequest ImpossibleRequest = Request;
-	ImpossibleRequest.SpawnWorldBounds = FBox2D(FVector2D(10000.0f, 10000.0f), FVector2D(10010.0f, 10010.0f));
-	ImpossibleRequest.ExistingLocations = {FVector(10005.0f, 10005.0f, 0.0f)};
-	FReEchoResolvedSpawn RejectedSpawn;
-	FString RejectedError;
-	TestFalse(TEXT("Resolver fails closed when no in-bounds candidate satisfies constraints"),
-	          FReEchoSpawnResolver::Resolve(*Profile, *Policy, ImpossibleRequest, RejectedSpawn, RejectedError));
-	TestTrue(TEXT("Failed resolver names the wall-derived candidate failure"),
-	         RejectedError.Contains(TEXT("wall-derived")));
+	// Full-map random placement never fails closed: even a postage-stamp arena always yields a
+	// point inside its bounds, so hundreds of concurrent enemies keep flowing in.
+	FReEchoSpawnResolveRequest TinyRequest = Request;
+	TinyRequest.SpawnWorldBounds = FBox2D(FVector2D(10000.0f, 10000.0f), FVector2D(10010.0f, 10010.0f));
+	TinyRequest.ExistingLocations = {FVector(10005.0f, 10005.0f, 0.0f)};
+	FReEchoResolvedSpawn TinySpawn;
+	FString TinyError;
+	TestTrue(TEXT("Full-map random placement always yields a location"),
+	         FReEchoSpawnResolver::Resolve(*Profile, *Policy, TinyRequest, TinySpawn, TinyError));
+	TestTrue(TEXT("Full-map placement lands inside the tiny arena bounds"),
+	         TinyRequest.SpawnWorldBounds.IsInside(FVector2D(TinySpawn.Location.X, TinySpawn.Location.Y)));
 
 	const FReEchoCsvSpawnProfileRow* BossProfile = Load.Snapshot->FindSpawnProfileByRole(TEXT("Boss"));
 	if (!TestNotNull(TEXT("Boss has a dedicated spawn profile"), BossProfile))
@@ -228,11 +228,10 @@ bool FReEchoSpawnResolverTest::RunTest(const FString& Parameters)
 	Request.Sequence = 9;
 	FReEchoResolvedSpawn BossSpawn;
 	FString BossError;
-	TestTrue(TEXT("Boss spawn resolves through the shared deterministic solver"),
+	TestTrue(TEXT("Boss spawn resolves through the shared full-map solver"),
 	         FReEchoSpawnResolver::Resolve(*BossProfile, *Policy, Request, BossSpawn, BossError));
-	TestTrue(TEXT("Boss spawn stays inside its configured player distance ring"),
-	         FVector::Dist2D(BossSpawn.Location, Request.PlayerAnchor) >= BossProfile->MinAnchorDistanceCm &&
-	             FVector::Dist2D(BossSpawn.Location, Request.PlayerAnchor) <= BossProfile->MaxAnchorDistanceCm);
+	TestTrue(TEXT("Boss spawn stays inside arena bounds"),
+	         Request.SpawnWorldBounds.IsInside(FVector2D(BossSpawn.Location.X, BossSpawn.Location.Y)));
 	TestFalse(TEXT("Boss spawn no longer uses the former fixed world coordinate"),
 	          BossSpawn.Location.Equals(FVector(800.0f, 0.0f, 50.0f)));
 	return true;

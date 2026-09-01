@@ -261,6 +261,36 @@ bool FReEchoSpawnResolver::Resolve(const FReEchoCsvSpawnProfileRow& Profile,
 	}
 
 	FRandomStream Random(Request.Seed + Request.Sequence * 7919);
+
+	// Egao Party: scatter uniformly across the whole arena and drop the echo anchor outright.
+	// The anchor-ring solver rejects candidates that are too close to the player or to other
+	// enemies, so with hundreds of concurrent enemies every attempt fails and the 11x11 grid
+	// fallback (121 slots) runs out of room. Spacing is intentionally not enforced here.
+	if (Policy.bFullMapRandom)
+	{
+		auto RandomPoint = [&Random, &Request]()
+		{
+			return FVector(Random.FRandRange(Request.SpawnWorldBounds.Min.X, Request.SpawnWorldBounds.Max.X),
+			               Random.FRandRange(Request.SpawnWorldBounds.Min.Y, Request.SpawnWorldBounds.Max.Y),
+			               Request.SpawnCenterWorldZ);
+		};
+		for (int32 Attempt = 0; Attempt < Policy.MaxCandidateAttempts; ++Attempt)
+		{
+			const FVector Candidate = RandomPoint();
+			if (Distance2D(Candidate, Request.PlayerAnchor) < Policy.MinPlayerDistanceCm)
+			{
+				continue;
+			}
+			OutSpawn.Location = Candidate;
+			OutSpawn.bUsedEchoAnchor = false;
+			return true;
+		}
+		// A crowded arena can put every sample near the player; never fail to place an enemy.
+		OutSpawn.Location = RandomPoint();
+		OutSpawn.bUsedEchoAnchor = false;
+		return true;
+	}
+
 	const bool bUseEcho = Request.bHasEchoAnchor && Random.FRand() < FMath::Clamp(Request.EchoAnchorRatio, 0.0f, 1.0f);
 	const FVector Anchor = bUseEcho ? Request.EchoAnchor : Request.PlayerAnchor;
 	for (int32 Attempt = 0; Attempt < Policy.MaxCandidateAttempts; ++Attempt)

@@ -3304,11 +3304,13 @@ void AReEchoGameMode::PrepareScheduledSpawnBatch(const FReEchoScheduledSpawnEven
 		Request.PlayerAnchor = Player->GetActorLocation() + Player->GetVelocity() * Policy->AnchorLeadSeconds;
 		Request.PlayerAnchor.X = FMath::Clamp(Request.PlayerAnchor.X, SpawnWorldBounds.Min.X, SpawnWorldBounds.Max.X);
 		Request.PlayerAnchor.Y = FMath::Clamp(Request.PlayerAnchor.Y, SpawnWorldBounds.Min.Y, SpawnWorldBounds.Max.Y);
-		Request.bHasEchoAnchor = Echoes.Num() > 0 && IsValid(Echoes[0]);
+		// Egao Party: full-map random placement drops the echo anchor concept entirely, so the
+		// recorded echo position is not even evaluated.
+		Request.bHasEchoAnchor = !Policy->bFullMapRandom && Echoes.Num() > 0 && IsValid(Echoes[0]);
 		Request.EchoAnchor = Request.bHasEchoAnchor
 		                         ? Echoes[0]->EvaluateRecordedPosition(Event.SpawnSeconds + Policy->AnchorLeadSeconds)
 		                         : FVector::ZeroVector;
-		Request.EchoAnchorRatio = Encounter->EchoAnchorRatio;
+		Request.EchoAnchorRatio = Policy->bFullMapRandom ? 0.0f : Encounter->EchoAnchorRatio;
 		Request.SpawnWorldBounds = SpawnWorldBounds;
 		Request.SpawnCenterWorldZ = SpawnCenterWorldZ;
 		Request.Seed = 1337 + Encounter->EncounterIndex * 7919;

@@ -358,6 +358,7 @@ bool ReadSpawnPolicy(const FString& DataDirectory,
 	                            TEXT("PlayerPredictionPolicy"),
 	                            TEXT("MultiEchoPolicy"),
 	                            TEXT("MaxCandidateAttempts"),
+	                            TEXT("FullMapRandom"),
 	                            TEXT("Enabled"),
 	                            TEXT("SourceSheet"),
 	                            TEXT("SourceRow"),
@@ -379,6 +380,7 @@ bool ReadSpawnPolicy(const FString& DataDirectory,
 		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("PlayerPredictionPolicy"), Row.PlayerPredictionPolicy, Issues);
 		ReEchoCsv::RequireStableId(Table, CsvRow, TEXT("MultiEchoPolicy"), Row.MultiEchoPolicy, Issues);
 		ReEchoCsv::RequireInt(Table, CsvRow, TEXT("MaxCandidateAttempts"), Row.MaxCandidateAttempts, Issues);
+		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("FullMapRandom"), Row.bFullMapRandom, Issues);
 		ReEchoCsv::RequireBool(Table, CsvRow, TEXT("Enabled"), Row.bEnabled, Issues);
 		ReadSource(Table, CsvRow, Row.SourceSheet, Row.SourceRow, Row.Notes, Issues);
 

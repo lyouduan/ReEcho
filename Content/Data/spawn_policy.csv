@@ -1,2 +1,2 @@
-Id,AnchorLeadSeconds,MinPlayerDistanceCm,MinEchoDistanceCm,BoundaryPolicy,CandidatePolicy,PlayerPredictionPolicy,MultiEchoPolicy,MaxCandidateAttempts,Enabled,SourceSheet,SourceRow,Notes
-SpawnPolicy.Default,2.2,400,250,MirrorInward,DeterministicNormal,LinearVelocity,LatestEncounterE1,24,true,刷怪规则,17,双锚与边界约束
+Id,AnchorLeadSeconds,MinPlayerDistanceCm,MinEchoDistanceCm,BoundaryPolicy,CandidatePolicy,PlayerPredictionPolicy,MultiEchoPolicy,MaxCandidateAttempts,FullMapRandom,Enabled,SourceSheet,SourceRow,Notes
+SpawnPolicy.Default,2.2,400,250,MirrorInward,DeterministicNormal,LinearVelocity,LatestEncounterE1,24,true,true,刷怪规则,17,双锚与边界约束
