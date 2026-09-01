@@ -31,13 +31,14 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoTimeShardBalanceChanged,
                                      const FReEchoTimeShardBalance&);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FReEchoRunPhaseChanged, EReEchoRunPhase, NewPhase);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardGrantCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FReEchoCardHealthCommitted, const FReEchoStatBlock&, EReEchoHealthAdjustment);
 
 struct FReEchoCsvDataSnapshot;
 struct FReEchoCsvCardRow;
 struct FReEchoCardBuildState;
 
 USTRUCT(BlueprintType)
+
 struct REECHO_API FReEchoSaveSlotSummary
 {
 	GENERATED_BODY()
@@ -92,8 +93,8 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FReEchoRunPhaseChanged OnPhaseChanged;
 
-	/** Read-only post-commit notification. Subscribers may project the build but cannot mutate the transaction. */
-	FReEchoCardGrantCommitted OnCardGrantCommitted;
+	/** Unified post-commit card-health notification for grants, purchases, kills and encounter settlement. */
+	FReEchoCardHealthCommitted OnCardHealthCommitted;
 
 	/** Non-combat economy commands broadcast once after the complete outer transaction, never mid-grant. */
 	FReEchoTimeShardBalanceChanged OnTimeShardBalanceChanged;
@@ -208,8 +209,13 @@ public:
 	 * screen opens so the UI can require that many picks.
 	 */
 	int32 ResolvePackSelectableCardCount(int32 CardPackTier) const;
+
 	/** How many cards the pending post-encounter card pack lets the player take (1 normally, 2 on cadence). */
-	int32 GetPendingTraitCardSelectableCount() const { return PendingTraitCardSelectableCount; }
+	int32 GetPendingTraitCardSelectableCount() const
+	{
+		return PendingTraitCardSelectableCount;
+	}
+
 	/** How many cards the shop pack waiting to be claimed lets the player take (1 normally, 2 on cadence). */
 	int32 GetPaidShopCardPackSelectableCount() const;
 	/** Applies several cards from the pending post-encounter pack at once (cadence ability: 3-choose-2). */
@@ -350,7 +356,12 @@ public:
 	TArray<FReEchoSaveSlotSummary> GetSaveSlotSummaries() const;
 	bool SelectSaveSlot(int32 SlotIndex);
 	bool SelectFirstEmptySaveSlot();
-	int32 GetActiveSaveSlotIndex() const { return ActiveSaveSlotIndex; }
+
+	int32 GetActiveSaveSlotIndex() const
+	{
+		return ActiveSaveSlotIndex;
+	}
+
 	bool SaveRun(const FReEchoEncounterRuntimeState* EncounterRuntimeState = nullptr) const;
 	bool LoadSavedRun();
 	bool LoadSavedRunFromSlot(int32 SlotIndex);
@@ -359,7 +370,12 @@ public:
 	bool WriteActiveSaveSlotPreview(const TArray<uint8>& PngBytes) const;
 	bool HasPendingEncounterResume() const;
 	FReEchoEncounterRuntimeState ConsumePendingEncounterResume();
-	bool HasViewedStage01To02Cg() const { return bHasViewedStage01To02Cg; }
+
+	bool HasViewedStage01To02Cg() const
+	{
+		return bHasViewedStage01To02Cg;
+	}
+
 	/** Persists the account-level watched flag. Returns false without granting it when persistence fails. */
 	bool MarkStage01To02CgViewed();
 
@@ -378,9 +394,8 @@ private:
 	FString GetSaveSlotPreviewPath(int32 SlotIndex) const;
 	const UReEchoRunSaveGame* LoadValidatedSaveForSlot(int32 SlotIndex, bool& bOutLegacy) const;
 	void CommitShopCost(int32 Cost);
-	void ApplyProjectedCardCurrency(int32 PreviousBalance,
-	                                int32 ProjectedBalance,
-	                                bool bApplyEncounterIncomeRules = true);
+	void
+	ApplyProjectedCardCurrency(int32 PreviousBalance, int32 ProjectedBalance, bool bApplyEncounterIncomeRules = true);
 	void RefreshCurseBankOutcome();
 	void RefreshWeaponMasterOutcome();
 	int32 ResolveConfiguredFreeTraitTier() const;
@@ -493,7 +508,10 @@ private:
 	/** Resets every echo storage field to fresh-run defaults. */
 	void ResetEchoStorage();
 
-	void ReevaluateCoreCollectionCard();
+	/** Emits one finalized card-health commit when a build mutation changed permanent maximum/current health. */
+	void CommitCardHealthAdjustment(const FReEchoStatBlock& PreviousStats, EReEchoHealthAdjustment RequestedAdjustment);
+
+	EReEchoHealthAdjustment ReevaluateCoreCollectionCard();
 
 	void ClearTimeAnchorRecording();
 };

@@ -511,7 +511,7 @@ private:
 	/** Confirms several cards at once from a paid shop pack (cadence ability: 3-choose-2). */
 	UFUNCTION()
 	void HandleShopCardChoicesSelected(const TArray<FName>& ItemIds);
-	void HandleCardGrantCommitted(const FReEchoStatBlock& Stats, EReEchoHealthAdjustment HealthAdjustment);
+	void HandleCardHealthCommitted(const FReEchoStatBlock& Stats, EReEchoHealthAdjustment HealthAdjustment);
 	UFUNCTION()
 	void HandleTraitCardRefreshRequested(int32 SlotIndex);
 	void CreateArena();

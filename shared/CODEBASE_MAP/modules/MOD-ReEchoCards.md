@@ -45,8 +45,7 @@
 - 输入是不可变目录、构筑状态副本、确定性种子和类型化生命周期上下文。
 - 输出是新的构筑/遭遇状态、属性与货币候选变化，以及领域无关的规则快照。
 - `Card.TauntEcho` 通过 `FReEchoCardRuleSnapshot::bRetireEchoOnDefeat` 显式声明殉身回响死亡后的世界退场意图；该字段不能由 `bEchoesCanAttack`、生命倍率或自由文本反推。Cards 仍只计算一次 `OnEchoKilled` 属性结果，不销毁 Actor 或清理世界引用。
-- 需要同步实时生命的授予结果通过 `EReEchoHealthAdjustment` 返回类型化意图；例如“血肉铸锋”返回
-  `FillToMax`。Cards 只计算意图，不直接写 Actor、ASC 或 UI。
+- 任何永久修改 `HpMax` / `HpPoint` 的卡牌生命周期结果都通过 `EReEchoHealthAdjustment` 返回类型化意图；精确采用结果 StatBlock 时返回 `SetToStatPoint`，“血肉铸锋”等要求回满时返回 `FillToMax`。嵌套或批量授卡必须合并所有子意图，优先级为 `FillToMax > SetToStatPoint > None`，不得让后续无生命变化的结果覆盖已有意图。Cards 只计算意图，不直接写 Actor、ASC 或 UI。
 - 稳定随机结果、跨关延迟结算和永久累计收益同时写入 `ResolvedOutcomes`；它不记录每击、每脉冲等瞬时日志。
 - 所有命令均以稳定卡牌 ID 和 `BehaviorId` 分派；描述文本不进入规则判断。
 - 授予失败不修改输入；层级赠卡、随机权衡和资源变更属于同一原子结果。

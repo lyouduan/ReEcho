@@ -1,6 +1,6 @@
 Id,SourceWorkbookId,Tier,DisplayName,Description,Tags,PromotionRoleId,OfferGroup,Enabled,Offerable,StackPolicy,ConflictPolicy,ReviewStatus,DisabledReason
 G_1_01,G_1_01,1,速度强化,移动速度+6%,Base,Sage,Trait,true,true,Stackable,None,Approved,
-G_1_02,G_1_02,1,生命强化,生命值与生命上限+5,Base,Brave,Trait,true,true,Stackable,None,Approved,
+G_1_02,G_1_02,1,生命强化,生命值与生命上限+8,Base,Brave,Trait,true,true,Stackable,None,Approved,
 G_1_03,G_1_03,1,物理强化,物理攻击力+2,Base,Hunter,Trait,true,true,Stackable,None,Approved,
 G_1_04,G_1_04,1,元素强化,元素攻击力+2,Base,Poet,Trait,true,true,Stackable,None,Approved,
 G_1_05,G_1_05,1,暴击专家,暴击率+7%，暴击效果+15%,Base,Hunter,Trait,true,true,Stackable,None,Approved,
@@ -18,12 +18,12 @@ G_2_12,G_2_06,2,连携暴击,当敌人身上附着任意元素时，你或回响
 G_2_13,G_2_07,2,万象回春,每当你触发元素反应，回复20%生命值。冷却1秒,Element|Survival,Poet,Trait,true,true,Unique,None,Approved,
 G_2_14,G_2_08,2,我的替身,每一关，你免疫3次伤害，而当你受到第4次伤害时，回响消失,Echo|Survival|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
 G_2_15,G_2_09,2,梭哈是智慧,立即失去你的所有时间碎片。下一关，敌人额外掉落1.5倍,Economy,Sage,Trait,true,true,Unique,None,Approved,
-G_2_16,G_2_10,2,繁荣契约,你的商店获得10%折扣。你每消费1次，你的生命值和生命上限+3,Economy|Survival|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
+G_2_16,G_2_10,2,繁荣契约,你的商店获得20%折扣。你每购买1次任意商品，你的生命值和生命上限+2,Economy|Survival|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
 G_2_17,G_2_11,2,静默刻度,在每一关卡的第12s和第22s时，所有怪物【眩晕】2秒,Survival,Brave,Trait,true,true,Unique,None,Approved,
 G_3_01,G_3_01,3,双重回声,你额外拥有1个回响，对应你上上局的行为,Echo|Element|OfferEncounter3|OfferEncounter4|OfferEncounter5,Poet,Trait,true,true,Unique,EchoRecordingMode,Approved,
 G_3_02,G_3_02,3,时空锚点,你可以选择一关，成为你的时间锚点。你的回响只会重复你在这一关内的行为,Echo|OfferEncounter2|OfferEncounter3,Sage,Trait,true,true,Unique,EchoRecordingMode,Approved,
 G_3_03,G_3_03,3,涅槃之身,回响不再出现。你的所有属性翻倍；你之后将不再抽到“回响”相关卡牌,Body,Brave,Trait,true,true,Unique,EchoKeystone,Approved,
-G_3_04,G_3_04,3,殉身回响,你的回响拥有你3倍的生命值，但其无法攻击且不断吸引周围的敌人。每当它被击杀，你的最大生命值和当前生命值永久+3,Body|Survival|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
+G_3_04,G_3_04,3,殉身回响,你的回响继承你的生命值*2，但其无法攻击，且永久获得【嘲讽】状态。每当它被怪物击败，你的最大生命值和当前生命值永久+5,Body|Survival|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
 G_3_05,G_3_05,3,灵魂共振,"你的回响每击杀15名敌人，物攻&元攻永久+1
 你每击杀15名敌人，回响效能永久+2%",Echo|Body|OfferEncounter2|OfferEncounter3|OfferEncounter4,Brave,Trait,true,true,Unique,None,Approved,
 G_3_07,G_3_06,3,元素失衡,所有敌人的元素反应冷却时间从2秒降低至0.5秒,Element,Poet,Trait,true,true,Unique,None,Approved,
@@ -52,7 +52,7 @@ G_2_20,G_2_16,2,德古拉第I课,你回复相当于你造成溢出伤害20%的�
 G_2_29,G_2_25,2,自我赛跑,如果上一关你的伤害高于回响，则回响获得25%伤害增幅；反之，你获得25%伤害增幅,Base,Sage,Trait,true,true,Unique,None,Approved,
 G_3_27,G_3_23,3,德古拉第II课,你回复相当于你造成溢出伤害50%的生命值,Critical|Survival,Brave,Trait,true,true,Unique,None,Approved,
 G_2_27,G_2_23,2,损人利己,每当你或回响施加任意负面状态时，回复2生命值,Base|Survival,Brave,Trait,true,true,Unique,None,Approved,
-G_2_35,G_2_31,2,史莱姆杀手,当你击杀100只史莱姆后，生命上限翻倍，并回满生命。,Base|Survival,Hunter,Trait,true,true,Unique,None,Approved,
+G_2_35,G_2_31,2,史莱姆杀手,当你击杀50只史莱姆后，你对史莱姆的伤害将令其获得【诅咒】,Base|Survival,Hunter,Trait,true,true,Unique,None,Approved,
 G_2_36,G_2_32,2,兔兔杀手,当你击杀20只兔子后，本场对局内免疫兔子的伤害。,Base|Survival,Hunter,Trait,true,true,Unique,None,Approved,
 G_3_24,G_3_19,3,回归基本功,记录你下一次触发的元素反应。直至本局游戏结束，这个元素反应+100%伤害增幅；其他元素反应-100%伤害增幅,Element|Reaction,Poet,Trait,true,true,Unique,None,Approved,
 G_2_19,G_2_15,2,诅咒银行,"你可以在商店赊账，欠款会收取10%利息/每关

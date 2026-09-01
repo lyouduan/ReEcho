@@ -155,6 +155,15 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Add(TEXT("G_2_16"));
 	RunSubsystem->TimeShards = 50;
 	const float InitialHpMax = RunSubsystem->CurrentBuild.Stats.HpMax;
+	const float InitialHpPoint = RunSubsystem->CurrentBuild.Stats.HpPoint;
+	int32 HealthCommitCount = 0;
+	EReEchoHealthAdjustment LastHealthAdjustment = EReEchoHealthAdjustment::None;
+	RunSubsystem->OnCardHealthCommitted.AddLambda(
+	    [&HealthCommitCount, &LastHealthAdjustment](const FReEchoStatBlock&, const EReEchoHealthAdjustment Adjustment)
+	    {
+		    ++HealthCommitCount;
+		    LastHealthAdjustment = Adjustment;
+	    });
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	const FReEchoCardDefinition* Contract =
 	    Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() ? Snapshot->CardCatalog->Find(TEXT("G_2_16")) : nullptr;
@@ -189,6 +198,13 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Successful purchase applies permanent maximum health growth"),
 	          RunSubsystem->CurrentBuild.Stats.HpMax,
 	          InitialHpMax + Growth->Value);
+	TestEqual(TEXT("Successful purchase applies permanent current health growth"),
+	          RunSubsystem->CurrentBuild.Stats.HpPoint,
+	          InitialHpPoint + Growth->Value);
+	TestEqual(TEXT("A shop-item purchase publishes one committed health update"), HealthCommitCount, 1);
+	TestEqual(TEXT("The shop-item purchase uses the precise stat-point update"),
+	          LastHealthAdjustment,
+	          EReEchoHealthAdjustment::SetToStatPoint);
 
 	RunSubsystem->CurrentBuild.CardState.Runtime.FreeShopRefreshes = 1;
 	const FReEchoWeaponPartShopView InitialRefreshView = RunSubsystem->GetWeaponPartShopView();
@@ -240,6 +256,10 @@ bool FReEchoCardShopRulesTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestTrue(TEXT("Card-pack payment succeeds"), RunSubsystem->PurchaseShopCardPackDetailed(1).IsSuccess());
+	TestEqual(TEXT("Card-pack payment publishes the same unified health update"), HealthCommitCount, 2);
+	TestEqual(TEXT("The card-pack payment uses the precise stat-point update"),
+	          LastHealthAdjustment,
+	          EReEchoHealthAdjustment::SetToStatPoint);
 	const FReEchoWeaponPartShopView PaidCardPackPage = RunSubsystem->GetWeaponPartShopView();
 	if (!TestTrue(TEXT("Payment generates at least one tier-one candidate"),
 	              !PaidCardPackPage.CardPackOffers[0].Choices.IsEmpty()))
@@ -726,9 +746,8 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          OwnedFilterPage.CardPackOffers[0].RemainingPurchases - 1);
 	if (PaidTierOnePack.Choices.Num() > 1)
 	{
-		TestFalse(
-		    TEXT("A second choice from the same pack is rejected"),
-		    RunSubsystem->ClaimPaidShopCardChoice(PaidTierOnePack.Choices[1].ItemId).IsSuccess());
+		TestFalse(TEXT("A second choice from the same pack is rejected"),
+		          RunSubsystem->ClaimPaidShopCardChoice(PaidTierOnePack.Choices[1].ItemId).IsSuccess());
 	}
 	// Each remaining pack requires a fresh payment; only the last claim closes the tier for this encounter.
 	for (int32 Remaining = ConsumedTierOnePage.CardPackOffers[0].RemainingPurchases; Remaining > 0; --Remaining)
@@ -771,16 +790,13 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Encounter four tier three is available"), FirstPage.CardPackOffers[2].IsAvailable());
 	const int32 OwnedBefore = RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num();
 	const int32 ShardsBefore = RunSubsystem->TimeShards;
-	const int32 EffectivePriceBeforePurchase =
-	    RunSubsystem->GetDiscountedShopPrice(FirstPage.CardPackOffers[1].Price);
-	TestTrue(TEXT("Current card pack can be prepaid"),
-	         RunSubsystem->PurchaseShopCardPackDetailed(2).IsSuccess());
+	const int32 EffectivePriceBeforePurchase = RunSubsystem->GetDiscountedShopPrice(FirstPage.CardPackOffers[1].Price);
+	TestTrue(TEXT("Current card pack can be prepaid"), RunSubsystem->PurchaseShopCardPackDetailed(2).IsSuccess());
 	const FReEchoWeaponPartShopView PaidPage = RunSubsystem->GetWeaponPartShopView();
 	const FReEchoShopCardChoiceOffer* PurchasedCardCandidate = PaidPage.CardPackOffers[1].Choices.FindByPredicate(
 	    [](const FReEchoShopCardChoiceOffer& Offer)
 	    {
-		    return Offer.CardId != TEXT("G_2_10") && Offer.CardId != TEXT("G_2_15") &&
-		           Offer.CardId != TEXT("G_2_22");
+		    return Offer.CardId != TEXT("G_2_10") && Offer.CardId != TEXT("G_2_15") && Offer.CardId != TEXT("G_2_22");
 	    });
 	if (!TestNotNull(TEXT("Payment generates a purchasable tier-two card"), PurchasedCardCandidate))
 	{
@@ -906,13 +922,14 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("One pack can be prepaid before saving"), StablePageRun->PurchaseShopCardPackDetailed(2).IsSuccess());
 	const FReEchoWeaponPartShopView StablePurchasedPage = StablePageRun->GetWeaponPartShopView();
-	const FReEchoShopCardChoiceOffer* StableTierTwoChoice = StablePurchasedPage.CardPackOffers[1].Choices.FindByPredicate(
-	    [](const FReEchoShopCardChoiceOffer& Choice)
-	    {
-		    // Keep this persistence/independence fixture focused: G_2_10 grants a tier-three card and
-		    // G_2_15 clears shards as their intended OnGrant effects.
-		    return Choice.CardId != TEXT("G_2_10") && Choice.CardId != TEXT("G_2_15");
-	    });
+	const FReEchoShopCardChoiceOffer* StableTierTwoChoice =
+	    StablePurchasedPage.CardPackOffers[1].Choices.FindByPredicate(
+	        [](const FReEchoShopCardChoiceOffer& Choice)
+	        {
+		        // Keep this persistence/independence fixture focused: G_2_10 grants a tier-three card and
+		        // G_2_15 clears shards as their intended OnGrant effects.
+		        return Choice.CardId != TEXT("G_2_10") && Choice.CardId != TEXT("G_2_15");
+	        });
 	if (!TestNotNull(TEXT("Stable page exposes a tier-two choice without cross-tier/currency side effects"),
 	                 StableTierTwoChoice))
 	{
@@ -1273,8 +1290,7 @@ bool FReEchoSeparatedShopRefreshTest::RunTest(const FString& Parameters)
 			ExhaustedRun->CurrentBuild.CardState.OwnedCardIds.Add(Card.Id);
 		}
 	}
-	const FReEchoShopCardChoiceOffer NoReplacementChoice =
-	    ExhaustedPaidPage.CardPackOffers[1].Choices[0];
+	const FReEchoShopCardChoiceOffer NoReplacementChoice = ExhaustedPaidPage.CardPackOffers[1].Choices[0];
 	const int32 BeforeNoReplacementShards = ExhaustedRun->TimeShards;
 	TestFalse(TEXT("A card slot with no legal unowned replacement is disabled transactionally"),
 	          ExhaustedRun->TryRefreshShopCardSlot(2, NoReplacementChoice.SlotIndex, RefreshError));

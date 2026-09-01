@@ -2,6 +2,30 @@
 
 namespace
 {
+EReEchoHealthAdjustment MergeHealthAdjustments(const EReEchoHealthAdjustment Current,
+                                               const EReEchoHealthAdjustment Incoming)
+{
+	if (Current == EReEchoHealthAdjustment::FillToMax || Incoming == EReEchoHealthAdjustment::FillToMax)
+	{
+		return EReEchoHealthAdjustment::FillToMax;
+	}
+	if (Current == EReEchoHealthAdjustment::SetToStatPoint || Incoming == EReEchoHealthAdjustment::SetToStatPoint)
+	{
+		return EReEchoHealthAdjustment::SetToStatPoint;
+	}
+	return EReEchoHealthAdjustment::None;
+}
+
+void RequestHealthAdjustment(EReEchoHealthAdjustment& Current, const EReEchoHealthAdjustment Incoming)
+{
+	Current = MergeHealthAdjustments(Current, Incoming);
+}
+
+bool IsCommittedHealthTarget(const FName Target)
+{
+	return Target == TEXT("HpMax") || Target == TEXT("HpPoint") || Target == TEXT("HpMaxAndPoint");
+}
+
 bool HasTag(const FReEchoCardDefinition& Card, const FName Tag)
 {
 	return Card.Tags.Contains(Tag);
@@ -527,6 +551,10 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					Result.Error = FString::Printf(TEXT("Unsupported stat target: %s"), *Effect.Target.ToString());
 					return false;
 				}
+				if (IsCommittedHealthTarget(Effect.Target))
+				{
+					RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
+				}
 			}
 			else if (Effect.BehaviorId == TEXT("Card.EasterIndependentGrant"))
 			{
@@ -550,7 +578,8 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					}
 					else if (!ApplyStatEffect(Result.Stats, Effect))
 					{
-						Result.Error = FString::Printf(TEXT("Unsupported Easter stat target: %s"), *Effect.Target.ToString());
+						Result.Error =
+						    FString::Printf(TEXT("Unsupported Easter stat target: %s"), *Effect.Target.ToString());
 						return false;
 					}
 					else
@@ -559,7 +588,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 						Outcome.DetailValues.Add(Effect.Value);
 						if (Effect.Target == TEXT("HpPoint"))
 						{
-							Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+							RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 						}
 					}
 				}
@@ -592,11 +621,12 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					{
 						Result.Stats.HpMax += Reward.Value;
 						Result.Stats.HpPoint += Reward.Value;
-						Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+						RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 					}
 					else if (!ApplyStatEffect(Result.Stats, Reward))
 					{
-						Result.Error = FString::Printf(TEXT("Unsupported Easter sacrifice target: %s"), *Reward.Target.ToString());
+						Result.Error =
+						    FString::Printf(TEXT("Unsupported Easter sacrifice target: %s"), *Reward.Target.ToString());
 						return false;
 					}
 					const int32 ExistingIndex = Outcome.DetailTargets.IndexOfByKey(Reward.Target);
@@ -686,7 +716,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				const float GrantedHp = Result.Stats.PhysicalAttack + Result.Stats.ElementalAttack;
 				Result.Stats.HpMax += GrantedHp;
 				Result.Stats.HpPoint = Result.Stats.HpMax;
-				Result.HealthAdjustment = EReEchoHealthAdjustment::FillToMax;
+				RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::FillToMax);
 				AccumulateOutcome(Result.CardState.Runtime, Card->Id, TEXT("HpMax"), GrantedHp);
 			}
 			else if (Effect.BehaviorId == TEXT("Card.NextShardDrop"))
@@ -738,6 +768,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 				Result.Stats.CriticalEffect *= Effect.Value;
 				Result.Stats.EchoEfficiency *= Effect.Value;
 				Result.Stats.ReactionEfficiency *= Effect.Value;
+				RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 			}
 			else if (Effect.BehaviorId == TEXT("Card.GrantTier"))
 			{
@@ -769,34 +800,34 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 					FReEchoCardOutcomeState& Outcome =
 					    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
 					Outcome.RelatedCardIds.Add(GrantedCardId);
-                    ++Outcome.ResolutionCount;
-                }
-            }
-            else if (Effect.BehaviorId == TEXT("Card.GrantAllTier1"))
-            {
-                // 立即获得每张启用的目标阶级卡牌各 1 张；已拥有的可堆叠卡也额外获得一张。
-                // 仅跳过当前事务已发放的卡，防止嵌套 OnGrant 行为产生重复授予。
-                TArray<FReEchoCardDefinition> Tier1Cards = Catalog.GetAll(FMath::RoundToInt(Effect.Value));
-                for (const FReEchoCardDefinition& Tier1Card : Tier1Cards)
-                {
-                    if (GrantedThisTransaction.Contains(Tier1Card.Id))
-                    {
-                        continue;
-                    }
-                    // bForce=true：绕过 CanOffer 的上架/冲突/遭遇限制，强制入袋。
-                    if (!GrantSingle(Tier1Card.Id, true, true))
-                    {
-                        return false;
-                    }
-                    FReEchoCardOutcomeState& Outcome =
-                        FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
-                    Outcome.RelatedCardIds.Add(Tier1Card.Id);
-                    ++Outcome.ResolutionCount;
-                }
-            }
-        }
-        return true;
-    };
+					++Outcome.ResolutionCount;
+				}
+			}
+			else if (Effect.BehaviorId == TEXT("Card.GrantAllTier1"))
+			{
+				// 立即获得每张启用的目标阶级卡牌各 1 张；已拥有的可堆叠卡也额外获得一张。
+				// 仅跳过当前事务已发放的卡，防止嵌套 OnGrant 行为产生重复授予。
+				TArray<FReEchoCardDefinition> Tier1Cards = Catalog.GetAll(FMath::RoundToInt(Effect.Value));
+				for (const FReEchoCardDefinition& Tier1Card : Tier1Cards)
+				{
+					if (GrantedThisTransaction.Contains(Tier1Card.Id))
+					{
+						continue;
+					}
+					// bForce=true：绕过 CanOffer 的上架/冲突/遭遇限制，强制入袋。
+					if (!GrantSingle(Tier1Card.Id, true, true))
+					{
+						return false;
+					}
+					FReEchoCardOutcomeState& Outcome =
+					    FindOrAddOutcome(Result.CardState.Runtime, Card->Id, EReEchoCardOutcomeKind::GrantedCards);
+					Outcome.RelatedCardIds.Add(Tier1Card.Id);
+					++Outcome.ResolutionCount;
+				}
+			}
+		}
+		return true;
+	};
 
 	if (!GrantSingle(CardId, Input.bRecordOwnership, false))
 	{
@@ -1096,16 +1127,16 @@ FReEchoCardIncomingHitResult ReEchoCardRuntime::ModifyIncomingHit(const FReEchoC
 			    const int32 AffordableStacks =
 			        CostPerStack == 0 ? StackCount : FMath::Min(StackCount, Result.TimeShards / CostPerStack);
 			    Result.TimeShards -= AffordableStacks * CostPerStack;
-            Result.RawDamage = FMath::Max(0.0f, Result.RawDamage + Effect.Value * AffordableStacks);
-        }
-    });
-    if (!Result.bPrevented && !AttackerDefinitionId.IsNone() &&
-        State.Runtime.ImmuneEnemyDefinitionIds.Contains(AttackerDefinitionId))
-    {
-        Result.RawDamage = 0.0f;
-        Result.bPrevented = true;
-    }
-    return Result;
+			    Result.RawDamage = FMath::Max(0.0f, Result.RawDamage + Effect.Value * AffordableStacks);
+		    }
+	    });
+	if (!Result.bPrevented && !AttackerDefinitionId.IsNone() &&
+	    State.Runtime.ImmuneEnemyDefinitionIds.Contains(AttackerDefinitionId))
+	{
+		Result.RawDamage = 0.0f;
+		Result.bPrevented = true;
+	}
+	return Result;
 }
 
 FReEchoCardEventResult ReEchoCardRuntime::OnReaction(const FReEchoCardCatalog& Catalog,
@@ -1224,10 +1255,11 @@ FReEchoCardEventResult ReEchoCardRuntime::OnKillResolved(const FReEchoCardCatalo
 				    {
 					    Result.Stats.HpMax *= Effect.Value;
 					    Result.Stats.HpPoint = Result.Stats.HpMax;
+					    RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::FillToMax);
 				    }
 				    Result.CardState.Runtime.CompletedKillThresholdCardIds.Add(Card.Id);
 				    FReEchoCardOutcomeState& Outcome =
-					    FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
+				        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
 				    Outcome.PrimaryTarget = TEXT("KillThreshold");
 				    Outcome.PrimaryValue = Effect.Value;
 				    ++Outcome.ResolutionCount;
@@ -1244,7 +1276,7 @@ FReEchoCardEventResult ReEchoCardRuntime::OnKillResolved(const FReEchoCardCatalo
 				    Result.CardState.Runtime.ImmuneEnemyDefinitionIds.Add(TargetDefinitionId);
 				    Result.CardState.Runtime.CompletedKillThresholdCardIds.Add(Card.Id);
 				    FReEchoCardOutcomeState& Outcome =
-					    FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
+				        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::StatGain);
 				    Outcome.PrimaryTarget = TEXT("EnemyImmunity");
 				    Outcome.PrimaryValue = 1.0f;
 				    ++Outcome.ResolutionCount;
@@ -1331,10 +1363,10 @@ FName ReEchoCardRuntime::SelectOfferForSlot(const FReEchoCardCatalog& Catalog,
                                             const FReEchoCardBuildState& State,
                                             const int32 NormalTier,
                                             const int32 EncounterIndex,
-	                                            const TArray<FName>& OfferHistory,
-	                                            const int32 RandomSeed,
-	                                            const float EasterChance,
-	                                            const bool bExcludeOwnedNormalCards)
+                                            const TArray<FName>& OfferHistory,
+                                            const int32 RandomSeed,
+                                            const float EasterChance,
+                                            const bool bExcludeOwnedNormalCards)
 {
 	TArray<FReEchoCardDefinition> NormalPool =
 	    BuildOfferPool(Catalog, State, TEXT("Trait"), NormalTier, EncounterIndex);
@@ -1383,6 +1415,7 @@ FReEchoCardEventResult ReEchoCardRuntime::OnPurchase(const FReEchoCardCatalog& C
 		    {
 			    Result.Stats.HpMax += Effect.Value * StackCount;
 			    Result.Stats.HpPoint = FMath::Min(Result.Stats.HpMax, Result.Stats.HpPoint + Effect.Value * StackCount);
+			    RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, TEXT("HpMaxAndPoint"), Effect.Value * StackCount);
 		    }
 		    else if (Effect.BehaviorId == TEXT("Card.UnlimitedShopRefresh"))
@@ -1413,6 +1446,7 @@ FReEchoCardEventResult ReEchoCardRuntime::OnEchoKilled(const FReEchoCardCatalog&
 		    {
 			    Result.Stats.HpMax += Effect.Value * StackCount;
 			    Result.Stats.HpPoint = FMath::Min(Result.Stats.HpMax, Result.Stats.HpPoint + Effect.Value * StackCount);
+			    RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 			    AccumulateOutcome(Result.CardState.Runtime, Card.Id, TEXT("HpMaxAndPoint"), Effect.Value * StackCount);
 		    }
 	    });
@@ -1449,39 +1483,46 @@ FReEchoCardEventResult ReEchoCardRuntime::OnCoreInventoryChanged(const FReEchoCa
 			    Result.CardState.Runtime.bDragonSoulCompleted = true;
 			    SetStatGainOutcome(Result.CardState.Runtime, Card.Id, TEXT("CoreCollection"), Granted);
 		    }
-		    else if (Effect.BehaviorId == TEXT("Card.CollectCoresGrantTiered") && !Result.CardState.Runtime.bDragonSoulCompleted)
+		    else if (Effect.BehaviorId == TEXT("Card.CollectCoresGrantTiered") &&
+		             !Result.CardState.Runtime.bDragonSoulCompleted)
 		    {
 			    bGrantTieredCards = true;
 			    TieredCardId = Card.Id;
 			    TieredRequiredCores = FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
 		    }
 	    });
-	if (bGrantTieredCards && DistinctOwnedCoreCount >= TieredRequiredCores && !Result.CardState.Runtime.bDragonSoulCompleted)
+	if (bGrantTieredCards && DistinctOwnedCoreCount >= TieredRequiredCores &&
+	    !Result.CardState.Runtime.bDragonSoulCompleted)
 	{
 		for (int32 Tier = 1; Tier <= 3; ++Tier)
 		{
 			// BuildOfferPool already applies the canonical ownership rule: tier-one Stackable cards
 			// remain eligible for repeat grants, while owned higher-tier and Unique cards are excluded.
-			TArray<FReEchoCardDefinition> Pool = BuildOfferPool(Catalog, Result.CardState, TEXT("Trait"), Tier, Result.CardState.Runtime.ActiveEncounterIndex);
+			TArray<FReEchoCardDefinition> Pool = BuildOfferPool(
+			    Catalog, Result.CardState, TEXT("Trait"), Tier, Result.CardState.Runtime.ActiveEncounterIndex);
 			if (Pool.IsEmpty())
 			{
 				continue;
 			}
-			FRandomStream Random(HashCombine(GetTypeHash(Result.CardState.Runtime.RandomSequence++), GetTypeHash(Tier)));
+			FRandomStream Random(
+			    HashCombine(GetTypeHash(Result.CardState.Runtime.RandomSequence++), GetTypeHash(Tier)));
 			const FName GrantedCardId = Pool[Random.RandRange(0, Pool.Num() - 1)].Id;
 			FReEchoCardGrantInput GrantInput;
 			GrantInput.Stats = Result.Stats;
 			GrantInput.CardState = Result.CardState;
 			GrantInput.TimeShards = 0;
 			GrantInput.EncounterIndex = Result.CardState.Runtime.ActiveEncounterIndex;
-			GrantInput.RandomSeed = HashCombine(GetTypeHash(Result.CardState.Runtime.RandomSequence++), GetTypeHash(GrantedCardId));
+			GrantInput.RandomSeed =
+			    HashCombine(GetTypeHash(Result.CardState.Runtime.RandomSequence++), GetTypeHash(GrantedCardId));
 			GrantInput.bRecordOwnership = true;
 			const FReEchoCardGrantResult Grant = ReEchoCardRuntime::TryGrantCard(Catalog, GrantedCardId, GrantInput);
 			if (Grant.bSucceeded)
 			{
 				Result.Stats = Grant.Stats;
 				Result.CardState = Grant.CardState;
-				FReEchoCardOutcomeState& Outcome = FindOrAddOutcome(Result.CardState.Runtime, TieredCardId, EReEchoCardOutcomeKind::GrantedCards);
+				RequestHealthAdjustment(Result.HealthAdjustment, Grant.HealthAdjustment);
+				FReEchoCardOutcomeState& Outcome =
+				    FindOrAddOutcome(Result.CardState.Runtime, TieredCardId, EReEchoCardOutcomeKind::GrantedCards);
 				Outcome.RelatedCardIds.Add(GrantedCardId);
 				++Outcome.ResolutionCount;
 			}
@@ -1551,6 +1592,7 @@ FReEchoCardGrantResult ReEchoCardRuntime::OnPlayerDamageReceived(const FReEchoCa
 	Result.CardState.Runtime.EasterDamageTaken += AppliedDamage;
 	return Result;
 }
+
 FReEchoCardEventResult ReEchoCardRuntime::OnNegativeStatusApplied(const FReEchoCardCatalog& Catalog,
                                                                   const FReEchoCardBuildState& State,
                                                                   const FReEchoStatBlock& Stats,
@@ -1627,6 +1669,7 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			}
 			Result.Stats = Grant.Stats;
 			Result.CardState = Grant.CardState;
+			RequestHealthAdjustment(Result.HealthAdjustment, Grant.HealthAdjustment);
 			Outcome.RelatedCardIds.Append(Grant.GrantedCardIds);
 			// Unique tier-1 cards are exhausted once owned; stackable ones stay available for re-rolls.
 			if (Pool[Pick].StackPolicy == TEXT("Unique"))
@@ -1683,7 +1726,8 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			    float NextMultiplier = 1.0f;
 			    if (Result.CardState.Runtime.bHasPreviousEncounterShardIncome)
 			    {
-				    const int32 Delta = GrossTimeShardIncome - Result.CardState.Runtime.PreviousEncounterGrossShardIncome;
+				    const int32 Delta =
+				        GrossTimeShardIncome - Result.CardState.Runtime.PreviousEncounterGrossShardIncome;
 				    const int32 Steps = FMath::Abs(Delta) / FMath::Max(1, FMath::RoundToInt(Effect.ParamValue));
 				    if (Delta > 0)
 				    {
@@ -1718,7 +1762,7 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			    {
 				    Result.Stats.HpMax += Rolled.Value;
 				    Result.Stats.HpPoint += Rolled.Value;
-				    Result.HealthAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+				    RequestHealthAdjustment(Result.HealthAdjustment, EReEchoHealthAdjustment::SetToStatPoint);
 			    }
 			    else
 			    {
@@ -1744,7 +1788,8 @@ FReEchoCardEventResult ReEchoCardRuntime::EndEncounter(const FReEchoCardCatalog&
 			    const int32 TotalKills = FMath::Max(PlayerKillCount, Result.CardState.Runtime.EncounterKillCount);
 			    // 战利回流：本场时之碎片收入 × 每击杀返还比例(Effect.Value) × 击杀数
 			    const float RatePerKill = FMath::Max(0.0f, Effect.Value);
-			    const int32 ShardCount = FMath::RoundToInt(GrossTimeShardIncome * RatePerKill * TotalKills * StackCount);
+			    const int32 ShardCount =
+			        FMath::RoundToInt(GrossTimeShardIncome * RatePerKill * TotalKills * StackCount);
 			    Result.TimeShardsGranted += ShardCount;
 			    FReEchoCardOutcomeState& Outcome =
 			        FindOrAddOutcome(Result.CardState.Runtime, Card.Id, EReEchoCardOutcomeKind::TimeShards);

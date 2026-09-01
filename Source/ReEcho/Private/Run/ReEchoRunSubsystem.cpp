@@ -32,6 +32,25 @@ const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
 const FName BossPhase3FinalStatMultiplierFlag = TEXT("BossPhase3FinalStatMultiplier");
 
+EReEchoHealthAdjustment MergeHealthAdjustments(const EReEchoHealthAdjustment Current,
+                                               const EReEchoHealthAdjustment Incoming)
+{
+	if (Current == EReEchoHealthAdjustment::FillToMax || Incoming == EReEchoHealthAdjustment::FillToMax)
+	{
+		return EReEchoHealthAdjustment::FillToMax;
+	}
+	if (Current == EReEchoHealthAdjustment::SetToStatPoint || Incoming == EReEchoHealthAdjustment::SetToStatPoint)
+	{
+		return EReEchoHealthAdjustment::SetToStatPoint;
+	}
+	return EReEchoHealthAdjustment::None;
+}
+
+bool DidCommittedHealthChange(const FReEchoStatBlock& Before, const FReEchoStatBlock& After)
+{
+	return !FMath::IsNearlyEqual(Before.HpMax, After.HpMax) || !FMath::IsNearlyEqual(Before.HpPoint, After.HpPoint);
+}
+
 const FString RunSaveSlot = TEXT("ReEchoRun");
 const FString PlayerProgressSaveSlot = TEXT("ReEchoPlayerProgress");
 constexpr int32 RunSaveUserIndex = 0;
@@ -161,8 +180,8 @@ FReEchoShopOffer MakeWeaponPartOffer(const FReEchoCsvPartRow& Part)
 }
 
 int32 RecordNormalTraitGroupSelection(const FReEchoCsvDataSnapshot& Snapshot,
-                                       FReEchoBuildSnapshot& Build,
-                                       const int32 CardPackTier)
+                                      FReEchoBuildSnapshot& Build,
+                                      const int32 CardPackTier)
 {
 	// Tier-gated cadence abilities (for example the Sage counting only non-tier-1 card packs) must not be
 	// advanced by packs below their configured tier, so those packs leave the counter untouched.
@@ -194,8 +213,8 @@ FName MakeShopCardPackOfferId(const int32 EncounterIndex, const int32 RefreshSeq
 FString FormatOutcomeValue(const FName Target, const float Value)
 {
 	if (Target == TEXT("ReactionEfficiency") || Target == TEXT("EchoEfficiency") || Target == TEXT("CriticalRate") ||
-	    Target == TEXT("CriticalEffect") || Target == TEXT("CoreCollection") ||
-	    Target == TEXT("PlayerDamage") || Target == TEXT("EchoDamage") || Target == TEXT("DamageMultiplier"))
+	    Target == TEXT("CriticalEffect") || Target == TEXT("CoreCollection") || Target == TEXT("PlayerDamage") ||
+	    Target == TEXT("EchoDamage") || Target == TEXT("DamageMultiplier"))
 	{
 		return FString::Printf(TEXT("%+.0f%%"), Value * 100.0f);
 	}
@@ -398,8 +417,8 @@ FText BuildCardOutcomeText(const FReEchoCardDefinition& Card,
 					break;
 				}
 				Lines.Add(TEXT("实际效果："));
-				for (int32 DetailIndex = 0; DetailIndex < Outcome.DetailTargets.Num() &&
-				                                  Outcome.DetailValues.IsValidIndex(DetailIndex);
+				for (int32 DetailIndex = 0;
+				     DetailIndex < Outcome.DetailTargets.Num() && Outcome.DetailValues.IsValidIndex(DetailIndex);
 				     ++DetailIndex)
 				{
 					const FName Target = Outcome.DetailTargets[DetailIndex];
@@ -928,9 +947,7 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 		ReEchoCharacterAbilityRuntime::ApplyStaticBuildEffects(Snapshot, Character.Id, Result);
 		return Result;
 	};
-	auto ApplyCharacterDelta = [](FReEchoStatBlock& Target,
-	                              const FReEchoStatBlock& From,
-	                              const FReEchoStatBlock& To)
+	auto ApplyCharacterDelta = [](FReEchoStatBlock& Target, const FReEchoStatBlock& From, const FReEchoStatBlock& To)
 	{
 		Target.HpMax += To.HpMax - From.HpMax;
 		Target.HpPoint = FMath::Min(Target.HpPoint, Target.HpMax);
@@ -1077,8 +1094,7 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 		    Build.CardState.Runtime.TimeShardDebt < 0 || Build.CardState.Runtime.ConductAffectedCount < 0 ||
 		    Build.CardState.Runtime.ConductPlayerDamageMultiplier < 1.0f ||
 		    Build.CardState.Runtime.EchoTrinityEfficiencyGranted < 0.0f ||
-		    Build.CardState.Runtime.LastEasterStunPulseIndex < 0 ||
-		    Build.CardState.Runtime.EasterDamageTaken < 0.0f ||
+		    Build.CardState.Runtime.LastEasterStunPulseIndex < 0 || Build.CardState.Runtime.EasterDamageTaken < 0.0f ||
 		    Build.CardState.Runtime.PreviousEncounterGrossShardIncome < 0 ||
 		    Build.CardState.Runtime.CurrentEncounterGrossShardIncome < 0 ||
 		    !FMath::IsFinite(Build.CardState.Runtime.EncounterShardIncomeMultiplier) ||
@@ -1135,8 +1151,8 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 			for (const FName CardId : Pack.CandidateCardIds)
 			{
 				const FReEchoCardDefinition* Card = Snapshot.CardCatalog->Find(CardId);
-				if (CardId.IsNone() || !Card || !Card->bEnabled ||
-				    !IsCardCompatibleWithPackTier(*Card, Pack.Tier) || UniquePackCards.Contains(CardId))
+				if (CardId.IsNone() || !Card || !Card->bEnabled || !IsCardCompatibleWithPackTier(*Card, Pack.Tier) ||
+				    UniquePackCards.Contains(CardId))
 				{
 					return false;
 				}
@@ -1146,8 +1162,8 @@ bool MigrateBuildState(const int32 SaveVersion, const FReEchoCsvDataSnapshot& Sn
 			for (const FName CardId : Pack.OfferHistoryCardIds)
 			{
 				const FReEchoCardDefinition* Card = Snapshot.CardCatalog->Find(CardId);
-				if (CardId.IsNone() || !Card || !Card->bEnabled ||
-				    !IsCardCompatibleWithPackTier(*Card, Pack.Tier) || UniqueHistoryCards.Contains(CardId))
+				if (CardId.IsNone() || !Card || !Card->bEnabled || !IsCardCompatibleWithPackTier(*Card, Pack.Tier) ||
+				    UniqueHistoryCards.Contains(CardId))
 				{
 					return false;
 				}
@@ -1650,15 +1666,18 @@ void UReEchoRunSubsystem::LoadPlayerProgress()
 {
 	bHasViewedStage01To02Cg = false;
 	PreferredDifficulty = EReEchoRunDifficulty::Standard;
-	const UReEchoPlayerProgressSaveGame* Progress =
-	    Cast<UReEchoPlayerProgressSaveGame>(UGameplayStatics::LoadGameFromSlot(PlayerProgressSaveSlot, RunSaveUserIndex));
+	const UReEchoPlayerProgressSaveGame* Progress = Cast<UReEchoPlayerProgressSaveGame>(
+	    UGameplayStatics::LoadGameFromSlot(PlayerProgressSaveSlot, RunSaveUserIndex));
 	if (!Progress)
 	{
 		return;
 	}
 	if (Progress->SaveVersion < 1 || Progress->SaveVersion > UReEchoPlayerProgressSaveGame::CurrentSaveVersion)
 	{
-		UE_LOG(LogReEcho, Warning, TEXT("Player progress save version %d is unsupported; using defaults."), Progress->SaveVersion);
+		UE_LOG(LogReEcho,
+		       Warning,
+		       TEXT("Player progress save version %d is unsupported; using defaults."),
+		       Progress->SaveVersion);
 		return;
 	}
 	bHasViewedStage01To02Cg = Progress->bHasViewedStage01To02Cg;
@@ -2060,23 +2079,41 @@ bool UReEchoRunSubsystem::HasOwnedEasterEggCard() const
 
 namespace
 {
-	int32 GetRuneTierFromPartId(FName PartId)
+int32 GetRuneTierFromPartId(FName PartId)
+{
+	const FString S = PartId.ToString();
+	if (S.EndsWith(TEXT("_III")))
 	{
-		const FString S = PartId.ToString();
-		if (S.EndsWith(TEXT("_III"))) return 3;
-		if (S.EndsWith(TEXT("_II"))) return 2;
-		if (S.EndsWith(TEXT("_I"))) return 1;
-		return 0;
+		return 3;
 	}
+	if (S.EndsWith(TEXT("_II")))
+	{
+		return 2;
+	}
+	if (S.EndsWith(TEXT("_I")))
+	{
+		return 1;
+	}
+	return 0;
+}
 
-	FName GetRuneFamilyFromPartId(FName PartId)
+FName GetRuneFamilyFromPartId(FName PartId)
+{
+	const FString S = PartId.ToString();
+	if (S.EndsWith(TEXT("_III")))
 	{
-		const FString S = PartId.ToString();
-		if (S.EndsWith(TEXT("_III"))) return FName(*S.LeftChop(4));
-		if (S.EndsWith(TEXT("_II"))) return FName(*S.LeftChop(3));
-		if (S.EndsWith(TEXT("_I"))) return FName(*S.LeftChop(2));
-		return PartId;
+		return FName(*S.LeftChop(4));
 	}
+	if (S.EndsWith(TEXT("_II")))
+	{
+		return FName(*S.LeftChop(3));
+	}
+	if (S.EndsWith(TEXT("_I")))
+	{
+		return FName(*S.LeftChop(2));
+	}
+	return PartId;
+}
 }
 
 FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
@@ -2388,9 +2425,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		//   5% another weapon's runes.
 		// Reused as the universal-slot fallback (tracks the same distribution) once every universal
 		// rune has already been bought.
-		const auto PickWeightedSlotId = [&](FRandomStream& Rand,
-		                                    float CurrentRuneChance,
-		                                    float OtherWeaponChance) -> FName
+		const auto PickWeightedSlotId =
+		    [&](FRandomStream& Rand, float CurrentRuneChance, float OtherWeaponChance) -> FName
 		{
 			const float Roll = Rand.GetFraction();
 			if (Roll < CurrentRuneChance && CurrentWeaponRuneCandidates.Num() > 0)
@@ -2515,7 +2551,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 		// Card packs no longer share the weapon/rune refresh sequence. Their initial page is stable for the encounter;
 		// only TryRefreshShopCardSlot may replace one indexed candidate.
 		constexpr int32 RefreshSequence = 0;
-		// Build-card shop: fixed [Tier1, Tier2, Tier3] packs. ShopTiers enables matching packs with optional counts (Tier:Count).
+		// Build-card shop: fixed [Tier1, Tier2, Tier3] packs. ShopTiers enables matching packs with optional counts
+		// (Tier:Count).
 		if (const FReEchoCsvShopDropLevelRow* DropLevel = Snapshot->ShopDropLevels.Find(EncounterIndex))
 		{
 			TMap<int32, int32> ConfiguredCardTierQuantities; // tier -> remaining purchase count
@@ -2572,8 +2609,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					for (const FName CardId : Pack.CandidateCardIds)
 					{
 						const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
-						if (CardId.IsNone() || !Card || !Card->bEnabled ||
-						    !IsCardCompatibleWithPackTier(*Card, Tier) || UniqueCandidates.Contains(CardId))
+						if (CardId.IsNone() || !Card || !Card->bEnabled || !IsCardCompatibleWithPackTier(*Card, Tier) ||
+						    UniqueCandidates.Contains(CardId))
 						{
 							return false;
 						}
@@ -2583,8 +2620,8 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					for (const FName CardId : Pack.OfferHistoryCardIds)
 					{
 						const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
-						if (CardId.IsNone() || !Card || !Card->bEnabled ||
-						    !IsCardCompatibleWithPackTier(*Card, Tier) || UniqueHistory.Contains(CardId))
+						if (CardId.IsNone() || !Card || !Card->bEnabled || !IsCardCompatibleWithPackTier(*Card, Tier) ||
+						    UniqueHistory.Contains(CardId))
 						{
 							return false;
 						}
@@ -2678,10 +2715,10 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				CardPack.TotalPurchases = ConfiguredCardTierQuantities.Contains(Tier)
 				                              ? ConfiguredCardTierQuantities[Tier]
 				                              : (bHasRemaining ? 1 : 0);
-				CardPack.Status = Pack.bPurchased          ? EReEchoShopCardPackStatus::Purchased
-				                  : Pack.bPaymentCommitted ? EReEchoShopCardPackStatus::PaidPendingChoice
+				CardPack.Status = Pack.bPurchased                     ? EReEchoShopCardPackStatus::Purchased
+				                  : Pack.bPaymentCommitted            ? EReEchoShopCardPackStatus::PaidPendingChoice
 				                  : bHasRemaining && bHasEligibleCard ? EReEchoShopCardPackStatus::Available
-				                                           : EReEchoShopCardPackStatus::SoldOut;
+				                                                      : EReEchoShopCardPackStatus::SoldOut;
 				if (Pack.bPurchased)
 				{
 					CardPack.StatusText = NSLOCTEXT("ReEcho", "ShopCardPackPurchased", "已购");
@@ -2692,14 +2729,14 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 				}
 				else if (bHasRemaining && bHasEligibleCard)
 				{
-					const int32 TotalQty = ConfiguredCardTierQuantities.Contains(Tier)
-					                       ? ConfiguredCardTierQuantities[Tier] : 1;
+					const int32 TotalQty =
+					    ConfiguredCardTierQuantities.Contains(Tier) ? ConfiguredCardTierQuantities[Tier] : 1;
 					if (TotalQty > 1)
 					{
-						CardPack.StatusText = FText::Format(
-						    NSLOCTEXT("ReEcho", "ShopCardPackAvailableCount", "可购买 ({0}/{1})"),
-						    FText::AsNumber(TotalQty - Pack.RemainingPurchases + 1),
-						    FText::AsNumber(TotalQty));
+						CardPack.StatusText =
+						    FText::Format(NSLOCTEXT("ReEcho", "ShopCardPackAvailableCount", "可购买 ({0}/{1})"),
+						                  FText::AsNumber(TotalQty - Pack.RemainingPurchases + 1),
+						                  FText::AsNumber(TotalQty));
 					}
 					else
 					{
@@ -2744,9 +2781,9 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 						Choice.RemainingRefreshes =
 						    FMath::Max(0, RefreshRule->CardSlotRefreshLimit - SlotRefreshSequence);
 						Choice.RefreshCost = RefreshRule->CardSlotRefreshCost;
-					// 只要还有刷新次数、未被全局禁用、且碎片足够，按钮即可用；替换卡在点击时再校验。
-					Choice.bCanRefresh = Choice.RemainingRefreshes > 0 && !GetCardRules().bDisableShopRefresh &&
-					                     TimeShards >= Choice.RefreshCost;
+						// 只要还有刷新次数、未被全局禁用、且碎片足够，按钮即可用；替换卡在点击时再校验。
+						Choice.bCanRefresh = Choice.RemainingRefreshes > 0 && !GetCardRules().bDisableShopRefresh &&
+						                     TimeShards >= Choice.RefreshCost;
 					}
 					CardPack.Choices.Add(MoveTemp(Choice));
 				}
@@ -2881,6 +2918,7 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		return;
 	}
 	StagePendingRecording(Recording);
+	const FReEchoStatBlock PreviousCardHealthStats = CurrentBuild.Stats;
 	if (CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex == EncounterIndex)
 	{
 		CurrentBuild.CardState.Runtime.BonusShardDropEncounterIndex = INDEX_NONE;
@@ -2901,15 +2939,15 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		        {
 			        BaseBuild.Stats.HpPoint = FMath::Clamp(PlayerCurrentHealth, 0.0f, BaseBuild.Stats.HpMax);
 		        }
-		        const FReEchoCardEventResult Event = ReEchoCardRuntime::EndEncounter(
-		            *CardSnapshot->CardCatalog,
-		            BaseBuild.CardState,
-		            BaseBuild.Stats,
-		            EncounterIndex,
-		            0,
-		            TimeShards,
-		            RunSeed,
-		            BaseBuild.CardState.Runtime.CurrentEncounterGrossShardIncome);
+		        const FReEchoCardEventResult Event =
+		            ReEchoCardRuntime::EndEncounter(*CardSnapshot->CardCatalog,
+		                                            BaseBuild.CardState,
+		                                            BaseBuild.Stats,
+		                                            EncounterIndex,
+		                                            0,
+		                                            TimeShards,
+		                                            RunSeed,
+		                                            BaseBuild.CardState.Runtime.CurrentEncounterGrossShardIncome);
 		        BaseBuild.CardState = Event.CardState;
 		        BaseBuild.Stats = Event.Stats;
 		        CardEndShardsGranted = Event.TimeShardsGranted;
@@ -2927,10 +2965,6 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 			ApplyProjectedCardCurrency(PreCardEndTimeShards, CardEndProjectedTimeShards, false);
 		}
 		GrantTimeShards(CardEndShardsGranted);
-		if (CardEndHealthAdjustment != EReEchoHealthAdjustment::None)
-		{
-			OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, CardEndHealthAdjustment);
-		}
 	}
 	const FReEchoCardRuleSnapshot EndRules = GetCardRules();
 	if (EndRules.bWeaponMaster && !CurrentBuild.WeaponId.IsNone() &&
@@ -2950,6 +2984,7 @@ void UReEchoRunSubsystem::CompleteEncounter(const FReEchoRecording& Recording,
 		}
 		RefreshWeaponMasterOutcome();
 	}
+	CommitCardHealthAdjustment(PreviousCardHealthStats, CardEndHealthAdjustment);
 	if (CurrentBuild.CardState.Runtime.TimeShardDebt > 0)
 	{
 		const int32 Interest = static_cast<int32>(
@@ -3056,16 +3091,16 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 			}
 			FReEchoTraitCardOffer Offer = MakeTraitOffer(*Card, FreeTier);
 			Offer.SlotIndex = SlotIndex;
-		if (RefreshRule)
-		{
-			const int32 Uses = PendingTraitCardRefreshUses[SlotIndex];
-			Offer.RemainingRefreshes = FMath::Max(0, RefreshRule->CardSlotRefreshLimit - Uses);
-			Offer.RefreshCost = RefreshRule->CardSlotRefreshCost;
-			// 只要还有刷新次数、未被全局禁用、且碎片足够，按钮即可用；具体替换卡在点击时再校验，
-			// 不再要求“当前已存在未拥有的替换卡”，避免玩家仍有碎片却被错误置灰。
-			Offer.bCanRefresh = Uses < RefreshRule->CardSlotRefreshLimit && !GetCardRules().bDisableShopRefresh &&
-			                    TimeShards >= Offer.RefreshCost;
-		}
+			if (RefreshRule)
+			{
+				const int32 Uses = PendingTraitCardRefreshUses[SlotIndex];
+				Offer.RemainingRefreshes = FMath::Max(0, RefreshRule->CardSlotRefreshLimit - Uses);
+				Offer.RefreshCost = RefreshRule->CardSlotRefreshCost;
+				// 只要还有刷新次数、未被全局禁用、且碎片足够，按钮即可用；具体替换卡在点击时再校验，
+				// 不再要求“当前已存在未拥有的替换卡”，避免玩家仍有碎片却被错误置灰。
+				Offer.bCanRefresh = Uses < RefreshRule->CardSlotRefreshLimit && !GetCardRules().bDisableShopRefresh &&
+				                    TimeShards >= Offer.RefreshCost;
+			}
 			Projected.Add(MoveTemp(Offer));
 		}
 		return Projected;
@@ -3084,7 +3119,8 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	}
 	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
 	{
-		UE_LOG(LogReEcho, Error, TEXT("Encounter %d cannot build free card offers: catalog unavailable."), EncounterIndex);
+		UE_LOG(
+		    LogReEcho, Error, TEXT("Encounter %d cannot build free card offers: catalog unavailable."), EncounterIndex);
 		SetPhase(EReEchoRunPhase::Planning);
 		return {};
 	}
@@ -3097,13 +3133,14 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	        .Num();
 	if (MaximumDistinctOffers < RequestedCount)
 	{
-		UE_LOG(LogReEcho,
-		       Error,
-		       TEXT("Encounter %d FreeTier %d requires %d card offers but only %d are eligible; continuing to the shop."),
-		       EncounterIndex,
-		       FreeTier,
-		       RequestedCount,
-		       MaximumDistinctOffers);
+		UE_LOG(
+		    LogReEcho,
+		    Error,
+		    TEXT("Encounter %d FreeTier %d requires %d card offers but only %d are eligible; continuing to the shop."),
+		    EncounterIndex,
+		    FreeTier,
+		    RequestedCount,
+		    MaximumDistinctOffers);
 		SetPhase(EReEchoRunPhase::Planning);
 		return {};
 	}
@@ -3114,14 +3151,15 @@ TArray<FReEchoTraitCardOffer> UReEchoRunSubsystem::GenerateTraitCardOffers(const
 	FReEchoCardBuildState CandidateState = CurrentBuild.CardState;
 	for (int32 OfferIndex = 0; OfferIndex < RequestedCount; ++OfferIndex)
 	{
-		uint32 Seed = GetTypeHash(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
+		uint32 Seed =
+		    GetTypeHash(BuildTraitOfferSeed(TraitOfferSeed, EncounterIndex, CurrentBuild.CardState.OwnedCardIds));
 		Seed = HashCombine(Seed, GetTypeHash(OfferIndex));
 		const FName SelectedCardId = SelectCardForOfferSlot(*Snapshot->CardCatalog,
-		                                                     CandidateState,
-		                                                     FreeTier,
-		                                                     EncounterIndex,
-		                                                     PendingTraitCardOfferHistoryIds,
-		                                                     static_cast<int32>(Seed));
+		                                                    CandidateState,
+		                                                    FreeTier,
+		                                                    EncounterIndex,
+		                                                    PendingTraitCardOfferHistoryIds,
+		                                                    static_cast<int32>(Seed));
 		const FReEchoCardDefinition* Selected = Snapshot->CardCatalog->Find(SelectedCardId);
 		if (!Selected)
 		{
@@ -3195,12 +3233,12 @@ bool UReEchoRunSubsystem::TryRefreshTraitCardSlot(const int32 SlotIndex, FString
 	Seed = HashCombine(Seed, GetTypeHash(SlotIndex));
 	Seed = HashCombine(Seed, GetTypeHash(NextSequence));
 	const FName ReplacementCardId = SelectCardForOfferSlot(*Snapshot->CardCatalog,
-	                                                        CurrentBuild.CardState,
-	                                                        FreeTier,
-	                                                        EncounterIndex,
-	                                                        PendingTraitCardOfferHistoryIds,
-	                                                        static_cast<int32>(Seed),
-	                                                        false);
+	                                                       CurrentBuild.CardState,
+	                                                       FreeTier,
+	                                                       EncounterIndex,
+	                                                       PendingTraitCardOfferHistoryIds,
+	                                                       static_cast<int32>(Seed),
+	                                                       false);
 	if (ReplacementCardId.IsNone())
 	{
 		OutError = TEXT("No legal unowned same-tier or Easter post-encounter replacement remains");
@@ -3228,6 +3266,7 @@ bool UReEchoRunSubsystem::TryRefreshTraitCardSlot(const int32 SlotIndex, FString
 bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	// A cadence pack must be resolved as one exact multi-card transaction; a single-card callback may not
 	// silently close an outstanding two-card choice.
 	if (Phase != EReEchoRunPhase::CardChoice || PendingTraitCardPicksRemaining != 1 ||
@@ -3273,16 +3312,16 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		        {
 			        BaseBuild.EquippedParts.Reset();
 		        }
-	        // The post-encounter card pack is tiered the same way shop packs are (shop_drop_levels FreeTier),
-	        // so feed its tier into the cadence counter; INDEX_NONE means no pack was dropped this encounter.
-	        // A pack that owes several picks (cadence ability) is counted once, when the last pick lands.
-	        if (PendingTraitCardPicksRemaining <= 1)
-	        {
-		        RecordNormalTraitGroupSelection(*Snapshot, BaseBuild, ResolveConfiguredFreeTraitTier());
-	        }
-	        return true;
-        },
-        PendingBuild))
+		        // The post-encounter card pack is tiered the same way shop packs are (shop_drop_levels FreeTier),
+		        // so feed its tier into the cadence counter; INDEX_NONE means no pack was dropped this encounter.
+		        // A pack that owes several picks (cadence ability) is counted once, when the last pick lands.
+		        if (PendingTraitCardPicksRemaining <= 1)
+		        {
+			        RecordNormalTraitGroupSelection(*Snapshot, BaseBuild, ResolveConfiguredFreeTraitTier());
+		        }
+		        return true;
+	        },
+	        PendingBuild))
 	{
 		return false;
 	}
@@ -3294,7 +3333,7 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 		OwnedPartIds.Reset();
 		RuneAcquisitionCounts.Reset();
 	}
-	ReevaluateCoreCollectionCard();
+	PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, ReevaluateCoreCollectionCard());
 	// NOTE: the pack is closed unconditionally for now. Keeping it open for a second pick requires the
 	// choice screen to be reopened by the UI flow; without that the run would sit in the card-choice phase
 	// with no interactive screen, which is exactly the mid-combat pop-up bug. Enable together with the
@@ -3311,13 +3350,14 @@ bool UReEchoRunSubsystem::ApplyTraitCard(const FName CardId)
 	                              Phase,
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("card=%s"), *CardId.ToString()));
-	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	return true;
 }
 
 bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	// Cadence abilities (the Sage) can let a pack hand out two cards. Both are granted inside one
 	// authoritative mutation so the pack closes once, the phase returns to planning once, and the run can
 	// never be stranded in the card-choice phase without a screen.
@@ -3373,7 +3413,7 @@ bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 			        }
 			        BaseBuild.Stats = Grant.Stats;
 			        BaseBuild.CardState = Grant.CardState;
-			        PendingHealthAdjustment = Grant.HealthAdjustment;
+			        PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, Grant.HealthAdjustment);
 			        PendingTimeShards = Grant.TimeShards;
 			        if (Grant.bClearWeaponRunes)
 			        {
@@ -3397,7 +3437,7 @@ bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 		OwnedPartIds.Reset();
 		RuneAcquisitionCounts.Reset();
 	}
-	ReevaluateCoreCollectionCard();
+	PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, ReevaluateCoreCollectionCard());
 	PendingTraitCardPicksRemaining = 1;
 	PendingTraitCardIds.Reset();
 	PendingTraitCardOfferHistoryIds.Reset();
@@ -3409,7 +3449,7 @@ bool UReEchoRunSubsystem::ApplyTraitCards(const TArray<FName>& CardIds)
 	                              Phase,
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("count=%d"), CardIds.Num()));
-	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	return true;
 }
 
@@ -3424,6 +3464,7 @@ void UReEchoRunSubsystem::ResetPendingTraitCardChoice()
 bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	UE_LOG(LogReEcho,
 	       Warning,
 	       TEXT("[DebugGrantCard] enter: CardId=%s Phase=%d EncounterIndex=%d TimeShards=%d CurrentCards=%d"),
@@ -3509,7 +3550,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 		OwnedPartIds.Reset();
 		RuneAcquisitionCounts.Reset();
 	}
-	ReevaluateCoreCollectionCard();
+	PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, ReevaluateCoreCollectionCard());
 	UE_LOG(LogReEcho,
 	       Warning,
 	       TEXT("[DebugGrantCard] done: CardId=%s finalCards=%d"),
@@ -3520,7 +3561,7 @@ bool UReEchoRunSubsystem::DebugGrantCard(const FName CardId)
 	                              Phase,
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("card=%s"), *CardId.ToString()));
-	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	return true;
 }
 
@@ -3646,8 +3687,8 @@ float UReEchoRunSubsystem::ModifyCardIncomingHit(const float RawDamage, const FN
 	{
 		return RawDamage;
 	}
-	const FReEchoCardIncomingHitResult Result =
-	    ReEchoCardRuntime::ModifyIncomingHit(*Snapshot->CardCatalog, CurrentBuild.CardState, RawDamage, TimeShards, AttackerDefinitionId);
+	const FReEchoCardIncomingHitResult Result = ReEchoCardRuntime::ModifyIncomingHit(
+	    *Snapshot->CardCatalog, CurrentBuild.CardState, RawDamage, TimeShards, AttackerDefinitionId);
 	CurrentBuild.CardState = Result.CardState;
 	TimeShards = Result.TimeShards;
 	bPendingCardEchoRemoval |= Result.bRemoveAllEchoes;
@@ -3750,8 +3791,10 @@ float UReEchoRunSubsystem::GetCardReactionDamageMultiplier(const FName ReactionI
 void UReEchoRunSubsystem::NotifyCardKill(const bool bKilledByEcho, const FName TargetDefinitionId)
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	FReEchoBuildSnapshot PendingBuild;
 	int32 ShardsGranted = 0;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 	if (Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() &&
 	    TryMutateAuthoritativeBuild(
 	        *Snapshot,
@@ -3763,12 +3806,14 @@ void UReEchoRunSubsystem::NotifyCardKill(const bool bKilledByEcho, const FName T
 		        BaseBuild.CardState = Event.CardState;
 		        BaseBuild.Stats = Event.Stats;
 		        ShardsGranted = Event.TimeShardsGranted;
+		        HealthAdjustment = Event.HealthAdjustment;
 		        return true;
 	        },
 	        PendingBuild))
 	{
 		CurrentBuild = PendingBuild;
 		GrantTimeShards(ShardsGranted);
+		CommitCardHealthAdjustment(PreviousStats, HealthAdjustment);
 	}
 }
 
@@ -3815,6 +3860,7 @@ void UReEchoRunSubsystem::NotifyCardPlayerDamageReceived(const float AppliedDama
 		return;
 	}
 	const int32 PreviousTimeShards = TimeShards;
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	int32 ProjectedTimeShards = TimeShards;
 	bool bClearWeaponRunes = false;
 	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
@@ -3825,12 +3871,12 @@ void UReEchoRunSubsystem::NotifyCardPlayerDamageReceived(const float AppliedDama
 	        [&](FReEchoBuildSnapshot& BaseBuild)
 	        {
 		        const FReEchoCardGrantResult Grant = ReEchoCardRuntime::OnPlayerDamageReceived(*Snapshot->CardCatalog,
-		                                                                                     BaseBuild.CardState,
-		                                                                                     BaseBuild.Stats,
-		                                                                                     TimeShards,
-		                                                                                     AppliedDamage,
-		                                                                                     EncounterIndex,
-		                                                                                     RunSeed);
+		                                                                                       BaseBuild.CardState,
+		                                                                                       BaseBuild.Stats,
+		                                                                                       TimeShards,
+		                                                                                       AppliedDamage,
+		                                                                                       EncounterIndex,
+		                                                                                       RunSeed);
 		        if (!Grant.bSucceeded)
 		        {
 			        return false;
@@ -3857,10 +3903,7 @@ void UReEchoRunSubsystem::NotifyCardPlayerDamageReceived(const float AppliedDama
 		OwnedPartIds.Reset();
 		RuneAcquisitionCounts.Reset();
 	}
-	if (HealthAdjustment != EReEchoHealthAdjustment::None)
-	{
-		OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, HealthAdjustment);
-	}
+	CommitCardHealthAdjustment(PreviousStats, HealthAdjustment);
 }
 
 float UReEchoRunSubsystem::NotifyCardNegativeStatusApplied(const FName StatusId, const bool bAppliedByEcho)
@@ -3891,7 +3934,9 @@ float UReEchoRunSubsystem::NotifyCardNegativeStatusApplied(const FName StatusId,
 void UReEchoRunSubsystem::NotifyCardEchoDefeated()
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	FReEchoBuildSnapshot PendingBuild;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 	if (Snapshot.IsValid() && Snapshot->CardCatalog.IsValid() &&
 	    TryMutateAuthoritativeBuild(
 	        *Snapshot,
@@ -3902,11 +3947,13 @@ void UReEchoRunSubsystem::NotifyCardEchoDefeated()
 		            ReEchoCardRuntime::OnEchoKilled(*Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats);
 		        BaseBuild.CardState = Event.CardState;
 		        BaseBuild.Stats = Event.Stats;
+		        HealthAdjustment = Event.HealthAdjustment;
 		        return true;
 	        },
 	        PendingBuild))
 	{
 		CurrentBuild = PendingBuild;
+		CommitCardHealthAdjustment(PreviousStats, HealthAdjustment);
 	}
 }
 
@@ -3926,12 +3973,27 @@ int32 UReEchoRunSubsystem::GetDiscountedShopPrice(const int32 BasePrice) const
 	return FMath::Max(0, FMath::CeilToInt(BasePrice * (1.0f - GetCardRules().ShopDiscount)));
 }
 
-void UReEchoRunSubsystem::ReevaluateCoreCollectionCard()
+void UReEchoRunSubsystem::CommitCardHealthAdjustment(const FReEchoStatBlock& PreviousStats,
+                                                     const EReEchoHealthAdjustment RequestedAdjustment)
+{
+	EReEchoHealthAdjustment EffectiveAdjustment = RequestedAdjustment;
+	if (EffectiveAdjustment == EReEchoHealthAdjustment::None &&
+	    DidCommittedHealthChange(PreviousStats, CurrentBuild.Stats))
+	{
+		EffectiveAdjustment = EReEchoHealthAdjustment::SetToStatPoint;
+	}
+	if (EffectiveAdjustment != EReEchoHealthAdjustment::None)
+	{
+		OnCardHealthCommitted.Broadcast(CurrentBuild.Stats, EffectiveAdjustment);
+	}
+}
+
+EReEchoHealthAdjustment UReEchoRunSubsystem::ReevaluateCoreCollectionCard()
 {
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	if (!Snapshot.IsValid() || !Snapshot->CardCatalog.IsValid())
 	{
-		return;
+		return EReEchoHealthAdjustment::None;
 	}
 	TSet<FName> DistinctCoreIds;
 	for (const FName PartId : OwnedPartIds)
@@ -3943,6 +4005,7 @@ void UReEchoRunSubsystem::ReevaluateCoreCollectionCard()
 		}
 	}
 	FReEchoBuildSnapshot PendingBuild;
+	EReEchoHealthAdjustment HealthAdjustment = EReEchoHealthAdjustment::None;
 	if (TryMutateAuthoritativeBuild(
 	        *Snapshot,
 	        CurrentBuild,
@@ -3952,12 +4015,14 @@ void UReEchoRunSubsystem::ReevaluateCoreCollectionCard()
 		            *Snapshot->CardCatalog, Build.CardState, Build.Stats, DistinctCoreIds.Num());
 		        Build.CardState = Event.CardState;
 		        Build.Stats = Event.Stats;
+		        HealthAdjustment = Event.HealthAdjustment;
 		        return true;
 	        },
 	        PendingBuild))
 	{
 		CurrentBuild = MoveTemp(PendingBuild);
 	}
+	return HealthAdjustment;
 }
 
 bool UReEchoRunSubsystem::TryRefreshWeaponRuneShop(FString& OutError)
@@ -4059,14 +4124,14 @@ bool UReEchoRunSubsystem::TryRefreshShopCardSlot(const int32 Tier, const int32 S
 
 	const int32 NextSequence = CurrentUses + 1;
 	const FName SlotSeedKey(*FString::Printf(TEXT("SHOP_CARD_TIER_%d_SLOT_%d"), Tier, SlotIndex));
-	const FName ReplacementCardId = SelectCardForOfferSlot(
-	    *Snapshot->CardCatalog,
-	    CurrentBuild.CardState,
-	    Tier,
-	    EncounterIndex,
-	    Pack.OfferHistoryCardIds,
-	    BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, NextSequence),
-	    false);
+	const FName ReplacementCardId =
+	    SelectCardForOfferSlot(*Snapshot->CardCatalog,
+	                           CurrentBuild.CardState,
+	                           Tier,
+	                           EncounterIndex,
+	                           Pack.OfferHistoryCardIds,
+	                           BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, NextSequence),
+	                           false);
 	if (ReplacementCardId.IsNone())
 	{
 		OutError = TEXT("No legal unowned same-tier or Easter replacement remains");
@@ -4108,6 +4173,7 @@ bool UReEchoRunSubsystem::CanPurchaseExtraShopCard() const
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(const int32 Tier)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	const FReEchoWeaponPartShopView ShopView = GetWeaponPartShopView();
 	const FReEchoShopCardPackOffer* Offer = ShopView.CardPackOffers.FindByPredicate(
 	    [Tier](const FReEchoShopCardPackOffer& Candidate)
@@ -4166,6 +4232,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	const int32 RequestedSelectableCardCount = FMath::Max(1, ResolvePackSelectableCardCount(Tier));
 
 	FReEchoBuildSnapshot PendingBuild;
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
 	FString MutationDetail = TEXT("The authoritative build rejected the card-pack payment");
 	if (!TryMutateAuthoritativeBuild(
 	        *Snapshot,
@@ -4178,8 +4245,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 			        return false;
 		        }
 		        FReEchoShopCardPackRuntimeState& Pack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
-		        if (Pack.Tier != Tier || Pack.bPaymentCommitted || Pack.bPurchased ||
-		            Pack.RemainingPurchases <= 0)
+		        if (Pack.Tier != Tier || Pack.bPaymentCommitted || Pack.bPurchased || Pack.RemainingPurchases <= 0)
 		        {
 			        MutationDetail = TEXT("The card pack payment state changed before commit");
 			        return false;
@@ -4197,6 +4263,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 		            ReEchoCardRuntime::OnPurchase(*Snapshot->CardCatalog, Build.CardState, Build.Stats);
 		        Build.CardState = Event.CardState;
 		        Build.Stats = Event.Stats;
+		        PendingHealthAdjustment = Event.HealthAdjustment;
 		        return true;
 	        },
 	        PendingBuild))
@@ -4205,6 +4272,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 	}
 	CurrentBuild = MoveTemp(PendingBuild);
 	CommitShopCost(EffectivePrice);
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	ReEchoBuildTrace::LogSnapshot(
 	    TEXT("ShopCardPackPaid"), EncounterIndex, Phase, CurrentBuild, FString::Printf(TEXT("tier=%d"), Tier));
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Card-pack payment committed"), EffectivePrice);
@@ -4213,6 +4281,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopCardPackDetailed(con
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const TArray<FName>& ItemIds)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	// Cadence abilities (the Sage) can let a paid pack hand out two cards. Both are granted inside one
 	// authoritative mutation so the pack closes once, the cadence counter advances once, and the run can
 	// never be left in a pending-choice state with no screen to interact with.
@@ -4357,7 +4426,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 			        }
 			        Build.Stats = Grant.Stats;
 			        Build.CardState = Grant.CardState;
-			        PendingHealthAdjustment = Grant.HealthAdjustment;
+			        PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, Grant.HealthAdjustment);
 			        PendingTimeShards = Grant.TimeShards;
 			        bPendingClearWeaponRunes |= Grant.bClearWeaponRunes;
 			        if (Grant.bClearWeaponRunes)
@@ -4404,7 +4473,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 		OwnedPartIds.Reset();
 		RuneAcquisitionCounts.Reset();
 	}
-	ReevaluateCoreCollectionCard();
+	PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, ReevaluateCoreCollectionCard());
 	for (const FName& ItemId : ItemIds)
 	{
 		InventoryItems.AddUnique(ItemId);
@@ -4414,6 +4483,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 	                              Phase,
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("count=%d"), ItemIds.Num()));
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	return Finish(EReEchoShopPurchaseResult::Succeeded,
 	              FString::Printf(TEXT("Claimed %d choices from the paid card pack"), ItemIds.Num()));
 }
@@ -4421,6 +4491,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoices(const T
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FName ItemId)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	LogShopPurchaseAuditState(TransactionId, ItemId, TEXT("BEFORE"), CaptureShopPurchaseAuditState(*this, Snapshot));
@@ -4473,8 +4544,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	}
 	if (ShopView.CardPackOffers[PackIndex].SelectableCardCount != 1)
 	{
-		return Finish(EReEchoShopPurchaseResult::OfferNotFound,
-		              TEXT("This paid card pack requires multiple choices"));
+		return Finish(EReEchoShopPurchaseResult::OfferNotFound, TEXT("This paid card pack requires multiple choices"));
 	}
 	const FReEchoCardDefinition* ChoiceDefinition = Snapshot->CardCatalog->Find(Choice.CardId);
 	if (ReEchoCardRuntime::HasCard(CurrentBuild.CardState, Choice.CardId) &&
@@ -4523,7 +4593,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 		        }
 		        Build.Stats = Grant.Stats;
 		        Build.CardState = Grant.CardState;
-		        PendingHealthAdjustment = Grant.HealthAdjustment;
+		        PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, Grant.HealthAdjustment);
 		        bPendingClearWeaponRunes |= Grant.bClearWeaponRunes;
 		        if (Grant.bClearWeaponRunes)
 		        {
@@ -4535,30 +4605,30 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 			        return false;
 		        }
 		        FReEchoShopCardPackRuntimeState& ClaimedPack = Build.CardState.Runtime.ShopCardPackStates[PackIndex];
-	        // NOTE: see ApplyTraitCard. The pack closes on the first pick until the multi-select choice
-	        // screen exists; keeping it open without reopening the UI would strand the run.
-	        ClaimedPack.PicksRemaining = 0;
-	        ClaimedPack.bPurchased = true;
-	        {
-		        // Multi-purchase support: if remaining > 1, reset for next purchase cycle
-		        if (ClaimedPack.RemainingPurchases > 1)
+		        // NOTE: see ApplyTraitCard. The pack closes on the first pick until the multi-select choice
+		        // screen exists; keeping it open without reopening the UI would strand the run.
+		        ClaimedPack.PicksRemaining = 0;
+		        ClaimedPack.bPurchased = true;
 		        {
-				ClaimedPack.RemainingPurchases--;
-				// Reset purchase state so this tier can be paid again.
-				ClaimedPack.bPurchased = false;
-				ClaimedPack.bPaymentCommitted = false;
-				// The next purchase generates its candidates against the then-current owned state.
-				ClaimedPack.ClaimCount++;
-				ClaimedPack.CandidateCardIds.Reset();
-				ClaimedPack.OfferHistoryCardIds.Reset();
-				ClaimedPack.SlotRefreshUses.Reset();
-			}
-			else
-			{
-				ClaimedPack.RemainingPurchases = 0; // fully consumed
-			}
-	        } // end of the single-pick pack close
-	        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build, ClaimedPack.Tier) > 0;
+			        // Multi-purchase support: if remaining > 1, reset for next purchase cycle
+			        if (ClaimedPack.RemainingPurchases > 1)
+			        {
+				        ClaimedPack.RemainingPurchases--;
+				        // Reset purchase state so this tier can be paid again.
+				        ClaimedPack.bPurchased = false;
+				        ClaimedPack.bPaymentCommitted = false;
+				        // The next purchase generates its candidates against the then-current owned state.
+				        ClaimedPack.ClaimCount++;
+				        ClaimedPack.CandidateCardIds.Reset();
+				        ClaimedPack.OfferHistoryCardIds.Reset();
+				        ClaimedPack.SlotRefreshUses.Reset();
+			        }
+			        else
+			        {
+				        ClaimedPack.RemainingPurchases = 0; // fully consumed
+			        }
+		        } // end of the single-pick pack close
+		        bPendingBonusTraitChoice = RecordNormalTraitGroupSelection(*Snapshot, Build, ClaimedPack.Tier) > 0;
 		        PendingTimeShards = Grant.TimeShards;
 		        return true;
 	        },
@@ -4578,7 +4648,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 		OwnedPartIds.Reset();
 		RuneAcquisitionCounts.Reset();
 	}
-	ReevaluateCoreCollectionCard();
+	PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, ReevaluateCoreCollectionCard());
 	InventoryItems.AddUnique(ItemId);
 	ReEchoBuildTrace::LogSnapshot(
 	    TEXT("PaidCardGranted"),
@@ -4586,13 +4656,14 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::ClaimPaidShopCardChoice(const FN
 	    Phase,
 	    CurrentBuild,
 	    FString::Printf(TEXT("card=%s item=%s"), *Choice.CardId.ToString(), *ItemId.ToString()));
-	OnCardGrantCommitted.Broadcast(CurrentBuild.Stats, PendingHealthAdjustment);
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	return Finish(EReEchoShopPurchaseResult::Succeeded, TEXT("Paid card choice claimed"));
 }
 
 FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const FName ItemId)
 {
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
+	const FReEchoStatBlock PreviousStats = CurrentBuild.Stats;
 	const FString TransactionId = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = GetRunDataSnapshot();
 	const FReEchoShopPurchaseAuditState BeforeState = CaptureShopPurchaseAuditState(*this, Snapshot);
@@ -4717,6 +4788,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 		                      EffectivePrice);
 	}
 	FReEchoBuildSnapshot PendingBuild;
+	EReEchoHealthAdjustment PendingHealthAdjustment = EReEchoHealthAdjustment::None;
 	FString MutationFailureDetail = TEXT("The authoritative build rejected the purchase mutation");
 	if (!TryMutateAuthoritativeBuild(
 	        *Snapshot,
@@ -4749,6 +4821,7 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 			            ReEchoCardRuntime::OnPurchase(*Snapshot->CardCatalog, BaseBuild.CardState, BaseBuild.Stats);
 			        BaseBuild.CardState = Event.CardState;
 			        BaseBuild.Stats = Event.Stats;
+			        PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, Event.HealthAdjustment);
 		        }
 		        return true;
 	        },
@@ -4831,12 +4904,13 @@ FReEchoShopPurchaseOutcome UReEchoRunSubsystem::PurchaseShopItemDetailed(const F
 	// Subscribers to the balance event must see the final inventory AND consumed-page record.
 	CommitShopCost(EffectivePrice);
 
-	ReevaluateCoreCollectionCard();
+	PendingHealthAdjustment = MergeHealthAdjustments(PendingHealthAdjustment, ReevaluateCoreCollectionCard());
 	ReEchoBuildTrace::LogSnapshot(TEXT("ShopPurchaseCommitted"),
 	                              EncounterIndex,
 	                              Phase,
 	                              CurrentBuild,
 	                              FString::Printf(TEXT("item=%s"), *ItemId.ToString()));
+	CommitCardHealthAdjustment(PreviousStats, PendingHealthAdjustment);
 	return FinishPurchase(EReEchoShopPurchaseResult::Succeeded, CompletionDetail, EffectivePrice);
 }
 
@@ -4885,9 +4959,9 @@ int32 UReEchoRunSubsystem::ResolvePackSelectableCardCount(const int32 CardPackTi
 }
 
 void UReEchoRunSubsystem::RollShopCardPackCandidates(const FReEchoCsvDataSnapshot& SnapshotRef,
-	                                                  FReEchoCardBuildState& CardState,
-	                                                  FReEchoShopCardPackRuntimeState& Pack,
-	                                                  const int32 Tier)
+                                                     FReEchoCardBuildState& CardState,
+                                                     FReEchoShopCardPackRuntimeState& Pack,
+                                                     const int32 Tier)
 {
 	// Candidate generation is part of payment: it observes every card granted earlier in this shop. ClaimCount
 	// keeps repeated purchases independent while the resulting page remains stable until the claim completes.
@@ -4901,15 +4975,15 @@ void UReEchoRunSubsystem::RollShopCardPackCandidates(const FReEchoCsvDataSnapsho
 	constexpr int32 RefreshSequence = 0;
 	for (int32 CandidateIndex = 0; CandidateIndex < ReEchoShopOfferCountPerGroup; ++CandidateIndex)
 	{
-		const FName SlotSeedKey(*FString::Printf(
-		    TEXT("SHOP_CARD_TIER_%d_SLOT_%d_ROLL_%d"), Tier, CandidateIndex, Pack.ClaimCount));
-		const FName SelectedCardId = SelectCardForOfferSlot(
-		    *SnapshotRef.CardCatalog,
-		    CardState,
-		    Tier,
-		    EncounterIndex,
-		    Pack.OfferHistoryCardIds,
-		    BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, RefreshSequence));
+		const FName SlotSeedKey(
+		    *FString::Printf(TEXT("SHOP_CARD_TIER_%d_SLOT_%d_ROLL_%d"), Tier, CandidateIndex, Pack.ClaimCount));
+		const FName SelectedCardId =
+		    SelectCardForOfferSlot(*SnapshotRef.CardCatalog,
+		                           CardState,
+		                           Tier,
+		                           EncounterIndex,
+		                           Pack.OfferHistoryCardIds,
+		                           BuildShopOfferSeed(RunSeed, SlotSeedKey, EncounterIndex, RefreshSequence));
 		if (SelectedCardId.IsNone())
 		{
 			break;
@@ -5014,8 +5088,8 @@ void UReEchoRunSubsystem::ApplyProjectedCardCurrency(const int32 PreviousBalance
 			Remaining -= Repaid;
 			RefreshCurseBankOutcome();
 		}
-		TimeShards = static_cast<int32>(FMath::Min<int64>(
-		    static_cast<int64>(TimeShards) + Remaining, TNumericLimits<int32>::Max()));
+		TimeShards = static_cast<int32>(
+		    FMath::Min<int64>(static_cast<int64>(TimeShards) + Remaining, TNumericLimits<int32>::Max()));
 	}
 	else
 	{
@@ -5283,8 +5357,7 @@ FString UReEchoRunSubsystem::GetSaveSlotPreviewPath(const int32 SlotIndex) const
 	                       FString::Printf(TEXT("ReEchoRunSlot%d.png"), SlotIndex + 1));
 }
 
-const UReEchoRunSaveGame* UReEchoRunSubsystem::LoadValidatedSaveForSlot(const int32 SlotIndex,
-	                                                                    bool& bOutLegacy) const
+const UReEchoRunSaveGame* UReEchoRunSubsystem::LoadValidatedSaveForSlot(const int32 SlotIndex, bool& bOutLegacy) const
 {
 	bOutLegacy = false;
 	if (SlotIndex < 0 || SlotIndex >= SaveSlotCount)
@@ -5335,14 +5408,15 @@ TArray<FReEchoSaveSlotSummary> UReEchoRunSubsystem::GetSaveSlotSummaries() const
 		{
 			Summary.SavedAtUtc = FDateTime(SaveGame->SavedAtUtcTicks);
 		}
-		Summary.PreviewScreenshotPath = SaveGame->PreviewScreenshotFileName.IsEmpty()
-		                                    ? GetSaveSlotPreviewPath(SlotIndex)
-		                                    : FPaths::Combine(FPaths::ProjectSavedDir(),
-		                                                      SaveGame->PreviewScreenshotFileName);
+		Summary.PreviewScreenshotPath =
+		    SaveGame->PreviewScreenshotFileName.IsEmpty()
+		        ? GetSaveSlotPreviewPath(SlotIndex)
+		        : FPaths::Combine(FPaths::ProjectSavedDir(), SaveGame->PreviewScreenshotFileName);
 		if (bLegacy && Summary.SavedAtUtc.GetTicks() == 0)
 		{
 			const FString LegacyPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames/ReEchoRun.sav"));
-			Summary.SavedAtUtc = IFileManager::Get().GetTimeStamp(*LegacyPath) - (FDateTime::Now() - FDateTime::UtcNow());
+			Summary.SavedAtUtc =
+			    IFileManager::Get().GetTimeStamp(*LegacyPath) - (FDateTime::Now() - FDateTime::UtcNow());
 		}
 	}
 	return Result;
@@ -5423,9 +5497,8 @@ void UReEchoRunSubsystem::DeleteSavedRun() const
 
 FString UReEchoRunSubsystem::GetActiveSaveSlotPreviewPath() const
 {
-	return ActiveSaveSlotIndex >= 0 && ActiveSaveSlotIndex < SaveSlotCount
-	           ? GetSaveSlotPreviewPath(ActiveSaveSlotIndex)
-	           : FString();
+	return ActiveSaveSlotIndex >= 0 && ActiveSaveSlotIndex < SaveSlotCount ? GetSaveSlotPreviewPath(ActiveSaveSlotIndex)
+	                                                                       : FString();
 }
 
 bool UReEchoRunSubsystem::WriteActiveSaveSlotPreview(const TArray<uint8>& PngBytes) const
@@ -5457,9 +5530,8 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	UReEchoRunSaveGame* SaveGame = NewObject<UReEchoRunSaveGame>(GetTransientPackage());
 	SaveGame->LogicalSlotIndex = FMath::Max(0, ActiveSaveSlotIndex);
 	SaveGame->SavedAtUtcTicks = FDateTime::UtcNow().GetTicks();
-	SaveGame->PreviewScreenshotFileName =
-	    FPaths::Combine(TEXT("SaveScreenshots"),
-	                    FString::Printf(TEXT("ReEchoRunSlot%d.png"), SaveGame->LogicalSlotIndex + 1));
+	SaveGame->PreviewScreenshotFileName = FPaths::Combine(
+	    TEXT("SaveScreenshots"), FString::Printf(TEXT("ReEchoRunSlot%d.png"), SaveGame->LogicalSlotIndex + 1));
 	SaveGame->EncounterIndex = EncounterIndex;
 	SaveGame->Difficulty = RunDifficulty;
 	SaveGame->SavedPhase = Phase;
@@ -5788,8 +5860,8 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 			const FReEchoCardDefinition* Card = Snapshot->CardCatalog->Find(CardId);
 			const int32 Uses = SaveGame.PendingTraitCardRefreshUses[SlotIndex];
 			if (!Card || !IsCardCompatibleWithPackTier(*Card, FreeTier) || SeenIds.Contains(CardId) ||
-			    !SeenHistoryIds.Contains(CardId) ||
-			    Uses < 0 || !RefreshRule || Uses > RefreshRule->CardSlotRefreshLimit)
+			    !SeenHistoryIds.Contains(CardId) || Uses < 0 || !RefreshRule ||
+			    Uses > RefreshRule->CardSlotRefreshLimit)
 			{
 				return false;
 			}

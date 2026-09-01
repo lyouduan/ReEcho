@@ -1,7 +1,7 @@
 Id,CardId,Order,Trigger,EffectKind,Target,ValueOp,Value,BehaviorId,ParamName,ParamValue
 G_1_01_MOVE,G_1_01,1,OnGrant,StatModifier,MovementSpeed,Add,0.06,Card.StatModifier,None,0
-G_1_02_MAX,G_1_02,1,OnGrant,StatModifier,HpMax,Add,5,Card.StatModifier,None,0
-G_1_02_HEAL,G_1_02,2,OnGrant,InstantRecovery,HpPoint,Add,5,Card.InstantRecovery,None,0
+G_1_02_MAX,G_1_02,1,OnGrant,StatModifier,HpMax,Add,8,Card.StatModifier,None,0
+G_1_02_HEAL,G_1_02,2,OnGrant,InstantRecovery,HpPoint,Add,8,Card.InstantRecovery,None,0
 G_1_03_PATK,G_1_03,1,OnGrant,StatModifier,PhysicalAttack,Add,2,Card.StatModifier,None,0
 G_1_04_EATK,G_1_04,1,OnGrant,StatModifier,ElementalAttack,Add,2,Card.StatModifier,None,0
 G_1_05_CRIT_RATE,G_1_05,1,OnGrant,StatModifier,CriticalRate,Add,0.07,Card.StatModifier,None,0
@@ -20,8 +20,8 @@ G_2_12_CRIT,G_2_12,1,BeforeOutgoingHit,CardBehavior,CriticalEffect,Add,1,Card.El
 G_2_13_HEAL,G_2_13,1,OnReaction,CardBehavior,HpPoint,Add,0.2,Card.ReactionHeal,CooldownSeconds,1
 G_2_14_SUB,G_2_14,1,BeforeIncomingHit,CardBehavior,Damage,Override,0,Card.DamageSubstitution,FreeHitCount,3
 G_2_15_DROP,G_2_15,1,OnGrant,CardBehavior,TimeShards,Multiply,1.5,Card.NextShardDrop,EncounterOffset,1
-G_2_16_DISCOUNT,G_2_16,1,OnCompileRules,CardBehavior,ShopDiscount,Add,0.1,Card.ShopContract,None,0
-G_2_16_PURCHASE,G_2_16,2,OnPurchase,CardBehavior,HpMaxAndPoint,Add,3,Card.ShopContract,None,0
+G_2_16_DISCOUNT,G_2_16,1,OnCompileRules,CardBehavior,ShopDiscount,Add,0.2,Card.ShopContract,None,0
+G_2_16_PURCHASE,G_2_16,2,OnPurchase,CardBehavior,HpMaxAndPoint,Add,2,Card.ShopContract,None,0
 G_2_17_STUN10,G_2_17,1,OnEncounterTick,CardBehavior,Stun,Override,2,Card.EncounterStun,TriggerSeconds,12
 G_2_17_STUN20,G_2_17,2,OnEncounterTick,CardBehavior,Stun,Override,2,Card.EncounterStun,TriggerSeconds,22
 G_3_01_ECHOES,G_3_01,1,OnResolveEchoes,CardBehavior,EchoCount,Override,2,Card.DoubleEcho,None,0
@@ -58,7 +58,7 @@ G_2_20_OVERKILL,G_2_20,1,OnDamageResolved,CardBehavior,HpPoint,Add,0.2,Card.Over
 G_2_29_SELF_RACE,G_2_29,1,OnEncounterEnd,CardBehavior,Damage,Add,0.25,Card.SelfRace,None,0
 G_3_27_OVERKILL,G_3_27,1,OnDamageResolved,CardBehavior,HpPoint,Add,0.5,Card.OverkillHeal,None,0
 G_2_27_STATUS_HEAL,G_2_27,1,OnStatusApplied,CardBehavior,HpPoint,Add,2,Card.NegativeStatusHeal,None,0
-G_2_35_SLIME_HP,G_2_35,1,OnHitResolved,CardBehavior,HpMax,Multiply,2,Card.KillThresholdStatBoost,M_SLIME,100
+G_2_35_SLIME_HP,G_2_35,1,BeforeOutgoingHit,CardBehavior,Status,Add,1,Card.TargetKillCurse,M_SLIME,50
 G_2_36_RABBIT_IMMUNE,G_2_36,1,OnHitResolved,CardBehavior,Damage,Override,1,Card.KillThresholdImmunity,M_RABBIT,20
 G_3_24_RECORD_REACTION,G_3_24,1,OnReaction,CardBehavior,Damage,Add,1,Card.RecordReaction,OtherReactionPenalty,1
 G_2_19_CREDIT,G_2_19,1,OnCompileRules,CardBehavior,ShopCredit,Override,1,Card.CurseBank,InterestRate,0.1
