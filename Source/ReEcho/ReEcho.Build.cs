@@ -29,6 +29,9 @@ public class ReEcho : ModuleRules
             "SlateCore"
         });
         RuntimeDependencies.Add("$(ProjectDir)/Content/Data/*.csv", StagedFileType.NonUFS);
+		RuntimeDependencies.Add("$(ProjectDir)/Content/Data/Difficulty/Party/*.csv", StagedFileType.NonUFS);
+		RuntimeDependencies.Add("$(ProjectDir)/Content/Data/Difficulty/Standard/*.csv", StagedFileType.NonUFS);
+		RuntimeDependencies.Add("$(ProjectDir)/Content/Data/Difficulty/Nightmare/*.csv", StagedFileType.NonUFS);
 		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/EncounterTransitionAlpha.mov", StagedFileType.NonUFS);
 		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/EncounterEndToCardChoiceV2.mov", StagedFileType.NonUFS);
 		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/EncounterTransition/CardChoiceToShop.mov", StagedFileType.NonUFS);

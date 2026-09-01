@@ -1626,6 +1626,7 @@ void AReEchoGameMode::ShowStartMenu()
 	{
 		return;
 	}
+	RunSubsystem->PrepareForStartMenu();
 
 	UReEchoUIFlowCoordinatorSubsystem* UIFlow = GetGameInstance()->GetSubsystem<UReEchoUIFlowCoordinatorSubsystem>();
 	StartMenuWidget =
@@ -1982,7 +1983,12 @@ void AReEchoGameMode::HandleLoadoutConfirmed(const FName CharacterId, const FNam
 		return;
 	}
 
-	RunSubsystem->StartRun(CharacterId, WeaponId);
+	if (!RunSubsystem->StartRun(CharacterId, WeaponId))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ReEchoStartFlow] Run start rejected; selected difficulty data is unavailable."));
+		PostUiEvent(FReEchoAudioEvents::UiError);
+		return;
+	}
 	if (!RunSubsystem->SaveRun())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[ReEchoStartFlow] Initial loadout save failed."));

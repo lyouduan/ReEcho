@@ -19,6 +19,7 @@ bool FReEchoPlayerProgressSaveTest::RunTest(const FString& Parameters)
 	UReEchoPlayerProgressSaveGame* FreshProgress = NewObject<UReEchoPlayerProgressSaveGame>();
 	TestFalse(TEXT("A new account has not viewed Stage01To02 CG"), FreshProgress->bHasViewedStage01To02Cg);
 	FreshProgress->bHasViewedStage01To02Cg = true;
+	FreshProgress->PreferredDifficulty = EReEchoRunDifficulty::Nightmare;
 	TArray<uint8> SerializedProgress;
 	TestTrue(TEXT("Account progress serializes independently from a run slot"),
 	         UGameplayStatics::SaveGameToMemory(FreshProgress, SerializedProgress));
@@ -31,6 +32,9 @@ bool FReEchoPlayerProgressSaveTest::RunTest(const FString& Parameters)
 		          RestoredProgress->SaveVersion,
 		          UReEchoPlayerProgressSaveGame::CurrentSaveVersion);
 		TestTrue(TEXT("Viewed CG state survives serialization"), RestoredProgress->bHasViewedStage01To02Cg);
+		TestEqual(TEXT("Next-run difficulty survives serialization"),
+		          RestoredProgress->PreferredDifficulty,
+		          EReEchoRunDifficulty::Nightmare);
 	}
 	return true;
 }

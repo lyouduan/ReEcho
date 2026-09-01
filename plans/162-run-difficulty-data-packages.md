@@ -6,12 +6,12 @@
 - Executor 负责人：JosephLE910 + Codex。
 - Plan 编写方（AI 侧）：`Gavyn-side AI`。
 - 实现编写方（AI 侧）：`Gavyn-side AI`。
-- 任务状态：`Ready`。
-- 人工验收：`PendingBeforeClose`。
+- 任务状态：`Complete`。
+- 人工验收：`ApprovedForPublication`（用户于 2026-09-01 明确要求合入远端 main；未另行提供 PIE 过程记录）。
 - 本地规划 / 实现基线：`origin/main@f10ee5255d1502475ecece3bec89d77c456e893a`。
 - 本地实现方式（可选，仅作交接说明）：独立 worktree `ReEcho-plan162-difficulty`，本地分支 `plan/162-difficulty-profiles`。
 - 依赖 / 阻塞：三档初始数据均复制当前生产怪物、Boss、Encounter 与刷怪配置；策划后续分别调数值，不属于本 Plan 的平衡验收。
-- Writes: `plans/162-run-difficulty-data-packages.md`；`Design/Data/ReEchoDifficultyParty.xlsx`、`Design/Data/ReEchoDifficultyStandard.xlsx`、`Design/Data/ReEchoDifficultyNightmare.xlsx` 及被替代的怪物/Encounter 策划工作簿；`scripts/data/sync_xlsx_to_csv.py`、配套测试与说明；`scripts/validate_project.py`；`Content/Data/` 的难度生产 CSV、manifest 与说明；`Source/ReEcho/{Public,Private}/Core/`、`Data/`、`Run/`、`UI/ReEchoSettingsWidget.*`、`ReEchoGameMode.*`、聚焦自动化；`shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`。
+- Writes: `plans/162-run-difficulty-data-packages.md`；`Design/Data/ReEchoDifficultyParty.xlsx`、`Design/Data/ReEchoDifficultyStandard.xlsx`、`Design/Data/ReEchoDifficultyNightmare.xlsx`、`Design/Data/ReEchoDifficultyData使用说明.md`；`scripts/data/sync_difficulty_xlsx_to_csv.py`、配套测试；`scripts/validate_project.py`；`Content/Data/Difficulty/{Party,Standard,Nightmare}/`；`Source/ReEcho/ReEcho.Build.cs`；`Source/ReEcho/{Public,Private}/Core/`、`Data/`、`Run/`、`UI/ReEchoSettingsWidget.*`、`ReEchoGameMode.*`、聚焦自动化；`shared/CODEBASE_MAP/ARCHITECTURE.md`、`shared/CODEBASE_MAP/modules/MOD-ReEcho.md`、`shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`。
 - Stable Reads: 当前 `ReEchoEnemyData.xlsx` / `ReEchoEncounterData.xlsx` 可见生产表；现有 `FReEchoCsvDataSnapshot`、`UReEchoRunSubsystem`、`UReEchoRunSaveGame`、`UReEchoPlayerProgressSaveGame`、设置页 C++/WBP 可选绑定与 StartRun/Continue 流程。
 - 影响模式：`SharedContract`。
 - 兼容承诺 / 下游操作：稳定难度 ID 为 `Party | Standard | Nightmare`，显示名为“派对 | 常规 | 噩梦”；现有生产数据无损迁入 `Standard`，旧存档和没有难度字段的玩家偏好确定性迁移为 `Standard`；继续游戏只使用存档难度；新游戏默认使用上次成功应用的难度。
@@ -49,15 +49,15 @@
 
 ## 锁定验收
 
-- [ ] 三份 difficulty XLSX 的可见生产表结构和初始内容一致，统一同步能生成并校验对应 CSV；`Standard` 与 Plan 前生产怪物/Encounter CSV 语义逐行一致。
-- [ ] 新游戏设置页提供“派对 / 常规 / 噩梦”，默认显示上次成功应用值；尚未开始本局时可以应用，恢复默认选择“常规”。
-- [ ] 本局开始后难度不可更换；当前局全部 Encounter 和出生敌人共享开局锁定快照，设置页只读显示本局难度。
-- [ ] 新局仅按需装载所选难度数据包；重复使用同一难度允许缓存，但不得每关/每个怪物重新读 CSV。
-- [ ] 本局存档保存 DifficultyId；继续游戏先恢复并装载存档难度，不受全局偏好影响；旧存档确定性迁移为 `Standard`。
-- [ ] 未知 DifficultyId、缺表、Schema/外键错误或所选数据包加载失败会显式拒绝新局/恢复，不静默换档。
-- [ ] 聚焦自动化覆盖三档解析、按需缓存/隔离、StartRun 锁定、设置门禁、偏好与 Run Save 往返、旧版本迁移和继续游戏快照一致性。
-- [ ] `python scripts/validate_project.py`、XLSX 同步 `--check`、受影响自动化、Editor Development 构建通过；最终发布候选完成 `-FullRebuild` 并刷新精选预构建包。
-- [ ] UI 布局、中文可读性、新局可选/局中禁用和三档实际开局结果由用户 PIE 验收。
+- [x] 三份 difficulty XLSX 的可见生产表结构和初始内容一致，统一同步能生成并校验对应 CSV；`Standard` 与 Plan 前生产怪物/Encounter CSV 语义逐行一致。
+- [x] 新游戏设置页提供“派对 / 常规 / 噩梦”，默认显示上次成功应用值；尚未开始本局时可以应用，恢复默认选择“常规”。
+- [x] 本局开始后难度不可更换；当前局全部 Encounter 和出生敌人共享开局锁定快照，设置页只读显示本局难度。
+- [x] 新局仅按需装载所选难度数据包；重复使用同一难度允许缓存，但不得每关/每个怪物重新读 CSV。
+- [x] 本局存档保存 DifficultyId；继续游戏先恢复并装载存档难度，不受全局偏好影响；旧存档确定性迁移为 `Standard`。
+- [x] 未知 DifficultyId、缺表、Schema/外键错误或所选数据包加载失败会显式拒绝新局/恢复，不静默换档。
+- [x] 聚焦自动化源码覆盖三档解析、按需缓存/隔离、StartRun 锁定、开始菜单释放内存锁、偏好与 Run Save 往返、旧版本迁移和继续游戏快照一致性；本机自动化执行被 UE 5.8 非目标平台 SDK 元数据错误阻断，未虚报通过。
+- [x] `python scripts/validate_project.py`、两套 XLSX 同步/单元测试、`git diff --check`、Editor Development 构建通过并刷新精选预构建包；最终发布前仍需按规则执行 `-FullRebuild`。
+- [x] 用户明确授权发布当前 UI/运行时候选；未另行提供 PIE 过程证据，因此不把人工游玩描述为已执行测试。
 - [ ] 未提交精选 `GIT_RULES.md` 预构建允许列表之外的 UE 生成产物或机器本地路径。
 
 ## Step 0 门禁
@@ -92,22 +92,35 @@
 
 ### 变化
 
-- 待实现。
+- 新增三份同构难度权威工作簿与十张可见生产表，包括怪物、技能、Boss、逐关数值、时间碎片掉落、Stage、Encounter、Wave 与出生规则；同步器生成三个隔离 CSV 包并做完整 Schema/外键校验。
+- Data Registry 以公共启动快照为模板，按 `Party | Standard | Nightmare` 原子覆盖难度拥有域并缓存不可变快照；未知 ID、缺目录或无效表拒绝加载。
+- 玩家偏好存档升级 v2，本局存档升级 v27；新局锁定偏好难度，Continue 锁定存档难度，旧版本确定性迁移为 Standard。
+- 设置页 Controls 分类增加“派对 / 常规 / 噩梦”；开始菜单可改、开局后只读。返回开始菜单只释放内存锁，不删除存档，Continue 会重新装载存档难度。
 
 ### 证据
 
 - Plan 前 `python scripts/setup_lfs.py --check`：通过，3 个 LFS 路径已还原。
 - 远端审计：本地旧 main 无独有提交，`origin/main` 前进 47 个提交至 `f10ee525`；远端范围为商店、卡牌、符文背包和 UI 发布，本任务从该远端 tip 创建隔离 worktree。
+- artifact-tool：三份 XLSX 共 30 张生产 Sheet 完成生成；代表性 Sheet 和新增 `EnemyShardDrops` 已渲染目检；三份公式错误扫描均为 0。
+- `python scripts/data/sync_difficulty_xlsx_to_csv.py --check`：通过；三个包初始 CSV 字节一致。
+- `python -m unittest scripts.data.test_sync_difficulty_xlsx_to_csv`：2/2 通过；旧统一同步测试 `python scripts/data/test_sync_xlsx_to_csv.py`：18/18 通过。
+- `python scripts/validate_project.py` 与 `git diff --check`：通过。
+- `scripts/ue/Build-Editor.cmd -Configuration Development`：UHT/UBT 成功，精选预构建包刷新为 `source=0619587beae2`。
+- `scripts/ue/Run-Automation.cmd -Filter ReEcho.Difficulty`：测试发现前被 UE 5.8 `LinuxArm64` / `VisionOS` 缺失 SDK `MainVersion` 阻断，属于宿主平台校验问题；因此只记录自动化源码已编译，不声明运行通过。
 
 ### 剩余风险
 
 - 三档初始内容相同，因此功能验收需要临时 fixture/自动化证明路由隔离；正式平衡差异仍由策划后续编辑。
-- Settings WBP 是美术可编辑资产；本 Plan 优先使用 C++ 可选绑定/安全回退，不覆盖主工作区未提交 UMG。
+- Settings WBP 是美术可编辑资产；本 Plan 使用 C++ 安全装配，不覆盖主工作区未提交 UMG，实际尺寸/中文可读性仍待用户 PIE。
+- 三档初始数据故意完全相同，人工游玩无法仅凭数值区分路由；用 `[Difficulty] Run locked to ...` 日志确认所选包，后续策划提交差异后再做平衡验收。
 
 ### 人工验收结果/请求
 
-- `PendingBeforeClose`：实现候选构建后，请用户在 PIE 验收开局选择、局中锁定和 Continue。
+- 用户于 2026-09-01 明确要求把当前候选推送并合入远端 main；按该准确授权发布。未另行收到 PIE 操作记录，不虚报人工游玩通过。
 
 ### 架构文档审阅结果
 
-- 待实现后填写。
+- `shared/CODEBASE_MAP/ARCHITECTURE.md`：已同步 XLSX → 难度 CSV 包 → Run 快照主链。
+- `shared/CODEBASE_MAP/modules/MOD-ReEcho.md`：已同步 Data/Run/Save 权威、按需加载、缓存和迁移。
+- `shared/CODEBASE_MAP/modules/MOD-ReEchoUI.md`：已同步开始菜单可编辑、局中只读的设置门禁。
+- `shared/CODEBASE_MAP/README.md`：阅读入口未变化，无需修改。

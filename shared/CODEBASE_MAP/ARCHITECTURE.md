@@ -60,6 +60,7 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
 | 状态/结果 | 权威拥有者 | 其他系统如何使用 |
 |---|---|---|
 | 本局阶段、构筑、背包、Echo 存储与保存 | `UReEchoRunSubsystem` | 发送窄命令、读取摘要，不直接改字段 |
+| 下一局难度偏好 / 本局难度与不可变数据快照 | `UReEchoRunSubsystem` | 设置页只在未开局时写偏好；Encounter、Enemy 与继续游戏只读本局快照 |
 | 当前生命、属性、格挡、元素状态 | `MOD-ReEchoCombat` 的 Combatant/GAS/ElementRuntime | UI/表现读取 Snapshot 或订阅 CombatEvents |
 | 角色能力配置与跨遭遇永久进度 | `MOD-ReEcho/AREA-Data` 的 `CharacterAbilities` 快照与 `AREA-Run/CharacterAbilities` | Run 在类型化生命周期触发；不解释角色描述文本 |
 | 当前缺血角色能力的临时攻击修正 | `MOD-ReEchoCombat` 的 Combatant/GAS | Player Host 将最终 HealthChanged 适配为按来源替换的通用攻击修正；Combat 不认识角色 ID |
@@ -76,16 +77,17 @@ MOD-ReEchoPresentation ─/─→ MOD-ReEcho / MOD-ReEchoEnemies / MOD-ReEchoCom
 ## 数据权威流
 
 ```text
-Design/Data/ReEchoData.xlsx + ReEchoEnemyData.xlsx + ReEchoEncounterData.xlsx + ReEchoAudioEvents.xlsx
-  → scripts/data/sync_xlsx_to_csv.py
-  → Content/Data/*.csv
+Design/Data/ReEchoData.xlsx + ReEchoAudioEvents.xlsx + 三份 ReEchoDifficulty*.xlsx
+  → scripts/data/sync_xlsx_to_csv.py + sync_difficulty_xlsx_to_csv.py
+  → Content/Data/*.csv + Content/Data/Difficulty/{Party,Standard,Nightmare}/*.csv
   → 类型化 CSV Reader / FReEchoCsvDataRegistry
-  → 本局固定的不可变运行时快照
+  → 新局/继续游戏按需加载一次并锁定的不可变运行时快照
 ```
 
 - XLSX 是已迁移领域的策划编辑源；CSV 是可 diff、可打包的运行时源。
 - 角色基础行与角色能力子表分离：`tblCharacters → characters.csv`，`tblCharacterAbilities → character_abilities.csv`；能力逻辑只允许注册行为，旧 Forge 不属于生产契约。
 - Unreal 运行时不读取 XLSX，也不执行表格自由文本。
+- 派对、常规、噩梦是三份同构完整数据包，不通过倍率推导；设置只保存下一局偏好，本局开始后不得重新加载或切换。
 - Behavior、Formula、Effect 与 AttackPattern 通过稳定 ID 映射到注册实现。
 - 已迁移领域的旧玩法 JSON 已从 `Content/Data` 删除并由校验器禁止回归；历史快照只从 Git 读取，不能成为第二事实来源。
 

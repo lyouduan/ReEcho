@@ -2979,6 +2979,19 @@ def validate_xlsx_authoring_sync() -> None:
     if result.returncode != 0:
         fail("XLSX authoring sync check failed:\n" + result.stdout.strip())
 
+    difficulty_sync_script = ROOT / "scripts" / "data" / "sync_difficulty_xlsx_to_csv.py"
+    if not difficulty_sync_script.is_file():
+        fail("missing difficulty XLSX authoring sync script")
+    difficulty_result = subprocess.run(
+        [sys.executable, str(difficulty_sync_script), "--check"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if difficulty_result.returncode != 0:
+        fail("Difficulty XLSX authoring sync check failed:\n" + difficulty_result.stdout.strip())
+
 
 def main() -> int:
     validate_no_legacy_data_json()

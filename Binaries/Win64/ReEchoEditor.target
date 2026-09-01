@@ -30624,6 +30624,126 @@
       "Type": "UFS"
     },
     {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/boss_phases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/encounter_waves.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/encounters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/enemies.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/enemy_combat_stats.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/enemy_shard_drops.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/spawn_policy.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/spawn_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Nightmare/stages.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/boss_phases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/encounter_waves.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/encounters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/enemies.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/enemy_combat_stats.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/enemy_shard_drops.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/spawn_policy.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/spawn_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Party/stages.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/boss_phases.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/encounter_waves.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/encounters.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/enemies.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/enemy_abilities.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/enemy_combat_stats.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/enemy_shard_drops.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/spawn_policy.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/spawn_profiles.csv",
+      "Type": "NonUFS"
+    },
+    {
+      "Path": "$(ProjectDir)/Content/Data/Difficulty/Standard/stages.csv",
+      "Type": "NonUFS"
+    },
+    {
       "Path": "$(ProjectDir)/Content/Data/TestFixtures/CsvRuntime/DuplicateCardEffectOrder/card_effects.csv",
       "Type": "NonUFS"
     },

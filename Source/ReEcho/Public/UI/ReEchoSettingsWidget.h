@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/ReEchoTypes.h"
 #include "Blueprint/UserWidget.h"
 #include "ReEchoSettingsWidget.generated.h"
 
@@ -15,6 +16,7 @@ class UComboBoxString;
 class UImage;
 class UTexture2D;
 class UReEchoAudioService;
+class UReEchoRunSubsystem;
 class UWidget;
 enum class EReEchoAudioBus : uint8;
 
@@ -50,6 +52,8 @@ private:
 	void BindAudioControls();
 	void RefreshAudioControls();
 	void BuildInteractiveSettingsControls();
+	void BuildDifficultyPanel();
+	void RefreshDifficultyControls();
 	void RefreshGraphicsControls();
 	bool UsesCompactAudioLayout() const;
 	void UpdateVolumeVisual(UImage* FillImage, UTextBlock* PercentText, float Value) const;
@@ -57,6 +61,7 @@ private:
 	UComboBoxString* AddComboBoxOverlay(FName ComboName, FName FieldName, FName ValueName, FName ArrowName);
 	USlider* AddSliderOverlay(FName SliderName, FName TrackName);
 	UReEchoAudioService* GetAudioService() const;
+	UReEchoRunSubsystem* GetRunSubsystem() const;
 
 	UFUNCTION()
 	void HandleCategoryClicked(int32 CategoryIndex);
@@ -103,6 +108,8 @@ private:
 	void HandleVSyncChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 	UFUNCTION()
 	void HandleAudioOutputChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION()
+	void HandleDifficultyChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 	UFUNCTION()
 	void HandleBrightnessChanged(float Value);
 	UFUNCTION()
@@ -176,6 +183,9 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsQualityComboBox;
 	UPROPERTY(Transient) TObjectPtr<UComboBoxString> GraphicsVSyncComboBox;
 	UPROPERTY(Transient) TObjectPtr<UComboBoxString> AudioOutputComboBox;
+	UPROPERTY(Transient) TObjectPtr<UComboBoxString> DifficultyComboBox;
+	UPROPERTY(Transient) TObjectPtr<UVerticalBox> DifficultyPanel;
+	UPROPERTY(Transient) TObjectPtr<UTextBlock> DifficultyLabel;
 
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MasterMuteCheckBox;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> MusicMuteCheckBox;
@@ -191,4 +201,5 @@ private:
 	bool bRefreshingGraphicsControls = false;
 	float InitialDisplayGamma = 2.2f;
 	float PendingBrightness = 0.65f;
+	EReEchoRunDifficulty PendingDifficulty = EReEchoRunDifficulty::Standard;
 };

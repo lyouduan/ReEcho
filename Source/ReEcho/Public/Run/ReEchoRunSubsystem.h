@@ -136,7 +136,27 @@ public:
 	TSet<FName> PurchasedWeaponPartOfferIds;
 
 	UFUNCTION(BlueprintCallable)
-	void StartRun(FName CharacterId, FName WeaponId);
+	bool StartRun(FName CharacterId, FName WeaponId);
+
+	/**
+	 * Releases only the in-memory run lock when the player reaches the start menu.
+	 * Persisted run slots remain authoritative and Continue will restore their saved difficulty.
+	 */
+	void PrepareForStartMenu();
+
+	UFUNCTION(BlueprintPure)
+	EReEchoRunDifficulty GetPreferredDifficulty() const { return PreferredDifficulty; }
+
+	UFUNCTION(BlueprintPure)
+	EReEchoRunDifficulty GetRunDifficulty() const { return RunDifficulty; }
+
+	/** Preference editing is available only while the start-menu/new-run context owns no locked snapshot. */
+	UFUNCTION(BlueprintPure)
+	bool CanEditDifficultyPreference() const { return !RunDataSnapshot.IsValid(); }
+
+	/** Persists the next-run preference. Returns false while a run is active or on persistence failure. */
+	UFUNCTION(BlueprintCallable)
+	bool SetPreferredDifficulty(EReEchoRunDifficulty Difficulty);
 
 	bool IsAutomaticAttackMode() const
 	{
@@ -353,6 +373,7 @@ private:
 	FReEchoTimeShardBalance TimeShardBalanceBeforeChange;
 
 	void LoadPlayerProgress();
+	bool SavePlayerProgress() const;
 	FString GetSaveSlotName(int32 SlotIndex) const;
 	FString GetSaveSlotPreviewPath(int32 SlotIndex) const;
 	const UReEchoRunSaveGame* LoadValidatedSaveForSlot(int32 SlotIndex, bool& bOutLegacy) const;
@@ -370,6 +391,12 @@ private:
 
 	UPROPERTY()
 	bool bHasViewedStage01To02Cg = false;
+
+	UPROPERTY()
+	EReEchoRunDifficulty PreferredDifficulty = EReEchoRunDifficulty::Standard;
+
+	UPROPERTY()
+	EReEchoRunDifficulty RunDifficulty = EReEchoRunDifficulty::Standard;
 
 	/** All subsequent automatic saves target this slot. INDEX_NONE means no new run slot was selected yet. */
 	UPROPERTY()

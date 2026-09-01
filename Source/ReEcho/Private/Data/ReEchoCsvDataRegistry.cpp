@@ -59,11 +59,66 @@ constexpr const TCHAR* ElementReactionEffectKind = TEXT("ElementReaction");
 
 FCriticalSection RegistryCriticalSection;
 TSharedPtr<const FReEchoCsvDataSnapshot> PublishedSnapshot;
+TMap<EReEchoRunDifficulty, TSharedPtr<const FReEchoCsvDataSnapshot>> DifficultySnapshots;
 TSet<FName> RegisteredBehaviorIds;
 TSet<FName> RegisteredEffectKinds;
 TSet<FName> RegisteredFormulaIds;
 TSet<FName> RegisteredAttackPatternIds;
 bool bDefaultRegistrationsReady = false;
+
+bool IsSupportedDifficulty(const EReEchoRunDifficulty Difficulty)
+{
+	return Difficulty == EReEchoRunDifficulty::Party || Difficulty == EReEchoRunDifficulty::Standard ||
+	       Difficulty == EReEchoRunDifficulty::Nightmare;
+}
+
+FString DifficultyFolderName(const EReEchoRunDifficulty Difficulty)
+{
+	return ReEchoRunDifficultyId(Difficulty).ToString();
+}
+
+TMap<FString, ReEchoCsv::FManifestEntry> BuildDifficultyManifestEntries()
+{
+	TMap<FString, ReEchoCsv::FManifestEntry> Entries;
+	auto Add = [&Entries](const TCHAR* TableId, const TCHAR* FileName, const TCHAR* PrimaryKey = TEXT("Id"))
+	{
+		ReEchoCsv::FManifestEntry Entry;
+		Entry.TableId = TableId;
+		Entry.FileName = FileName;
+		Entry.PrimaryKey = PrimaryKey;
+		Entry.SchemaVersion = FReEchoCsvDataRegistry::SupportedSchemaVersion;
+		Entries.Add(Entry.TableId, MoveTemp(Entry));
+	};
+	Add(EnemiesTableId, TEXT("enemies.csv"));
+	Add(EnemyAbilitiesTableId, TEXT("enemy_abilities.csv"));
+	Add(BossPhasesTableId, TEXT("boss_phases.csv"));
+	Add(EnemyCombatStatsTableId, TEXT("enemy_combat_stats.csv"));
+	Add(EnemyShardDropsTableId, TEXT("enemy_shard_drops.csv"), TEXT("EncounterIndex"));
+	Add(StagesTableId, TEXT("stages.csv"));
+	Add(EncountersTableId, TEXT("encounters.csv"));
+	Add(EncounterWavesTableId, TEXT("encounter_waves.csv"));
+	Add(SpawnProfilesTableId, TEXT("spawn_profiles.csv"));
+	Add(SpawnPolicyTableId, TEXT("spawn_policy.csv"));
+	return Entries;
+}
+
+void ResetDifficultyOwnedData(FReEchoCsvDataSnapshot& Snapshot)
+{
+	Snapshot.Enemies.Reset();
+	Snapshot.EnemyOrder.Reset();
+	Snapshot.EnemyShardDrops.Reset();
+	Snapshot.EnemyCombatStats.Reset();
+	Snapshot.EnemyCombatStatOrder.Reset();
+	Snapshot.Stages.Reset();
+	Snapshot.StageOrder.Reset();
+	Snapshot.Encounters.Reset();
+	Snapshot.EncounterOrder.Reset();
+	Snapshot.EncounterWaves.Reset();
+	Snapshot.EncounterWaveOrder.Reset();
+	Snapshot.SpawnProfiles.Reset();
+	Snapshot.SpawnProfileOrder.Reset();
+	Snapshot.SpawnPolicies.Reset();
+}
 
 EReEchoCardValueOperation ToCardValueOperation(const EReEchoCsvValueOp Operation)
 {
@@ -1001,6 +1056,7 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(const F
 		{
 			FScopeLock Lock(&RegistryCriticalSection);
 			PublishedSnapshot = Result.Snapshot;
+			DifficultySnapshots.Reset();
 		}
 		ReEchoElementRuntime::PublishRuleSet(CompileElementRuleSet(*Result.Snapshot));
 	}
@@ -1010,6 +1066,76 @@ FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishFromDirectory(const F
 FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadAndPublishDefault()
 {
 	return LoadAndPublishFromDirectory(GetDefaultDataDirectory());
+}
+
+FReEchoCsvLoadResult FReEchoCsvDataRegistry::LoadDifficultySnapshot(const EReEchoRunDifficulty Difficulty)
+{
+	EnsureDefaultRegistrations();
+	FReEchoCsvLoadResult Result;
+	if (!IsSupportedDifficulty(Difficulty))
+	{
+		ReEchoCsv::AddIssue(Result.Issues,
+		                    GetDefaultDataDirectory(),
+		                    1,
+		                    TEXT("Difficulty"),
+		                    TEXT("Unknown run difficulty; no fallback is allowed"));
+		return Result;
+	}
+
+	TSharedPtr<const FReEchoCsvDataSnapshot> BaseSnapshot;
+	{
+		FScopeLock Lock(&RegistryCriticalSection);
+		if (const TSharedPtr<const FReEchoCsvDataSnapshot>* Cached = DifficultySnapshots.Find(Difficulty))
+		{
+			Result.bSuccess = true;
+			Result.Snapshot = *Cached;
+			return Result;
+		}
+		BaseSnapshot = PublishedSnapshot;
+	}
+	if (!BaseSnapshot.IsValid())
+	{
+		ReEchoCsv::AddIssue(Result.Issues,
+		                    GetDefaultDataDirectory(),
+		                    1,
+		                    TEXT("Difficulty"),
+		                    TEXT("Base CSV snapshot is unavailable"));
+		return Result;
+	}
+
+	const FString DifficultyDirectory =
+	    FPaths::Combine(GetDefaultDataDirectory(), TEXT("Difficulty"), DifficultyFolderName(Difficulty));
+	if (!FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*DifficultyDirectory))
+	{
+		ReEchoCsv::AddIssue(Result.Issues,
+		                    DifficultyDirectory,
+		                    1,
+		                    TEXT("Difficulty"),
+		                    TEXT("Selected difficulty package directory is missing"));
+		return Result;
+	}
+
+	TSharedRef<FReEchoCsvDataSnapshot> MutableSnapshot = MakeShared<FReEchoCsvDataSnapshot>(*BaseSnapshot);
+	MutableSnapshot->Difficulty = Difficulty;
+	ResetDifficultyOwnedData(*MutableSnapshot);
+	const TMap<FString, ReEchoCsv::FManifestEntry> ManifestEntries = BuildDifficultyManifestEntries();
+	ReEchoEnemyCsv::ReadTables(DifficultyDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	if (Result.Issues.Num() == 0)
+	{
+		ReEchoEncounterCsv::ReadTables(DifficultyDirectory, ManifestEntries, *MutableSnapshot, Result.Issues);
+	}
+	if (Result.Issues.Num() != 0)
+	{
+		return Result;
+	}
+
+	Result.bSuccess = true;
+	Result.Snapshot = MutableSnapshot;
+	{
+		FScopeLock Lock(&RegistryCriticalSection);
+		DifficultySnapshots.Add(Difficulty, Result.Snapshot);
+	}
+	return Result;
 }
 
 TSharedPtr<const FReEchoCsvDataSnapshot> FReEchoCsvDataRegistry::GetSnapshot()
@@ -1023,6 +1149,7 @@ void FReEchoCsvDataRegistry::ClearPublishedSnapshotForTests()
 	{
 		FScopeLock Lock(&RegistryCriticalSection);
 		PublishedSnapshot.Reset();
+		DifficultySnapshots.Reset();
 	}
 	ReEchoElementRuntime::ClearRuleSetForTests();
 }

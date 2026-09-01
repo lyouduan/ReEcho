@@ -578,6 +578,8 @@ struct REECHO_API FReEchoCsvAttributeRow
 struct REECHO_API FReEchoCsvDataSnapshot
 {
 	int32 SchemaVersion = 0;
+	/** Standard on the boot snapshot; overwritten on immutable run-difficulty overlays. */
+	EReEchoRunDifficulty Difficulty = EReEchoRunDifficulty::Standard;
 	FString CardDomainRevision;
 	FString WeaponDomainRevision;
 	TMap<FName, FReEchoRuntimeSmokeRow> RuntimeSmokeRows;
@@ -683,6 +685,8 @@ public:
 	static FReEchoCsvLoadResult LoadSnapshotFromDirectory(const FString& DataDirectory);
 	static FReEchoCsvLoadResult LoadAndPublishFromDirectory(const FString& DataDirectory);
 	static FReEchoCsvLoadResult LoadAndPublishDefault();
+	/** Loads and caches one complete run-difficulty overlay. Never silently substitutes another difficulty. */
+	static FReEchoCsvLoadResult LoadDifficultySnapshot(EReEchoRunDifficulty Difficulty);
 	static TSharedPtr<const FReEchoCsvDataSnapshot> GetSnapshot();
 	static void ClearPublishedSnapshotForTests();
 

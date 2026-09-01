@@ -25,6 +25,29 @@ enum class EReEchoRunPhase : uint8
 	Failed
 };
 
+/** Stable run-wide difficulty identity. The selected value is locked when a run starts. */
+UENUM(BlueprintType)
+enum class EReEchoRunDifficulty : uint8
+{
+	Party,
+	Standard,
+	Nightmare
+};
+
+inline FName ReEchoRunDifficultyId(const EReEchoRunDifficulty Difficulty)
+{
+	switch (Difficulty)
+	{
+		case EReEchoRunDifficulty::Party:
+			return TEXT("Party");
+		case EReEchoRunDifficulty::Nightmare:
+			return TEXT("Nightmare");
+		case EReEchoRunDifficulty::Standard:
+		default:
+			return TEXT("Standard");
+	}
+}
+
 USTRUCT(BlueprintType)
 
 struct REECHO_API FReEchoEquippedPartSnapshot

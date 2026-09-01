@@ -1,0 +1,6 @@
+Id,EnemyRole,EnemyId,MinAnchorDistanceCm,MaxAnchorDistanceCm,MinSpacingCm,WarningLeadSeconds,DistributionPolicy,SpacingPolicy,Enabled,SourceSheet,SourceRow,Notes
+Spawn.Melee,Melee,M_SLIME,620,820,110,0.8,NormalAroundAnchor,Explicit,true,刷怪规则,9,近战出生参数
+Spawn.Ranged,Ranged,M_RABBIT,750,1000,125,0.8,NormalAroundAnchor,Explicit,true,刷怪规则,10,远程出生参数
+Spawn.Elite,Elite,M_FOX,700,900,200,1,NormalAroundAnchor,Explicit,true,刷怪规则,11,精英出生参数
+Spawn.BossReinforcement,BossReinforcement,M_SLIME,700,950,0,0.9,NormalAroundAnchor,UseEnemyRole,true,刷怪规则,12,默认史莱姆；后续可拆分具体增援波
+Spawn.Boss,Boss,M_SHEEP,700,950,220,0.9,NormalAroundAnchor,Explicit,true,刷怪规则,13,Boss使用双锚动态出生；不再使用固定坐标

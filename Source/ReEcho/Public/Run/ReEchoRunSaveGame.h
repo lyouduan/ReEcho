@@ -13,8 +13,8 @@ class REECHO_API UReEchoRunSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	/** v26 persists consumed rune offers separately from current ownership and synthesis counts. */
-	static constexpr int32 CurrentSaveVersion = 26;
+	/** v27 persists the run-wide locked difficulty. */
+	static constexpr int32 CurrentSaveVersion = 27;
 
 	/** Oldest layout this build can still migrate forward. */
 	static constexpr int32 MinimumSupportedSaveVersion = 4;
@@ -39,6 +39,10 @@ public:
 
 	UPROPERTY(SaveGame)
 	int32 EncounterIndex = 0;
+
+	/** Added in v27. Older archives deterministically migrate to Standard. */
+	UPROPERTY(SaveGame)
+	EReEchoRunDifficulty Difficulty = EReEchoRunDifficulty::Standard;
 
 	UPROPERTY(SaveGame)
 	int32 TimeShards = 0;

@@ -36,6 +36,12 @@ const FString RunSaveSlot = TEXT("ReEchoRun");
 const FString PlayerProgressSaveSlot = TEXT("ReEchoPlayerProgress");
 constexpr int32 RunSaveUserIndex = 0;
 
+bool IsValidRunDifficulty(const EReEchoRunDifficulty Difficulty)
+{
+	return Difficulty == EReEchoRunDifficulty::Party || Difficulty == EReEchoRunDifficulty::Standard ||
+	       Difficulty == EReEchoRunDifficulty::Nightmare;
+}
+
 FString MakeRunSaveSlotName(const int32 SlotIndex)
 {
 	return FString::Printf(TEXT("ReEchoRunSlot%d"), SlotIndex + 1);
@@ -1643,6 +1649,7 @@ void UReEchoRunSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UReEchoRunSubsystem::LoadPlayerProgress()
 {
 	bHasViewedStage01To02Cg = false;
+	PreferredDifficulty = EReEchoRunDifficulty::Standard;
 	const UReEchoPlayerProgressSaveGame* Progress =
 	    Cast<UReEchoPlayerProgressSaveGame>(UGameplayStatics::LoadGameFromSlot(PlayerProgressSaveSlot, RunSaveUserIndex));
 	if (!Progress)
@@ -1655,6 +1662,39 @@ void UReEchoRunSubsystem::LoadPlayerProgress()
 		return;
 	}
 	bHasViewedStage01To02Cg = Progress->bHasViewedStage01To02Cg;
+	if (Progress->SaveVersion >= 2 && IsValidRunDifficulty(Progress->PreferredDifficulty))
+	{
+		PreferredDifficulty = Progress->PreferredDifficulty;
+	}
+}
+
+bool UReEchoRunSubsystem::SavePlayerProgress() const
+{
+	UReEchoPlayerProgressSaveGame* Progress = NewObject<UReEchoPlayerProgressSaveGame>(GetTransientPackage());
+	Progress->bHasViewedStage01To02Cg = bHasViewedStage01To02Cg;
+	Progress->PreferredDifficulty = PreferredDifficulty;
+	if (!UGameplayStatics::SaveGameToSlot(Progress, PlayerProgressSaveSlot, RunSaveUserIndex))
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Player progress could not be persisted."));
+		return false;
+	}
+	return true;
+}
+
+bool UReEchoRunSubsystem::SetPreferredDifficulty(const EReEchoRunDifficulty Difficulty)
+{
+	if (!CanEditDifficultyPreference() || !IsValidRunDifficulty(Difficulty))
+	{
+		return false;
+	}
+	const EReEchoRunDifficulty Previous = PreferredDifficulty;
+	PreferredDifficulty = Difficulty;
+	if (!SavePlayerProgress())
+	{
+		PreferredDifficulty = Previous;
+		return false;
+	}
+	return true;
 }
 
 bool UReEchoRunSubsystem::MarkStage01To02CgViewed()
@@ -1663,14 +1703,13 @@ bool UReEchoRunSubsystem::MarkStage01To02CgViewed()
 	{
 		return true;
 	}
-	UReEchoPlayerProgressSaveGame* Progress = NewObject<UReEchoPlayerProgressSaveGame>(GetTransientPackage());
-	Progress->bHasViewedStage01To02Cg = true;
-	if (!UGameplayStatics::SaveGameToSlot(Progress, PlayerProgressSaveSlot, RunSaveUserIndex))
+	bHasViewedStage01To02Cg = true;
+	if (!SavePlayerProgress())
 	{
+		bHasViewedStage01To02Cg = false;
 		UE_LOG(LogReEcho, Error, TEXT("[Stage01To02CG] watched state could not be persisted; skip remains locked."));
 		return false;
 	}
-	bHasViewedStage01To02Cg = true;
 	UE_LOG(LogReEcho, Display, TEXT("[Stage01To02CG] natural completion persisted account watched state."));
 	return true;
 }
@@ -1681,8 +1720,35 @@ void UReEchoRunSubsystem::SetPhase(const EReEchoRunPhase NewPhase)
 	OnPhaseChanged.Broadcast(Phase);
 }
 
-void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId)
+void UReEchoRunSubsystem::PrepareForStartMenu()
 {
+	RunDataSnapshot.Reset();
+	RunDifficulty = PreferredDifficulty;
+	PendingEncounterResume = {};
+	SetPhase(EReEchoRunPhase::CharacterSelect);
+}
+
+bool UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId)
+{
+	const FReEchoCsvLoadResult DifficultyLoad = FReEchoCsvDataRegistry::LoadDifficultySnapshot(PreferredDifficulty);
+	if (!DifficultyLoad.bSuccess || !DifficultyLoad.Snapshot.IsValid())
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot start %s run: %s"),
+		       *ReEchoRunDifficultyId(PreferredDifficulty).ToString(),
+		       *DifficultyLoad.FormatIssues());
+		return false;
+	}
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = DifficultyLoad.Snapshot;
+	const FReEchoStartRunResolveResult ResolveResult =
+	    ReEchoRunData::ResolveStartingBuildFromSnapshot(Snapshot.Get(), CharacterId, WeaponId);
+	if (!ResolveResult.bSuccess)
+	{
+		UE_LOG(LogReEcho, Error, TEXT("Cannot start run: %s"), *ResolveResult.Error);
+		return false;
+	}
+
 	const FScopedTimeShardBalanceChange BalanceChange(*this);
 	EncounterIndex = 0;
 	TimeShards = 0;
@@ -1711,15 +1777,9 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	CurrentBuild = {};
 	RunDataSnapshot.Reset();
 
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	const FReEchoStartRunResolveResult ResolveResult =
-	    ReEchoRunData::ResolveStartingBuildFromSnapshot(Snapshot.Get(), CharacterId, WeaponId);
-	if (!ResolveResult.bSuccess)
-	{
-		UE_LOG(LogReEcho, Fatal, TEXT("%s"), *ResolveResult.Error);
-	}
 	RequireConfiguredBuild(ResolveResult.Build, TEXT("Cannot start run"));
 	RunDataSnapshot = Snapshot;
+	RunDifficulty = PreferredDifficulty;
 	CurrentBuild = ResolveResult.Build;
 	for (const FReEchoEquippedPartSnapshot& Part : CurrentBuild.EquippedParts)
 	{
@@ -1728,7 +1788,13 @@ void UReEchoRunSubsystem::StartRun(const FName CharacterId, const FName WeaponId
 	}
 	OwnedWeaponIds.Add(CurrentBuild.WeaponId);
 	SetPhase(EReEchoRunPhase::Planning);
+	UE_LOG(LogReEcho,
+	       Display,
+	       TEXT("[Difficulty] Run locked to %s; snapshot=%p"),
+	       *ReEchoRunDifficultyId(RunDifficulty).ToString(),
+	       RunDataSnapshot.Get());
 	ReEchoBuildTrace::LogSnapshot(TEXT("RunStarted"), EncounterIndex, Phase, CurrentBuild);
+	return true;
 }
 
 bool UReEchoRunSubsystem::TryEquipParts(const TArray<FName>& PartIds, FString& OutError)
@@ -5395,6 +5461,7 @@ UReEchoRunSubsystem::CreateSaveSnapshot(const FReEchoEncounterRuntimeState* Enco
 	    FPaths::Combine(TEXT("SaveScreenshots"),
 	                    FString::Printf(TEXT("ReEchoRunSlot%d.png"), SaveGame->LogicalSlotIndex + 1));
 	SaveGame->EncounterIndex = EncounterIndex;
+	SaveGame->Difficulty = RunDifficulty;
 	SaveGame->SavedPhase = Phase;
 	if (Phase == EReEchoRunPhase::Encounter && EncounterRuntimeState && EncounterRuntimeState->bValid)
 	{
@@ -5483,9 +5550,22 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		       SaveGame.EncounterIndex);
 		return false;
 	}
-	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = FReEchoCsvDataRegistry::GetSnapshot();
-	if (!Snapshot.IsValid())
+	const EReEchoRunDifficulty SavedDifficulty =
+	    SaveGame.SaveVersion >= 27 ? SaveGame.Difficulty : EReEchoRunDifficulty::Standard;
+	if (!IsValidRunDifficulty(SavedDifficulty))
 	{
+		UE_LOG(LogReEcho, Error, TEXT("Save contains an unknown run difficulty; restore rejected."));
+		return false;
+	}
+	const FReEchoCsvLoadResult DifficultyLoad = FReEchoCsvDataRegistry::LoadDifficultySnapshot(SavedDifficulty);
+	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = DifficultyLoad.Snapshot;
+	if (!DifficultyLoad.bSuccess || !Snapshot.IsValid())
+	{
+		UE_LOG(LogReEcho,
+		       Error,
+		       TEXT("Cannot restore %s run: %s"),
+		       *ReEchoRunDifficultyId(SavedDifficulty).ToString(),
+		       *DifficultyLoad.FormatIssues());
 		return false;
 	}
 	FReEchoBuildSnapshot NormalizedCurrentBuild;
@@ -5599,6 +5679,7 @@ bool UReEchoRunSubsystem::RestoreSaveSnapshot(const UReEchoRunSaveGame& SaveGame
 		CurrentBuild.CardState.Runtime.AnchorRecordingId = RestoredStorage.TimeAnchorRecording.Id;
 	}
 	RunDataSnapshot = Snapshot;
+	RunDifficulty = SavedDifficulty;
 	InventoryItems = SaveGame.InventoryItems;
 	OwnedPartIds = MoveTemp(NormalizedOwnedParts);
 	RuneAcquisitionCounts =
