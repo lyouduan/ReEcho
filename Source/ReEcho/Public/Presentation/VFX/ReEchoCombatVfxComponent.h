@@ -286,13 +286,15 @@ private:
 	                              const FVector& Location,
 	                              const FVector& Direction,
 	                              bool bAutoDestroy = true,
-	                              bool bActivateImmediately = true) const;
+	                              bool bActivateImmediately = true,
+	                              bool bUseAutoReleasePool = false) const;
 	UNiagaraComponent* SpawnBossBeam(const FReEchoBossIntent& Intent, const FVector& GroundOrigin) const;
 	UNiagaraComponent* SpawnAttached(uint8 SemanticValue,
 	                                 const FVector& Direction,
 	                                 USceneComponent* AttachmentRoot,
 	                                 bool bAutoDestroy = true,
-	                                 float AttackRangeMultiplier = 1.0f) const;
+	                                 float AttackRangeMultiplier = 1.0f,
+	                                 bool bUseAutoReleasePool = false) const;
 	USceneComponent* ResolveBossWeaponVfxRoot() const;
 	USceneComponent* ResolveWeaponAttackVfxRoot() const;
 	USceneComponent* ResolveAttackVfxRoot() const;

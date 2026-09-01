@@ -33,9 +33,15 @@ public:
 	static const TCHAR* GetDamageNumberMaterialPath();
 	/** 美术可编辑的伤害跳字 Blueprint Class 路径。 */
 	static const TCHAR* GetDamageNumberBlueprintClassPath();
+	/** 收集首次进入战斗前需要常驻的跳字类、字体和材质。 */
+	static void GatherPreloadAssetPaths(TArray<FString>& OutPaths);
+#if WITH_DEV_AUTOMATION_TESTS
+	static int32 GetPooledCountForTests(UWorld* World);
+#endif
 
 private:
 	void InitializeDamage(float Damage, const FLinearColor& Color, bool bCritical = false);
+	void ReturnToPool();
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UTextRenderComponent> Text;

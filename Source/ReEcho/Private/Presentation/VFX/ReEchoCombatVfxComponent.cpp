@@ -1273,7 +1273,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
                                                          const FVector& Location,
                                                          const FVector& Direction,
                                                          const bool bAutoDestroy,
-                                                         const bool bActivateImmediately) const
+                                                         const bool bActivateImmediately,
+                                                         const bool bUseAutoReleasePool) const
 {
 	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
@@ -1293,7 +1294,9 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnWorld(const uint8 SemanticVal
 	                                                                           Placement.Scale,
 	                                                                           bAutoDestroy,
 	                                                                           true,
-	                                                                           ENCPoolMethod::None,
+	                                                                           bUseAutoReleasePool
+	                                                                               ? ENCPoolMethod::AutoRelease
+	                                                                               : ENCPoolMethod::None,
 	                                                                           bActivateImmediately);
 	if (Effect)
 	{
@@ -1729,7 +1732,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
                                                             const FVector& Direction,
                                                             USceneComponent* AttachmentRoot,
                                                             const bool bAutoDestroy,
-                                                            const float AttackRangeMultiplier) const
+                                                            const float AttackRangeMultiplier,
+                                                            const bool bUseAutoReleasePool) const
 {
 	const EReEchoCombatVfxSemantic Semantic = static_cast<EReEchoCombatVfxSemantic>(SemanticValue);
 	UNiagaraSystem* System = ResolveSystem(SemanticValue);
@@ -1786,7 +1790,8 @@ UNiagaraComponent* UReEchoCombatVfxComponent::SpawnAttached(const uint8 Semantic
 	                                                 RelativeScale,
 	                                                 EAttachLocation::KeepRelativeOffset,
 	                                                 bAutoDestroy && !(bReverseMelee && !bHasPlayDirectionParameter),
-	                                                 ENCPoolMethod::None,
+	                                                 bUseAutoReleasePool ? ENCPoolMethod::AutoRelease
+	                                                                     : ENCPoolMethod::None,
 	                                                 false);
 	if (Effect)
 	{
@@ -2526,7 +2531,12 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 		// has no weapon impact semantic either, so both paths use a world instance that survives target cleanup.
 		const FVector ImpactLocation = bTargetIsBoss ? BossHurtLocation : Event.WorldLocation;
 		const FVector ImpactDirection = ImpactLocation - Event.SourceWorldLocation;
-		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt), ImpactLocation, ImpactDirection);
+		SpawnWorld(static_cast<uint8>(EReEchoCombatVfxSemantic::EnemyHurt),
+		           ImpactLocation,
+		           ImpactDirection,
+		           true,
+		           true,
+		           true);
 		return;
 	}
 	if (const AReEchoEnemyActor* SourceEnemy = Cast<AReEchoEnemyActor>(Event.Attack.Source.Get());
@@ -2551,10 +2561,10 @@ void UReEchoCombatVfxComponent::HandleHurt(const FReEchoDamageEvent& Event)
 	}
 	if (bTargetIsBoss)
 	{
-		SpawnWorld(static_cast<uint8>(Semantic), BossHurtLocation, FVector::ForwardVector);
+		SpawnWorld(static_cast<uint8>(Semantic), BossHurtLocation, FVector::ForwardVector, true, true, true);
 		return;
 	}
-	SpawnAttached(static_cast<uint8>(Semantic), FVector::ForwardVector, ResolveHurtVfxRoot());
+	SpawnAttached(static_cast<uint8>(Semantic), FVector::ForwardVector, ResolveHurtVfxRoot(), true, 1.0f, true);
 }
 
 void UReEchoCombatVfxComponent::HandleDeath(const FReEchoDamageEvent& Event)

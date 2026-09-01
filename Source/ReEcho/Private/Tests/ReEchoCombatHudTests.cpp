@@ -9,6 +9,7 @@
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Engine/Font.h"
+#include "Engine/World.h"
 #include "Engine/Texture2D.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
@@ -37,6 +38,50 @@
 #endif
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoDamageNumberPoolingTest,
+                                 "ReEcho.UI.CombatHud.DamageNumberPooling",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoDamageNumberPoolingTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::EditorPreview, false);
+	if (!TestNotNull(TEXT("Damage-number pool test creates a world"), World))
+	{
+		return false;
+	}
+	World->AddToRoot();
+	AReEchoDamageNumberActor::SpawnDamageNumber(World, FVector::ZeroVector, 10.0f, FLinearColor::White);
+	TArray<AReEchoDamageNumberActor*> DamageNumbers;
+	for (TObjectIterator<AReEchoDamageNumberActor> It; It; ++It)
+	{
+		if (It->GetWorld() == World)
+		{
+			DamageNumbers.Add(*It);
+		}
+	}
+	TestEqual(TEXT("First damage event creates one actor"), DamageNumbers.Num(), 1);
+	if (DamageNumbers.Num() == 1)
+	{
+		DamageNumbers[0]->Tick(2.0f);
+	}
+	TestEqual(TEXT("Expired damage number returns to its world pool"),
+	          AReEchoDamageNumberActor::GetPooledCountForTests(World),
+	          1);
+	AReEchoDamageNumberActor::SpawnDamageNumber(World, FVector(100.0f, 0.0f, 0.0f), 20.0f, FLinearColor::Red);
+	TestEqual(TEXT("Next damage event reuses the pooled actor"),
+	          AReEchoDamageNumberActor::GetPooledCountForTests(World),
+	          0);
+	int32 ReusedActorCount = 0;
+	for (TObjectIterator<AReEchoDamageNumberActor> It; It; ++It)
+	{
+		ReusedActorCount += It->GetWorld() == World ? 1 : 0;
+	}
+	TestEqual(TEXT("Pooling avoids creating a second actor"), ReusedActorCount, 1);
+	World->DestroyWorld(true);
+	World->RemoveFromRoot();
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoCombatHudFormattingTest,
                                  "ReEcho.UI.CombatHud.Formatting",

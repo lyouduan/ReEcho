@@ -11,6 +11,14 @@ namespace
 {
 /** 暴击跳字基准世界字号，与普通伤害跳字一致。 */
 constexpr float DamageNumberBaseWorldSize = 52.0f;
+
+using FDamageNumberPool = TArray<TWeakObjectPtr<AReEchoDamageNumberActor>>;
+
+TMap<TWeakObjectPtr<UWorld>, FDamageNumberPool>& GetDamageNumberPools()
+{
+	static TMap<TWeakObjectPtr<UWorld>, FDamageNumberPool> Pools;
+	return Pools;
+}
 }
 
 const TCHAR* AReEchoDamageNumberActor::GetDamageNumberFontPath()
@@ -27,6 +35,29 @@ const TCHAR* AReEchoDamageNumberActor::GetDamageNumberBlueprintClassPath()
 {
 	return TEXT("/Game/ReEcho/UI/CombatHud/BP_ReEchoDamageNumber.BP_ReEchoDamageNumber_C");
 }
+
+void AReEchoDamageNumberActor::GatherPreloadAssetPaths(TArray<FString>& OutPaths)
+{
+	OutPaths.Add(GetDamageNumberBlueprintClassPath());
+	OutPaths.Add(GetDamageNumberFontPath());
+	OutPaths.Add(GetDamageNumberMaterialPath());
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+int32 AReEchoDamageNumberActor::GetPooledCountForTests(UWorld* World)
+{
+	const FDamageNumberPool* Pool = GetDamageNumberPools().Find(World);
+	int32 ValidCount = 0;
+	if (Pool)
+	{
+		for (const TWeakObjectPtr<AReEchoDamageNumberActor>& Entry : *Pool)
+		{
+			ValidCount += Entry.IsValid() ? 1 : 0;
+		}
+	}
+	return ValidCount;
+}
+#endif
 
 AReEchoDamageNumberActor::AReEchoDamageNumberActor()
 {
@@ -65,16 +96,44 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
 		return;
 	}
 
-	UClass* DamageNumberClass = LoadClass<AReEchoDamageNumberActor>(nullptr, GetDamageNumberBlueprintClassPath());
+	static TWeakObjectPtr<UClass> CachedDamageNumberClass;
+	UClass* DamageNumberClass = CachedDamageNumberClass.Get();
+	if (!DamageNumberClass)
+	{
+		DamageNumberClass = LoadClass<AReEchoDamageNumberActor>(nullptr, GetDamageNumberBlueprintClassPath());
+		CachedDamageNumberClass = DamageNumberClass;
+	}
 	if (!DamageNumberClass)
 	{
 		DamageNumberClass = StaticClass();
 	}
 
-	AReEchoDamageNumberActor* DamageNumber = World->SpawnActor<AReEchoDamageNumberActor>(
-	    DamageNumberClass, WorldLocation + FVector(0.0f, 0.0f, 95.0f), FRotator::ZeroRotator);
+	AReEchoDamageNumberActor* DamageNumber = nullptr;
+	FDamageNumberPool& Pool = GetDamageNumberPools().FindOrAdd(World);
+	for (int32 Index = Pool.Num() - 1; Index >= 0; --Index)
+	{
+		AReEchoDamageNumberActor* Candidate = Pool[Index].Get();
+		if (!Candidate)
+		{
+			Pool.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			continue;
+		}
+		if (Candidate->IsA(DamageNumberClass))
+		{
+			DamageNumber = Candidate;
+			Pool.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			break;
+		}
+	}
+	const FVector SpawnLocation = WorldLocation + FVector(0.0f, 0.0f, 95.0f);
+	if (!DamageNumber)
+	{
+		DamageNumber = World->SpawnActor<AReEchoDamageNumberActor>(
+		    DamageNumberClass, SpawnLocation, FRotator::ZeroRotator);
+	}
 	if (DamageNumber)
 	{
+		DamageNumber->SetActorLocationAndRotation(SpawnLocation, FRotator::ZeroRotator);
 		DamageNumber->InitializeDamage(Damage, Color, bCritical);
 	}
 }
@@ -82,11 +141,22 @@ void AReEchoDamageNumberActor::SpawnDamageNumber(UWorld* World,
 void AReEchoDamageNumberActor::InitializeDamage(
     const float Damage, const FLinearColor& Color, const bool bCritical)
 {
+	ElapsedTime = 0.0f;
 	InitialColor = Color;
 	const int32 DisplayDamage = FMath::Max(1, FMath::RoundToInt(Damage));
 	Text->SetText(FText::FromString(FString::Printf(TEXT("%d"), DisplayDamage)));
 	Text->SetWorldSize(DamageNumberBaseWorldSize * (bCritical ? CriticalSizeScale : 1.0f));
 	Text->SetTextRenderColor(InitialColor.ToFColor(false));
+	SetActorScale3D(FVector(StartScale));
+	SetActorHiddenInGame(false);
+	SetActorTickEnabled(true);
+}
+
+void AReEchoDamageNumberActor::ReturnToPool()
+{
+	SetActorHiddenInGame(true);
+	SetActorTickEnabled(false);
+	GetDamageNumberPools().FindOrAdd(GetWorld()).AddUnique(this);
 }
 
 void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
@@ -107,6 +177,6 @@ void AReEchoDamageNumberActor::Tick(const float DeltaSeconds)
 
 	if (ElapsedTime >= DisplayDuration)
 	{
-		Destroy();
+		ReturnToPool();
 	}
 }

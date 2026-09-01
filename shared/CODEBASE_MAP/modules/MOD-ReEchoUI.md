@@ -13,6 +13,8 @@
 
 为 UI 工作提供稳定的 `MOD-ReEchoUI` 阅读入口，把页面框架、Widget 代码和 WBP 设计规范路由到同一处。该标识只用于文档组织，不提前声明独立模块、源码迁移或新的依赖拓扑。
 
+伤害数字的 Blueprint Class、字体与半透明材质由 `UReEchoRuntimeAssetPreloader` 在进入首场战斗前统一预加载。运行时跳字 Actor 按 `UWorld` 隔离复用：显示结束后隐藏并停止 Tick，下一次伤害重置位置、计时、颜色、字号和缩放后再次启用；该池只负责表现对象生命周期，不改变伤害值或事件数量。
+
 ## 当前职责与边界
 
 - `UReEchoUIManagerSubsystem` 管理 Screen Class、实例和 Viewport 层级。

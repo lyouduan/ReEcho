@@ -6,6 +6,7 @@
 #include "Presentation/Loading/ReEchoRuntimeAssetPreloader.h"
 #include "Presentation/VFX/ReEchoCombatVfxCatalog.h"
 #include "Presentation/VFX/ReEchoElementReactionVfxCatalog.h"
+#include "UI/ReEchoDamageNumberActor.h"
 #include "Weapons/ReEchoWeaponVisualCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoRuntimeAssetPreloadCatalogTest,
@@ -19,9 +20,11 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 	FReEchoCombatVfxCatalog::GatherPreloadAssetPaths(GatheredPaths);
 	FReEchoElementReactionVfxCatalog::GatherPreloadAssetPaths(GatheredPaths);
 	FReEchoWeaponVisualCatalog::GatherPreloadAssetPaths(GatheredPaths);
+	AReEchoDamageNumberActor::GatherPreloadAssetPaths(GatheredPaths);
 	const TArray<FSoftObjectPath> ExpectedPaths = UReEchoRuntimeAssetPreloader::NormalizeAssetPaths(GatheredPaths);
-	TestEqual(
-	    TEXT("Default preload count matches the three authoritative catalogs"), AssetPaths.Num(), ExpectedPaths.Num());
+	TestEqual(TEXT("Default preload count matches every authoritative presentation provider"),
+	          AssetPaths.Num(),
+	          ExpectedPaths.Num());
 	for (int32 PathIndex = 0; PathIndex < FMath::Min(AssetPaths.Num(), ExpectedPaths.Num()); ++PathIndex)
 	{
 		TestTrue(FString::Printf(TEXT("Default preload path %d preserves authoritative catalog order"), PathIndex),
@@ -35,6 +38,12 @@ bool FReEchoRuntimeAssetPreloadCatalogTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Every preload path is unique"), UniquePaths.Contains(AssetPath));
 		UniquePaths.Add(AssetPath);
 	}
+	TestTrue(TEXT("Damage-number Blueprint class is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(AReEchoDamageNumberActor::GetDamageNumberBlueprintClassPath())));
+	TestTrue(TEXT("Damage-number font is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(AReEchoDamageNumberActor::GetDamageNumberFontPath())));
+	TestTrue(TEXT("Damage-number material is preloaded"),
+	         UniquePaths.Contains(FSoftObjectPath(AReEchoDamageNumberActor::GetDamageNumberMaterialPath())));
 	TestTrue(TEXT("Longsword Niagara is preloaded"),
 	         UniquePaths.Contains(FSoftObjectPath(
 	             TEXT("/Game/VFX/People/Sword/Particle/NS_People_Sword_Attack_01.NS_People_Sword_Attack_01"))));

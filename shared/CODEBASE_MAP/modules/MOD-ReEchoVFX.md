@@ -35,6 +35,8 @@ Boss 变身使用独立的 Charge/Ground/Burst Niagara 实例，复用羊 Skill0
 
 `FReEchoCombatVfxCatalog::GatherPreloadAssetPaths` 枚举全部战斗语义根、Echo 卡牌水草 Aura 和兔子代理纹理/材质。GameInstance 预加载器在菜单阶段异步持有这些 UObject；VFX Component 原同步加载仍是安全回退，加载失败只缺视觉并释放开始门控。
 
+高密度范围伤害的 `PlayerHurt` / `EnemyHurt` 一次性 Niagara 使用引擎 `AutoRelease` 组件池；攻击刀光、持续状态、Boss 技能和其他显式持有生命周期的实例仍保持各自原有管理方式。池化只减少组件反复创建与销毁，不合并命中、不限制表现数量，也不改变伤害事件。
+
 ## 职责与排除项
 
 **负责：**
