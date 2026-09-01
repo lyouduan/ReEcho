@@ -55,9 +55,11 @@ bool FReEchoBossPhase3ConfigOverlayTest::RunTest(const FString& Parameters)
 	    TEXT("Phase3 refills to its programmer-authored health"), Definition.BossPhases[0].PhaseMaxHealth, 500.0f);
 
 	FReEchoEnemyDefinition Other = Definition;
+	// Egao Party: 4/3 turns (phase1 100000 + phase2 50000) into the authored 200000.
+	// (Previously 5.0, which produced 750000 with these ceilings.)
 	TestEqual(TEXT("Phase3 health multiplier comes from programmer DA"),
 	          Definition.BossPhases[0].PreviousPhasesHealthMultiplier,
-	          5.0f);
+	          4.0f / 3.0f);
 	TestEqual(TEXT("Phase3 repeats the ordinary plan five times"), Config->SpawnPlanRepetitions, 5);
 	TestEqual(TEXT("Opening forces three strikes"), Definition.BossPhases[0].OpeningStrikeCount, 3);
 	TestEqual(TEXT("Opening repulse distance"), Definition.BossPhases[0].OpeningRepulseDistanceCm, 200.0f);

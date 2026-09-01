@@ -820,9 +820,11 @@ bool FReEchoCardAndPartShopPageTest::RunTest(const FString& Parameters)
 	          RunSubsystem->PurchaseShopCardPackDetailed(PurchasedCard.Tier).IsSuccess());
 	TestTrue(TEXT("A paid candidate can be claimed"),
 	         RunSubsystem->ClaimPaidShopCardChoice(PurchasedCard.ItemId).IsSuccess());
-	TestEqual(TEXT("Card purchase grants one owned-card slot"),
-	          RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num(),
-	          OwnedBefore + 1);
+	// Egao Party: a claim also hands out 1-5 bonus copies of 样样都通, so the owned set grows by
+	// the chosen card plus that bonus rather than by exactly one.
+	const int32 OwnedAfterClaim = RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Num();
+	TestTrue(TEXT("Card purchase grants the choice plus one to five bonus copies"),
+	         OwnedAfterClaim >= OwnedBefore + 2 && OwnedAfterClaim <= OwnedBefore + 6);
 	TestTrue(TEXT("Granted card id is the selected choice id"),
 	         RunSubsystem->CurrentBuild.CardState.OwnedCardIds.Contains(PurchasedCard.CardId));
 	TestEqual(TEXT("Card claim does not charge again"),

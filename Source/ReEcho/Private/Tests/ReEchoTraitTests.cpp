@@ -443,8 +443,9 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("CSV default weapon is used when none is supplied"),
 	          RunSubsystem->CurrentBuild.WeaponId,
 	          FName(TEXT("W_J_01")));
+	// Egao Party: every character shares the 66 / 16 / 16 baseline (was 22 / 5 / 5 for the Sage).
 	TestEqual(
-	    TEXT("CSV character base physical attack is used"), RunSubsystem->CurrentBuild.Stats.PhysicalAttack, 5.0f);
+	    TEXT("CSV character base physical attack is used"), RunSubsystem->CurrentBuild.Stats.PhysicalAttack, 16.0f);
 
 	const TSharedPtr<const FReEchoCsvDataSnapshot> Snapshot = RunSubsystem->GetRunDataSnapshot();
 	if (!TestTrue(TEXT("Card data snapshot is available"), Snapshot.IsValid() && Snapshot->CardCatalog.IsValid()))

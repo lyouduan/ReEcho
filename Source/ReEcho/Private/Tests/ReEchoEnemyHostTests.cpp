@@ -2168,8 +2168,10 @@ bool FReEchoEnemyHostBossPhase3GMAnimationTest::RunTest(const FString& Parameter
 	TestNotNull(TEXT("Phase3 health contract finds the Phase2 definition"), Phase2Definition);
 	if (Phase2Definition)
 	{
-		const float ExpectedPhase3Health = (Definition.MaxHealth + Phase2Definition->PhaseMaxHealth) * 5.0f;
-		TestEqual(TEXT("Phase3 maximum health is five times the sum of Phase1 and Phase2"),
+		// Egao Party: the multiplier is 4/3 so (100000 + 50000) resolves to the authored 200000.
+		const float ExpectedPhase3Health =
+		    (Definition.MaxHealth + Phase2Definition->PhaseMaxHealth) * (4.0f / 3.0f);
+		TestEqual(TEXT("Phase3 maximum health is the authored multiple of Phase1 and Phase2"),
 		          Sheep->GetCombatantComponent()->Stats.HpMax,
 		          ExpectedPhase3Health);
 		TestEqual(TEXT("Phase3 starts refilled to its summed maximum health"),

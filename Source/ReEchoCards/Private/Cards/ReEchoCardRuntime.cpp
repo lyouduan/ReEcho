@@ -384,6 +384,11 @@ bool ReEchoCardRuntime::HasCard(const FReEchoCardBuildState& State, const FName 
 	return State.OwnedCardIds.Contains(CardId);
 }
 
+bool ReEchoCardRuntime::IsRepeatableCard(const FReEchoCardDefinition& Card)
+{
+	return Card.OfferGroup == TEXT("EasterEgg") || Card.Id == TEXT("G_3_23");
+}
+
 bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
                                  const FReEchoCardBuildState& State,
                                  const FReEchoCardDefinition& Card,
@@ -395,7 +400,9 @@ bool ReEchoCardRuntime::CanOffer(const FReEchoCardCatalog& Catalog,
 	}
 	// Tier-one cards are the repeatable growth pool. Owned tier-two/three cards are one-time acquisitions and
 	// must never return through either the free-draw or shop offer paths.
-	if (HasCard(State, Card.Id) && (Card.Tier != 1 || Card.StackPolicy == TEXT("Unique")))
+	// Egao Party: repeatable cards are exempt so they can be acquired again and again.
+	if (HasCard(State, Card.Id) && (Card.Tier != 1 || Card.StackPolicy == TEXT("Unique")) &&
+	    !IsRepeatableCard(Card))
 	{
 		return false;
 	}
@@ -838,6 +845,24 @@ FReEchoCardGrantResult ReEchoCardRuntime::TryGrantCard(const FReEchoCardCatalog&
 		Result.TimeShards = Input.TimeShards;
 		Result.Error = Error;
 		return Result;
+	}
+
+	// Egao Party: every acquisition also hands out 1-5 extra copies of 样样都通. The bonus copies are
+	// added straight to the owned set instead of going through GrantSingle, so they apply no card
+	// effects and cannot re-trigger this bonus (which would otherwise recurse forever).
+	{
+		const FReEchoCardDefinition* BonusCard = Catalog.Find(TEXT("G_3_23"));
+		if (BonusCard && BonusCard->bEnabled && Input.bRecordOwnership)
+		{
+			FRandomStream BonusRandom(HashCombine(GetTypeHash(Input.RandomSeed),
+			                                      GetTypeHash(Result.CardState.Runtime.RandomSequence++)));
+			const int32 BonusCount = BonusRandom.RandRange(1, 5);
+			for (int32 BonusIndex = 0; BonusIndex < BonusCount; ++BonusIndex)
+			{
+				Result.CardState.OwnedCardIds.Add(BonusCard->Id);
+				Result.GrantedCardIds.Add(BonusCard->Id);
+			}
+		}
 	}
 	const FReEchoCardRuleSnapshot GrantedRules = CompileRules(Catalog, Result.CardState);
 	const float DesiredEchoEfficiency =
@@ -1372,12 +1397,18 @@ FName ReEchoCardRuntime::SelectOfferForSlot(const FReEchoCardCatalog& Catalog,
 	    BuildOfferPool(Catalog, State, TEXT("Trait"), NormalTier, EncounterIndex);
 	TArray<FReEchoCardDefinition> EasterPool =
 	    BuildOfferPool(Catalog, State, TEXT("EasterEgg"), INDEX_NONE, EncounterIndex);
+	// Egao Party: repeatable cards are still filtered by the current page's history so one page
+	// cannot show the same card twice side by side.
 	NormalPool.RemoveAll(
 	    [&](const FReEchoCardDefinition& Candidate)
 	    {
 		    // 与 CanOffer 的拥有判断保持一致：排除历史卡、以及“拥有即不可再发”的卡
 		    // （二阶/三阶已拥有、或一阶 Unique 已拥有）；但保留“一阶可叠加卡已拥有”的情况，
 		    // 使其仍可作为重复发牌/刷新的目标（叠加）。
+		    if (IsRepeatableCard(Candidate))
+		    {
+			    return OfferHistory.Contains(Candidate.Id);
+		    }
 		    return OfferHistory.Contains(Candidate.Id) ||
 		           (HasCard(State, Candidate.Id) &&
 		            (Candidate.Tier != 1 || Candidate.StackPolicy == TEXT("Unique") || bExcludeOwnedNormalCards));
@@ -1385,7 +1416,8 @@ FName ReEchoCardRuntime::SelectOfferForSlot(const FReEchoCardCatalog& Catalog,
 	EasterPool.RemoveAll(
 	    [&](const FReEchoCardDefinition& Candidate)
 	    {
-		    return OfferHistory.Contains(Candidate.Id) || HasCard(State, Candidate.Id);
+		    return OfferHistory.Contains(Candidate.Id) ||
+		           (!IsRepeatableCard(Candidate) && HasCard(State, Candidate.Id));
 	    });
 
 	FRandomStream Random(RandomSeed);

@@ -101,8 +101,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1.0"))
 	float PhaseMaxHealth = 500.0f;
 
+	/**
+	 * Egao Party: phase three resolves to (phase1 + phase2) * this multiplier, so 4/3 lands the
+	 * sheep exactly on the authored 200000 (100000 + 50000). The shipped build used 5.0.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1.0"))
-	float PreviousPhasesHealthMultiplier = 5.0f;
+	float PreviousPhasesHealthMultiplier = 4.0f / 3.0f;
 
 	/** Repeat original ordinary waves, keeping each batch count unchanged. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Phase3", meta = (ClampMin = "1", ClampMax = "20"))

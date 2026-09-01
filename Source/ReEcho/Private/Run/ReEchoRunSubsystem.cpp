@@ -26,7 +26,10 @@ namespace
 {
 constexpr const TCHAR* TraitOfferGroup = TEXT("Trait");
 constexpr const TCHAR* EasterEggOfferGroup = TEXT("EasterEgg");
-constexpr float EasterEggOfferChance = 0.01f;
+/** Egao Party: easter-egg cards are the point of this mode, so they appear ten times as often. */
+constexpr float EasterEggOfferChance = 0.10f;
+
+
 const FName AnyWeaponTypeId = TEXT("Any");
 const FName BonusTraitChoicesRemainingFlag = TEXT("BonusTraitChoicesRemaining");
 const FName NormalTraitSelectionsFlag = TEXT("NormalTraitSelections");
@@ -2692,8 +2695,11 @@ FReEchoWeaponPartShopView UReEchoRunSubsystem::GetWeaponPartShopView()
 					// The cached page remains stable, but an OnGrant effect or another reward can make a
 					// tier-two/three candidate owned after page generation. Never project owned unique cards
 					// back into either shop or free-choice entrances; do not replace them with a reroll here.
+					// Egao Party: easter-egg cards and 样样都通 stack without limit, so an owned copy still
+					// projects and can be picked again.
 					if (ReEchoCardRuntime::HasCard(CurrentBuild.CardState, CardId) &&
-					    (Tier != 1 || Chosen->StackPolicy == TEXT("Unique")))
+					    (Tier != 1 || Chosen->StackPolicy == TEXT("Unique")) &&
+					    !ReEchoCardRuntime::IsRepeatableCard(*Chosen))
 					{
 						continue;
 					}

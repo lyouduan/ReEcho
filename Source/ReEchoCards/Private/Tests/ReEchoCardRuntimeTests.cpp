@@ -1161,8 +1161,9 @@ bool FReEchoEasterCardRuntimeTest::RunTest(const FString&)
 	FReEchoCardBuildState State;
 	State.DomainRevision = Catalog.GetDomainRevision();
 	State.OwnedCardIds = {Swing.Id, Attendance.Id};
-	TestFalse(TEXT("Owned unique tier-zero Easter cards never return to their pool"),
-	          ReEchoCardRuntime::CanOffer(Catalog, State, Swing));
+	// Egao Party: easter-egg cards stack without limit, so an owned copy stays offerable.
+	TestTrue(TEXT("Owned tier-zero Easter cards return to their pool so they can stack"),
+	         ReEchoCardRuntime::CanOffer(Catalog, State, Swing));
 	FReEchoStatBlock Stats;
 	Stats.HpMax = 100.0f;
 	Stats.HpPoint = 50.0f;
@@ -1214,8 +1215,9 @@ bool FReEchoExpectedOutcomeEasterCardTest::RunTest(const FString&)
 	TestEqual(TEXT("The hidden interpretation adds five to every enemy direct attack"),
 	          ReEchoCardRuntime::CompileRules(Catalog, Grant.CardState).EnemyAttackFlatBonus,
 	          5.0f);
-	TestFalse(TEXT("The owned unique Easter card is removed from future offers"),
-	          ReEchoCardRuntime::CanOffer(Catalog, Grant.CardState, Expected));
+	// Egao Party: easter-egg cards repeat, so owning one keeps it offerable.
+	TestTrue(TEXT("The owned Easter card stays offerable so it can be taken again"),
+	         ReEchoCardRuntime::CanOffer(Catalog, Grant.CardState, Expected));
 
 	const FReEchoCardOutcomeState* Outcome = Grant.CardState.Runtime.ResolvedOutcomes.FindByPredicate(
 	    [](const FReEchoCardOutcomeState& Candidate)

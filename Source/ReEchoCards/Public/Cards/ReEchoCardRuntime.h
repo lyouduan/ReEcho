@@ -7,6 +7,11 @@ namespace ReEchoCardRuntime
 REECHOCARDS_API float ApplyValueOperation(float CurrentValue, EReEchoCardValueOperation Operation, float Value);
 REECHOCARDS_API int32 CountOwned(const FReEchoCardBuildState& State, FName CardId);
 REECHOCARDS_API bool HasCard(const FReEchoCardBuildState& State, FName CardId);
+/**
+ * Egao Party: easter-egg cards and 样样都通 stack without limit. Owning a copy must never hide one
+ * from offer generation, refresh or UI projection. Single source of truth so every caller agrees.
+ */
+REECHOCARDS_API bool IsRepeatableCard(const FReEchoCardDefinition& Card);
 REECHOCARDS_API bool CanOffer(const FReEchoCardCatalog& Catalog,
                               const FReEchoCardBuildState& State,
                               const FReEchoCardDefinition& Card,
