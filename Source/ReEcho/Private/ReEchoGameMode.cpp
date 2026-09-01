@@ -4531,7 +4531,7 @@ void AReEchoGameMode::HandleShopCardPackRequested(const int32 Tier)
 	    {
 		    return Candidate.Tier == Tier;
 	    });
-	if (!Pack || !Pack->CanOpenChoices())
+	if (!Pack || !Pack->CanRequestPurchaseOrOpenChoices())
 	{
 		ReEchoUIInteractionAudit::Write(TEXT("CARD_PACK_OPEN_REJECTED"),
 		                                FString::Printf(TEXT("tier=%d reason=%s status=%d candidates=%d"),

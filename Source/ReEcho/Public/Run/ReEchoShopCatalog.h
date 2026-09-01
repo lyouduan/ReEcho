@@ -152,6 +152,13 @@ struct REECHO_API FReEchoShopCardPackOffer
 	{
 		return Status == EReEchoShopCardPackStatus::PaidPendingChoice && !Choices.IsEmpty();
 	}
+
+	bool CanRequestPurchaseOrOpenChoices() const
+	{
+		// Unpaid packs deliberately have no candidates: their choices are rolled inside the payment
+		// transaction. Paid packs may only be reopened after that transaction produced candidates.
+		return IsAvailable() || CanOpenChoices();
+	}
 };
 
 struct REECHO_API FReEchoWeaponSlotShopView

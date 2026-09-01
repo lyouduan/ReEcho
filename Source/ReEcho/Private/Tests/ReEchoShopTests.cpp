@@ -8,6 +8,35 @@
 #include "Cards/ReEchoCardRuntime.h"
 #include "Cards/ReEchoCardTypes.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopCardPackRequestEligibilityTest,
+                                 "ReEcho.Shop.CardPackRequestEligibility",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FReEchoShopCardPackRequestEligibilityTest::RunTest(const FString& Parameters)
+{
+	FReEchoShopCardPackOffer UnpaidPack;
+	UnpaidPack.Status = EReEchoShopCardPackStatus::Available;
+	TestTrue(TEXT("An available unpaid pack can enter payment before candidates are rolled"),
+	         UnpaidPack.Choices.IsEmpty() && UnpaidPack.CanRequestPurchaseOrOpenChoices());
+
+	FReEchoShopCardPackOffer PendingWithoutCandidates = UnpaidPack;
+	PendingWithoutCandidates.Status = EReEchoShopCardPackStatus::PaidPendingChoice;
+	TestFalse(TEXT("A paid pack without candidates cannot open an empty choice screen"),
+	          PendingWithoutCandidates.CanRequestPurchaseOrOpenChoices());
+
+	FReEchoShopCardChoiceOffer Candidate;
+	Candidate.CardId = TEXT("TEST_CARD");
+	PendingWithoutCandidates.Choices.Add(Candidate);
+	TestTrue(TEXT("A paid pack with candidates can reopen its choice screen"),
+	         PendingWithoutCandidates.CanRequestPurchaseOrOpenChoices());
+
+	FReEchoShopCardPackOffer NotOffered;
+	NotOffered.Status = EReEchoShopCardPackStatus::NotOffered;
+	TestFalse(TEXT("A tier that is not offered cannot enter the purchase flow"),
+	          NotOffered.CanRequestPurchaseOrOpenChoices());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReEchoShopPurchaseTest,
                                  "ReEcho.Shop.PurchaseUpdatesInventory",
                                  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
