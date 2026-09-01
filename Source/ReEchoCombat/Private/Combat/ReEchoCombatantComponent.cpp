@@ -122,8 +122,8 @@ void UReEchoCombatantComponent::InitializeFromStats(const FReEchoStatBlock& InSt
 	// from the still-live Gameplay Effects during SyncFromAbilitySystem above.
 	for (const FTransientStatStack& Stack : TransientStatStacks)
 	{
-		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
-		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.AttackSpeed =
+		    FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta, FReEchoStatBlock::MaxAttackSpeedMultiplier);
 		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
 	}
 	CurrentHealth = bFillHealth ? Stats.HpMax : FMath::Min(CurrentHealth, Stats.HpMax);
@@ -443,8 +443,8 @@ void UReEchoCombatantComponent::AddTransientStatModifier(const FName SourceId,
 	// ability-system owners (the player), while Echoes - which have no ability system - stacked correctly.
 	if (!Stack.GameplayEffectHandle.IsValid())
 	{
-		Stats.AttackSpeed = FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta,
-		                            FReEchoStatBlock::MaxAttackSpeedMultiplier);
+		Stats.AttackSpeed =
+		    FMath::Min(Stats.AttackSpeed + Stack.FallbackAttackSpeedDelta, FReEchoStatBlock::MaxAttackSpeedMultiplier);
 		Stats.MovementSpeed += Stack.FallbackMovementSpeedDelta;
 	}
 	RefreshTickState();
@@ -605,6 +605,7 @@ void UReEchoCombatantComponent::SetOverhealCapacityFraction(const float Fraction
 }
 
 bool UReEchoCombatantComponent::ApplyHealthAdjustment(const float NewMaximumHealth,
+                                                      const float NewCurrentHealth,
                                                       const EReEchoHealthAdjustment Adjustment)
 {
 	if (Adjustment == EReEchoHealthAdjustment::None)
@@ -616,7 +617,7 @@ bool UReEchoCombatantComponent::ApplyHealthAdjustment(const float NewMaximumHeal
 	const float ClampedMaximumHealth = FMath::Max(1.0f, NewMaximumHealth);
 	const float AdjustedHealth = Adjustment == EReEchoHealthAdjustment::FillToMax
 	                                 ? ClampedMaximumHealth
-	                                 : FMath::Min(CurrentHealth, ClampedMaximumHealth);
+	                                 : FMath::Clamp(NewCurrentHealth, 0.0f, ClampedMaximumHealth);
 	HealthChangeReason = TEXT("Build");
 	HealthChangeAttack = {};
 	HealthChangeDamageSource = EReEchoDamageSource::Player;

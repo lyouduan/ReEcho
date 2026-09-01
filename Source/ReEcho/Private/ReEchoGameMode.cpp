@@ -1498,8 +1498,8 @@ void AReEchoGameMode::StartPlay()
 	if (UReEchoRunSubsystem* RunSubsystem =
 	        GetGameInstance() ? GetGameInstance()->GetSubsystem<UReEchoRunSubsystem>() : nullptr)
 	{
-		RunSubsystem->OnCardGrantCommitted.RemoveAll(this);
-		RunSubsystem->OnCardGrantCommitted.AddUObject(this, &AReEchoGameMode::HandleCardGrantCommitted);
+		RunSubsystem->OnCardHealthCommitted.RemoveAll(this);
+		RunSubsystem->OnCardHealthCommitted.AddUObject(this, &AReEchoGameMode::HandleCardHealthCommitted);
 	}
 	int32 ArenaSceneCount = 0;
 	for (TActorIterator<AReEchoArenaSceneActor> It(GetWorld()); It; ++It)
@@ -6309,16 +6309,12 @@ void AReEchoGameMode::HandleTraitCardSelected(const FName CardId)
 	}
 }
 
-void AReEchoGameMode::HandleCardGrantCommitted(const FReEchoStatBlock& Stats,
-                                               const EReEchoHealthAdjustment HealthAdjustment)
+void AReEchoGameMode::HandleCardHealthCommitted(const FReEchoStatBlock& Stats,
+                                                const EReEchoHealthAdjustment HealthAdjustment)
 {
 	if (HealthAdjustment != EReEchoHealthAdjustment::None && Player && Player->Combatant)
 	{
-		Player->Combatant->ApplyHealthAdjustment(Stats.HpMax, HealthAdjustment);
-		if (HealthAdjustment == EReEchoHealthAdjustment::SetToStatPoint)
-		{
-			Player->Combatant->RestoreCurrentHealth(Stats.HpPoint);
-		}
+		Player->Combatant->ApplyHealthAdjustment(Stats.HpMax, Stats.HpPoint, HealthAdjustment);
 	}
 }
 

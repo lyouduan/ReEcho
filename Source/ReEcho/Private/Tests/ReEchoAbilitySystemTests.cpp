@@ -170,13 +170,18 @@ bool FReEchoGasHealthAdjustmentTest::RunTest(const FString& Parameters)
 	Fixture.Combatant->AddTransientStatModifier(TEXT("BloodForgingTest"), 0.5f, 0.25f, 10.0f, 1);
 
 	TestTrue(TEXT("Fill-to-maximum adjustment applies"),
-	         Fixture.Combatant->ApplyHealthAdjustment(130.0f, EReEchoHealthAdjustment::FillToMax));
+	         Fixture.Combatant->ApplyHealthAdjustment(130.0f, 40.0f, EReEchoHealthAdjustment::FillToMax));
 	TestEqual(TEXT("Maximum health changes through the authoritative GAS attribute"),
 	          Fixture.Attributes->GetMaxHealth(),
 	          130.0f);
 	TestEqual(
 	    TEXT("Current health fills through the authoritative GAS attribute"), Fixture.Attributes->GetHealth(), 130.0f);
 	TestEqual(TEXT("Combatant compatibility snapshot is synchronized"), Fixture.Combatant->CurrentHealth, 130.0f);
+	TestTrue(TEXT("Exact stat-point adjustment applies in the same atomic interface"),
+	         Fixture.Combatant->ApplyHealthAdjustment(140.0f, 55.0f, EReEchoHealthAdjustment::SetToStatPoint));
+	TestEqual(
+	    TEXT("Exact adjustment commits the requested maximum health"), Fixture.Attributes->GetMaxHealth(), 140.0f);
+	TestEqual(TEXT("Exact adjustment commits the requested current health"), Fixture.Attributes->GetHealth(), 55.0f);
 	TestEqual(TEXT("Health adjustment does not clear transient stat stacks"),
 	          Fixture.Combatant->GetTransientStatStackCount(TEXT("BloodForgingTest")),
 	          1);
@@ -277,9 +282,14 @@ bool FReEchoTransientAttackSpeedStackParityTest::RunTest(const FString& Paramete
 	GasFixture.Combatant->AdvanceTimedRuneEffectsForTests(1000.0f);
 	Echo->AdvanceTimedRuneEffectsForTests(1000.0f);
 
-	TestEqual(TEXT("Ability-system owner returns to base attack speed"), GasFixture.Combatant->Stats.AttackSpeed, 1.0f, 0.001f);
+	TestEqual(TEXT("Ability-system owner returns to base attack speed"),
+	          GasFixture.Combatant->Stats.AttackSpeed,
+	          1.0f,
+	          0.001f);
 	TestEqual(TEXT("Echo returns to base attack speed"), Echo->Stats.AttackSpeed, 1.0f, 0.001f);
-	TestEqual(TEXT("Ability-system owner clears transient stacks"), GasFixture.Combatant->GetTransientStatStackCount(StackSource), 0);
+	TestEqual(TEXT("Ability-system owner clears transient stacks"),
+	          GasFixture.Combatant->GetTransientStatStackCount(StackSource),
+	          0);
 	TestEqual(TEXT("Echo clears transient stacks"), Echo->GetTransientStatStackCount(StackSource), 0);
 	return true;
 }
@@ -316,8 +326,7 @@ bool FReEchoInEncounterRefreshKeepsStatStacksTest::RunTest(const FString& Parame
 		Echo->AddTransientStatModifier(StackSource, BonusFraction, 0.0f, DurationSeconds, MaxStacks);
 	}
 
-	TestTrue(TEXT("Player stacks attack speed before the refresh"),
-	         GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
+	TestTrue(TEXT("Player stacks attack speed before the refresh"), GasFixture.Combatant->Stats.AttackSpeed > 1.0f);
 	TestTrue(TEXT("Echo stacks attack speed before the refresh"), Echo->Stats.AttackSpeed > 1.0f);
 
 	// Mid-encounter refresh, exactly what a kill or an element reaction triggers.
@@ -340,9 +349,8 @@ bool FReEchoInEncounterRefreshKeepsStatStacksTest::RunTest(const FString& Parame
 	TestEqual(TEXT("A full initialization still clears the player stacks"),
 	          GasFixture.Combatant->GetTransientStatStackCount(StackSource),
 	          0);
-	TestEqual(TEXT("A full initialization still clears the Echo stacks"),
-	          Echo->GetTransientStatStackCount(StackSource),
-	          0);
+	TestEqual(
+	    TEXT("A full initialization still clears the Echo stacks"), Echo->GetTransientStatStackCount(StackSource), 0);
 	return true;
 }
 

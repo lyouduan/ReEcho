@@ -484,13 +484,27 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 
 	EReEchoHealthAdjustment CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
 	FReEchoStatBlock CommittedStats;
-	RunSubsystem->OnCardGrantCommitted.AddLambda(
+	RunSubsystem->OnCardHealthCommitted.AddLambda(
 	    [&CommittedHealthAdjustment, &CommittedStats](const FReEchoStatBlock& Stats,
 	                                                  const EReEchoHealthAdjustment HealthAdjustment)
 	    {
 		    CommittedStats = Stats;
 		    CommittedHealthAdjustment = HealthAdjustment;
 	    });
+	const float MaximumHealthBeforeStrength = RunSubsystem->CurrentBuild.Stats.HpMax;
+	const float CurrentHealthBeforeStrength = RunSubsystem->CurrentBuild.Stats.HpPoint;
+	TestTrue(TEXT("Life Strength can be granted through the authoritative Run transaction"),
+	         RunSubsystem->DebugGrantCard(TEXT("G_1_02")));
+	TestEqual(TEXT("Run publishes Life Strength's typed health adjustment after commit"),
+	          CommittedHealthAdjustment,
+	          EReEchoHealthAdjustment::SetToStatPoint);
+	TestEqual(TEXT("Life Strength commits its authored maximum-health increase"),
+	          RunSubsystem->CurrentBuild.Stats.HpMax,
+	          MaximumHealthBeforeStrength + 8.0f);
+	TestEqual(TEXT("Life Strength commits its authored current-health increase"),
+	          RunSubsystem->CurrentBuild.Stats.HpPoint,
+	          CurrentHealthBeforeStrength + 8.0f);
+	CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
 	const float MaximumHealthBeforeForging = RunSubsystem->CurrentBuild.Stats.HpMax;
 	const float ExpectedForgedMaximum = MaximumHealthBeforeForging + RunSubsystem->CurrentBuild.Stats.PhysicalAttack +
 	                                    RunSubsystem->CurrentBuild.Stats.ElementalAttack;
@@ -505,6 +519,23 @@ bool FReEchoTraitCsvEffectsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The committed build health is full"),
 	          RunSubsystem->CurrentBuild.Stats.HpPoint,
 	          RunSubsystem->CurrentBuild.Stats.HpMax);
+
+	RunSubsystem->EncounterIndex = 4;
+	TestTrue(TEXT("Sacrificial Echo can be granted for its authored encounter"),
+	         RunSubsystem->DebugGrantCard(TEXT("G_3_04")));
+	CommittedHealthAdjustment = EReEchoHealthAdjustment::None;
+	const float MaximumHealthBeforeEchoDefeat = RunSubsystem->CurrentBuild.Stats.HpMax;
+	const float CurrentHealthBeforeEchoDefeat = RunSubsystem->CurrentBuild.Stats.HpPoint;
+	RunSubsystem->NotifyCardEchoDefeated();
+	TestEqual(TEXT("Sacrificial Echo defeat commits its authored maximum-health gain"),
+	          RunSubsystem->CurrentBuild.Stats.HpMax,
+	          MaximumHealthBeforeEchoDefeat + 5.0f);
+	TestEqual(TEXT("Sacrificial Echo defeat commits its authored current-health gain"),
+	          RunSubsystem->CurrentBuild.Stats.HpPoint,
+	          CurrentHealthBeforeEchoDefeat + 5.0f);
+	TestEqual(TEXT("Sacrificial Echo defeat publishes the unified health update"),
+	          CommittedHealthAdjustment,
+	          EReEchoHealthAdjustment::SetToStatPoint);
 	return true;
 }
 

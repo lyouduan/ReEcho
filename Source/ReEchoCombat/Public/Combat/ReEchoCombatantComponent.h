@@ -75,9 +75,9 @@ public:
 		return CurrentHealth + Overhealth;
 	}
 
-	/** Atomically applies a permanent maximum-health change and its typed current-health adjustment. */
+	/** Atomically applies a committed build's maximum/current health using the requested reconciliation policy. */
 	UFUNCTION(BlueprintCallable)
-	bool ApplyHealthAdjustment(float NewMaximumHealth, EReEchoHealthAdjustment Adjustment);
+	bool ApplyHealthAdjustment(float NewMaximumHealth, float NewCurrentHealth, EReEchoHealthAdjustment Adjustment);
 	/** Restore serialized health without producing damage/heal feedback or consuming block. */
 	void RestoreCurrentHealth(float SavedHealth);
 
